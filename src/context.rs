@@ -18,9 +18,8 @@ where
     // If this object contains any ArenaObj itself, it must dealloc()
     // all of those sub-objects. This is called when self is deallocated.
     fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context);
-    // Are there pointers to this object from other objects?
-    // This is asserted during dealloc.
-    fn has_references(ptr: Ptr<Self>, ctx: &Context) -> bool;
+    // Remove pointers to this object from other objects
+    fn remove_references(ptr: Ptr<Self>, ctx: &mut Context);
 
     // Allocates object on the arena, given a creator function.
     fn alloc<T: Fn(Ptr<Self>) -> Self>(ctx: &mut Context, f: T) -> Ptr<Self> {
@@ -36,7 +35,7 @@ where
         }
     }
     fn dealloc(ptr: Ptr<Self>, ctx: &mut Context) {
-        debug_assert!(Self::has_references(ptr.clone(), ctx));
+        Self::remove_references(ptr.clone(), ctx);
         Self::dealloc_sub_objects(ptr.clone(), ctx);
         Self::get_arena_mut(ctx).remove(ptr.idx);
     }
@@ -50,10 +49,10 @@ pub struct Ptr<T: ArenaObj> {
 }
 
 impl<'a, T: ArenaObj> Ptr<T> {
-    pub fn deref(&'a self, ctx: &'a Context) -> &'a T {
+    pub fn deref(&self, ctx: &'a Context) -> &'a T {
         T::get_arena(ctx).get(self.idx).unwrap()
     }
-    pub fn deref_mut(&'a self, ctx: &'a mut Context) -> &'a mut T {
+    pub fn deref_mut(&self, ctx: &'a mut Context) -> &'a mut T {
         T::get_arena_mut(ctx).get_mut(self.idx).unwrap()
     }
 }

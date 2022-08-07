@@ -1,8 +1,17 @@
 use std::marker::PhantomData;
 
-use crate::{context::{ArenaObj, Ptr}, use_def_lists::{DefRef, UseRef}, value::Value, operation::Operation};
+use crate::{
+    context::{ArenaObj, Context, Ptr},
+    operation::Operation,
+    use_def_lists::{Def, DefRef, Use, UseRef},
+    value::Value,
+    vec_exns::VecExtns,
+};
 
-pub struct BlockArgument {}
+#[derive(Debug)]
+pub struct BlockArgument {
+    def: Def,
+}
 
 impl Value for BlockArgument {
     fn get_defining_op(&self) -> Option<Ptr<Operation>> {
@@ -25,29 +34,32 @@ impl Value for BlockArgument {
         todo!()
     }
 
-    fn build_defref(&self) -> DefRef {
-        DefRef::BlockArgument {
-            block: self.get_parent_block().unwrap(),
-            arg_idx: self.get_def_index(),
+    fn add_use(&mut self, r#use: UseRef) -> Use {
+        let use_idx = self.def.uses.push_back(r#use);
+        Use {
+            def: DefRef::BlockArgument {
+                block: self.get_parent_block().unwrap(),
+                arg_idx: self.get_def_index(),
+            },
+            use_idx,
         }
     }
 }
 
-pub struct BasicBlock {
-
-}
+#[derive(Debug)]
+pub struct BasicBlock {}
 
 impl ArenaObj for BasicBlock {
-    fn get_arena(ctx: &crate::context::Context) -> &generational_arena::Arena<Self> {
+    fn get_arena(ctx: &Context) -> &generational_arena::Arena<Self> {
         todo!()
     }
-    fn get_arena_mut(ctx: &mut crate::context::Context) -> &mut generational_arena::Arena<Self> {
+    fn get_arena_mut(ctx: &mut Context) -> &mut generational_arena::Arena<Self> {
         todo!()
     }
-    fn dealloc_sub_objects(ptr: crate::context::Ptr<Self>, ctx: &mut crate::context::Context) {
+    fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context) {
         todo!()
     }
-    fn has_references(ptr: crate::context::Ptr<Self>, ctx: &crate::context::Context) -> bool {
+    fn remove_references(ptr: Ptr<Self>, ctx: &mut Context) {
         todo!()
     }
 }
