@@ -19,15 +19,15 @@ pub struct OpResult {
 
 impl Value for OpResult {
     fn get_defining_op(&self) -> Option<Ptr<Operation>> {
-        todo!()
+        Some(self.def_op)
     }
 
-    fn get_parent_block(&self) -> Option<Ptr<BasicBlock>> {
-        todo!()
+    fn get_parent_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
+        self.def_op.deref(ctx).parent_block
     }
 
     fn get_def_index(&self) -> usize {
-        todo!()
+        self.res_idx
     }
 
     fn get_uses(&self) -> &Vec<UseRef> {
@@ -55,6 +55,7 @@ pub struct Operation {
     pub self_ptr: Ptr<Operation>,
     pub results: Vec<OpResult>,
     pub operands: Vec<Operand>,
+    pub parent_block: Option<Ptr<BasicBlock>>,
 }
 
 impl Operation {
@@ -67,6 +68,7 @@ impl Operation {
                 res_idx,
             }),
             operands: vec![],
+            parent_block: None,
         };
         let newop = Self::alloc(ctx, f);
         let operands: Vec<Operand> = operands
@@ -111,6 +113,10 @@ impl ArenaObj for Operation {
     }
     fn remove_references(ptr: Ptr<Self>, ctx: &mut Context) {
         todo!()
+    }
+
+    fn get_self_ptr(&self) -> Ptr<Self> {
+        self.self_ptr
     }
 }
 

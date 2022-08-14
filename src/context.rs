@@ -15,10 +15,13 @@ where
     fn get_arena(ctx: &Context) -> &generational_arena::Arena<Self>;
     // Get the arena that has allocated this object.
     fn get_arena_mut(ctx: &mut Context) -> &mut generational_arena::Arena<Self>;
+    // Get a Ptr to self.
+    fn get_self_ptr(&self) -> Ptr<Self>;
     // If this object contains any ArenaObj itself, it must dealloc()
     // all of those sub-objects. This is called when self is deallocated.
     fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context);
-    // Remove pointers to this object from other objects
+    // Remove pointers to this object from other objects.
+    // Called when self is deallocated.
     fn remove_references(ptr: Ptr<Self>, ctx: &mut Context);
 
     // Allocates object on the arena, given a creator function.

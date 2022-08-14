@@ -11,6 +11,8 @@ use crate::{
 #[derive(Debug)]
 pub struct BlockArgument {
     def: Def,
+    def_block: Ptr<BasicBlock>,
+    arg_idx: usize,
 }
 
 impl Value for BlockArgument {
@@ -18,27 +20,27 @@ impl Value for BlockArgument {
         None
     }
 
-    fn get_parent_block(&self) -> Option<Ptr<BasicBlock>> {
-        todo!()
+    fn get_parent_block(&self, _ctx: &Context) -> Option<Ptr<BasicBlock>> {
+        Some (self.def_block)
     }
 
     fn get_def_index(&self) -> usize {
-        todo!()
+        self.arg_idx
     }
 
     fn get_uses(&self) -> &Vec<UseRef> {
-        todo!()
+        &self.def.uses
     }
 
     fn get_uses_mut(&mut self) -> &mut Vec<UseRef> {
-        todo!()
+        &mut self.def.uses
     }
 
     fn add_use(&mut self, r#use: UseRef) -> Use {
         let use_idx = self.def.uses.push_back(r#use);
         Use {
             def: DefRef::BlockArgument {
-                block: self.get_parent_block().unwrap(),
+                block: self.def_block,
                 arg_idx: self.get_def_index(),
             },
             use_idx,
@@ -47,7 +49,9 @@ impl Value for BlockArgument {
 }
 
 #[derive(Debug)]
-pub struct BasicBlock {}
+pub struct BasicBlock {
+
+}
 
 impl ArenaObj for BasicBlock {
     fn get_arena(ctx: &Context) -> &generational_arena::Arena<Self> {
@@ -60,6 +64,10 @@ impl ArenaObj for BasicBlock {
         todo!()
     }
     fn remove_references(ptr: Ptr<Self>, ctx: &mut Context) {
+        todo!()
+    }
+
+    fn get_self_ptr(&self) -> Ptr<Self> {
         todo!()
     }
 }

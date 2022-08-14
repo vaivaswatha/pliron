@@ -10,7 +10,7 @@ pub trait Value {
     // If this is an OpResult, return the defining Operation.
     fn get_defining_op(&self) -> Option<Ptr<Operation>>;
     // If this is a BlockArgument, or if the defining Operation is in a block.
-    fn get_parent_block(&self) -> Option<Ptr<BasicBlock>>;
+    fn get_parent_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>>;
     // This definition is i'th result of the operation or i'th block argument.
     fn get_def_index(&self) -> usize;
     // Get this value's uses.
