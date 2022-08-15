@@ -3,7 +3,7 @@ use crate::{
     context::{ArenaCell, ArenaObj, Context, Ptr},
     use_def_lists::{Def, DefDescr, Use, UseDescr},
     value::Value,
-    vec_exns::VecExtns,
+    vec_exns::VecExtns, linked_list::LinkedList,
 };
 
 #[derive(Debug)]
@@ -19,7 +19,7 @@ impl Value for OpResult {
     }
 
     fn get_parent_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
-        self.def_op.deref(ctx).parent_block
+        self.def_op.deref(ctx).block_links.parent_block
     }
 
     fn get_def_index(&self) -> usize {
@@ -46,12 +46,64 @@ impl Value for OpResult {
     }
 }
 
+// Links the operation with other operations and the container basic block.
+#[derive(Debug)]
+pub struct BlockLinks {
+    parent_block: Option<Ptr<BasicBlock>>,
+    next_op: Option<Ptr<Operation>>,
+    prev_op: Option<Ptr<Operation>>,
+}
+
+impl BlockLinks {
+    pub fn new_unlinked() -> BlockLinks {
+        BlockLinks {
+            parent_block: None,
+            next_op: None,
+            prev_op: None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Operation {
     pub self_ptr: Ptr<Operation>,
     pub results: Vec<OpResult>,
     pub operands: Vec<Operand>,
-    pub parent_block: Option<Ptr<BasicBlock>>,
+    pub block_links: BlockLinks,
+}
+
+impl PartialEq for Operation {
+    fn eq(&self, other: &Self) -> bool {
+        self.self_ptr == other.self_ptr
+    }
+}
+
+impl LinkedList for Operation {
+    type ContainerType = BasicBlock;
+
+    fn get_next(&self) -> Option<Ptr<Self>> {
+        todo!()
+    }
+
+    fn get_prev(&self) -> Option<Ptr<Self>> {
+        todo!()
+    }
+
+    fn set_next(&mut self, next: Option<Ptr<Self>>) {
+        todo!()
+    }
+
+    fn set_prev(&mut self, prev: Option<Ptr<Self>>) {
+        todo!()
+    }
+
+    fn get_container(&self) -> Option<Ptr<Self::ContainerType>> {
+        todo!()
+    }
+
+    fn set_container(&mut self, container: Option<Ptr<Self::ContainerType>>) {
+        todo!()
+    }
 }
 
 impl Operation {
@@ -64,7 +116,7 @@ impl Operation {
                 res_idx,
             }),
             operands: vec![],
-            parent_block: None,
+            block_links: BlockLinks::new_unlinked(),
         };
         let newop = Self::alloc(ctx, f);
         let operands: Vec<Operand> = operands

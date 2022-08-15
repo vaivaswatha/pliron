@@ -3,7 +3,7 @@ use crate::{
     operation::Operation,
     use_def_lists::{Def, DefDescr, Use, UseDescr},
     value::Value,
-    vec_exns::VecExtns,
+    vec_exns::VecExtns, linked_list::{LinkedList, ContainsLinkedList},
 };
 
 #[derive(Debug)]
@@ -47,8 +47,32 @@ impl Value for BlockArgument {
 }
 
 #[derive(Debug)]
-pub struct BasicBlock {
+struct OpsInBlock {
+    first: Ptr<Operation>,
+    last: Ptr<Operation>,
+}
 
+#[derive(Debug)]
+pub struct BasicBlock {
+    op_list: OpsInBlock,
+}
+
+impl ContainsLinkedList<Operation> for BasicBlock {
+    fn get_head(&self, ctx: &Context) -> Option<Ptr<Operation>> {
+        todo!()
+    }
+
+    fn get_tail(&self, ctx: &Context) -> Option<Ptr<Operation>> {
+        todo!()
+    }
+
+    fn set_head(&mut self, ctx: &Context, head: Option<Ptr<Operation>>) {
+        todo!()
+    }
+
+    fn set_tail(&mut self, ctx: &Context, tail: Option<Ptr<Operation>>) {
+        todo!()
+    }
 }
 
 impl ArenaObj for BasicBlock {
