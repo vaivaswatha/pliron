@@ -9,7 +9,7 @@ use crate::{
 
 // A reference to the definition of a value.
 #[derive(Clone, Copy, Debug)]
-pub enum DefRef {
+pub enum DefDescr {
     OpResult {
         op: Ptr<Operation>,
         res_idx: usize,
@@ -20,7 +20,7 @@ pub enum DefRef {
     },
 }
 
-impl DefRef {
+impl DefDescr {
     pub fn get_value_ref<'a>(&'a self, ctx: &'a Context) -> Ref<'a, dyn Value> {
         match self {
             Self::OpResult { op, res_idx } => {
@@ -49,21 +49,21 @@ impl DefRef {
 #[derive(Clone, Copy, Debug)]
 pub struct Use {
     // Operation result or block argument.
-    pub def: DefRef,
+    pub def: DefDescr,
     // Index in the def's @uses list.
     pub use_idx: usize,
 }
 
 //  A reference to the use of a value.
 #[derive(Clone, Copy, Debug)]
-pub struct UseRef {
+pub struct UseDescr {
     // Uses of a def can only be in an operation.
     pub op: Ptr<Operation>,
     // Used as the i'th operand of op.
     pub opd_idx: usize,
 }
 
-impl UseRef {
+impl UseDescr {
     pub fn get_operand<'a>(&self, ctx: &'a Context) -> Ref<'a, Operand> {
         let op = self.op.deref(ctx);
         Ref::map(op, |opref| opref.get_operand(self.opd_idx).unwrap())
@@ -77,5 +77,5 @@ impl UseRef {
 // A def is a list of its uses.
 #[derive(Debug)]
 pub struct Def {
-    pub uses: Vec<UseRef>,
+    pub uses: Vec<UseDescr>,
 }

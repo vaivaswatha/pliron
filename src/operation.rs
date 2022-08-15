@@ -1,7 +1,7 @@
 use crate::{
     basic_block::BasicBlock,
     context::{ArenaCell, ArenaObj, Context, Ptr},
-    use_def_lists::{Def, DefRef, Use, UseRef},
+    use_def_lists::{Def, DefDescr, Use, UseDescr},
     value::Value,
     vec_exns::VecExtns,
 };
@@ -26,18 +26,18 @@ impl Value for OpResult {
         self.res_idx
     }
 
-    fn get_uses(&self) -> &Vec<UseRef> {
+    fn get_uses(&self) -> &Vec<UseDescr> {
         &self.def.uses
     }
 
-    fn get_uses_mut(&mut self) -> &mut Vec<UseRef> {
+    fn get_uses_mut(&mut self) -> &mut Vec<UseDescr> {
         &mut self.def.uses
     }
 
-    fn add_use(&mut self, r#use: UseRef) -> Use {
+    fn add_use(&mut self, r#use: UseDescr) -> Use {
         let use_idx = self.def.uses.push_back(r#use);
         Use {
-            def: DefRef::OpResult {
+            def: DefDescr::OpResult {
                 op: self.get_defining_op().unwrap(),
                 res_idx: self.get_def_index(),
             },
@@ -55,7 +55,7 @@ pub struct Operation {
 }
 
 impl Operation {
-    pub fn new(ctx: &mut Context, num_results: usize, operands: Vec<DefRef>) -> Ptr<Operation> {
+    pub fn new(ctx: &mut Context, num_results: usize, operands: Vec<DefDescr>) -> Ptr<Operation> {
         let f = |self_ptr: Ptr<Operation>| Operation {
             self_ptr,
             results: Vec::new_init(num_results, |res_idx| OpResult {
@@ -72,7 +72,7 @@ impl Operation {
             .enumerate()
             .map(|(opd_idx, def)| {
                 let mut defval = def.get_value_ref_mut(ctx);
-                let r#use = (*defval).add_use(UseRef { op: newop, opd_idx });
+                let r#use = (*defval).add_use(UseDescr { op: newop, opd_idx });
                 Operand {
                     r#use,
                     opd_idx,
@@ -134,8 +134,8 @@ impl Operand {
         self.user_op
     }
     // Build a UseRef referring to this operand.
-    pub fn build_useref(&self) -> UseRef {
-        UseRef {
+    pub fn build_useref(&self) -> UseDescr {
+        UseDescr {
             op: self.get_user_op(),
             opd_idx: self.get_opd_idx(),
         }

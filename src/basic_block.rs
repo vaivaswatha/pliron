@@ -1,7 +1,7 @@
 use crate::{
     context::{ArenaObj, Context, Ptr, ArenaCell},
     operation::Operation,
-    use_def_lists::{Def, DefRef, Use, UseRef},
+    use_def_lists::{Def, DefDescr, Use, UseDescr},
     value::Value,
     vec_exns::VecExtns,
 };
@@ -26,18 +26,18 @@ impl Value for BlockArgument {
         self.arg_idx
     }
 
-    fn get_uses(&self) -> &Vec<UseRef> {
+    fn get_uses(&self) -> &Vec<UseDescr> {
         &self.def.uses
     }
 
-    fn get_uses_mut(&mut self) -> &mut Vec<UseRef> {
+    fn get_uses_mut(&mut self) -> &mut Vec<UseDescr> {
         &mut self.def.uses
     }
 
-    fn add_use(&mut self, r#use: UseRef) -> Use {
+    fn add_use(&mut self, r#use: UseDescr) -> Use {
         let use_idx = self.def.uses.push_back(r#use);
         Use {
-            def: DefRef::BlockArgument {
+            def: DefDescr::BlockArgument {
                 block: self.def_block,
                 arg_idx: self.get_def_index(),
             },

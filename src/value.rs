@@ -2,7 +2,7 @@ use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
     operation::Operation,
-    use_def_lists::{Use, UseRef},
+    use_def_lists::{Use, UseDescr},
 };
 
 // Container for a Def.
@@ -14,12 +14,12 @@ pub trait Value {
     // This definition is i'th result of the operation or i'th block argument.
     fn get_def_index(&self) -> usize;
     // Get this value's uses.
-    fn get_uses(&self) -> &Vec<UseRef>;
+    fn get_uses(&self) -> &Vec<UseDescr>;
     // Get this value's uses (mut).
-    fn get_uses_mut(&mut self) -> &mut Vec<UseRef>;
+    fn get_uses_mut(&mut self) -> &mut Vec<UseDescr>;
     // Given a UseRef, add it as a use of this value.
     // Returns the new Use that can be used to build an operand.
-    fn add_use(&mut self, r#use: UseRef) -> Use;
+    fn add_use(&mut self, r#use: UseDescr) -> Use;
 
     // Replace all uses of this value with @new_val.
     // When this fn finishes, self will not have any uses.
