@@ -1,3 +1,5 @@
+use std::cell::{Ref, RefMut};
+
 use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
@@ -19,22 +21,22 @@ pub enum DefRef {
 }
 
 impl DefRef {
-    pub fn get_value_ref<'a>(&'a self, ctx: &'a Context) -> &'a dyn Value {
+    pub fn get_value_ref<'a>(&'a self, ctx: &'a Context) -> Ref<'a, dyn Value> {
         match self {
             Self::OpResult { op, res_idx } => {
                 let op = op.deref(ctx);
-                op.get_result(*res_idx).unwrap()
+                Ref::map(op, |opref| opref.get_result(*res_idx).unwrap())
             }
             Self::BlockArgument { block, arg_idx } => {
                 todo!()
             }
         }
     }
-    pub fn get_value_ref_mut<'a>(&self, ctx: &'a mut Context) -> &'a mut dyn Value {
+    pub fn get_value_ref_mut<'a>(&'a self, ctx: &'a Context) -> RefMut<'a, dyn Value> {
         match self {
             Self::OpResult { op, res_idx } => {
                 let op = op.deref_mut(ctx);
-                op.get_result_mut(*res_idx).unwrap()
+                RefMut::map(op, |opref| opref.get_result_mut(*res_idx).unwrap())
             }
             Self::BlockArgument { block, arg_idx } => {
                 todo!()
@@ -62,14 +64,13 @@ pub struct UseRef {
 }
 
 impl UseRef {
-    pub fn get_operand<'a>(&self, ctx: &'a Context) -> &'a Operand {
-        self.op.deref(ctx).get_operand(self.opd_idx).unwrap()
+    pub fn get_operand<'a>(&self, ctx: &'a Context) -> Ref<'a, Operand> {
+        let op = self.op.deref(ctx);
+        Ref::map(op, |opref| opref.get_operand(self.opd_idx).unwrap())
     }
-    pub fn get_operand_mut<'a>(&self, ctx: &'a mut Context) -> &'a mut Operand {
-        self.op
-            .deref_mut(ctx)
-            .get_operand_mut(self.opd_idx)
-            .unwrap()
+    pub fn get_operand_mut<'a>(&self, ctx: &'a Context) -> RefMut<'a, Operand> {
+        let op = self.op.deref_mut(ctx);
+        RefMut::map(op, |opref| opref.get_operand_mut(self.opd_idx).unwrap())
     }
 }
 

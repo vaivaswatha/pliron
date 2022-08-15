@@ -1,10 +1,6 @@
-use std::marker::PhantomData;
-
-use generational_arena;
-
 use crate::{
     basic_block::BasicBlock,
-    context::{ArenaObj, Context, Ptr},
+    context::{ArenaCell, ArenaObj, Context, Ptr},
     use_def_lists::{Def, DefRef, Use, UseRef},
     value::Value,
     vec_exns::VecExtns,
@@ -75,8 +71,8 @@ impl Operation {
             .iter()
             .enumerate()
             .map(|(opd_idx, def)| {
-                let defval = def.get_value_ref_mut(ctx);
-                let r#use = defval.add_use(UseRef { op: newop, opd_idx });
+                let mut defval = def.get_value_ref_mut(ctx);
+                let r#use = (*defval).add_use(UseRef { op: newop, opd_idx });
                 Operand {
                     r#use,
                     opd_idx,
@@ -87,10 +83,10 @@ impl Operation {
         newop.deref_mut(ctx).operands = operands;
         newop
     }
-    pub fn get_result<'a>(&'a self, idx: usize) -> Option<&OpResult> {
+    pub fn get_result<'a>(&'a self, idx: usize) -> Option<&'a OpResult> {
         self.results.get(idx)
     }
-    pub fn get_result_mut<'a>(&'a mut self, idx: usize) -> Option<&mut OpResult> {
+    pub fn get_result_mut<'a>(&'a mut self, idx: usize) -> Option<&'a mut OpResult> {
         self.results.get_mut(idx)
     }
     pub fn get_operand(&self, opd_idx: usize) -> Option<&Operand> {
@@ -102,10 +98,10 @@ impl Operation {
 }
 
 impl ArenaObj for Operation {
-    fn get_arena(ctx: &Context) -> &generational_arena::Arena<Self> {
+    fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
         &ctx.operations
     }
-    fn get_arena_mut(ctx: &mut Context) -> &mut generational_arena::Arena<Self> {
+    fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
         &mut ctx.operations
     }
     fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context) {

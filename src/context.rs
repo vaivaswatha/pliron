@@ -1,9 +1,14 @@
 use crate::operation::Operation;
-use std::marker::PhantomData;
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    marker::PhantomData,
+};
+
+pub type ArenaCell<T> = generational_arena::Arena<RefCell<T>>;
 
 pub struct Context {
     // Allocation pool for Operations.
-    pub operations: generational_arena::Arena<Operation>,
+    pub operations: ArenaCell<Operation>,
 }
 
 /// An IR object owned by Context
@@ -12,9 +17,9 @@ where
     Self: Sized,
 {
     // Get the arena that has allocated this object.
-    fn get_arena(ctx: &Context) -> &generational_arena::Arena<Self>;
+    fn get_arena(ctx: &Context) -> &ArenaCell<Self>;
     // Get the arena that has allocated this object.
-    fn get_arena_mut(ctx: &mut Context) -> &mut generational_arena::Arena<Self>;
+    fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self>;
     // Get a Ptr to self.
     fn get_self_ptr(&self) -> Ptr<Self>;
     // If this object contains any ArenaObj itself, it must dealloc()
@@ -27,10 +32,11 @@ where
     // Allocates object on the arena, given a creator function.
     fn alloc<T: Fn(Ptr<Self>) -> Self>(ctx: &mut Context, f: T) -> Ptr<Self> {
         let creator = |idx: generational_arena::Index| {
-            f(Ptr::<Self> {
+            let t = f(Ptr::<Self> {
                 idx,
                 _dummy: PhantomData::<Self>,
-            })
+            });
+            RefCell::new(t)
         };
         Ptr::<Self> {
             idx: Self::get_arena_mut(ctx).insert_with(creator),
@@ -52,11 +58,11 @@ pub struct Ptr<T: ArenaObj> {
 }
 
 impl<'a, T: ArenaObj> Ptr<T> {
-    pub fn deref(&self, ctx: &'a Context) -> &'a T {
-        T::get_arena(ctx).get(self.idx).unwrap()
+    pub fn deref(&self, ctx: &'a Context) -> Ref<'a, T> {
+        T::get_arena(ctx).get(self.idx).unwrap().borrow()
     }
-    pub fn deref_mut(&self, ctx: &'a mut Context) -> &'a mut T {
-        T::get_arena_mut(ctx).get_mut(self.idx).unwrap()
+    pub fn deref_mut(&self, ctx: &'a Context) -> RefMut<'a, T> {
+        T::get_arena(ctx).get(self.idx).unwrap().borrow_mut()
     }
 }
 

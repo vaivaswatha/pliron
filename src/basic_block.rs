@@ -1,7 +1,5 @@
-use std::marker::PhantomData;
-
 use crate::{
-    context::{ArenaObj, Context, Ptr},
+    context::{ArenaObj, Context, Ptr, ArenaCell},
     operation::Operation,
     use_def_lists::{Def, DefRef, Use, UseRef},
     value::Value,
@@ -54,10 +52,10 @@ pub struct BasicBlock {
 }
 
 impl ArenaObj for BasicBlock {
-    fn get_arena(ctx: &Context) -> &generational_arena::Arena<Self> {
+    fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
         todo!()
     }
-    fn get_arena_mut(ctx: &mut Context) -> &mut generational_arena::Arena<Self> {
+    fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
         todo!()
     }
     fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context) {
