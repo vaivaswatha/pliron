@@ -1,9 +1,10 @@
 use crate::{
     basic_block::BasicBlock,
     context::{ArenaCell, ArenaObj, Context, Ptr},
+    linked_list::LinkedList,
     use_def_lists::{Def, DefDescr, Use, UseDescr},
     value::Value,
-    vec_exns::VecExtns, linked_list::LinkedList,
+    vec_exns::VecExtns,
 };
 
 #[derive(Debug)]
@@ -49,9 +50,9 @@ impl Value for OpResult {
 // Links the operation with other operations and the container basic block.
 #[derive(Debug)]
 pub struct BlockLinks {
-    parent_block: Option<Ptr<BasicBlock>>,
-    next_op: Option<Ptr<Operation>>,
-    prev_op: Option<Ptr<Operation>>,
+    pub parent_block: Option<Ptr<BasicBlock>>,
+    pub next_op: Option<Ptr<Operation>>,
+    pub prev_op: Option<Ptr<Operation>>,
 }
 
 impl BlockLinks {
@@ -82,27 +83,27 @@ impl LinkedList for Operation {
     type ContainerType = BasicBlock;
 
     fn get_next(&self) -> Option<Ptr<Self>> {
-        todo!()
+        self.block_links.next_op
     }
 
     fn get_prev(&self) -> Option<Ptr<Self>> {
-        todo!()
+        self.block_links.prev_op
     }
 
     fn set_next(&mut self, next: Option<Ptr<Self>>) {
-        todo!()
+        self.block_links.next_op = next;
     }
 
     fn set_prev(&mut self, prev: Option<Ptr<Self>>) {
-        todo!()
+        self.block_links.prev_op = prev;
     }
 
-    fn get_container(&self) -> Option<Ptr<Self::ContainerType>> {
-        todo!()
+    fn get_container(&self) -> Option<Ptr<BasicBlock>> {
+        self.block_links.parent_block
     }
 
-    fn set_container(&mut self, container: Option<Ptr<Self::ContainerType>>) {
-        todo!()
+    fn set_container(&mut self, container: Option<Ptr<BasicBlock>>) {
+        self.block_links.parent_block = container;
     }
 }
 
@@ -160,9 +161,11 @@ impl ArenaObj for Operation {
         todo!()
     }
     fn remove_references(ptr: Ptr<Self>, ctx: &mut Context) {
-        todo!()
+        // Unlink from parent block, if there's one.
+        if ptr.deref(ctx).block_links.parent_block.is_some() {
+            ptr.deref_mut(ctx).remove(ctx);
+        }
     }
-
     fn get_self_ptr(&self) -> Ptr<Self> {
         self.self_ptr
     }

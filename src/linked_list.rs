@@ -136,4 +136,35 @@ pub trait LinkedList: ArenaObj + PartialEq {
         container_ref.set_tail(ctx, Some(self.get_self_ptr()));
         self.set_container(Some(container));
     }
+    // Unlink self from list.
+    fn remove(&mut self, ctx: &Context) {
+        let container = self.get_container();
+        debug_assert!(
+            container.is_some(),
+            "LinkedList: Attempt to remove unlinked node"
+        );
+        match self.get_next() {
+            Some(next) => next.deref_mut(ctx).set_prev(self.get_prev()),
+            None => {
+                container
+                    .unwrap()
+                    .deref_mut(ctx)
+                    .set_tail(ctx, self.get_prev());
+            }
+        }
+        match self.get_prev() {
+            Some(prev) => {
+                prev.deref_mut(ctx).set_prev(self.get_next());
+            }
+            None => {
+                container
+                    .unwrap()
+                    .deref_mut(ctx)
+                    .set_head(ctx, self.get_next());
+            }
+        }
+        self.set_next(None);
+        self.set_prev(None);
+        self.set_container(None);
+    }
 }

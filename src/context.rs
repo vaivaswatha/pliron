@@ -1,4 +1,6 @@
-use crate::operation::Operation;
+use generational_arena::Arena;
+
+use crate::{operation::Operation, basic_block::BasicBlock};
 use std::{
     cell::{Ref, RefCell, RefMut},
     marker::PhantomData,
@@ -9,6 +11,8 @@ pub type ArenaCell<T> = generational_arena::Arena<RefCell<T>>;
 pub struct Context {
     // Allocation pool for Operations.
     pub operations: ArenaCell<Operation>,
+    // Allocation pool for BasicBlocks.
+    pub basic_blocks: ArenaCell<BasicBlock>,
 }
 
 /// An IR object owned by Context
