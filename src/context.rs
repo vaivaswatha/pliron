@@ -1,18 +1,38 @@
 use generational_arena::Arena;
 
-use crate::{operation::Operation, basic_block::BasicBlock};
+use crate::{
+    basic_block::BasicBlock,
+    operation::Operation,
+    r#type::{TypeHash, TypeObj},
+};
 use std::{
     cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
     marker::PhantomData,
 };
 
-pub type ArenaCell<T> = generational_arena::Arena<RefCell<T>>;
+pub type ArenaCell<T> = Arena<RefCell<T>>;
 
 pub struct Context {
     // Allocation pool for Operations.
     pub operations: ArenaCell<Operation>,
     // Allocation pool for BasicBlocks.
     pub basic_blocks: ArenaCell<BasicBlock>,
+    // Allocation pool for Types.
+    pub types: ArenaCell<TypeObj>,
+    // A map from a type's unique hash to its's Ptr.
+    pub typehash_typeptr_map: HashMap<TypeHash, Ptr<TypeObj>>,
+}
+
+impl Context {
+    pub fn new() -> Context {
+        Context {
+            operations: ArenaCell::new(),
+            basic_blocks: ArenaCell::new(),
+            types: ArenaCell::new(),
+            typehash_typeptr_map: HashMap::new(),
+        }
+    }
 }
 
 /// An IR object owned by Context
@@ -25,7 +45,7 @@ where
     // Get the arena that has allocated this object.
     fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self>;
     // Get a Ptr to self.
-    fn get_self_ptr(&self) -> Ptr<Self>;
+    fn get_self_ptr(&self, ctx: &Context) -> Ptr<Self>;
     // If this object contains any ArenaObj itself, it must dealloc()
     // all of those sub-objects. This is called when self is deallocated.
     fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context);
@@ -34,7 +54,7 @@ where
     fn remove_references(ptr: Ptr<Self>, ctx: &mut Context);
 
     // Allocates object on the arena, given a creator function.
-    fn alloc<T: Fn(Ptr<Self>) -> Self>(ctx: &mut Context, f: T) -> Ptr<Self> {
+    fn alloc<T: FnOnce(Ptr<Self>) -> Self>(ctx: &mut Context, f: T) -> Ptr<Self> {
         let creator = |idx: generational_arena::Index| {
             let t = f(Ptr::<Self> {
                 idx,
@@ -55,10 +75,10 @@ where
 }
 
 // Pointer to an IR Object owned by Context.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct Ptr<T: ArenaObj> {
-    pub(crate) idx: generational_arena::Index,
-    pub(crate) _dummy: PhantomData<T>,
+    idx: generational_arena::Index,
+    _dummy: PhantomData<T>,
 }
 
 impl<'a, T: ArenaObj> Ptr<T> {
@@ -80,3 +100,9 @@ impl<'a, T: ArenaObj> Clone for Ptr<T> {
 }
 
 impl<'a, T: ArenaObj> Copy for Ptr<T> {}
+
+impl<T: ArenaObj> PartialEq for Ptr<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.idx == other.idx
+    }
+}

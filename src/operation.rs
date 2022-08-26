@@ -166,7 +166,7 @@ impl ArenaObj for Operation {
             ptr.deref_mut(ctx).remove(ctx);
         }
     }
-    fn get_self_ptr(&self) -> Ptr<Self> {
+    fn get_self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
         self.self_ptr
     }
 }

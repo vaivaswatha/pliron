@@ -5,3 +5,5 @@ mod use_def_lists;
 mod value;
 mod vec_exns;
 mod linked_list;
+mod error;
+mod r#type;
