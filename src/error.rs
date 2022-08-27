@@ -2,12 +2,8 @@ use std::fmt::Display;
 
 #[derive(Debug)]
 pub enum CompilerError {
-  BadInput {
-    msg: String
-  },
-  VerificationError {
-    msg: String,
-  },
+    BadInput { msg: String },
+    VerificationError { msg: String },
 }
 
 impl Display for CompilerError {

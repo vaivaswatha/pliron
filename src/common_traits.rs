@@ -1,8 +1,7 @@
 use crate::{context::Context, error::CompilerError};
 
 // We can't use std::fmt::Display as we want Context.
-pub trait Stringable
- {
+pub trait Stringable {
     fn to_string(&self, ctx: &Context) -> String;
 }
 

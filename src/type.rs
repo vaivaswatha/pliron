@@ -201,7 +201,7 @@ mod tests {
         assert!(int32_1_ptr == int32_2_ptr);
         assert!(int32_1_ptr != int64_ptr);
         assert!(int32_1_ptr != uint32_ptr);
-        
+
         let int64_ptr = Box::new(PointerType { to: int64_ptr });
         let int64_ptr_ptr = PointerType::register(int64_ptr, &mut ctx);
         assert!(int64_ptr_ptr.deref(&ctx).to_string(&ctx) == "i64*");
