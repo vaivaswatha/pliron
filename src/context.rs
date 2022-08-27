@@ -6,8 +6,10 @@ use crate::{
     r#type::{TypeHash, TypeObj},
 };
 use std::{
+    any::TypeId,
     cell::{Ref, RefCell, RefMut},
     collections::HashMap,
+    hash::Hash,
     marker::PhantomData,
 };
 
@@ -104,5 +106,12 @@ impl<'a, T: ArenaObj> Copy for Ptr<T> {}
 impl<T: ArenaObj> PartialEq for Ptr<T> {
     fn eq(&self, other: &Self) -> bool {
         self.idx == other.idx
+    }
+}
+
+impl<T: ArenaObj + 'static> Hash for Ptr<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        TypeId::of::<T>().hash(state);
+        self.idx.hash(state);
     }
 }

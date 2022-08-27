@@ -1,12 +1,12 @@
+use crate::common_traits::{Stringable, Verify};
 use crate::context::{ArenaCell, ArenaObj, Context, Ptr};
 use crate::error::CompilerError;
 
 use std::any::TypeId;
 use std::collections::hash_map;
-use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 
-pub trait Type: Display {
+pub trait Type: Stringable + Verify {
     /// Basic functionality that every type in the IR must implement.
     /// Types are immutable once created, and are uniqued globally.
     /// Uniquing is based on the type name and contents.
@@ -20,18 +20,18 @@ pub trait Type: Display {
     /// the uniquing will include "IntType" as well as the `width` itself.
 
     /// Verification, called before registering the type in context.
-    fn verify(&self) -> Result<(), CompilerError>;
-    /// Get hash for this instance of Self.
-    fn get_hash(&self) -> TypeHash;
+
+    /// Compure and get the hash for this instance of Self.
+    fn compute_hash(&self) -> TypeHash;
 
     /// Get a copyable pointer to this type. Unlike in other ArenaObjs,
     /// we do not store a self pointer inside the object itself
     /// because that can upset taking automatic hashes of the object.
     fn get_self_ptr(&self, ctx: &Context) -> Ptr<TypeObj> {
-        let hash = self.get_hash();
+        let hash = self.compute_hash();
         *ctx.typehash_typeptr_map
             .get(&hash)
-            .expect(format!("Type {} not registered", &self).as_str())
+            .expect(format!("Type {} not registered", self.to_string(ctx)).as_str())
     }
 
     /// Downcast a dynamic Type object to it's concrete implementation.
@@ -46,7 +46,7 @@ pub trait Type: Display {
     where
         Self: Sized,
     {
-        let hash = t.get_hash();
+        let hash = t.compute_hash();
         // entry.or_insert_with(|| ArenaObj::alloc(ctx, |p: Ptr<TypeObj>| t))
         match ctx.typehash_typeptr_map.get(&hash) {
             Some(val) => *val,
@@ -104,71 +104,106 @@ impl ArenaObj for TypeObj {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::Display;
+    use std::{any::TypeId, fmt::Display};
 
-    use super::{Type, TypeHash};
-    use crate::{context::Context, error::CompilerError};
+    use super::{Type, TypeHash, TypeObj};
+    use crate::{
+        common_traits::{Stringable, Verify},
+        context::{Context, Ptr},
+        error::CompilerError,
+    };
 
     #[derive(Hash)]
-    struct Int {
+    struct IntType {
         pub width: u64,
     }
 
-    impl Type for Int {
-        fn verify(&self) -> Result<(), CompilerError> {
-            todo!()
-        }
-
-        fn get_hash(&self) -> TypeHash {
+    impl Type for IntType {
+        fn compute_hash(&self) -> TypeHash {
             TypeHash::new(self)
         }
     }
 
-    impl Display for Int {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "i{}", self.width)
+    impl Stringable for IntType {
+        fn to_string(&self, _ctx: &Context) -> String {
+            format!("i{}", self.width)
+        }
+    }
+
+    impl Verify for IntType {
+        fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+            todo!()
         }
     }
 
     #[derive(Hash)]
-    struct Uint {
+    struct UintType {
         pub width: u64,
     }
 
-    impl Type for Uint {
-        fn verify(&self) -> Result<(), CompilerError> {
-            todo!()
-        }
-
-        fn get_hash(&self) -> TypeHash {
+    impl Type for UintType {
+        fn compute_hash(&self) -> TypeHash {
             TypeHash::new(self)
         }
     }
 
-    impl Display for Uint {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "u{}", self.width)
+    impl Stringable for UintType {
+        fn to_string(&self, _ctx: &Context) -> String {
+            format!("u{}", self.width)
+        }
+    }
+
+    impl Verify for UintType {
+        fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+            todo!()
+        }
+    }
+
+    #[derive(Hash)]
+    struct PointerType {
+        pub to: Ptr<TypeObj>,
+    }
+
+    impl Stringable for PointerType {
+        fn to_string(&self, ctx: &Context) -> String {
+            format!("{}*", self.to.deref(ctx).to_string(ctx))
+        }
+    }
+
+    impl Type for PointerType {
+        fn compute_hash(&self) -> TypeHash {
+            TypeHash::new(self)
+        }
+    }
+
+    impl Verify for PointerType {
+        fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+            todo!()
         }
     }
 
     #[test]
     fn test_hashes() {
-        let int32_1 = Box::new(Int { width: 32 });
-        let int32_2 = Box::new(Int { width: 32 });
-        let int64 = Box::new(Int { width: 64 });
-        let uint32 = Box::new(Uint { width: 32 });
+        let int32_1 = Box::new(IntType { width: 32 });
+        let int32_2 = Box::new(IntType { width: 32 });
+        let int64 = Box::new(IntType { width: 64 });
+        let uint32 = Box::new(UintType { width: 32 });
 
-        assert!(int32_1.get_hash() == int32_2.get_hash());
-        assert!(int32_1.get_hash() != int64.get_hash());
-        assert!(int32_1.get_hash() != uint32.get_hash());
+        assert!(int32_1.compute_hash() == int32_2.compute_hash());
+        assert!(int32_1.compute_hash() != int64.compute_hash());
+        assert!(int32_1.compute_hash() != uint32.compute_hash());
 
         let mut ctx = Context::new();
-        let int32_1_ptr = Int::register(int32_1, &mut ctx);
-        let int32_2_ptr = Int::register(int32_2, &mut ctx);
-        let int64_ptr = Int::register(int64, &mut ctx);
-        let uint32_ptr = Int::register(uint32, &mut ctx);
+        let int32_1_ptr = IntType::register(int32_1, &mut ctx);
+        let int32_2_ptr = IntType::register(int32_2, &mut ctx);
+        let int64_ptr = IntType::register(int64, &mut ctx);
+        let uint32_ptr = IntType::register(uint32, &mut ctx);
         assert!(int32_1_ptr == int32_2_ptr);
         assert!(int32_1_ptr != int64_ptr);
         assert!(int32_1_ptr != uint32_ptr);
+        
+        let int64_ptr = Box::new(PointerType { to: int64_ptr });
+        let int64_ptr_ptr = PointerType::register(int64_ptr, &mut ctx);
+        assert!(int64_ptr_ptr.deref(&ctx).to_string(&ctx) == "i64*");
     }
 }
