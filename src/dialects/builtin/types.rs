@@ -23,7 +23,7 @@ impl Stringable for IntType {
 }
 
 impl Verify for IntType {
-    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
         todo!()
     }
 }
@@ -46,7 +46,7 @@ impl Stringable for UintType {
 }
 
 impl Verify for UintType {
-    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
         todo!()
     }
 }
@@ -75,7 +75,7 @@ impl Type for PointerType {
 }
 
 impl Verify for PointerType {
-    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
         todo!()
     }
 }

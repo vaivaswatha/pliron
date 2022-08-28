@@ -157,7 +157,7 @@ impl ArenaObj for Operation {
     fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
         &mut ctx.operations
     }
-    fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context) {
+    fn dealloc_sub_objects(_ptr: Ptr<Self>, _ctx: &mut Context) {
         todo!()
     }
     fn remove_references(ptr: Ptr<Self>, ctx: &mut Context) {

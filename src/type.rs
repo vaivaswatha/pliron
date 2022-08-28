@@ -1,6 +1,5 @@
 use crate::common_traits::{Stringable, Verify};
 use crate::context::{ArenaCell, ArenaObj, Context, Ptr};
-use crate::error::CompilerError;
 
 use downcast_rs::{impl_downcast, Downcast};
 use std::any::TypeId;

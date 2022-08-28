@@ -1,6 +1,6 @@
 use crate::{
     context::{ArenaCell, ArenaObj, Context, Ptr},
-    linked_list::{ContainsLinkedList, LinkedList},
+    linked_list::ContainsLinkedList,
     operation::Operation,
     use_def_lists::{Def, DefDescr, Use, UseDescr},
     value::Value,
@@ -108,19 +108,19 @@ impl BasicBlock {
 }
 
 impl ContainsLinkedList<Operation> for BasicBlock {
-    fn get_head(&self, ctx: &Context) -> Option<Ptr<Operation>> {
+    fn get_head(&self) -> Option<Ptr<Operation>> {
         self.ops_list.first
     }
 
-    fn get_tail(&self, ctx: &Context) -> Option<Ptr<Operation>> {
+    fn get_tail(&self) -> Option<Ptr<Operation>> {
         self.ops_list.last
     }
 
-    fn set_head(&mut self, ctx: &Context, head: Option<Ptr<Operation>>) {
+    fn set_head(&mut self, head: Option<Ptr<Operation>>) {
         self.ops_list.first = head;
     }
 
-    fn set_tail(&mut self, ctx: &Context, tail: Option<Ptr<Operation>>) {
+    fn set_tail(&mut self, tail: Option<Ptr<Operation>>) {
         self.ops_list.last = tail;
     }
 }
@@ -138,7 +138,7 @@ impl ArenaObj for BasicBlock {
             ArenaObj::dealloc(op, ctx);
         }
     }
-    fn remove_references(ptr: Ptr<Self>, ctx: &mut Context) {
+    fn remove_references(_ptr: Ptr<Self>, _ctx: &mut Context) {
         todo!()
     }
 

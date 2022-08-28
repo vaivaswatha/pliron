@@ -3,7 +3,7 @@ use std::cell::{Ref, RefMut};
 use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
-    operation::{OpResult, Operand, Operation},
+    operation::{Operand, Operation},
     value::Value,
 };
 
@@ -27,7 +27,10 @@ impl DefDescr {
                 let op = op.deref(ctx);
                 Ref::map(op, |opref| opref.get_result(*res_idx).unwrap())
             }
-            Self::BlockArgument { block, arg_idx } => {
+            Self::BlockArgument {
+                block: _,
+                arg_idx: _,
+            } => {
                 todo!()
             }
         }
@@ -38,7 +41,10 @@ impl DefDescr {
                 let op = op.deref_mut(ctx);
                 RefMut::map(op, |opref| opref.get_result_mut(*res_idx).unwrap())
             }
-            Self::BlockArgument { block, arg_idx } => {
+            Self::BlockArgument {
+                block: _,
+                arg_idx: _,
+            } => {
                 todo!()
             }
         }

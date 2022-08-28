@@ -15,7 +15,7 @@ use std::{collections::HashSet, hash::Hash};
 ///      Call "set_fields" after creation to set recursive types.
 ///   3. LLVM calls anonymous structs as literal structs and
 ///      named structs as identified structs.
-struct StructType {
+pub struct StructType {
     name: Option<String>,
     fields: Vec<(String, Ptr<TypeObj>)>,
     finalized: bool,
@@ -95,7 +95,7 @@ impl StructType {
 }
 
 impl Verify for StructType {
-    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
         if !self.finalized {
             return Err(CompilerError::VerificationError {
                 msg: "Struct not finalized".to_string(),
@@ -164,8 +164,6 @@ impl Type for StructType {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::Pointer;
-
     use crate::{
         common_traits::Stringable,
         context::Context,

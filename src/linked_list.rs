@@ -3,13 +3,13 @@ use crate::context::{ArenaObj, Context, Ptr};
 /// An object that contains a linked list.
 pub trait ContainsLinkedList<T: LinkedList> {
     // Simply get the head of the list.
-    fn get_head(&self, ctx: &Context) -> Option<Ptr<T>>;
+    fn get_head(&self) -> Option<Ptr<T>>;
     // Simply get the tail of the list.
-    fn get_tail(&self, ctx: &Context) -> Option<Ptr<T>>;
+    fn get_tail(&self) -> Option<Ptr<T>>;
     // Simply set the head pointer.
-    fn set_head(&mut self, ctx: &Context, head: Option<Ptr<T>>);
+    fn set_head(&mut self, head: Option<Ptr<T>>);
     // Simply set the tail pointer
-    fn set_tail(&mut self, ctx: &Context, tail: Option<Ptr<T>>);
+    fn set_tail(&mut self, tail: Option<Ptr<T>>);
 }
 
 /// Implements a linked list based on Ptr<T: ArenaObj>.
@@ -49,10 +49,10 @@ pub trait LinkedList: ArenaObj + PartialEq {
                 next.deref_mut(ctx).set_prev(Some(self.get_self_ptr(ctx)));
             }
             None => {
-                debug_assert!(container.deref(ctx).get_tail(ctx).unwrap() == mark);
+                debug_assert!(container.deref(ctx).get_tail().unwrap() == mark);
                 container
                     .deref_mut(ctx)
-                    .set_tail(ctx, Some(self.get_self_ptr(ctx)));
+                    .set_tail(Some(self.get_self_ptr(ctx)));
             }
         }
         self.set_next(next);
@@ -79,10 +79,10 @@ pub trait LinkedList: ArenaObj + PartialEq {
                 prev.deref_mut(ctx).set_next(Some(self.get_self_ptr(ctx)));
             }
             None => {
-                debug_assert!(container.deref(ctx).get_head(ctx).unwrap() == mark);
+                debug_assert!(container.deref(ctx).get_head().unwrap() == mark);
                 container
                     .deref_mut(ctx)
-                    .set_head(ctx, Some(self.get_self_ptr(ctx)));
+                    .set_head(Some(self.get_self_ptr(ctx)));
             }
         }
         self.set_prev(prev);
@@ -99,18 +99,18 @@ pub trait LinkedList: ArenaObj + PartialEq {
             "LinkedList node must be unlinked before relinking"
         );
         let mut container_ref = container.deref_mut(ctx);
-        let head = container_ref.get_head(ctx);
+        let head = container_ref.get_head();
         match head {
             Some(head) => {
                 debug_assert!(head.deref(ctx).get_prev() == None);
                 head.deref_mut(ctx).set_prev(Some(self.get_self_ptr(ctx)))
             }
             None => {
-                container_ref.set_tail(ctx, Some(self.get_self_ptr(ctx)));
+                container_ref.set_tail(Some(self.get_self_ptr(ctx)));
             }
         }
         self.set_next(head);
-        container_ref.set_head(ctx, Some(self.get_self_ptr(ctx)));
+        container_ref.set_head(Some(self.get_self_ptr(ctx)));
         self.set_container(Some(container));
     }
     // Insert self as the tail of the list.
@@ -122,18 +122,18 @@ pub trait LinkedList: ArenaObj + PartialEq {
             "LinkedList node must be unlinked before relinking"
         );
         let mut container_ref = container.deref_mut(ctx);
-        let tail = container_ref.get_tail(ctx);
+        let tail = container_ref.get_tail();
         match tail {
             Some(tail) => {
                 debug_assert!(tail.deref(ctx).get_next() == None);
                 tail.deref_mut(ctx).set_next(Some(self.get_self_ptr(ctx)));
             }
             None => {
-                container_ref.set_head(ctx, Some(self.get_self_ptr(ctx)));
+                container_ref.set_head(Some(self.get_self_ptr(ctx)));
             }
         }
         self.set_prev(tail);
-        container_ref.set_tail(ctx, Some(self.get_self_ptr(ctx)));
+        container_ref.set_tail(Some(self.get_self_ptr(ctx)));
         self.set_container(Some(container));
     }
     // Unlink self from list.
@@ -146,10 +146,7 @@ pub trait LinkedList: ArenaObj + PartialEq {
         match self.get_next() {
             Some(next) => next.deref_mut(ctx).set_prev(self.get_prev()),
             None => {
-                container
-                    .unwrap()
-                    .deref_mut(ctx)
-                    .set_tail(ctx, self.get_prev());
+                container.unwrap().deref_mut(ctx).set_tail(self.get_prev());
             }
         }
         match self.get_prev() {
@@ -157,10 +154,7 @@ pub trait LinkedList: ArenaObj + PartialEq {
                 prev.deref_mut(ctx).set_prev(self.get_next());
             }
             None => {
-                container
-                    .unwrap()
-                    .deref_mut(ctx)
-                    .set_head(ctx, self.get_next());
+                container.unwrap().deref_mut(ctx).set_head(self.get_next());
             }
         }
         self.set_next(None);
