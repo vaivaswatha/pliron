@@ -53,7 +53,13 @@ impl Verify for UintType {
 
 #[derive(Hash)]
 pub struct PointerType {
-    pub to: Ptr<TypeObj>,
+    to: Ptr<TypeObj>,
+}
+
+impl PointerType {
+    pub fn new(ctx: &mut Context, to: Ptr<TypeObj>) -> Ptr<TypeObj> {
+        Type::register(PointerType { to }, ctx)
+    }
 }
 
 impl Stringable for PointerType {
@@ -76,9 +82,9 @@ impl Verify for PointerType {
 
 #[cfg(test)]
 mod tests {
-    use super::{Type};
+    use super::Type;
     use crate::{
-        context::{Context},
+        context::Context,
         dialects::builtin::types::{IntType, PointerType, UintType},
     };
     #[test]
