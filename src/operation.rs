@@ -136,10 +136,10 @@ impl Operation {
         newop.deref_mut(ctx).operands = operands;
         newop
     }
-    pub fn get_result<'a>(&'a self, idx: usize) -> Option<&'a OpResult> {
+    pub fn get_result(&self, idx: usize) -> Option<&OpResult> {
         self.results.get(idx)
     }
-    pub fn get_result_mut<'a>(&'a mut self, idx: usize) -> Option<&'a mut OpResult> {
+    pub fn get_result_mut(&mut self, idx: usize) -> Option<&mut OpResult> {
         self.results.get_mut(idx)
     }
     pub fn get_operand(&self, opd_idx: usize) -> Option<&Operand> {

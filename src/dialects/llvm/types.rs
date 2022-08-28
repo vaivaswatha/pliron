@@ -26,7 +26,7 @@ impl StructType {
     /// If fields is None, it indicates an opaque (i.e., not finalized) struct.
     /// Opaque structs must be finalized for verify() to succeed.
     /// Opaque structs are an intermediary in creating recursive types.
-    pub fn new_named(
+    pub fn create_named(
         ctx: &mut Context,
         name: String,
         fields: Option<Vec<(String, Ptr<TypeObj>)>>,
@@ -34,7 +34,7 @@ impl StructType {
         let self_ptr = Type::register(
             StructType {
                 name: Some(name.clone()),
-                fields: fields.clone().unwrap_or(vec![]),
+                fields: fields.clone().unwrap_or_default(),
                 finalized: fields.is_some(),
             },
             ctx,
@@ -47,24 +47,23 @@ impl StructType {
             self_ref.finalized == fields.is_some(),
             "Struct already exists, or is being finalized via new creation"
         );
-        fields.and_then(|fields| {
+        if let Some(fields) = fields {
             assert!(
                 self_ref.fields == fields,
                 "Struct {} already exists and is different",
                 name
             );
-            Some(())
-        });
+        };
         self_ptr
     }
 
     /// Create a new unnamed (anonymous) struct.
     /// These are finalized upon creation, and uniqued based on the fields.
-    pub fn new_unnamed(ctx: &mut Context, fields: Vec<(String, Ptr<TypeObj>)>) -> Ptr<TypeObj> {
+    pub fn create_unnamed(ctx: &mut Context, fields: Vec<(String, Ptr<TypeObj>)>) -> Ptr<TypeObj> {
         Type::register(
             StructType {
                 name: None,
-                fields: fields,
+                fields,
                 finalized: true,
             },
             ctx,
@@ -122,7 +121,7 @@ impl Stringable for StructType {
             IN_PRINTING.with(|f| f.borrow_mut().insert(name.clone()));
             s = format!("{} {{ ", name);
         } else {
-            s = format!("{{ ");
+            s = "{{ ".to_string();
         }
 
         for field in &self.fields {
@@ -180,8 +179,8 @@ mod tests {
         let int64_ptr = Type::register(IntType { width: 64 }, &mut ctx);
 
         // Create an opaque struct since we want a recursive type.
-        let list_struct = StructType::new_named(&mut ctx, "LinkedList".to_string(), None);
-        let list_struct_ptr = PointerType::new(&mut ctx, list_struct);
+        let list_struct = StructType::create_named(&mut ctx, "LinkedList".to_string(), None);
+        let list_struct_ptr = PointerType::create(&mut ctx, list_struct);
         let fields = vec![
             ("data".to_string(), int64_ptr),
             ("next".to_string(), list_struct_ptr),

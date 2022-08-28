@@ -15,6 +15,7 @@ use std::{
 
 pub type ArenaCell<T> = Arena<RefCell<T>>;
 
+#[derive(Default)]
 pub struct Context {
     // Allocation pool for Operations.
     pub operations: ArenaCell<Operation>,
@@ -28,12 +29,7 @@ pub struct Context {
 
 impl Context {
     pub fn new() -> Context {
-        Context {
-            operations: ArenaCell::new(),
-            basic_blocks: ArenaCell::new(),
-            types: ArenaCell::new(),
-            typehash_typeptr_map: HashMap::new(),
-        }
+        Self::default()
     }
 }
 
@@ -72,8 +68,8 @@ where
 
     // Deallocates this object from the arena.
     fn dealloc(ptr: Ptr<Self>, ctx: &mut Context) {
-        Self::remove_references(ptr.clone(), ctx);
-        Self::dealloc_sub_objects(ptr.clone(), ctx);
+        Self::remove_references(ptr, ctx);
+        Self::dealloc_sub_objects(ptr, ctx);
         Self::get_arena_mut(ctx).remove(ptr.idx);
     }
 }
@@ -94,7 +90,7 @@ impl<'a, T: ArenaObj> Ptr<T> {
     }
 }
 
-impl<'a, T: ArenaObj> Clone for Ptr<T> {
+impl<T: ArenaObj> Clone for Ptr<T> {
     fn clone(&self) -> Ptr<T> {
         Ptr {
             idx: self.idx,
@@ -103,7 +99,7 @@ impl<'a, T: ArenaObj> Clone for Ptr<T> {
     }
 }
 
-impl<'a, T: ArenaObj> Copy for Ptr<T> {}
+impl<T: ArenaObj> Copy for Ptr<T> {}
 
 impl<T: ArenaObj> PartialEq for Ptr<T> {
     fn eq(&self, other: &Self) -> bool {

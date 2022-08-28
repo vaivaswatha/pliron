@@ -57,7 +57,7 @@ pub struct PointerType {
 }
 
 impl PointerType {
-    pub fn new(ctx: &mut Context, to: Ptr<TypeObj>) -> Ptr<TypeObj> {
+    pub fn create(ctx: &mut Context, to: Ptr<TypeObj>) -> Ptr<TypeObj> {
         Type::register(PointerType { to }, ctx)
     }
 }

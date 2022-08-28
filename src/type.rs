@@ -36,7 +36,7 @@ pub trait Type: Stringable + Verify + Downcast {
         let hash = self.compute_hash();
         *ctx.typehash_typeptr_map
             .get(&hash)
-            .expect(format!("Type {} not registered", self.to_string(ctx)).as_str())
+            .unwrap_or_else(|| panic!("Type {} not registered", self.to_string(ctx)))
     }
 
     fn register(t: Self, ctx: &mut Context) -> Ptr<TypeObj>

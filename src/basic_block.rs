@@ -72,7 +72,7 @@ impl<'a> Iterator for OpsInBlockIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.curr.map(|curr| {
-            let next = curr.deref(&self.ctx).block_links.next_op;
+            let next = curr.deref(self.ctx).block_links.next_op;
             self.curr = next;
             curr
         })
