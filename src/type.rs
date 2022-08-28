@@ -40,7 +40,7 @@ pub trait Type: Stringable + Verify + Downcast {
             .expect(format!("Type {} not registered", self.to_string(ctx)).as_str())
     }
 
-    fn register(t: TypeObj, ctx: &mut Context) -> Ptr<TypeObj>
+    fn register(t: Self, ctx: &mut Context) -> Ptr<TypeObj>
     where
         Self: Sized,
     {
@@ -49,7 +49,7 @@ pub trait Type: Stringable + Verify + Downcast {
         match ctx.typehash_typeptr_map.get(&hash) {
             Some(val) => *val,
             None => {
-                let val = ArenaObj::alloc(ctx, |_: Ptr<TypeObj>| t);
+                let val = ArenaObj::alloc(ctx, |_: Ptr<TypeObj>| Box::new(t));
                 ctx.typehash_typeptr_map.insert(hash, val);
                 val
             }
@@ -241,26 +241,26 @@ mod tests {
 
     #[test]
     fn test_types() {
-        let int32_1 = Box::new(IntType { width: 32 });
-        let int32_2 = Box::new(IntType { width: 32 });
-        let int64 = Box::new(IntType { width: 64 });
-        let uint32 = Box::new(UintType { width: 32 });
+        let int32_1 = IntType { width: 32 };
+        let int32_2 = IntType { width: 32 };
+        let int64 = IntType { width: 64 };
+        let uint32 = UintType { width: 32 };
 
         assert!(int32_1.compute_hash() == int32_2.compute_hash());
         assert!(int32_1.compute_hash() != int64.compute_hash());
         assert!(int32_1.compute_hash() != uint32.compute_hash());
 
         let mut ctx = Context::new();
-        let int32_1_ptr = IntType::register(int32_1, &mut ctx);
-        let int32_2_ptr = IntType::register(int32_2, &mut ctx);
-        let int64_ptr = IntType::register(int64, &mut ctx);
-        let uint32_ptr = IntType::register(uint32, &mut ctx);
+        let int32_1_ptr = Type::register(int32_1, &mut ctx);
+        let int32_2_ptr = Type::register(int32_2, &mut ctx);
+        let int64_ptr = Type::register(int64, &mut ctx);
+        let uint32_ptr = Type::register(uint32, &mut ctx);
         assert!(int32_1_ptr == int32_2_ptr);
         assert!(int32_1_ptr != int64_ptr);
         assert!(int32_1_ptr != uint32_ptr);
 
-        let int64pointer_ptr = Box::new(PointerType { to: int64_ptr });
-        let int64pointer_ptr = PointerType::register(int64pointer_ptr, &mut ctx);
+        let int64pointer_ptr = PointerType { to: int64_ptr };
+        let int64pointer_ptr = Type::register(int64pointer_ptr, &mut ctx);
         assert!(int64pointer_ptr.deref(&ctx).to_string(&ctx) == "i64*");
 
         assert!(
@@ -273,14 +273,14 @@ mod tests {
         );
 
         // Let's build a linked list structure and verify it.
-        let list_struct = StructType::register(
-            Box::new(StructType {
+        let list_struct = Type::register(
+            StructType {
                 name: "LinkedList".to_string(),
                 fields: vec![],
-            }),
+            },
             &mut ctx,
         );
-        let list_ptr = PointerType::register(Box::new(PointerType { to: list_struct }), &mut ctx);
+        let list_ptr = Type::register(PointerType { to: list_struct }, &mut ctx);
         {
             // Modify the fields. These aren't part of what's originally built.
             let mut typeref = list_struct.deref_mut(&ctx);
