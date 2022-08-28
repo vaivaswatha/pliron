@@ -109,6 +109,7 @@ mod tests {
         context::{Context, Ptr},
         error::CompilerError,
     };
+    use std::{collections::HashSet, fmt::Pointer, hash::Hash};
 
     #[derive(Hash)]
     struct IntType {
@@ -179,8 +180,67 @@ mod tests {
         }
     }
 
+    /// Represents a c-like struct type.
+    /// Limitations and warnings on its usage are similar to that in MLIR.
+    /// https://mlir.llvm.org/docs/Dialects/LLVM/#structure-types
+    struct StructType {
+        name: String,
+        fields: Vec<(String, Ptr<TypeObj>)>,
+    }
+
+    impl Verify for StructType {
+        fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+            todo!()
+        }
+    }
+
+    impl Stringable for StructType {
+        fn to_string(&self, ctx: &Context) -> String {
+            use std::cell::RefCell;
+            // Ugly, but also the simplest way to avoid infinite recursion.
+            // MLIR does the same: see LLVMTypeSyntax::printStructType.
+            thread_local! {
+                static IN_PRINTING: RefCell<HashSet<String>>  = RefCell::new(HashSet::new());
+            }
+            let in_printing = IN_PRINTING.with(|f| f.borrow().contains(&self.name));
+            if in_printing {
+                return self.name.clone();
+            }
+            IN_PRINTING.with(|f| f.borrow_mut().insert(self.name.clone()));
+            let mut s = format!("{} {{ ", self.name);
+            for field in &self.fields {
+                s += [
+                    field.0.clone(),
+                    ": ".to_string(),
+                    field.1.deref(ctx).to_string(ctx),
+                    ", ".to_string(),
+                ]
+                .concat()
+                .as_str();
+            }
+            s += "}";
+            // Done processing this struct. Remove it from the stack.
+            IN_PRINTING.with(|f| f.borrow_mut().remove(&self.name));
+            s
+        }
+    }
+
+    impl Hash for StructType {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            self.name.hash(state);
+            // NOTE: Does not hash the fields due to possibility
+            // of recursive types.
+        }
+    }
+
+    impl Type for StructType {
+        fn compute_hash(&self) -> TypeHash {
+            TypeHash::new(self)
+        }
+    }
+
     #[test]
-    fn test_type() {
+    fn test_types() {
         let int32_1 = Box::new(IntType { width: 32 });
         let int32_2 = Box::new(IntType { width: 32 });
         let int64 = Box::new(IntType { width: 64 });
@@ -210,6 +270,33 @@ mod tests {
                 .unwrap()
                 .width
                 == 64
+        );
+
+        // Let's build a linked list structure and verify it.
+        let list_struct = StructType::register(
+            Box::new(StructType {
+                name: "LinkedList".to_string(),
+                fields: vec![],
+            }),
+            &mut ctx,
+        );
+        let list_ptr = PointerType::register(Box::new(PointerType { to: list_struct }), &mut ctx);
+        {
+            // Modify the fields. These aren't part of what's originally built.
+            let mut typeref = list_struct.deref_mut(&ctx);
+            let list_ref = typeref.downcast_mut::<StructType>().unwrap();
+            list_ref.fields = vec![
+                ("data".to_string(), int64_ptr),
+                ("next".to_string(), list_ptr),
+            ];
+        }
+        assert!(
+            list_struct
+                .deref(&ctx)
+                .downcast_ref::<StructType>()
+                .unwrap()
+                .to_string(&ctx)
+                == "LinkedList { data: i64, next: LinkedList*, }"
         );
     }
 }
