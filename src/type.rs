@@ -2,26 +2,32 @@ use crate::common_traits::{Stringable, Verify};
 use crate::context::{ArenaCell, ArenaObj, Context, Ptr};
 use crate::error::CompilerError;
 
+use downcast_rs::{impl_downcast, Downcast};
 use std::any::TypeId;
 use std::collections::hash_map;
 use std::hash::{Hash, Hasher};
 
-pub trait Type: Stringable + Verify {
+pub trait Type: Stringable + Verify + Downcast {
     /// Basic functionality that every type in the IR must implement.
-    /// Types are immutable once created, and are uniqued globally.
+    /// Types are (mostly) immutable once created, and are uniqued globally.
     /// Uniquing is based on the type name and contents.
     /// So, for example, if we have
-    /// ```
+    /// ```rust,ignore
     ///     struct IntType {
     ///         width: u64
     ///     }
     ///     impl Type for IntType { }
     /// ```
     /// the uniquing will include "IntType" as well as the `width` itself.
+    ///
+    /// Types *can* have mutable contents that can be modified *after*
+    /// the type is created. This enables creation of recursive types.
+    /// In such a case, it is up to the type definition to ensure that
+    ///   1. It manually implements Hash, ignoring these mutable fields.
+    ///   2. A proper distinguisher content (such as a string), that is part
+    ///      of the hash, is used so that uniquing still works.
 
-    /// Verification, called before registering the type in context.
-
-    /// Compure and get the hash for this instance of Self.
+    /// Compute and get the hash for this instance of Self.
     fn compute_hash(&self) -> TypeHash;
 
     /// Get a copyable pointer to this type. Unlike in other ArenaObjs,
@@ -32,14 +38,6 @@ pub trait Type: Stringable + Verify {
         *ctx.typehash_typeptr_map
             .get(&hash)
             .expect(format!("Type {} not registered", self.to_string(ctx)).as_str())
-    }
-
-    /// Downcast a dynamic Type object to it's concrete implementation.
-    fn downcast<T: Type>(&self) -> Option<&T>
-    where
-        Self: Sized,
-    {
-        todo!()
     }
 
     fn register(t: TypeObj, ctx: &mut Context) -> Ptr<TypeObj>
@@ -58,6 +56,7 @@ pub trait Type: Stringable + Verify {
         }
     }
 }
+impl_downcast!(Type);
 
 #[derive(Hash, Eq, PartialEq)]
 pub struct TypeHash {
@@ -65,7 +64,7 @@ pub struct TypeHash {
 }
 
 impl TypeHash {
-    fn new<T: Type + Hash + 'static>(t: &T) -> TypeHash {
+    pub fn new<T: Type + Hash + 'static>(t: &T) -> TypeHash {
         use hash_map::DefaultHasher;
         let mut hasher = DefaultHasher::new();
         t.hash(&mut hasher);
@@ -94,18 +93,16 @@ impl ArenaObj for TypeObj {
     }
 
     fn dealloc_sub_objects(_ptr: Ptr<Self>, _ctx: &mut Context) {
-        panic!("Types, once created shouldn't be modified")
+        panic!("Cannot dealloc arena sub-objects of types")
     }
 
     fn remove_references(_ptr: Ptr<Self>, _ctx: &mut Context) {
-        panic!("Types, once created shouldn't be removed")
+        panic!("Cannot remove references to types")
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{any::TypeId, fmt::Display};
-
     use super::{Type, TypeHash, TypeObj};
     use crate::{
         common_traits::{Stringable, Verify},
@@ -183,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hashes() {
+    fn test_type() {
         let int32_1 = Box::new(IntType { width: 32 });
         let int32_2 = Box::new(IntType { width: 32 });
         let int64 = Box::new(IntType { width: 64 });
@@ -202,8 +199,17 @@ mod tests {
         assert!(int32_1_ptr != int64_ptr);
         assert!(int32_1_ptr != uint32_ptr);
 
-        let int64_ptr = Box::new(PointerType { to: int64_ptr });
-        let int64_ptr_ptr = PointerType::register(int64_ptr, &mut ctx);
-        assert!(int64_ptr_ptr.deref(&ctx).to_string(&ctx) == "i64*");
+        let int64pointer_ptr = Box::new(PointerType { to: int64_ptr });
+        let int64pointer_ptr = PointerType::register(int64pointer_ptr, &mut ctx);
+        assert!(int64pointer_ptr.deref(&ctx).to_string(&ctx) == "i64*");
+
+        assert!(
+            int64_ptr
+                .deref(&ctx)
+                .downcast_ref::<IntType>()
+                .unwrap()
+                .width
+                == 64
+        );
     }
 }

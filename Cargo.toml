@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 generational-arena = "0.2"
+downcast-rs = "1.2.0"
+

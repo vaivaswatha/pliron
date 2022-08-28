@@ -69,6 +69,8 @@ where
             _dummy: PhantomData,
         }
     }
+
+    // Deallocates this object from the arena.
     fn dealloc(ptr: Ptr<Self>, ctx: &mut Context) {
         Self::remove_references(ptr.clone(), ctx);
         Self::dealloc_sub_objects(ptr.clone(), ctx);
