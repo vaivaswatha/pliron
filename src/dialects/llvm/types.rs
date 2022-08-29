@@ -5,7 +5,7 @@ use crate::{
     r#type::{Type, TypeHash, TypeObj},
 };
 
-use std::{collections::HashSet, hash::Hash};
+use std::hash::Hash;
 
 /// Represents a c-like struct type.
 /// Limitations and warnings on its usage are similar to that in MLIR.
@@ -110,7 +110,9 @@ impl Stringable for StructType {
         // Ugly, but also the simplest way to avoid infinite recursion.
         // MLIR does the same: see LLVMTypeSyntax::printStructType.
         thread_local! {
-            static IN_PRINTING: RefCell<HashSet<String>>  = RefCell::new(HashSet::new());
+            // We use a vec instead of a HashMap hoping that this isn't
+            // going to be large, in which case vec would be faster.
+            static IN_PRINTING: RefCell<Vec<String>>  = RefCell::new(vec![]);
         }
         let mut s;
         if let Some(name) = &self.name {
@@ -118,7 +120,7 @@ impl Stringable for StructType {
             if in_printing {
                 return name.clone();
             }
-            IN_PRINTING.with(|f| f.borrow_mut().insert(name.clone()));
+            IN_PRINTING.with(|f| f.borrow_mut().push(name.clone()));
             s = format!("{} {{ ", name);
         } else {
             s = "{{ ".to_string();
@@ -137,7 +139,8 @@ impl Stringable for StructType {
         s += "}";
         // Done processing this struct. Remove it from the stack.
         if let Some(name) = &self.name {
-            IN_PRINTING.with(|f| f.borrow_mut().remove(name));
+            debug_assert!(IN_PRINTING.with(|f| f.borrow().last().unwrap() == name));
+            IN_PRINTING.with(|f| f.borrow_mut().pop());
         }
         s
     }
