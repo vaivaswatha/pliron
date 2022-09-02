@@ -6,46 +6,41 @@ use crate::{
 };
 
 #[derive(Hash)]
-pub struct IntType {
-    pub width: u64,
-}
-
-impl Type for IntType {
-    fn compute_hash(&self) -> TypeHash {
-        TypeHash::new(self)
-    }
-}
-
-impl Stringable for IntType {
-    fn to_string(&self, _ctx: &Context) -> String {
-        format!("i{}", self.width)
-    }
-}
-
-impl Verify for IntType {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
-        todo!()
-    }
+pub enum Signedness {
+    Signed,
+    Unsigned,
+    Signless,
 }
 
 #[derive(Hash)]
-pub struct UintType {
-    pub width: u64,
+pub struct IntegerType {
+    width: u64,
+    signedness: Signedness,
 }
 
-impl Type for UintType {
+impl IntegerType {
+    pub fn create(ctx: &mut Context, width: u64, signedness: Signedness) -> Ptr<TypeObj> {
+        Type::register(IntegerType { width, signedness }, ctx)
+    }
+}
+
+impl Type for IntegerType {
     fn compute_hash(&self) -> TypeHash {
         TypeHash::new(self)
     }
 }
 
-impl Stringable for UintType {
+impl Stringable for IntegerType {
     fn to_string(&self, _ctx: &Context) -> String {
-        format!("u{}", self.width)
+        match &self.signedness {
+            Signedness::Signed => format!("si{}", self.width),
+            Signedness::Unsigned => format!("ui{}", self.width),
+            Signedness::Signless => format!("i{}", self.width),
+        }
     }
 }
 
-impl Verify for UintType {
+impl Verify for IntegerType {
     fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
         todo!()
     }
@@ -85,36 +80,31 @@ mod tests {
     use super::Type;
     use crate::{
         context::Context,
-        dialects::builtin::types::{IntType, PointerType, UintType},
+        dialects::builtin::types::{IntegerType, PointerType, Signedness},
     };
     #[test]
     fn test_types() {
-        let int32_1 = IntType { width: 32 };
-        let int32_2 = IntType { width: 32 };
-        let int64 = IntType { width: 64 };
-        let uint32 = UintType { width: 32 };
-
-        assert!(int32_1.compute_hash() == int32_2.compute_hash());
-        assert!(int32_1.compute_hash() != int64.compute_hash());
-        assert!(int32_1.compute_hash() != uint32.compute_hash());
-
         let mut ctx = Context::new();
-        let int32_1_ptr = Type::register(int32_1, &mut ctx);
-        let int32_2_ptr = Type::register(int32_2, &mut ctx);
-        let int64_ptr = Type::register(int64, &mut ctx);
-        let uint32_ptr = Type::register(uint32, &mut ctx);
+        let int32_1_ptr = IntegerType::create(&mut ctx, 32, Signedness::Signed);
+        let int32_2_ptr = IntegerType::create(&mut ctx, 32, Signedness::Signed);
+        let int64_ptr = IntegerType::create(&mut ctx, 64, Signedness::Signed);
+        let uint32_ptr = IntegerType::create(&mut ctx, 32, Signedness::Unsigned);
+
+        assert!(int32_1_ptr.deref(&ctx).compute_hash() == int32_2_ptr.deref(&ctx).compute_hash());
+        assert!(int32_1_ptr.deref(&ctx).compute_hash() != int64_ptr.deref(&ctx).compute_hash());
+        assert!(int32_1_ptr.deref(&ctx).compute_hash() != uint32_ptr.deref(&ctx).compute_hash());
         assert!(int32_1_ptr == int32_2_ptr);
         assert!(int32_1_ptr != int64_ptr);
         assert!(int32_1_ptr != uint32_ptr);
 
         let int64pointer_ptr = PointerType { to: int64_ptr };
         let int64pointer_ptr = Type::register(int64pointer_ptr, &mut ctx);
-        assert!(int64pointer_ptr.deref(&ctx).to_string(&ctx) == "i64*");
+        assert!(int64pointer_ptr.deref(&ctx).to_string(&ctx) == "si64*");
 
         assert!(
             int64_ptr
                 .deref(&ctx)
-                .downcast_ref::<IntType>()
+                .downcast_ref::<IntegerType>()
                 .unwrap()
                 .width
                 == 64

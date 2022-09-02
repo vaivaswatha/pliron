@@ -170,16 +170,15 @@ mod tests {
         common_traits::Stringable,
         context::Context,
         dialects::{
-            builtin::types::{IntType, PointerType},
+            builtin::types::{IntegerType, PointerType, Signedness},
             llvm::types::StructType,
         },
-        r#type::Type,
     };
 
     #[test]
     fn test_struct() {
         let mut ctx = Context::new();
-        let int64_ptr = Type::register(IntType { width: 64 }, &mut ctx);
+        let int64_ptr = IntegerType::create(&mut ctx, 64, Signedness::Signless);
 
         // Create an opaque struct since we want a recursive type.
         let list_struct = StructType::create_named(&mut ctx, "LinkedList".to_string(), None);
