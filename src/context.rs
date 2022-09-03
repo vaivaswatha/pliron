@@ -3,7 +3,7 @@ use generational_arena::Arena;
 use crate::{
     basic_block::BasicBlock,
     operation::Operation,
-    r#type::{TypeHash, TypeObj},
+    r#type::{TypeObj, TypedHash},
 };
 use std::{
     any::TypeId,
@@ -24,7 +24,7 @@ pub struct Context {
     // Allocation pool for Types.
     pub types: ArenaCell<TypeObj>,
     // A map from a type's unique hash to its's Ptr.
-    pub typehash_typeptr_map: HashMap<TypeHash, Ptr<TypeObj>>,
+    pub typehash_typeptr_map: HashMap<TypedHash, Ptr<TypeObj>>,
 }
 
 impl Context {

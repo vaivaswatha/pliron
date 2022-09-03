@@ -2,7 +2,7 @@ use crate::{
     common_traits::{Stringable, Verify},
     context::{Context, Ptr},
     error::CompilerError,
-    r#type::{Type, TypeHash, TypeObj},
+    r#type::{Type, TypeObj, TypedHash},
 };
 
 #[derive(Hash)]
@@ -25,8 +25,8 @@ impl IntegerType {
 }
 
 impl Type for IntegerType {
-    fn compute_hash(&self) -> TypeHash {
-        TypeHash::new(self)
+    fn compute_hash(&self) -> TypedHash {
+        TypedHash::new(self)
     }
 }
 
@@ -64,8 +64,8 @@ impl Stringable for PointerType {
 }
 
 impl Type for PointerType {
-    fn compute_hash(&self) -> TypeHash {
-        TypeHash::new(self)
+    fn compute_hash(&self) -> TypedHash {
+        TypedHash::new(self)
     }
 }
 

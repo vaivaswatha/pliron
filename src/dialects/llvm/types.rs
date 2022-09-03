@@ -2,14 +2,14 @@ use crate::{
     common_traits::{Stringable, Verify},
     context::{Context, Ptr},
     error::CompilerError,
-    r#type::{Type, TypeHash, TypeObj},
+    r#type::{Type, TypeObj, TypedHash},
 };
 
 use std::hash::Hash;
 
 /// Represents a c-like struct type.
 /// Limitations and warnings on its usage are similar to that in MLIR.
-/// https://mlir.llvm.org/docs/Dialects/LLVM/#structure-types
+/// `<https://mlir.llvm.org/docs/Dialects/LLVM/#structure-types>`
 ///   1. Anonymous (aka unnamed) structs cannot be recursive.
 ///   2. Named structs are uniqued *only* by name, and may be recursive.
 ///      Call "set_fields" after creation to set recursive types.
@@ -159,8 +159,8 @@ impl Hash for StructType {
 }
 
 impl Type for StructType {
-    fn compute_hash(&self) -> TypeHash {
-        TypeHash::new(self)
+    fn compute_hash(&self) -> TypedHash {
+        TypedHash::new(self)
     }
 }
 

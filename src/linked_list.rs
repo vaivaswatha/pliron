@@ -60,6 +60,7 @@ pub trait LinkedList: ArenaObj + PartialEq {
         (*mark_ref).set_next(Some(self.get_self_ptr(ctx)));
         self.set_container(Some(container));
     }
+
     // Insert self before mark.
     fn insert_before(&mut self, ctx: &Context, mark: Ptr<Self>) {
         debug_assert!(
@@ -90,6 +91,7 @@ pub trait LinkedList: ArenaObj + PartialEq {
         (*mark_ref).set_prev(Some(self.get_self_ptr(ctx)));
         self.set_container(Some(container));
     }
+
     // Insert self as the head of the list.
     fn insert_at_front(&mut self, container: Ptr<Self::ContainerType>, ctx: &Context) {
         debug_assert!(
@@ -102,7 +104,7 @@ pub trait LinkedList: ArenaObj + PartialEq {
         let head = container_ref.get_head();
         match head {
             Some(head) => {
-                debug_assert!(head.deref(ctx).get_prev() == None);
+                debug_assert!(head.deref(ctx).get_prev().is_none());
                 head.deref_mut(ctx).set_prev(Some(self.get_self_ptr(ctx)))
             }
             None => {
@@ -113,6 +115,7 @@ pub trait LinkedList: ArenaObj + PartialEq {
         container_ref.set_head(Some(self.get_self_ptr(ctx)));
         self.set_container(Some(container));
     }
+
     // Insert self as the tail of the list.
     fn insert_at_back(&mut self, container: Ptr<Self::ContainerType>, ctx: &Context) {
         debug_assert!(
@@ -125,7 +128,7 @@ pub trait LinkedList: ArenaObj + PartialEq {
         let tail = container_ref.get_tail();
         match tail {
             Some(tail) => {
-                debug_assert!(tail.deref(ctx).get_next() == None);
+                debug_assert!(tail.deref(ctx).get_next().is_none());
                 tail.deref_mut(ctx).set_next(Some(self.get_self_ptr(ctx)));
             }
             None => {
@@ -136,6 +139,7 @@ pub trait LinkedList: ArenaObj + PartialEq {
         container_ref.set_tail(Some(self.get_self_ptr(ctx)));
         self.set_container(Some(container));
     }
+
     // Unlink self from list.
     fn remove(&mut self, ctx: &Context) {
         let container = self.get_container();
