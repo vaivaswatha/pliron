@@ -5,7 +5,8 @@ use crate::{
     use_def_lists::{Use, UseDescr},
 };
 
-// Container for a Def.
+/// Container for a Def.
+/// This is somewhat equivalent in concept to LLVM's Value.
 pub trait Value {
     // If this is an OpResult, return the defining Operation.
     fn get_defining_op(&self) -> Option<Ptr<Operation>>;

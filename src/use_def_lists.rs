@@ -7,7 +7,7 @@ use crate::{
     value::Value,
 };
 
-// A reference to the definition of a value.
+/// A reference to the definition of a value.
 #[derive(Clone, Copy, Debug)]
 pub enum DefDescr {
     OpResult {
@@ -51,21 +51,21 @@ impl DefDescr {
     }
 }
 
-// A use is a reference to its definition.
+/// A use is a reference to its definition.
 #[derive(Clone, Copy, Debug)]
 pub struct Use {
-    // Operation result or block argument.
+    /// Operation result or block argument.
     pub def: DefDescr,
-    // Index in the def's @uses list.
+    /// Index in the def's @uses list.
     pub use_idx: usize,
 }
 
-//  A reference to the use of a value.
+///  A reference to the use of a value.
 #[derive(Clone, Copy, Debug)]
 pub struct UseDescr {
-    // Uses of a def can only be in an operation.
+    /// Uses of a def can only be in an operation.
     pub op: Ptr<Operation>,
-    // Used as the i'th operand of op.
+    /// Used as the i'th operand of op.
     pub opd_idx: usize,
 }
 
@@ -80,8 +80,9 @@ impl UseDescr {
     }
 }
 
-// A def is a list of its uses.
+/// A def is a list of its uses.
 #[derive(Debug)]
 pub struct Def {
+    /// The list of uses of this Def.
     pub uses: Vec<UseDescr>,
 }

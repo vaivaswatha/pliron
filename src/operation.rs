@@ -7,6 +7,7 @@ use crate::{
     vec_exns::VecExtns,
 };
 
+/// Represents the result of an Operation.
 #[derive(Debug)]
 pub struct OpResult {
     def: Def,
@@ -47,11 +48,14 @@ impl Value for OpResult {
     }
 }
 
-// Links the operation with other operations and the container basic block.
+/// Links an operation with other operations and the container basic block.
 #[derive(Debug)]
 pub struct BlockLinks {
+    /// Parent block of this operation.
     pub parent_block: Option<Ptr<BasicBlock>>,
+    /// The next operation in the basic block's list of operations.
     pub next_op: Option<Ptr<Operation>>,
+    /// The previous operation in the basic block's list of operations.
     pub prev_op: Option<Ptr<Operation>>,
 }
 
@@ -65,6 +69,9 @@ impl BlockLinks {
     }
 }
 
+/// An operation is the basic unit of execution in the IR.
+/// The general idea is similar to MLIR's
+/// [Operation](https://mlir.llvm.org/docs/LangRef/#operations)
 #[derive(Debug)]
 pub struct Operation {
     pub self_ptr: Ptr<Operation>,
@@ -108,6 +115,7 @@ impl LinkedList for Operation {
 }
 
 impl Operation {
+    /// Create a new, unlinked (i.e., not in a basic block) operation.
     pub fn new(ctx: &mut Context, num_results: usize, operands: Vec<DefDescr>) -> Ptr<Operation> {
         let f = |self_ptr: Ptr<Operation>| Operation {
             self_ptr,
@@ -136,15 +144,23 @@ impl Operation {
         newop.deref_mut(ctx).operands = operands;
         newop
     }
+
+    /// Get a reference to the idx'th result.
     pub fn get_result(&self, idx: usize) -> Option<&OpResult> {
         self.results.get(idx)
     }
+
+    /// Get a mutable reference to the idx'th result.
     pub fn get_result_mut(&mut self, idx: usize) -> Option<&mut OpResult> {
         self.results.get_mut(idx)
     }
+
+    /// Get a reference to the opd_idx'th operand.
     pub fn get_operand(&self, opd_idx: usize) -> Option<&Operand> {
         self.operands.get(opd_idx)
     }
+
+    /// Get a mutable reference to the opd_idx'th operand.
     pub fn get_operand_mut(&mut self, opd_idx: usize) -> Option<&mut Operand> {
         self.operands.get_mut(opd_idx)
     }
@@ -171,7 +187,7 @@ impl ArenaObj for Operation {
     }
 }
 
-// Container for a Use.
+/// Container for a Use in an operation.
 #[derive(Debug)]
 pub struct Operand {
     r#use: Use,
@@ -180,22 +196,25 @@ pub struct Operand {
 }
 
 impl Operand {
-    // i'th operand in the Operation that contains this.
+    /// i'th operand in the Operation that contains this.
     pub fn get_opd_idx(&self) -> usize {
         self.opd_idx
     }
-    // Get the operation of which this is an operand.
+
+    /// Get the operation of which this is an operand.
     pub fn get_user_op(&self) -> Ptr<Operation> {
         self.user_op
     }
-    // Build a UseRef referring to this operand.
+
+    /// Build a UseRef referring to this operand.
     pub fn build_useref(&self) -> UseDescr {
         UseDescr {
             op: self.get_user_op(),
             opd_idx: self.get_opd_idx(),
         }
     }
-    // Update the operand to be the Use of a different Def.
+
+    /// Update the operand to be the Use of a different Def.
     pub fn replace_def(&mut self, new_val: Use) {
         self.r#use = new_val;
     }

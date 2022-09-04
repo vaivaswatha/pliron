@@ -2,13 +2,13 @@ use crate::context::{ArenaObj, Context, Ptr};
 
 /// An object that contains a linked list.
 pub trait ContainsLinkedList<T: LinkedList> {
-    // Simply get the head of the list.
+    /// Simply get the head of the list.
     fn get_head(&self) -> Option<Ptr<T>>;
-    // Simply get the tail of the list.
+    /// Simply get the tail of the list.
     fn get_tail(&self) -> Option<Ptr<T>>;
-    // Simply set the head pointer.
+    /// Simply set the head pointer.
     fn set_head(&mut self, head: Option<Ptr<T>>);
-    // Simply set the tail pointer
+    /// Simply set the tail pointer
     fn set_tail(&mut self, tail: Option<Ptr<T>>);
 }
 
@@ -19,20 +19,20 @@ pub trait ContainsLinkedList<T: LinkedList> {
 pub trait LinkedList: ArenaObj + PartialEq {
     type ContainerType: ContainsLinkedList<Self> + ArenaObj;
 
-    // Simple getter for the item previous to this in the list.
+    /// Simple getter for the item previous to this in the list.
     fn get_next(&self) -> Option<Ptr<Self>>;
-    // Simple getter for the item previous to this in the list.
+    /// Simple getter for the item previous to this in the list.
     fn get_prev(&self) -> Option<Ptr<Self>>;
-    // Simply set the item next to this in the list.
+    /// Simply set the item next to this in the list.
     fn set_next(&mut self, next: Option<Ptr<Self>>);
-    // Simply set the item previous to this in the list.
+    /// Simply set the item previous to this in the list.
     fn set_prev(&mut self, prev: Option<Ptr<Self>>);
-    // Get a reference to the object that contains this linked list.
+    /// Get a reference to the object that contains this linked list.
     fn get_container(&self) -> Option<Ptr<Self::ContainerType>>;
-    // Set the container for this node.
+    /// Set the container for this node.
     fn set_container(&mut self, container: Option<Ptr<Self::ContainerType>>);
 
-    // Insert self after mark.
+    /// Insert self after mark.
     fn insert_after(&mut self, ctx: &Context, mark: Ptr<Self>) {
         debug_assert!(
             self.get_prev().is_none()
@@ -61,7 +61,7 @@ pub trait LinkedList: ArenaObj + PartialEq {
         self.set_container(Some(container));
     }
 
-    // Insert self before mark.
+    /// Insert self before mark.
     fn insert_before(&mut self, ctx: &Context, mark: Ptr<Self>) {
         debug_assert!(
             self.get_prev().is_none()
@@ -92,7 +92,7 @@ pub trait LinkedList: ArenaObj + PartialEq {
         self.set_container(Some(container));
     }
 
-    // Insert self as the head of the list.
+    /// Insert self as the head of the list.
     fn insert_at_front(&mut self, container: Ptr<Self::ContainerType>, ctx: &Context) {
         debug_assert!(
             self.get_prev().is_none()
@@ -116,7 +116,7 @@ pub trait LinkedList: ArenaObj + PartialEq {
         self.set_container(Some(container));
     }
 
-    // Insert self as the tail of the list.
+    /// Insert self as the tail of the list.
     fn insert_at_back(&mut self, container: Ptr<Self::ContainerType>, ctx: &Context) {
         debug_assert!(
             self.get_prev().is_none()
@@ -140,7 +140,7 @@ pub trait LinkedList: ArenaObj + PartialEq {
         self.set_container(Some(container));
     }
 
-    // Unlink self from list.
+    /// Unlink self from list.
     fn remove(&mut self, ctx: &Context) {
         let container = self.get_container();
         debug_assert!(

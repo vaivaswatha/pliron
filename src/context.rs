@@ -17,19 +17,20 @@ use std::{
 
 pub type ArenaCell<T> = Arena<RefCell<T>>;
 
+/// A context stores all IR data of this compilation session.
 #[derive(Default)]
 pub struct Context {
-    // Allocation pool for Operations.
+    /// Allocation pool for Operations.
     pub operations: ArenaCell<Operation>,
-    // Allocation pool for BasicBlocks.
+    /// Allocation pool for BasicBlocks.
     pub basic_blocks: ArenaCell<BasicBlock>,
-    // Allocation pool for Types.
+    /// Allocation pool for Types.
     pub types: ArenaCell<TypeObj>,
-    // A map from a type's unique hash to its's Ptr.
+    /// A map from a type's unique hash to its's Ptr.
     pub typehash_typeptr_map: HashMap<TypedHash, Ptr<TypeObj>>,
-    // Registered dialects.
+    /// Registered dialects.
     pub dialects: HashMap<DialectName, Dialect>,
-    // Registered Ops.
+    /// Registered Ops.
     pub ops: HashMap<OpId, OpCreator>,
 }
 
@@ -44,20 +45,20 @@ pub trait ArenaObj
 where
     Self: Sized,
 {
-    // Get the arena that has allocated this object.
+    /// Get the arena that has allocated this object.
     fn get_arena(ctx: &Context) -> &ArenaCell<Self>;
-    // Get the arena that has allocated this object.
+    /// Get the arena that has allocated this object.
     fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self>;
-    // Get a Ptr to self.
+    /// Get a Ptr to self.
     fn get_self_ptr(&self, ctx: &Context) -> Ptr<Self>;
-    // If this object contains any ArenaObj itself, it must dealloc()
-    // all of those sub-objects. This is called when self is deallocated.
+    /// If this object contains any ArenaObj itself, it must dealloc()
+    /// all of those sub-objects. This is called when self is deallocated.
     fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context);
-    // Remove pointers to this object from other objects.
-    // Called when self is deallocated.
+    /// Remove pointers to this object from other objects.
+    /// Called when self is deallocated.
     fn remove_references(ptr: Ptr<Self>, ctx: &mut Context);
 
-    // Allocates object on the arena, given a creator function.
+    /// Allocates object on the arena, given a creator function.
     fn alloc<T: FnOnce(Ptr<Self>) -> Self>(ctx: &mut Context, f: T) -> Ptr<Self> {
         let creator = |idx: generational_arena::Index| {
             let t = f(Ptr::<Self> {
@@ -72,7 +73,7 @@ where
         }
     }
 
-    // Deallocates this object from the arena.
+    /// Deallocates this object from the arena.
     fn dealloc(ptr: Ptr<Self>, ctx: &mut Context) {
         Self::remove_references(ptr, ctx);
         Self::dealloc_sub_objects(ptr, ctx);
@@ -80,7 +81,7 @@ where
     }
 }
 
-// Pointer to an IR Object owned by Context.
+/// Pointer to an IR Object owned by Context.
 #[derive(Debug)]
 pub struct Ptr<T: ArenaObj> {
     idx: generational_arena::Index,
