@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Programming Languages Intermediate RepresentatiON"
+repository = "https://github.com/vaivaswatha/pliron"
+categories = ["compilers"]
+readme = "README.md"
+keywords = ["pliron", "llvm", "mlir", "compiler"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
