@@ -2,6 +2,8 @@ use generational_arena::Arena;
 
 use crate::{
     basic_block::BasicBlock,
+    dialect::{Dialect, DialectName},
+    op::{OpCreator, OpId},
     operation::Operation,
     r#type::{TypeObj, TypedHash},
 };
@@ -25,6 +27,10 @@ pub struct Context {
     pub types: ArenaCell<TypeObj>,
     // A map from a type's unique hash to its's Ptr.
     pub typehash_typeptr_map: HashMap<TypedHash, Ptr<TypeObj>>,
+    // Registered dialects.
+    pub dialects: HashMap<DialectName, Dialect>,
+    // Registered Ops.
+    pub ops: HashMap<OpId, OpCreator>,
 }
 
 impl Context {
@@ -106,6 +112,8 @@ impl<T: ArenaObj> PartialEq for Ptr<T> {
         self.idx == other.idx
     }
 }
+
+impl<T: ArenaObj> Eq for Ptr<T> {}
 
 impl<T: ArenaObj + 'static> Hash for Ptr<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {

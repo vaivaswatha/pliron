@@ -1,15 +1,16 @@
 use crate::{
     common_traits::{Stringable, Verify},
     context::{Context, Ptr},
+    dialect::{Dialect, DialectName},
     dialects::builtin::properties::IsTerminator,
     error::CompilerError,
-    op::Op,
+    op::{Op, OpId, OpName},
     operation::Operation,
 };
 
 /// Equivalent to LLVM's return opcode.
 #[derive(Clone, Copy)]
-struct ReturnOp {
+pub struct ReturnOp {
     op: Ptr<Operation>,
 }
 
@@ -18,8 +19,19 @@ impl Op for ReturnOp {
         self.op
     }
 
-    fn new(op: Ptr<Operation>) -> ReturnOp {
-        ReturnOp { op }
+    fn create(op: Ptr<Operation>) -> Box<dyn Op> {
+        Box::new(ReturnOp { op })
+    }
+
+    fn get_opid(&self) -> OpId {
+        Self::get_opid_static()
+    }
+
+    fn get_opid_static() -> OpId {
+        OpId {
+            name: OpName::new("ReturnOp"),
+            dialect: DialectName::new("llvm"),
+        }
     }
 }
 
@@ -39,4 +51,8 @@ impl IsTerminator for ReturnOp {
     fn is_terminator(&self) -> bool {
         true
     }
+}
+
+pub fn register(ctx: &mut Context, dialect: &mut Dialect) {
+    ReturnOp::register(ctx, dialect);
 }
