@@ -1,29 +1,25 @@
 use crate::common_traits::{Stringable, Verify};
 use crate::context::{ArenaCell, ArenaObj, Context, Ptr};
+use crate::dialect::{Dialect, DialectName};
 
 use downcast_rs::{impl_downcast, Downcast};
-use std::any::TypeId;
 use std::collections::hash_map;
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 
 /// Basic functionality that every type in the IR must implement.
-/// Types are (mostly) immutable once created, and are uniqued globally.
-/// Uniquing is based on the type name and contents.
+/// Type objects (instances of a Type) are (mostly) immutable once created,
+/// and are uniqued globally. Uniquing is based on the type name and contents.
 /// So, for example, if we have
-/// ```rust
-///     use pliron::r#type::{Type, TypedHash};
-///     #[derive(Hash)]
+/// ```rust,ignore
 ///     struct IntType {
 ///         width: u64
 ///     }
-///     # use pliron::{common_traits::{Stringable, Verify}, context::Context, error::CompilerError};
-///     # impl Stringable for IntType { fn to_string(&self, _ctx: &Context) -> String { todo!() } }
-///     # impl Verify for IntType { fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> { todo!() } }
-///     impl Type for IntType {
-///         fn compute_hash(&self) -> TypedHash { TypedHash::new(self) }
-///     }
+///     impl Type for IntType { .. }
 /// ```
-/// the uniquing will include "IntType" as well as the `width` itself.
+/// the uniquing will include
+///   - [`std::any::TypeId::of::<IntType>()`](std::any::TypeId)
+///   - `width`
 ///
 /// Types *can* have mutable contents that can be modified *after*
 /// the type is created. This enables creation of recursive types.
@@ -45,9 +41,10 @@ pub trait Type: Stringable + Verify + Downcast {
             .unwrap_or_else(|| panic!("Type {} not registered", self.to_string(ctx)))
     }
 
-    /// Register a type in the provided Context and return a pointer to self.
-    /// If the type was already registered, a pointer to the existing object is returned.
-    fn register(t: Self, ctx: &mut Context) -> Ptr<TypeObj>
+    /// Register an instance of a type in the provided Context
+    /// Returns a pointer to self. If the type was already registered,
+    /// a pointer to the existing object is returned.
+    fn register_instance(t: Self, ctx: &mut Context) -> Ptr<TypeObj>
     where
         Self: Sized,
     {
@@ -62,8 +59,54 @@ pub trait Type: Stringable + Verify + Downcast {
             }
         }
     }
+
+    /// Get a Type's static name. This is *not* per instantiation of the type.
+    /// It is mostly useful for printing and parsing the type.
+    /// Uniquing does *not* use this, but instead uses [std::any::TypeId].
+    fn get_type_id(&self) -> TypeId;
+
+    /// Same as [get_type_id](Self::get_type_id), but without the self reference.
+    fn get_type_id_static() -> TypeId
+    where
+        Self: Sized;
+
+    /// Register this Type's TypeId in the dialect it belongs to.
+    /// **Warning**: No check is made as to whether this type is already registered
+    ///  in the dialect.
+    fn register_type_in_dialect(dialect: &mut Dialect)
+    where
+        Self: Sized,
+    {
+        dialect.add_type(Self::get_type_id_static());
+    }
 }
 impl_downcast!(Type);
+
+#[derive(Clone, Hash, PartialEq, Eq)]
+/// A Type's name (not including it's dialect).
+pub struct TypeName(String);
+
+impl TypeName {
+    /// Create a new TypeName.
+    pub fn new(name: &str) -> TypeName {
+        TypeName(name.to_string())
+    }
+}
+
+impl Deref for TypeName {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/// A combination of a Type's name and its dialect.
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub struct TypeId {
+    pub dialect: DialectName,
+    pub name: TypeName,
+}
 
 /// Computes the hash of a value and its type.
 /// ```rust
@@ -87,7 +130,7 @@ impl TypedHash {
         use hash_map::DefaultHasher;
         let mut hasher = DefaultHasher::new();
         t.hash(&mut hasher);
-        TypeId::of::<T>().hash(&mut hasher);
+        std::any::TypeId::of::<T>().hash(&mut hasher);
         TypedHash {
             hash: hasher.finish(),
         }

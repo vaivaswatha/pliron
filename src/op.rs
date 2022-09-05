@@ -14,6 +14,7 @@ use crate::{
 pub struct OpName(String);
 
 impl OpName {
+    /// Create a new OpName.
     pub fn new(name: &str) -> OpName {
         OpName(name.to_string())
     }

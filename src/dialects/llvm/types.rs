@@ -1,8 +1,9 @@
 use crate::{
     common_traits::{Stringable, Verify},
     context::{Context, Ptr},
+    dialect::{Dialect, DialectName},
     error::CompilerError,
-    r#type::{Type, TypeObj, TypedHash},
+    r#type::{Type, TypeId, TypeName, TypeObj, TypedHash},
 };
 
 use std::hash::Hash;
@@ -31,7 +32,7 @@ impl StructType {
         name: String,
         fields: Option<Vec<(String, Ptr<TypeObj>)>>,
     ) -> Ptr<TypeObj> {
-        let self_ptr = Type::register(
+        let self_ptr = Type::register_instance(
             StructType {
                 name: Some(name.clone()),
                 fields: fields.clone().unwrap_or_default(),
@@ -60,7 +61,7 @@ impl StructType {
     /// Create a new unnamed (anonymous) struct.
     /// These are finalized upon creation, and uniqued based on the fields.
     pub fn create_unnamed(ctx: &mut Context, fields: Vec<(String, Ptr<TypeObj>)>) -> Ptr<TypeObj> {
-        Type::register(
+        Type::register_instance(
             StructType {
                 name: None,
                 fields,
@@ -162,6 +163,21 @@ impl Type for StructType {
     fn compute_hash(&self) -> TypedHash {
         TypedHash::new(self)
     }
+
+    fn get_type_id(&self) -> TypeId {
+        Self::get_type_id_static()
+    }
+
+    fn get_type_id_static() -> TypeId {
+        TypeId {
+            name: TypeName::new("StructType"),
+            dialect: DialectName::new("llvm"),
+        }
+    }
+}
+
+pub fn register(dialect: &mut Dialect) {
+    StructType::register_type_in_dialect(dialect);
 }
 
 #[cfg(test)]

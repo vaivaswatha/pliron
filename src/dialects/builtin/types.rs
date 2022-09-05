@@ -1,8 +1,9 @@
 use crate::{
     common_traits::{Stringable, Verify},
     context::{Context, Ptr},
+    dialect::{Dialect, DialectName},
     error::CompilerError,
-    r#type::{Type, TypeObj, TypedHash},
+    r#type::{Type, TypeId, TypeName, TypeObj, TypedHash},
 };
 
 #[derive(Hash)]
@@ -20,13 +21,24 @@ pub struct IntegerType {
 
 impl IntegerType {
     pub fn create(ctx: &mut Context, width: u64, signedness: Signedness) -> Ptr<TypeObj> {
-        Type::register(IntegerType { width, signedness }, ctx)
+        Type::register_instance(IntegerType { width, signedness }, ctx)
     }
 }
 
 impl Type for IntegerType {
     fn compute_hash(&self) -> TypedHash {
         TypedHash::new(self)
+    }
+
+    fn get_type_id(&self) -> TypeId {
+        Self::get_type_id_static()
+    }
+
+    fn get_type_id_static() -> TypeId {
+        TypeId {
+            name: TypeName::new("IntegerType"),
+            dialect: DialectName::new("builtin"),
+        }
     }
 }
 
@@ -53,7 +65,7 @@ pub struct PointerType {
 
 impl PointerType {
     pub fn create(ctx: &mut Context, to: Ptr<TypeObj>) -> Ptr<TypeObj> {
-        Type::register(PointerType { to }, ctx)
+        Type::register_instance(PointerType { to }, ctx)
     }
 }
 
@@ -67,12 +79,28 @@ impl Type for PointerType {
     fn compute_hash(&self) -> TypedHash {
         TypedHash::new(self)
     }
+
+    fn get_type_id(&self) -> TypeId {
+        Self::get_type_id_static()
+    }
+
+    fn get_type_id_static() -> TypeId {
+        TypeId {
+            name: TypeName::new("PointerType"),
+            dialect: DialectName::new("builtin"),
+        }
+    }
 }
 
 impl Verify for PointerType {
     fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
         todo!()
     }
+}
+
+pub fn register(dialect: &mut Dialect) {
+    IntegerType::register_type_in_dialect(dialect);
+    PointerType::register_type_in_dialect(dialect);
 }
 
 #[cfg(test)]
@@ -98,7 +126,7 @@ mod tests {
         assert!(int32_1_ptr != uint32_ptr);
 
         let int64pointer_ptr = PointerType { to: int64_ptr };
-        let int64pointer_ptr = Type::register(int64pointer_ptr, &mut ctx);
+        let int64pointer_ptr = Type::register_instance(int64pointer_ptr, &mut ctx);
         assert!(int64pointer_ptr.deref(&ctx).to_string(&ctx) == "si64*");
 
         assert!(

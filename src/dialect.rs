@@ -1,12 +1,13 @@
 use std::ops::Deref;
 
-use crate::{context::Context, op::OpId};
+use crate::{context::Context, op::OpId, r#type::TypeId};
 
 /// Dialect name: Safe wrapper around a String.
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct DialectName(String);
 
 impl DialectName {
+    /// Create a new DialectName
     pub fn new(name: &str) -> DialectName {
         DialectName(name.to_string())
     }
@@ -27,12 +28,18 @@ pub struct Dialect {
     name: DialectName,
     /// Ops that are part of this dialect.
     ops: Vec<OpId>,
+    /// Types that are part of this dialect.
+    types: Vec<TypeId>,
 }
 
 impl Dialect {
     /// Create a new unregistered dialect.
     pub fn new(name: DialectName) -> Dialect {
-        Dialect { name, ops: vec![] }
+        Dialect {
+            name,
+            ops: vec![],
+            types: vec![],
+        }
     }
 
     /// Register this dialect if not already registered.
@@ -44,6 +51,12 @@ impl Dialect {
     pub fn add_op(&mut self, op: OpId) {
         assert!(op.dialect == self.name);
         self.ops.push(op);
+    }
+
+    /// Add a Type to this dialect.
+    pub fn add_type(&mut self, ty: TypeId) {
+        assert!(ty.dialect == self.name);
+        self.types.push(ty);
     }
 
     /// This Dialect's name.

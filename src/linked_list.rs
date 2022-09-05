@@ -12,7 +12,7 @@ pub trait ContainsLinkedList<T: LinkedList> {
     fn set_tail(&mut self, tail: Option<Ptr<T>>);
 }
 
-/// Implements a linked list based on Ptr<T: ArenaObj>.
+/// Implements a linked list based on [Ptr]
 /// Types implementing this trait must provide simple
 /// getters and setters for prev and next fields.
 /// The default functions implement linked list operations.
