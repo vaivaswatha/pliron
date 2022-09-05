@@ -31,7 +31,7 @@ pub trait Type: Stringable + Verify + Downcast {
     /// Compute and get the hash for this instance of Self.
     fn compute_hash(&self) -> TypedHash;
 
-    /// Get a copyable pointer to this type. Unlike in other ArenaObjs,
+    /// Get a copyable pointer to this type. Unlike in other [ArenaObj]s,
     /// we do not store a self pointer inside the object itself
     /// because that can upset taking automatic hashes of the object.
     fn get_self_ptr(&self, ctx: &Context) -> Ptr<TypeObj> {
@@ -41,7 +41,7 @@ pub trait Type: Stringable + Verify + Downcast {
             .unwrap_or_else(|| panic!("Type {} not registered", self.to_string(ctx)))
     }
 
-    /// Register an instance of a type in the provided Context
+    /// Register an instance of a type in the provided [Context]
     /// Returns a pointer to self. If the type was already registered,
     /// a pointer to the existing object is returned.
     fn register_instance(t: Self, ctx: &mut Context) -> Ptr<TypeObj>
@@ -70,9 +70,9 @@ pub trait Type: Stringable + Verify + Downcast {
     where
         Self: Sized;
 
-    /// Register this Type's TypeId in the dialect it belongs to.
+    /// Register this Type's [TypeId] in the dialect it belongs to.
     /// **Warning**: No check is made as to whether this type is already registered
-    ///  in the dialect.
+    ///  in `dialect`.
     fn register_type_in_dialect(dialect: &mut Dialect)
     where
         Self: Sized,

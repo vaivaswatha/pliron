@@ -7,7 +7,7 @@ use crate::{
     vec_exns::VecExtns,
 };
 
-/// Represents the result of an Operation.
+/// Represents the result of an [Operation].
 #[derive(Debug)]
 pub struct OpResult {
     def: Def,
@@ -48,7 +48,7 @@ impl Value for OpResult {
     }
 }
 
-/// Links an operation with other operations and the container basic block.
+/// Links an [Operation] with other operations and the container [BasicBlock]
 #[derive(Debug)]
 pub struct BlockLinks {
     /// Parent block of this operation.
@@ -187,7 +187,7 @@ impl ArenaObj for Operation {
     }
 }
 
-/// Container for a Use in an operation.
+/// Container for a [Use] in an [Operation].
 #[derive(Debug)]
 pub struct Operand {
     r#use: Use,

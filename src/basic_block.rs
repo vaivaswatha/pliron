@@ -7,10 +7,14 @@ use crate::{
     vec_exns::VecExtns,
 };
 
+/// Argument to a [BasicBlock]
 #[derive(Debug)]
 pub struct BlockArgument {
+    /// The def contains the list of this argument's uses.
     def: Def,
+    /// A [Ptr] to the [BasicBlock] of which this is an argument of.
     def_block: Ptr<BasicBlock>,
+    /// Index of this argument in the block's list of arguments.
     arg_idx: usize,
 }
 
@@ -47,6 +51,7 @@ impl Value for BlockArgument {
     }
 }
 
+/// [Operation]s contained in this [BasicBlock]
 #[derive(Debug)]
 pub struct OpsInBlock {
     first: Option<Ptr<Operation>>,
@@ -62,6 +67,7 @@ impl OpsInBlock {
     }
 }
 
+/// An iterator for the [Operation]s in this [BasicBlock]
 struct OpsInBlockIter<'a> {
     curr: Option<Ptr<Operation>>,
     ctx: &'a Context,
@@ -79,6 +85,7 @@ impl<'a> Iterator for OpsInBlockIter<'a> {
     }
 }
 
+/// A basic block contains a list of [Operation]s. It may have [arguments](BlockArgument).
 #[derive(Debug)]
 pub struct BasicBlock {
     pub self_ptr: Ptr<BasicBlock>,

@@ -28,7 +28,7 @@ impl Deref for OpName {
     }
 }
 
-/// A combination of an Op's name and its dialect.
+/// A combination of an [Op]'s name and its dialect.
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct OpId {
     pub dialect: DialectName,
@@ -37,7 +37,7 @@ pub struct OpId {
 
 pub(crate) type OpCreator = fn(Ptr<Operation>) -> OpObj;
 
-/// A wrapper around Operation for Op(code) specific work.
+/// A wrapper around [Operation] for Op(code) specific work.
 /// All per-instance data must be in the underyling Operation.
 pub trait Op: Downcast + Verify + Stringable {
     /// Get the underlying IR Operation

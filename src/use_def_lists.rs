@@ -7,7 +7,7 @@ use crate::{
     value::Value,
 };
 
-/// A reference to the definition of a value.
+/// A reference to the definition of a [Value].
 #[derive(Clone, Copy, Debug)]
 pub enum DefDescr {
     OpResult {
@@ -60,7 +60,7 @@ pub struct Use {
     pub use_idx: usize,
 }
 
-///  A reference to the use of a value.
+///  A reference to the use of a [Value].
 #[derive(Clone, Copy, Debug)]
 pub struct UseDescr {
     /// Uses of a def can only be in an operation.
