@@ -4,7 +4,7 @@ use crate::{
     dialect::{Dialect, DialectName},
     dialects::builtin::properties::IsTerminator,
     error::CompilerError,
-    op::{Op, OpId, OpName},
+    op::{Op, OpId, OpName, OpObj},
     operation::Operation,
 };
 
@@ -19,7 +19,7 @@ impl Op for ReturnOp {
         self.op
     }
 
-    fn create(op: Ptr<Operation>) -> Box<dyn Op> {
+    fn create(op: Ptr<Operation>) -> OpObj {
         Box::new(ReturnOp { op })
     }
 

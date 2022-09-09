@@ -69,4 +69,4 @@ pub trait Op: Downcast + Verify + Stringable {
 }
 impl_downcast!(Op);
 
-type OpObj = Box<dyn Op>;
+pub type OpObj = Box<dyn Op>;
