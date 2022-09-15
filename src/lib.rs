@@ -11,5 +11,4 @@ pub mod op;
 pub mod operation;
 pub mod r#type;
 pub mod use_def_lists;
-pub mod value;
 pub mod vec_exns;

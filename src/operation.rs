@@ -1,50 +1,41 @@
 use crate::{
     basic_block::BasicBlock,
+    common_traits::{Stringable, Verify},
     context::{ArenaCell, ArenaObj, Context, Ptr},
+    error::{self, CompilerError},
     linked_list::LinkedList,
-    use_def_lists::{Def, DefDescr, Use, UseDescr},
-    value::Value,
+    use_def_lists::{BlockDefDescr, Def, DefDescr, DefDescrTrait, Use, UseDescr, ValDefDescr},
     vec_exns::VecExtns,
 };
 
 /// Represents the result of an [Operation].
 #[derive(Debug)]
 pub struct OpResult {
-    def: Def,
-    def_op: Ptr<Operation>,
-    res_idx: usize,
+    /// The def containing the list of this result's uses.
+    pub(crate) def: Def,
+    /// Get the [Operation] that this is a result of.
+    pub(crate) def_op: Ptr<Operation>,
+    /// Index of this result in the [Operation] that this is part of.
+    pub(crate) res_idx: usize,
 }
 
-impl Value for OpResult {
-    fn get_defining_op(&self) -> Option<Ptr<Operation>> {
-        Some(self.def_op)
+impl OpResult {
+    /// A [Ptr] to the [Operation] that this is a result of.
+    pub fn get_def_op(&self) -> Ptr<Operation> {
+        self.def_op
     }
 
-    fn get_parent_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
-        self.def_op.deref(ctx).block_links.parent_block
-    }
-
-    fn get_def_index(&self) -> usize {
+    /// Index of this result in the [Operation] that this is part of.
+    pub fn get_res_idx(&self) -> usize {
         self.res_idx
     }
 
-    fn get_uses(&self) -> &Vec<UseDescr> {
-        &self.def.uses
-    }
-
-    fn get_uses_mut(&mut self) -> &mut Vec<UseDescr> {
-        &mut self.def.uses
-    }
-
-    fn add_use(&mut self, r#use: UseDescr) -> Use {
-        let use_idx = self.def.uses.push_back(r#use);
-        Use {
-            def: DefDescr::OpResult {
-                op: self.get_defining_op().unwrap(),
-                res_idx: self.get_def_index(),
-            },
-            use_idx,
-        }
+    /// Build a [DefDescr] that describes this value.
+    pub fn build_def_descr(&self) -> DefDescr<ValDefDescr> {
+        DefDescr(ValDefDescr::OpResult {
+            op: self.def_op,
+            res_idx: self.res_idx,
+        })
     }
 }
 
@@ -76,7 +67,8 @@ impl BlockLinks {
 pub struct Operation {
     pub self_ptr: Ptr<Operation>,
     pub results: Vec<OpResult>,
-    pub operands: Vec<Operand>,
+    pub operands: Vec<Operand<ValDefDescr>>,
+    pub successors: Vec<Operand<BlockDefDescr>>,
     pub block_links: BlockLinks,
 }
 
@@ -116,29 +108,30 @@ impl LinkedList for Operation {
 
 impl Operation {
     /// Create a new, unlinked (i.e., not in a basic block) operation.
-    pub fn new(ctx: &mut Context, num_results: usize, operands: Vec<DefDescr>) -> Ptr<Operation> {
+    pub fn new(
+        ctx: &mut Context,
+        num_results: usize,
+        operands: Vec<ValDefDescr>,
+    ) -> Ptr<Operation> {
         let f = |self_ptr: Ptr<Operation>| Operation {
             self_ptr,
             results: Vec::new_init(num_results, |res_idx| OpResult {
-                def: Def { uses: vec![] },
+                def: Def::new(),
                 def_op: self_ptr,
                 res_idx,
             }),
             operands: vec![],
+            successors: vec![],
             block_links: BlockLinks::new_unlinked(),
         };
         let newop = Self::alloc(ctx, f);
-        let operands: Vec<Operand> = operands
+        let operands: Vec<Operand<ValDefDescr>> = operands
             .iter()
             .enumerate()
-            .map(|(opd_idx, def)| {
-                let mut defval = def.get_value_ref_mut(ctx);
-                let r#use = (*defval).add_use(UseDescr { op: newop, opd_idx });
-                Operand {
-                    r#use,
-                    opd_idx,
-                    user_op: newop,
-                }
+            .map(|(opd_idx, def)| Operand {
+                r#use: def.add_use(ctx, UseDescr { op: newop, opd_idx }),
+                opd_idx,
+                user_op: newop,
             })
             .collect();
         newop.deref_mut(ctx).operands = operands;
@@ -156,13 +149,23 @@ impl Operation {
     }
 
     /// Get a reference to the opd_idx'th operand.
-    pub fn get_operand(&self, opd_idx: usize) -> Option<&Operand> {
+    pub fn get_operand(&self, opd_idx: usize) -> Option<&Operand<ValDefDescr>> {
         self.operands.get(opd_idx)
     }
 
     /// Get a mutable reference to the opd_idx'th operand.
-    pub fn get_operand_mut(&mut self, opd_idx: usize) -> Option<&mut Operand> {
+    pub fn get_operand_mut(&mut self, opd_idx: usize) -> Option<&mut Operand<ValDefDescr>> {
         self.operands.get_mut(opd_idx)
+    }
+
+    /// Get a reference to the opd_idx'th successor.
+    pub fn get_successor(&self, opd_idx: usize) -> Option<&Operand<BlockDefDescr>> {
+        self.successors.get(opd_idx)
+    }
+
+    /// Get a mutable reference to the opd_idx'th successor.
+    pub fn get_successor_mut(&mut self, opd_idx: usize) -> Option<&mut Operand<BlockDefDescr>> {
+        self.successors.get_mut(opd_idx)
     }
 }
 
@@ -189,33 +192,42 @@ impl ArenaObj for Operation {
 
 /// Container for a [Use] in an [Operation].
 #[derive(Debug)]
-pub struct Operand {
-    r#use: Use,
-    opd_idx: usize,
-    user_op: Ptr<Operation>,
+pub struct Operand<T: DefDescrTrait> {
+    pub(crate) r#use: Use<T>,
+    /// This is the `opd_idx`'th operand of [user_op](Self::user_op).
+    pub(crate) opd_idx: usize,
+    /// The [Operation] that contains this [Use]
+    pub(crate) user_op: Ptr<Operation>,
 }
 
-impl Operand {
-    /// i'th operand in the Operation that contains this.
+impl<T: DefDescrTrait> Operand<T> {
+    /// i'th operand in the [Operation] that contains this.
     pub fn get_opd_idx(&self) -> usize {
         self.opd_idx
     }
 
-    /// Get the operation of which this is an operand.
+    /// Get the [Operation] of which this is an operand.
     pub fn get_user_op(&self) -> Ptr<Operation> {
         self.user_op
     }
+}
 
-    /// Build a UseRef referring to this operand.
-    pub fn build_useref(&self) -> UseDescr {
-        UseDescr {
-            op: self.get_user_op(),
-            opd_idx: self.get_opd_idx(),
-        }
+impl<T: DefDescrTrait> Stringable for Operand<T> {
+    fn to_string(&self, _ctx: &Context) -> String {
+        todo!()
     }
+}
 
-    /// Update the operand to be the Use of a different Def.
-    pub fn replace_def(&mut self, new_val: Use) {
-        self.r#use = new_val;
+impl<T: DefDescrTrait> Verify for Operand<T> {
+    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+        match self.r#use.def.0.get_use(ctx, self.r#use.use_idx) {
+            Some(descr) if descr.op == self.user_op || descr.opd_idx == self.opd_idx => Ok(()),
+            _ => Err(error::CompilerError::VerificationError {
+                msg: format!(
+                    "Definition of {} doesn't have a matching use at the specified position",
+                    self.to_string(ctx)
+                ),
+            }),
+        }
     }
 }

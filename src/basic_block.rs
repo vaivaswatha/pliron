@@ -2,52 +2,38 @@ use crate::{
     context::{ArenaCell, ArenaObj, Context, Ptr},
     linked_list::ContainsLinkedList,
     operation::Operation,
-    use_def_lists::{Def, DefDescr, Use, UseDescr},
-    value::Value,
+    use_def_lists::{Def, DefDescr, ValDefDescr},
     vec_exns::VecExtns,
 };
 
 /// Argument to a [BasicBlock]
 #[derive(Debug)]
 pub struct BlockArgument {
-    /// The def contains the list of this argument's uses.
-    def: Def,
-    /// A [Ptr] to the [BasicBlock] of which this is an argument of.
-    def_block: Ptr<BasicBlock>,
+    /// The def containing the list of this argument's uses.
+    pub(crate) def: Def,
+    /// A [Ptr] to the [BasicBlock] of which this is an argument.
+    pub(crate) def_block: Ptr<BasicBlock>,
     /// Index of this argument in the block's list of arguments.
-    arg_idx: usize,
+    pub(crate) arg_idx: usize,
 }
 
-impl Value for BlockArgument {
-    fn get_defining_op(&self) -> Option<Ptr<Operation>> {
-        None
+impl BlockArgument {
+    /// A [Ptr] to the [BasicBlock] of which this is an argument.
+    pub fn get_def_block(&self) -> Ptr<BasicBlock> {
+        self.def_block
     }
 
-    fn get_parent_block(&self, _ctx: &Context) -> Option<Ptr<BasicBlock>> {
-        Some(self.def_block)
-    }
-
-    fn get_def_index(&self) -> usize {
+    /// Index of this argument in the block's list of arguments.
+    pub fn get_arg_idx(&self) -> usize {
         self.arg_idx
     }
 
-    fn get_uses(&self) -> &Vec<UseDescr> {
-        &self.def.uses
-    }
-
-    fn get_uses_mut(&mut self) -> &mut Vec<UseDescr> {
-        &mut self.def.uses
-    }
-
-    fn add_use(&mut self, r#use: UseDescr) -> Use {
-        let use_idx = self.def.uses.push_back(r#use);
-        Use {
-            def: DefDescr::BlockArgument {
-                block: self.def_block,
-                arg_idx: self.get_def_index(),
-            },
-            use_idx,
-        }
+    /// Build a [DefDescr] that describes this value.
+    pub fn build_def_descr(&self) -> DefDescr<ValDefDescr> {
+        DefDescr(ValDefDescr::BlockArgument {
+            block: self.def_block,
+            arg_idx: self.arg_idx,
+        })
     }
 }
 
@@ -68,7 +54,7 @@ impl OpsInBlock {
 }
 
 /// An iterator for the [Operation]s in this [BasicBlock]
-struct OpsInBlockIter<'a> {
+pub struct OpsInBlockIter<'a> {
     curr: Option<Ptr<Operation>>,
     ctx: &'a Context,
 }
@@ -88,29 +74,44 @@ impl<'a> Iterator for OpsInBlockIter<'a> {
 /// A basic block contains a list of [Operation]s. It may have [arguments](BlockArgument).
 #[derive(Debug)]
 pub struct BasicBlock {
-    pub self_ptr: Ptr<BasicBlock>,
-    pub ops_list: OpsInBlock,
-    pub args: Vec<BlockArgument>,
+    pub(crate) self_ptr: Ptr<BasicBlock>,
+    pub(crate) ops_list: OpsInBlock,
+    pub(crate) args: Vec<BlockArgument>,
+    pub(crate) preds: Def,
 }
 
 impl BasicBlock {
-    fn get_ops_iter<'a>(&self, ctx: &'a Context) -> OpsInBlockIter<'a> {
+    /// Get an iterator to the operations inside this block.
+    pub fn get_ops_iter<'a>(&self, ctx: &'a Context) -> OpsInBlockIter<'a> {
         OpsInBlockIter {
             curr: self.ops_list.first,
             ctx,
         }
     }
+
+    /// Create a new Basic Block.
     pub fn new(ctx: &mut Context, num_args: usize) -> Ptr<BasicBlock> {
         let f = |self_ptr: Ptr<BasicBlock>| BasicBlock {
             self_ptr,
             args: Vec::new_init(num_args, |arg_idx| BlockArgument {
-                def: Def { uses: vec![] },
+                def: Def::new(),
                 def_block: self_ptr,
                 arg_idx,
             }),
             ops_list: OpsInBlock::new_empty(),
+            preds: Def::new(),
         };
         Self::alloc(ctx, f)
+    }
+
+    /// Get a reference to the idx'th argument.
+    pub fn get_argument(&self, idx: usize) -> Option<&BlockArgument> {
+        self.args.get(idx)
+    }
+
+    /// Get a mutable reference to the idx'th argument.
+    pub fn get_argument_mut(&mut self, idx: usize) -> Option<&mut BlockArgument> {
+        self.args.get_mut(idx)
     }
 }
 
