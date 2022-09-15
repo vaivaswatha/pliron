@@ -15,7 +15,7 @@ use std::cell::{Ref, RefMut};
 use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
-    operation::Operation,
+    operation::{Operand, Operation},
     vec_exns::VecExtns,
 };
 
@@ -53,11 +53,15 @@ pub trait DefDescrTrait: Copy {
     fn get_def<'a>(&self, ctx: &'a Context) -> Ref<'a, Def>;
     /// Get a mutable reference to the underlying Def.
     fn get_def_mut<'a>(&self, ctx: &'a Context) -> RefMut<'a, Def>;
-    /// Get a reference to the i'th use of the [Def] described by self.
-    fn get_resolved_use<'a>(&self, ctx: &'a Context, i: usize) -> Option<Ref<'a, Use<Self>>>;
-    /// Get a mutable reference to the i'th use of the [Def] described by self.
-    fn get_resolved_use_mut<'a>(&self, ctx: &'a Context, i: usize)
-        -> Option<RefMut<'a, Use<Self>>>;
+
+    /// Get a reference to the i'th use operand of the [Def] described by self.
+    fn get_use_operand<'a>(&self, ctx: &'a Context, i: usize) -> Option<Ref<'a, Operand<Self>>>;
+    /// Get a mutable reference to the i'th use operand of the [Def] described by self.
+    fn get_use_operand_mut<'a>(
+        &self,
+        ctx: &'a Context,
+        i: usize,
+    ) -> Option<RefMut<'a, Operand<Self>>>;
 
     /// Get a descriptor to the i'th use of the [Def] described by self.
     fn get_use(&self, ctx: &Context, i: usize) -> Option<UseDescr> {
@@ -86,8 +90,8 @@ pub trait DefDescrTrait: Copy {
     fn replace_all_uses_with(&self, ctx: &Context, other: &Self) {
         let def = self.get_def(ctx);
         for use_i in 0..def.uses.len() {
-            let mut r#use = self.get_resolved_use_mut(ctx, use_i).unwrap();
-            *r#use = other.add_use(ctx, def.uses[use_i])
+            let mut r#use = self.get_use_operand_mut(ctx, use_i).unwrap();
+            r#use.r#use = other.add_use(ctx, def.uses[use_i])
         }
         // self will no longer have any uses.
         self.get_def_mut(ctx).uses.clear();
@@ -137,30 +141,26 @@ impl DefDescrTrait for ValDefDescr {
         }
     }
 
-    fn get_resolved_use<'a>(
+    fn get_use_operand<'a>(
         &self,
         ctx: &'a Context,
         i: usize,
-    ) -> Option<Ref<'a, Use<ValDefDescr>>> {
+    ) -> Option<Ref<'a, Operand<ValDefDescr>>> {
         let def = self.get_def(ctx);
         let descr = def.uses.get(i)?;
         let op = descr.op.deref(ctx);
-        Some(Ref::map(op, |opref| {
-            &opref.get_operand(descr.opd_idx).unwrap().r#use
-        }))
+        Ref::filter_map(op, |opref| opref.get_operand(descr.opd_idx)).ok()
     }
 
-    fn get_resolved_use_mut<'a>(
+    fn get_use_operand_mut<'a>(
         &self,
         ctx: &'a Context,
         i: usize,
-    ) -> Option<RefMut<'a, Use<ValDefDescr>>> {
+    ) -> Option<RefMut<'a, Operand<ValDefDescr>>> {
         let def = self.get_def(ctx);
         let descr = def.uses.get(i)?;
         let op = descr.op.deref_mut(ctx);
-        Some(RefMut::map(op, |opref| {
-            &mut opref.get_operand_mut(descr.opd_idx).unwrap().r#use
-        }))
+        RefMut::filter_map(op, |opref| opref.get_operand_mut(descr.opd_idx)).ok()
     }
 }
 
@@ -180,30 +180,26 @@ impl DefDescrTrait for BlockDefDescr {
         RefMut::map(block, |blockref| &mut blockref.preds)
     }
 
-    fn get_resolved_use<'a>(
+    fn get_use_operand<'a>(
         &self,
         ctx: &'a Context,
         i: usize,
-    ) -> Option<Ref<'a, Use<BlockDefDescr>>> {
+    ) -> Option<Ref<'a, Operand<BlockDefDescr>>> {
         let def = self.get_def(ctx);
         let descr = def.uses.get(i)?;
         let op = descr.op.deref(ctx);
-        Some(Ref::map(op, |opref| {
-            &opref.get_successor(descr.opd_idx).unwrap().r#use
-        }))
+        Ref::filter_map(op, |opref| opref.get_successor(descr.opd_idx)).ok()
     }
 
-    fn get_resolved_use_mut<'a>(
+    fn get_use_operand_mut<'a>(
         &self,
         ctx: &'a Context,
         i: usize,
-    ) -> Option<RefMut<'a, Use<BlockDefDescr>>> {
+    ) -> Option<RefMut<'a, Operand<BlockDefDescr>>> {
         let def = self.get_def(ctx);
         let descr = def.uses.get(i)?;
         let op = descr.op.deref_mut(ctx);
-        Some(RefMut::map(op, |opref| {
-            &mut opref.get_successor_mut(descr.opd_idx).unwrap().r#use
-        }))
+        RefMut::filter_map(op, |opref| opref.get_successor_mut(descr.opd_idx)).ok()
     }
 }
 
