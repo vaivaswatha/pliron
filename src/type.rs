@@ -3,7 +3,7 @@ use crate::context::{ArenaCell, ArenaObj, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
 
 use downcast_rs::{impl_downcast, Downcast};
-use std::collections::hash_map;
+use rustc_hash::FxHasher;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 
@@ -127,8 +127,7 @@ pub struct TypedHash {
 impl TypedHash {
     /// Hash a value and its type together.
     pub fn new<T: Hash + 'static>(t: &T) -> TypedHash {
-        use hash_map::DefaultHasher;
-        let mut hasher = DefaultHasher::new();
+        let mut hasher = FxHasher::default();
         t.hash(&mut hasher);
         std::any::TypeId::of::<T>().hash(&mut hasher);
         TypedHash {

@@ -10,10 +10,10 @@ use crate::{
 use std::{
     any::TypeId,
     cell::{Ref, RefCell, RefMut},
-    collections::HashMap,
     hash::Hash,
     marker::PhantomData,
 };
+use rustc_hash::FxHashMap;
 
 pub type ArenaCell<T> = Arena<RefCell<T>>;
 
@@ -27,11 +27,11 @@ pub struct Context {
     /// Allocation pool for Types.
     pub types: ArenaCell<TypeObj>,
     /// A map from a type's unique hash to its's Ptr.
-    pub typehash_typeptr_map: HashMap<TypedHash, Ptr<TypeObj>>,
+    pub typehash_typeptr_map: FxHashMap<TypedHash, Ptr<TypeObj>>,
     /// Registered dialects.
-    pub dialects: HashMap<DialectName, Dialect>,
+    pub dialects: FxHashMap<DialectName, Dialect>,
     /// Registered Ops.
-    pub ops: HashMap<OpId, OpCreator>,
+    pub ops: FxHashMap<OpId, OpCreator>,
 }
 
 impl Context {
