@@ -10,67 +10,71 @@
 //!     (result of an operation / block argument) or a [BasicBlock].
 //!     Def-use chains for basic blocks are used to track the predecessors of a block.
 
+use rustc_hash::FxHashSet;
 use std::cell::{Ref, RefMut};
 
 use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
     operation::{Operand, Operation},
-    vec_exns::VecExtns,
 };
 
 /// A definition is a list of its uses.
 #[derive(Debug)]
 pub struct Def {
     /// The list of uses of this Def.
-    uses: Vec<UseDescr>,
+    uses: FxHashSet<UseDescr>,
 }
 
 impl Def {
-    /// Adds r#use as a use of self and returns the use index.
-    fn add_use(&mut self, r#use: UseDescr) -> usize {
-        self.uses.push_back(r#use)
-    }
     /// Create a new definition.
     pub(crate) fn new() -> Def {
-        Def { uses: vec![] }
-    }
-
-    /// Get a descriptor to the i'th use of this Def.
-    pub(crate) fn get_use(&self, i: usize) -> Option<UseDescr> {
-        self.uses.get(i).cloned()
-    }
-
-    /// Get the number of uses of this Def.
-    pub(crate) fn num_uses(&self) -> usize {
-        self.uses.len()
+        Def {
+            uses: FxHashSet::default(),
+        }
     }
 }
 
-/// Description of a definition.
-pub trait DefDescrTrait: Copy {
-    /// Get a reference to the underlying Def.
+/// A trait for [definition descriptors](DefDescr).
+pub trait DefDescrTrait: Copy + PartialEq {
+    /// Get a reference to the underlying [Def].
     fn get_def<'a>(&self, ctx: &'a Context) -> Ref<'a, Def>;
-    /// Get a mutable reference to the underlying Def.
+    /// Get a mutable reference to the underlying [Def].
     fn get_def_mut<'a>(&self, ctx: &'a Context) -> RefMut<'a, Def>;
 
-    /// Get a reference to the i'th use operand of the [Def] described by self.
-    fn get_use_operand<'a>(&self, ctx: &'a Context, i: usize) -> Option<Ref<'a, Operand<Self>>>;
-    /// Get a mutable reference to the i'th use operand of the [Def] described by self.
+    /// Get a reference to the [Operand] described by `descr`.
+    /// Checks that `descr` indeed is a [Use] of the underlying [Def].
+    fn get_use_operand<'a>(
+        &self,
+        ctx: &'a Context,
+        descr: &UseDescr,
+    ) -> Option<Ref<'a, Operand<Self>>>;
+    /// Get a reference to the [Operand] described by `descr`.
+    /// Checks that `descr` indeed is a [Use] of the underlying [Def].
     fn get_use_operand_mut<'a>(
         &self,
         ctx: &'a Context,
-        i: usize,
+        descr: &UseDescr,
     ) -> Option<RefMut<'a, Operand<Self>>>;
-
-    /// Get a descriptor to the i'th use of the [Def] described by self.
-    fn get_use(&self, ctx: &Context, i: usize) -> Option<UseDescr> {
-        self.get_def(ctx).get_use(i)
-    }
 
     /// How many uses does the [Def] corresponding to this [DefDescr] have?
     fn num_uses(&self, ctx: &Context) -> usize {
-        self.get_def(ctx).num_uses()
+        self.get_def(ctx).uses.len()
+    }
+
+    /// Does this [Def] have any [Use]?
+    fn has_use(&self, ctx: &Context) -> bool {
+        !self.get_def(ctx).uses.is_empty()
+    }
+
+    /// Is `descr` a [Use] of this [Def]?
+    fn has_use_of(&self, ctx: &Context, descr: &UseDescr) -> bool {
+        self.get_def(ctx).uses.contains(descr)
+    }
+
+    /// Get a reference to this [Def]'s [Use]es.
+    fn uses<'a>(&self, ctx: &'a Context) -> Ref<'a, FxHashSet<UseDescr>> {
+        Ref::map(self.get_def(ctx), |def| &def.uses)
     }
 
     /// This definition has a new use. Track it and return a corresponding [Use].
@@ -79,19 +83,29 @@ pub trait DefDescrTrait: Copy {
     where
         Self: Sized,
     {
-        let use_idx = self.get_def_mut(ctx).add_use(r#use);
+        if !self.get_def_mut(ctx).uses.insert(r#use) {
+            panic!("Def: Attempt to insert an existing use");
+        }
         Use {
             def: DefDescr::<Self>(*self),
-            use_idx,
         }
     }
 
-    /// Replace all uses of `self` with `other`.
+    /// Remove `use` from the underlying [Def].
+    fn remove_use(&self, ctx: &Context, r#use: UseDescr) {
+        if !self.get_def_mut(ctx).uses.remove(&r#use) {
+            panic!("Def: Attempt to remove a use that doesn't exist");
+        }
+    }
+
+    /// Replace all uses of the underlying [Def] with `other`.
     fn replace_all_uses_with(&self, ctx: &Context, other: &Self) {
-        let def = self.get_def(ctx);
-        for use_i in 0..def.uses.len() {
-            let mut r#use = self.get_use_operand_mut(ctx, use_i).unwrap();
-            r#use.r#use = other.add_use(ctx, def.uses[use_i])
+        if self == other {
+            return;
+        }
+        for r#use in self.uses(ctx).iter() {
+            let mut opd_ref = self.get_use_operand_mut(ctx, r#use).unwrap();
+            opd_ref.r#use = other.add_use(ctx, *r#use);
         }
         // self will no longer have any uses.
         self.get_def_mut(ctx).uses.clear();
@@ -99,7 +113,7 @@ pub trait DefDescrTrait: Copy {
 }
 
 /// Pointer to / describes a value definition.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ValDefDescr {
     OpResult {
         op: Ptr<Operation>,
@@ -144,10 +158,12 @@ impl DefDescrTrait for ValDefDescr {
     fn get_use_operand<'a>(
         &self,
         ctx: &'a Context,
-        i: usize,
+        descr: &UseDescr,
     ) -> Option<Ref<'a, Operand<ValDefDescr>>> {
-        let def = self.get_def(ctx);
-        let descr = def.uses.get(i)?;
+        assert!(
+            self.get_def(ctx).uses.contains(descr),
+            "This UseDescr is not a Use of this Def"
+        );
         let op = descr.op.deref(ctx);
         Ref::filter_map(op, |opref| opref.get_operand(descr.opd_idx)).ok()
     }
@@ -155,17 +171,19 @@ impl DefDescrTrait for ValDefDescr {
     fn get_use_operand_mut<'a>(
         &self,
         ctx: &'a Context,
-        i: usize,
+        descr: &UseDescr,
     ) -> Option<RefMut<'a, Operand<ValDefDescr>>> {
-        let def = self.get_def(ctx);
-        let descr = def.uses.get(i)?;
+        assert!(
+            self.get_def(ctx).uses.contains(descr),
+            "This UseDescr is not a Use of this Def"
+        );
         let op = descr.op.deref_mut(ctx);
         RefMut::filter_map(op, |opref| opref.get_operand_mut(descr.opd_idx)).ok()
     }
 }
 
 /// Pointer to / describes a basic block definition.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BlockDefDescr {
     pub(crate) block: Ptr<BasicBlock>,
 }
@@ -183,10 +201,12 @@ impl DefDescrTrait for BlockDefDescr {
     fn get_use_operand<'a>(
         &self,
         ctx: &'a Context,
-        i: usize,
+        descr: &UseDescr,
     ) -> Option<Ref<'a, Operand<BlockDefDescr>>> {
-        let def = self.get_def(ctx);
-        let descr = def.uses.get(i)?;
+        assert!(
+            self.get_def(ctx).uses.contains(descr),
+            "This UseDescr is not a Use of this Def"
+        );
         let op = descr.op.deref(ctx);
         Ref::filter_map(op, |opref| opref.get_successor(descr.opd_idx)).ok()
     }
@@ -194,10 +214,12 @@ impl DefDescrTrait for BlockDefDescr {
     fn get_use_operand_mut<'a>(
         &self,
         ctx: &'a Context,
-        i: usize,
+        descr: &UseDescr,
     ) -> Option<RefMut<'a, Operand<BlockDefDescr>>> {
-        let def = self.get_def(ctx);
-        let descr = def.uses.get(i)?;
+        assert!(
+            self.get_def(ctx).uses.contains(descr),
+            "This UseDescr is not a Use of this Def"
+        );
         let op = descr.op.deref_mut(ctx);
         RefMut::filter_map(op, |opref| opref.get_successor_mut(descr.opd_idx)).ok()
     }
@@ -212,12 +234,10 @@ pub struct DefDescr<T: DefDescrTrait>(pub(crate) T);
 pub struct Use<Of: DefDescrTrait> {
     /// The definition that this is a use of.
     pub(crate) def: DefDescr<Of>,
-    /// Index in the def's @uses list.
-    pub(crate) use_idx: usize,
 }
 
 /// Pointer to / describes a use.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct UseDescr {
     /// Uses of a def can only be in an operation.
     pub(crate) op: Ptr<Operation>,

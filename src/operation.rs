@@ -2,7 +2,7 @@ use crate::{
     basic_block::BasicBlock,
     common_traits::{Stringable, Verify},
     context::{ArenaCell, ArenaObj, Context, Ptr},
-    error::{self, CompilerError},
+    error::CompilerError,
     linked_list::LinkedList,
     use_def_lists::{BlockDefDescr, Def, DefDescr, DefDescrTrait, Use, UseDescr, ValDefDescr},
     vec_exns::VecExtns,
@@ -65,10 +65,16 @@ impl BlockLinks {
 /// [Operation](https://mlir.llvm.org/docs/LangRef/#operations)
 #[derive(Debug)]
 pub struct Operation {
+    /// A [Ptr] to self.
     pub self_ptr: Ptr<Operation>,
+    /// [Results](OpResult) defined by self.
     pub results: Vec<OpResult>,
+    /// [Operand]s used by self.
     pub operands: Vec<Operand<ValDefDescr>>,
+    /// Control-flow-graph successors.
     pub successors: Vec<Operand<BlockDefDescr>>,
+    /// Links to the parent [BasicBlock] and
+    /// previous and next [Operation]s in the block.
     pub block_links: BlockLinks,
 }
 
@@ -210,6 +216,14 @@ impl<T: DefDescrTrait> Operand<T> {
     pub fn get_user_op(&self) -> Ptr<Operation> {
         self.user_op
     }
+
+    /// Build a UseDescr describing this operand.
+    pub fn build_use_descr(&self) -> UseDescr {
+        UseDescr {
+            op: self.user_op,
+            opd_idx: self.opd_idx,
+        }
+    }
 }
 
 impl<T: DefDescrTrait> Stringable for Operand<T> {
@@ -220,14 +234,7 @@ impl<T: DefDescrTrait> Stringable for Operand<T> {
 
 impl<T: DefDescrTrait> Verify for Operand<T> {
     fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
-        match self.r#use.def.0.get_use(ctx, self.r#use.use_idx) {
-            Some(descr) if descr.op == self.user_op || descr.opd_idx == self.opd_idx => Ok(()),
-            _ => Err(error::CompilerError::VerificationError {
-                msg: format!(
-                    "Definition of {} doesn't have a matching use at the specified position",
-                    self.to_string(ctx)
-                ),
-            }),
-        }
+        if !self.r#use.def.0.has_use_of(ctx, &self.build_use_descr()) {}
+        Ok(())
     }
 }

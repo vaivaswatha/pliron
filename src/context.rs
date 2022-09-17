@@ -7,13 +7,13 @@ use crate::{
     operation::Operation,
     r#type::{TypeObj, TypedHash},
 };
+use rustc_hash::FxHashMap;
 use std::{
     any::TypeId,
     cell::{Ref, RefCell, RefMut},
     hash::Hash,
     marker::PhantomData,
 };
-use rustc_hash::FxHashMap;
 
 pub type ArenaCell<T> = Arena<RefCell<T>>;
 
