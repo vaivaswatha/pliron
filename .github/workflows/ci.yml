@@ -19,6 +19,7 @@ jobs:
 
     - name: Setup
       run: rustup component add clippy
+           rustup component add rustfmt
 
     - name: Build
       run: cargo build --verbose
@@ -26,5 +27,5 @@ jobs:
       run: cargo test --verbose
     - name: Clippy
       run: cargo clippy -- -D warnings
-    - name: Format
+    - name: Code format
       run: cargo fmt --check
