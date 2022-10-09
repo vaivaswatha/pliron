@@ -32,6 +32,9 @@ pub struct Context {
     pub dialects: FxHashMap<DialectName, Dialect>,
     /// Registered Ops.
     pub ops: FxHashMap<OpId, OpCreator>,
+
+    #[cfg(test)]
+    pub(crate) linked_list_store: crate::linked_list::tests::LinkedListTestArena,
 }
 
 impl Context {

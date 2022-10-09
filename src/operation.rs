@@ -188,7 +188,7 @@ impl ArenaObj for Operation {
     fn remove_references(ptr: Ptr<Self>, ctx: &mut Context) {
         // Unlink from parent block, if there's one.
         if ptr.deref(ctx).block_links.parent_block.is_some() {
-            ptr.deref_mut(ctx).remove(ctx);
+            ptr.remove(ctx);
         }
     }
     fn get_self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
