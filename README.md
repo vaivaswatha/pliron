@@ -1,5 +1,7 @@
 # Programming Languages Intermediate RepresentatiON
 
+![example workflow](https://github.com/github/docs/actions/workflows/ci.yml/badge.svg)
+
 This is an intermediate representation framework for programming languages,
 with the goal of, eventually, representing the language specified by
 [MLIR](https://mlir.llvm.org/docs/LangRef/).
