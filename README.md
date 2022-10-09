@@ -1,6 +1,6 @@
 # Programming Languages Intermediate RepresentatiON
 
-![Status](https://github.com/github/docs/actions/workflows/ci.yml/badge.svg)
+[![Status](https://github.com/vaivaswatha/pliron/actions/workflows/ci.yml/badge.svg)](https://github.com/vaivaswatha/pliron/actions/workflows/ci.yml)
 
 This is an intermediate representation framework for programming languages,
 with the goal of, eventually, representing the language specified by
