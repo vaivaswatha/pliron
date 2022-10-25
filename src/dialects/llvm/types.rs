@@ -122,7 +122,7 @@ impl Stringable for StructType {
                 return name.clone();
             }
             IN_PRINTING.with(|f| f.borrow_mut().push(name.clone()));
-            s = format!("{} {{ ", name);
+            s = format!("{name} {{ ");
         } else {
             s = "{{ ".to_string();
         }

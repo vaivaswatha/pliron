@@ -372,9 +372,9 @@ pub(crate) mod tests {
 
     fn validate_list(ctx: &Context, root: Ptr<LLRoot>, gold: Vec<u64>) {
         let root: Vec<_> = root
-            .deref(&ctx)
-            .iter(&ctx)
-            .map(|n| n.deref(&ctx).data)
+            .deref(ctx)
+            .iter(ctx)
+            .map(|n| n.deref(ctx).data)
             .collect();
 
         assert!(
@@ -387,8 +387,8 @@ pub(crate) mod tests {
 
     #[test]
     fn success() {
-        let mut ctx = &mut Context::default();
-        let root = LLRoot::empty(&mut ctx);
+        let ctx = &mut Context::default();
+        let root = LLRoot::empty(ctx);
 
         let n1 = LLNode::new(ctx, 1);
         let n2 = LLNode::new(ctx, 2);
@@ -419,8 +419,8 @@ pub(crate) mod tests {
     #[test]
     #[should_panic(expected = "must be unlinked before relinking")]
     fn reinsert_panic() {
-        let mut ctx = &mut Context::default();
-        let root = LLRoot::empty(&mut ctx);
+        let ctx = &mut Context::default();
+        let root = LLRoot::empty(ctx);
 
         let n1 = LLNode::new(ctx, 1);
         n1.insert_at_front(root, ctx);
@@ -440,8 +440,8 @@ pub(crate) mod tests {
     #[test]
     #[should_panic(expected = "Attempt to remove unlinked node")]
     fn reremove_panic() {
-        let mut ctx = &mut Context::default();
-        let root = LLRoot::empty(&mut ctx);
+        let ctx = &mut Context::default();
+        let root = LLRoot::empty(ctx);
 
         let n1 = LLNode::new(ctx, 1);
         n1.insert_at_front(root, ctx);
