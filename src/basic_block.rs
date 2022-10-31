@@ -1,7 +1,8 @@
 use crate::{
     context::{ArenaCell, ArenaObj, Context, Ptr},
-    linked_list::ContainsLinkedList,
+    linked_list::{ContainsLinkedList, LinkedList},
     operation::Operation,
+    region::Region,
     use_def_lists::{Def, DefDescr, ValDefDescr},
     vec_exns::VecExtns,
 };
@@ -53,21 +54,70 @@ impl OpsInBlock {
     }
 }
 
-/// An iterator for the [Operation]s in this [BasicBlock]
-pub struct OpsInBlockIter<'a> {
-    curr: Option<Ptr<Operation>>,
+/// An iterator for the [Operation]s in this [BasicBlock].
+/// This is created by [BasicBlock::iter()].
+pub struct Iter<'a> {
+    next: Option<Ptr<Operation>>,
+    next_back: Option<Ptr<Operation>>,
     ctx: &'a Context,
 }
 
-impl<'a> Iterator for OpsInBlockIter<'a> {
+impl<'a> Iterator for Iter<'a> {
     type Item = Ptr<Operation>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.curr.map(|curr| {
-            let next = curr.deref(self.ctx).block_links.next_op;
-            self.curr = next;
+        self.next.map(|curr| {
+            if curr
+                == self
+                    .next_back
+                    .expect("Some(next) => Some(next_back) violated")
+            {
+                self.next = None;
+                self.next_back = None;
+            } else {
+                self.next = curr.deref(self.ctx).block_links.next_op;
+            }
             curr
         })
+    }
+
+    fn last(mut self) -> Option<Self::Item> {
+        self.next_back()
+    }
+}
+
+impl<'a> DoubleEndedIterator for Iter<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.next_back.map(|curr| {
+            if curr == self.next.expect("Some(next_back) => Some(next) violated") {
+                self.next_back = None;
+                self.next = None;
+            } else {
+                self.next_back = curr.deref(self.ctx).block_links.prev_op;
+            }
+            curr
+        })
+    }
+}
+
+/// Links a [BasicBlock] with other blocks and the container [Region].
+#[derive(Debug)]
+pub struct RegionLinks {
+    /// Parent region of this block.
+    pub parent_region: Option<Ptr<Region>>,
+    /// The next block in the region's list of block.
+    pub next_block: Option<Ptr<BasicBlock>>,
+    /// The previous block in the region's list of blocks.
+    pub prev_block: Option<Ptr<BasicBlock>>,
+}
+
+impl RegionLinks {
+    pub fn new_unlinked() -> RegionLinks {
+        RegionLinks {
+            parent_region: None,
+            next_block: None,
+            prev_block: None,
+        }
     }
 }
 
@@ -78,13 +128,17 @@ pub struct BasicBlock {
     pub(crate) ops_list: OpsInBlock,
     pub(crate) args: Vec<BlockArgument>,
     pub(crate) preds: Def,
+    /// Links to the parent [Region] and
+    /// previous and next [BasicBlock]s in the block.
+    pub region_links: RegionLinks,
 }
 
 impl BasicBlock {
     /// Get an iterator to the operations inside this block.
-    pub fn get_ops_iter<'a>(&self, ctx: &'a Context) -> OpsInBlockIter<'a> {
-        OpsInBlockIter {
-            curr: self.ops_list.first,
+    pub fn iter<'a>(&self, ctx: &'a Context) -> Iter<'a> {
+        Iter {
+            next: self.ops_list.first,
+            next_back: self.ops_list.last,
             ctx,
         }
     }
@@ -100,6 +154,7 @@ impl BasicBlock {
             }),
             ops_list: OpsInBlock::new_empty(),
             preds: Def::new(),
+            region_links: RegionLinks::new_unlinked(),
         };
         Self::alloc(ctx, f)
     }
@@ -133,6 +188,40 @@ impl ContainsLinkedList<Operation> for BasicBlock {
     }
 }
 
+impl PartialEq for BasicBlock {
+    fn eq(&self, other: &Self) -> bool {
+        self.self_ptr == other.self_ptr
+    }
+}
+
+impl LinkedList for BasicBlock {
+    type ContainerType = Region;
+
+    fn get_next(&self) -> Option<Ptr<Self>> {
+        self.region_links.next_block
+    }
+
+    fn get_prev(&self) -> Option<Ptr<Self>> {
+        self.region_links.prev_block
+    }
+
+    fn set_next(&mut self, next: Option<Ptr<Self>>) {
+        self.region_links.next_block = next;
+    }
+
+    fn set_prev(&mut self, prev: Option<Ptr<Self>>) {
+        self.region_links.prev_block = prev;
+    }
+
+    fn get_container(&self) -> Option<Ptr<Self::ContainerType>> {
+        self.region_links.parent_region
+    }
+
+    fn set_container(&mut self, container: Option<Ptr<Self::ContainerType>>) {
+        self.region_links.parent_region = container;
+    }
+}
+
 impl ArenaObj for BasicBlock {
     fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
         &ctx.basic_blocks
@@ -141,7 +230,7 @@ impl ArenaObj for BasicBlock {
         &mut ctx.basic_blocks
     }
     fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context) {
-        let ops: Vec<_> = ptr.deref_mut(ctx).get_ops_iter(ctx).collect();
+        let ops: Vec<_> = ptr.deref_mut(ctx).iter(ctx).collect();
         for op in ops {
             ArenaObj::dealloc(op, ctx);
         }

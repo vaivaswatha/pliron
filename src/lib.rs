@@ -9,6 +9,7 @@ pub mod error;
 pub mod linked_list;
 pub mod op;
 pub mod operation;
+pub mod region;
 pub mod r#type;
 pub mod use_def_lists;
 pub mod vec_exns;

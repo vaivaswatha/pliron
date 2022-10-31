@@ -6,6 +6,7 @@ use crate::{
     op::{OpCreator, OpId},
     operation::Operation,
     r#type::{TypeObj, TypedHash},
+    region::Region,
 };
 use rustc_hash::FxHashMap;
 use std::{
@@ -24,6 +25,8 @@ pub struct Context {
     pub operations: ArenaCell<Operation>,
     /// Allocation pool for BasicBlocks.
     pub basic_blocks: ArenaCell<BasicBlock>,
+    /// Allocation pool for Regions.
+    pub regions: ArenaCell<Region>,
     /// Allocation pool for Types.
     pub types: ArenaCell<TypeObj>,
     /// A map from a type's unique hash to its's Ptr.
