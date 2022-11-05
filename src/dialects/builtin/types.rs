@@ -20,7 +20,8 @@ pub struct IntegerType {
 }
 
 impl IntegerType {
-    pub fn create(ctx: &mut Context, width: u64, signedness: Signedness) -> Ptr<TypeObj> {
+    /// Get or create a new integer type.
+    pub fn get(ctx: &mut Context, width: u64, signedness: Signedness) -> Ptr<TypeObj> {
         Type::register_instance(IntegerType { width, signedness }, ctx)
     }
 }
@@ -64,7 +65,8 @@ pub struct PointerType {
 }
 
 impl PointerType {
-    pub fn create(ctx: &mut Context, to: Ptr<TypeObj>) -> Ptr<TypeObj> {
+    /// Get or create a new pointer type.
+    pub fn get(ctx: &mut Context, to: Ptr<TypeObj>) -> Ptr<TypeObj> {
         Type::register_instance(PointerType { to }, ctx)
     }
 }
@@ -113,10 +115,10 @@ mod tests {
     #[test]
     fn test_types() {
         let mut ctx = Context::new();
-        let int32_1_ptr = IntegerType::create(&mut ctx, 32, Signedness::Signed);
-        let int32_2_ptr = IntegerType::create(&mut ctx, 32, Signedness::Signed);
-        let int64_ptr = IntegerType::create(&mut ctx, 64, Signedness::Signed);
-        let uint32_ptr = IntegerType::create(&mut ctx, 32, Signedness::Unsigned);
+        let int32_1_ptr = IntegerType::get(&mut ctx, 32, Signedness::Signed);
+        let int32_2_ptr = IntegerType::get(&mut ctx, 32, Signedness::Signed);
+        let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signed);
+        let uint32_ptr = IntegerType::get(&mut ctx, 32, Signedness::Unsigned);
 
         assert!(int32_1_ptr.deref(&ctx).compute_hash() == int32_2_ptr.deref(&ctx).compute_hash());
         assert!(int32_1_ptr.deref(&ctx).compute_hash() != int64_ptr.deref(&ctx).compute_hash());

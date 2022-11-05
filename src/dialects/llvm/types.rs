@@ -58,9 +58,9 @@ impl StructType {
         self_ptr
     }
 
-    /// Create a new unnamed (anonymous) struct.
+    /// Get or create a new unnamed (anonymous) struct.
     /// These are finalized upon creation, and uniqued based on the fields.
-    pub fn create_unnamed(ctx: &mut Context, fields: Vec<(String, Ptr<TypeObj>)>) -> Ptr<TypeObj> {
+    pub fn get_unnamed(ctx: &mut Context, fields: Vec<(String, Ptr<TypeObj>)>) -> Ptr<TypeObj> {
         Type::register_instance(
             StructType {
                 name: None,
@@ -194,11 +194,11 @@ mod tests {
     #[test]
     fn test_struct() {
         let mut ctx = Context::new();
-        let int64_ptr = IntegerType::create(&mut ctx, 64, Signedness::Signless);
+        let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signless);
 
         // Create an opaque struct since we want a recursive type.
         let list_struct = StructType::create_named(&mut ctx, "LinkedList".to_string(), None);
-        let list_struct_ptr = PointerType::create(&mut ctx, list_struct);
+        let list_struct_ptr = PointerType::get(&mut ctx, list_struct);
         let fields = vec![
             ("data".to_string(), int64_ptr),
             ("next".to_string(), list_struct_ptr),
