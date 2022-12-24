@@ -1,10 +1,10 @@
 use crate::common_traits::{Stringable, Verify};
 use crate::context::{ArenaCell, ArenaObj, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
+use crate::storage_uniquer::TypeValueHash;
 
 use downcast_rs::{impl_downcast, Downcast};
-use rustc_hash::FxHasher;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::ops::Deref;
 
 /// Basic functionality that every type in the IR must implement.
@@ -29,7 +29,7 @@ use std::ops::Deref;
 ///      of the hash, is used so that uniquing still works.
 pub trait Type: Stringable + Verify + Downcast {
     /// Compute and get the hash for this instance of Self.
-    fn compute_hash(&self) -> TypedHash;
+    fn compute_hash(&self) -> TypeValueHash;
 
     /// Get a copyable pointer to this type. Unlike in other [ArenaObj]s,
     /// we do not store a self pointer inside the object itself
@@ -100,40 +100,11 @@ impl Deref for TypeName {
         &self.0
     }
 }
-
 /// A combination of a Type's name and its dialect.
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct TypeId {
     pub dialect: DialectName,
     pub name: TypeName,
-}
-
-/// Computes the hash of a value and its type.
-/// ```rust
-///     use pliron::r#type::TypedHash;
-///     #[derive(Hash)]
-///     struct A { i: u64 }
-///     #[derive(Hash)]
-///     struct B { i: u64 }
-///     let x = A { i: 10 };
-///     let y = B { i: 10 };
-///     assert!(TypedHash::new(&x) != TypedHash::new(&y));
-/// ```
-#[derive(Hash, Eq, PartialEq)]
-pub struct TypedHash {
-    hash: u64,
-}
-
-impl TypedHash {
-    /// Hash a value and its type together.
-    pub fn new<T: Hash + 'static>(t: &T) -> TypedHash {
-        let mut hasher = FxHasher::default();
-        t.hash(&mut hasher);
-        std::any::TypeId::of::<T>().hash(&mut hasher);
-        TypedHash {
-            hash: hasher.finish(),
-        }
-    }
 }
 
 /// Since we can't store the Type trait in the arena,

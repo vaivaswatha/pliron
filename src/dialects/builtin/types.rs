@@ -3,7 +3,8 @@ use crate::{
     context::{Context, Ptr},
     dialect::{Dialect, DialectName},
     error::CompilerError,
-    r#type::{Type, TypeId, TypeName, TypeObj, TypedHash},
+    r#type::{Type, TypeId, TypeName, TypeObj},
+    storage_uniquer::TypeValueHash,
 };
 
 #[derive(Hash)]
@@ -27,8 +28,8 @@ impl IntegerType {
 }
 
 impl Type for IntegerType {
-    fn compute_hash(&self) -> TypedHash {
-        TypedHash::new(self)
+    fn compute_hash(&self) -> TypeValueHash {
+        TypeValueHash::new(self)
     }
 
     fn get_type_id(&self) -> TypeId {
@@ -78,8 +79,8 @@ impl Stringable for PointerType {
 }
 
 impl Type for PointerType {
-    fn compute_hash(&self) -> TypedHash {
-        TypedHash::new(self)
+    fn compute_hash(&self) -> TypeValueHash {
+        TypeValueHash::new(self)
     }
 
     fn get_type_id(&self) -> TypeId {

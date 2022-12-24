@@ -5,8 +5,9 @@ use crate::{
     dialect::{Dialect, DialectName},
     op::{OpCreator, OpId},
     operation::Operation,
-    r#type::{TypeObj, TypedHash},
+    r#type::TypeObj,
     region::Region,
+    storage_uniquer::TypeValueHash,
 };
 use rustc_hash::FxHashMap;
 use std::{
@@ -30,7 +31,7 @@ pub struct Context {
     /// Allocation pool for Types.
     pub types: ArenaCell<TypeObj>,
     /// A map from a type's unique hash to its's Ptr.
-    pub typehash_typeptr_map: FxHashMap<TypedHash, Ptr<TypeObj>>,
+    pub typehash_typeptr_map: FxHashMap<TypeValueHash, Ptr<TypeObj>>,
     /// Registered dialects.
     pub dialects: FxHashMap<DialectName, Dialect>,
     /// Registered Ops.

@@ -3,7 +3,8 @@ use crate::{
     context::{Context, Ptr},
     dialect::{Dialect, DialectName},
     error::CompilerError,
-    r#type::{Type, TypeId, TypeName, TypeObj, TypedHash},
+    r#type::{Type, TypeId, TypeName, TypeObj},
+    storage_uniquer::TypeValueHash,
 };
 
 use std::hash::Hash;
@@ -51,8 +52,7 @@ impl StructType {
         if let Some(fields) = fields {
             assert!(
                 self_ref.fields == fields,
-                "Struct {} already exists and is different",
-                name
+                "Struct {name} already exists and is different"
             );
         };
         self_ptr
@@ -160,8 +160,8 @@ impl Hash for StructType {
 }
 
 impl Type for StructType {
-    fn compute_hash(&self) -> TypedHash {
-        TypedHash::new(self)
+    fn compute_hash(&self) -> TypeValueHash {
+        TypeValueHash::new(self)
     }
 
     fn get_type_id(&self) -> TypeId {
