@@ -7,14 +7,14 @@ use crate::{
     storage_uniquer::TypeValueHash,
 };
 
-#[derive(Hash)]
+#[derive(Hash, PartialEq, Eq)]
 pub enum Signedness {
     Signed,
     Unsigned,
     Signless,
 }
 
-#[derive(Hash)]
+#[derive(Hash, PartialEq, Eq)]
 pub struct IntegerType {
     width: u64,
     signedness: Signedness,
@@ -28,7 +28,7 @@ impl IntegerType {
 }
 
 impl Type for IntegerType {
-    fn compute_hash(&self) -> TypeValueHash {
+    fn hash_type(&self) -> TypeValueHash {
         TypeValueHash::new(self)
     }
 
@@ -41,6 +41,13 @@ impl Type for IntegerType {
             name: TypeName::new("IntegerType"),
             dialect: DialectName::new("builtin"),
         }
+    }
+
+    fn eq_type(&self, other: &dyn Type) -> bool {
+        other
+            .downcast_ref::<Self>()
+            .filter(|other| self.eq(other))
+            .is_some()
     }
 }
 
@@ -60,7 +67,7 @@ impl Verify for IntegerType {
     }
 }
 
-#[derive(Hash)]
+#[derive(Hash, PartialEq, Eq)]
 pub struct PointerType {
     to: Ptr<TypeObj>,
 }
@@ -79,7 +86,7 @@ impl Stringable for PointerType {
 }
 
 impl Type for PointerType {
-    fn compute_hash(&self) -> TypeValueHash {
+    fn hash_type(&self) -> TypeValueHash {
         TypeValueHash::new(self)
     }
 
@@ -92,6 +99,13 @@ impl Type for PointerType {
             name: TypeName::new("PointerType"),
             dialect: DialectName::new("builtin"),
         }
+    }
+
+    fn eq_type(&self, other: &dyn Type) -> bool {
+        other
+            .downcast_ref::<Self>()
+            .filter(|other| self.eq(other))
+            .is_some()
     }
 }
 
@@ -121,9 +135,9 @@ mod tests {
         let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signed);
         let uint32_ptr = IntegerType::get(&mut ctx, 32, Signedness::Unsigned);
 
-        assert!(int32_1_ptr.deref(&ctx).compute_hash() == int32_2_ptr.deref(&ctx).compute_hash());
-        assert!(int32_1_ptr.deref(&ctx).compute_hash() != int64_ptr.deref(&ctx).compute_hash());
-        assert!(int32_1_ptr.deref(&ctx).compute_hash() != uint32_ptr.deref(&ctx).compute_hash());
+        assert!(int32_1_ptr.deref(&ctx).hash_type() == int32_2_ptr.deref(&ctx).hash_type());
+        assert!(int32_1_ptr.deref(&ctx).hash_type() != int64_ptr.deref(&ctx).hash_type());
+        assert!(int32_1_ptr.deref(&ctx).hash_type() != uint32_ptr.deref(&ctx).hash_type());
         assert!(int32_1_ptr == int32_2_ptr);
         assert!(int32_1_ptr != int64_ptr);
         assert!(int32_1_ptr != uint32_ptr);

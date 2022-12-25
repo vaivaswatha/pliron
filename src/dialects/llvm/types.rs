@@ -89,7 +89,7 @@ impl StructType {
             fields: vec![],
             finalized: false,
         }
-        .compute_hash();
+        .hash_type();
         ctx.typehash_typeptr_map.get(&hash).cloned()
     }
 }
@@ -159,8 +159,27 @@ impl Hash for StructType {
     }
 }
 
+impl PartialEq for StructType {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.name, &other.name) {
+            (Some(name), Some(other_name)) => name == other_name,
+            (None, None) => {
+                self.fields.len() == other.fields.len()
+                    && self
+                        .fields
+                        .iter()
+                        .zip(other.fields.iter())
+                        .all(|(f1, f2)| f1.0 == f2.0 && f1.1 == f2.1)
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Eq for StructType {}
+
 impl Type for StructType {
-    fn compute_hash(&self) -> TypeValueHash {
+    fn hash_type(&self) -> TypeValueHash {
         TypeValueHash::new(self)
     }
 
@@ -173,6 +192,13 @@ impl Type for StructType {
             name: TypeName::new("StructType"),
             dialect: DialectName::new("llvm"),
         }
+    }
+
+    fn eq_type(&self, other: &dyn Type) -> bool {
+        other
+            .downcast_ref::<Self>()
+            .filter(|other| self.eq(other))
+            .is_some()
     }
 }
 

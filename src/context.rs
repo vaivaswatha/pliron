@@ -1,5 +1,3 @@
-use generational_arena::Arena;
-
 use crate::{
     basic_block::BasicBlock,
     dialect::{Dialect, DialectName},
@@ -7,7 +5,7 @@ use crate::{
     operation::Operation,
     r#type::TypeObj,
     region::Region,
-    storage_uniquer::TypeValueHash,
+    storage_uniquer::{TypeValueHash, UniqueStore},
 };
 use rustc_hash::FxHashMap;
 use std::{
@@ -17,7 +15,8 @@ use std::{
     marker::PhantomData,
 };
 
-pub type ArenaCell<T> = Arena<RefCell<T>>;
+pub type ArenaCell<T> = generational_arena::Arena<RefCell<T>>;
+pub type ArenaIndex = generational_arena::Index;
 
 /// A context stores all IR data of this compilation session.
 #[derive(Default)]
@@ -37,6 +36,7 @@ pub struct Context {
     /// Registered Ops.
     pub ops: FxHashMap<OpId, OpCreator>,
 
+    pub type_store: UniqueStore<TypeObj>,
     #[cfg(test)]
     pub(crate) linked_list_store: crate::linked_list::tests::LinkedListTestArena,
 }
@@ -91,8 +91,8 @@ where
 /// Pointer to an IR Object owned by Context.
 #[derive(Debug)]
 pub struct Ptr<T: ArenaObj> {
-    idx: generational_arena::Index,
-    _dummy: PhantomData<T>,
+    pub(crate) idx: generational_arena::Index,
+    pub(crate) _dummy: PhantomData<T>,
 }
 
 impl<'a, T: ArenaObj> Ptr<T> {

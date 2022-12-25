@@ -4,7 +4,7 @@ use crate::dialect::{Dialect, DialectName};
 use crate::storage_uniquer::TypeValueHash;
 
 use downcast_rs::{impl_downcast, Downcast};
-use std::hash::Hash;
+use std::marker::PhantomData;
 use std::ops::Deref;
 
 /// Basic functionality that every type in the IR must implement.
@@ -29,16 +29,23 @@ use std::ops::Deref;
 ///      of the hash, is used so that uniquing still works.
 pub trait Type: Stringable + Verify + Downcast {
     /// Compute and get the hash for this instance of Self.
-    fn compute_hash(&self) -> TypeValueHash;
+    fn hash_type(&self) -> TypeValueHash;
+    /// Is self equal to an other Type?
+    fn eq_type(&self, other: &dyn Type) -> bool;
 
     /// Get a copyable pointer to this type. Unlike in other [ArenaObj]s,
     /// we do not store a self pointer inside the object itself
     /// because that can upset taking automatic hashes of the object.
     fn get_self_ptr(&self, ctx: &Context) -> Ptr<TypeObj> {
-        let hash = self.compute_hash();
-        *ctx.typehash_typeptr_map
-            .get(&hash)
-            .unwrap_or_else(|| panic!("Type {} not registered", self.to_string(ctx)))
+        let is = |other: &TypeObj| self.eq_type(&**other);
+        let idx = ctx
+            .type_store
+            .get(self.hash_type(), &is)
+            .expect("Unregistered type object in existence");
+        Ptr {
+            idx,
+            _dummy: PhantomData::<TypeObj>,
+        }
     }
 
     /// Register an instance of a type in the provided [Context]
@@ -48,15 +55,12 @@ pub trait Type: Stringable + Verify + Downcast {
     where
         Self: Sized,
     {
-        let hash = t.compute_hash();
-        // entry.or_insert_with(|| ArenaObj::alloc(ctx, |p: Ptr<TypeObj>| t))
-        match ctx.typehash_typeptr_map.get(&hash) {
-            Some(val) => *val,
-            None => {
-                let val = ArenaObj::alloc(ctx, |_: Ptr<TypeObj>| Box::new(t));
-                ctx.typehash_typeptr_map.insert(hash, val);
-                val
-            }
+        let idx = ctx
+            .type_store
+            .get_or_create_unique(Box::new(t), hash_type, eq_type);
+        Ptr {
+            idx,
+            _dummy: PhantomData::<TypeObj>,
         }
     }
 
@@ -111,13 +115,21 @@ pub struct TypeId {
 /// we store boxed dyn objects of Type instead.
 pub type TypeObj = Box<dyn Type>;
 
+fn eq_type(t1: &TypeObj, t2: &TypeObj) -> bool {
+    (**t1).eq_type(&**t2)
+}
+
+fn hash_type(t: &TypeObj) -> TypeValueHash {
+    (**t).hash_type()
+}
+
 impl ArenaObj for TypeObj {
     fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
-        &ctx.types
+        &ctx.type_store.unique_store
     }
 
     fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
-        &mut ctx.types
+        &mut ctx.type_store.unique_store
     }
 
     fn get_self_ptr(&self, ctx: &Context) -> Ptr<Self> {
