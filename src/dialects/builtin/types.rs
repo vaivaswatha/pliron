@@ -142,6 +142,14 @@ mod tests {
         assert!(int32_1_ptr != int64_ptr);
         assert!(int32_1_ptr != uint32_ptr);
 
+        assert!(int32_1_ptr.deref(&ctx).get_self_ptr(&ctx) == int32_1_ptr);
+        assert!(int32_2_ptr.deref(&ctx).get_self_ptr(&ctx) == int32_1_ptr);
+        assert!(int32_2_ptr.deref(&ctx).get_self_ptr(&ctx) == int32_2_ptr);
+        assert!(int64_ptr.deref(&ctx).get_self_ptr(&ctx) == int64_ptr);
+        assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) == uint32_ptr);
+        assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) != int32_1_ptr);
+        assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) != int64_ptr);
+
         let int64pointer_ptr = PointerType { to: int64_ptr };
         let int64pointer_ptr = Type::register_instance(int64pointer_ptr, &mut ctx);
         assert!(int64pointer_ptr.deref(&ctx).to_string(&ctx) == "si64*");
