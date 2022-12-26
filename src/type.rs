@@ -57,7 +57,7 @@ pub trait Type: Stringable + Verify + Downcast {
     {
         let idx = ctx
             .type_store
-            .get_or_create_unique(Box::new(t), hash_type, eq_type);
+            .get_or_create_unique(Box::new(t), &hash_type, &eq_type);
         Ptr {
             idx,
             _dummy: PhantomData::<TypeObj>,

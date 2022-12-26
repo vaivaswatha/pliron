@@ -40,10 +40,10 @@ impl TypeValueHash {
 }
 
 /// Hash the (to be) unique object.
-pub type UniqueStoreHash<T> = fn(&T) -> TypeValueHash;
+pub type UniqueStoreHash<'a, T> = &'a dyn Fn(&T) -> TypeValueHash;
 
 /// Are the two objects equal.
-pub type UniqueStoreEq<T> = fn(t1: &T, t2: &T) -> bool;
+pub type UniqueStoreEq<'a, T> = &'a dyn Fn(&T, &T) -> bool;
 
 /// Is the provided argument equal to the unique object under interest.
 pub type UniqueStoreIs<'a, T> = &'a dyn Fn(&T) -> bool;
@@ -105,5 +105,32 @@ impl<T: 'static> UniqueStore<T> {
                     .find(|other| is(&*self.unique_store.get(**other).unwrap().borrow()))
             })
             .copied()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TypeValueHash, UniqueStore};
+
+    #[test]
+    fn test_unique_store() {
+        let mut u32_store = UniqueStore::<u32>::default();
+        let u32_hash = |x: &u32| TypeValueHash::new(x);
+        let u32_0_idx = u32_store.get_or_create_unique(0, &u32_hash, &u32::eq);
+        let u32_1_idx = u32_store.get_or_create_unique(1, &u32_hash, &u32::eq);
+        let u32_0_1_idx = u32_store.get_or_create_unique(0, &u32_hash, &u32::eq);
+
+        assert!(u32_0_idx == u32_0_1_idx && u32_0_idx != u32_1_idx);
+        let u32_0_2_idx = u32_store
+            .get(TypeValueHash::new(&0u32), &|x| *x == 0)
+            .unwrap();
+        let u32_1_2_idx = u32_store
+            .get(TypeValueHash::new(&1u32), &|x| *x == 1)
+            .unwrap();
+        assert!(u32_0_2_idx == u32_0_idx && u32_1_2_idx == u32_1_idx);
+
+        assert!(u32_store
+            .get(TypeValueHash::new(&2u32), &|x| *x == 2)
+            .is_none());
     }
 }
