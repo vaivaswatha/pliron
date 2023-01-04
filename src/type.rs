@@ -55,13 +55,27 @@ pub trait Type: Stringable + Verify + Downcast {
     where
         Self: Sized,
     {
+        let hash = t.hash_type();
         let idx = ctx
             .type_store
-            .get_or_create_unique(Box::new(t), &hash_type, &eq_type);
+            .get_or_create_unique(Box::new(t), hash, &eq_type);
         Ptr {
             idx,
             _dummy: PhantomData::<TypeObj>,
         }
+    }
+
+    /// If an instance of `t` already exists, get a [Ptr] to it.
+    /// Consumes `t` either way.
+    fn get_instance(t: Self, ctx: &Context) -> Option<Ptr<TypeObj>>
+    where
+        Self: Sized,
+    {
+        let is = |other: &TypeObj| t.eq_type(&**other);
+        ctx.type_store.get(t.hash_type(), &is).map(|idx| Ptr {
+            idx,
+            _dummy: PhantomData::<TypeObj>,
+        })
     }
 
     /// Get a Type's static name. This is *not* per instantiation of the type.
@@ -117,10 +131,6 @@ pub type TypeObj = Box<dyn Type>;
 
 fn eq_type(t1: &TypeObj, t2: &TypeObj) -> bool {
     (**t1).eq_type(&**t2)
-}
-
-fn hash_type(t: &TypeObj) -> TypeValueHash {
-    (**t).hash_type()
 }
 
 impl ArenaObj for TypeObj {

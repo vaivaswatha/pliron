@@ -39,9 +39,6 @@ impl TypeValueHash {
     }
 }
 
-/// Hash the (to be) unique object.
-pub type UniqueStoreHash<'a, T> = &'a dyn Fn(&T) -> TypeValueHash;
-
 /// Are the two objects equal.
 pub type UniqueStoreEq<'a, T> = &'a dyn Fn(&T, &T) -> bool;
 
@@ -65,15 +62,15 @@ impl<T: 'static> Default for UniqueStore<T> {
 
 impl<T: 'static> UniqueStore<T> {
     /// Get or create a unique copy of `t: T`.
+    /// `t` is uniqued based on its provided `hash` and `eq`.
     /// Consumes the provided argument either way.
-    /// Returns [generational_arena::Index] into [UniqueStore::unique_store] of the unique copy.
+    /// Returns [generational_arena::Index] into [Self::unique_store] of the unique copy.
     pub fn get_or_create_unique(
         &mut self,
         t: T,
-        hash: UniqueStoreHash<T>,
+        hash: TypeValueHash,
         eq: UniqueStoreEq<T>,
     ) -> ArenaIndex {
-        let hash = hash(&t);
         match self.unique_stores_map.entry(hash) {
             Entry::Occupied(mut possible_matches) => {
                 let index = possible_matches.get().iter().find_map(|index| {
@@ -115,10 +112,9 @@ mod tests {
     #[test]
     fn test_unique_store() {
         let mut u32_store = UniqueStore::<u32>::default();
-        let u32_hash = |x: &u32| TypeValueHash::new(x);
-        let u32_0_idx = u32_store.get_or_create_unique(0, &u32_hash, &u32::eq);
-        let u32_1_idx = u32_store.get_or_create_unique(1, &u32_hash, &u32::eq);
-        let u32_0_1_idx = u32_store.get_or_create_unique(0, &u32_hash, &u32::eq);
+        let u32_0_idx = u32_store.get_or_create_unique(0, TypeValueHash::new(&0u32), &u32::eq);
+        let u32_1_idx = u32_store.get_or_create_unique(1, TypeValueHash::new(&1u32), &u32::eq);
+        let u32_0_1_idx = u32_store.get_or_create_unique(0, TypeValueHash::new(&0u32), &u32::eq);
 
         assert!(u32_0_idx == u32_0_1_idx && u32_0_idx != u32_1_idx);
         let u32_0_2_idx = u32_store

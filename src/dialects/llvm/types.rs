@@ -30,12 +30,12 @@ impl StructType {
     /// Opaque structs are an intermediary in creating recursive types.
     pub fn create_named(
         ctx: &mut Context,
-        name: String,
+        name: &str,
         fields: Option<Vec<(String, Ptr<TypeObj>)>>,
     ) -> Ptr<TypeObj> {
         let self_ptr = Type::register_instance(
             StructType {
-                name: Some(name.clone()),
+                name: Some(name.to_string()),
                 fields: fields.clone().unwrap_or_default(),
                 finalized: fields.is_some(),
             },
@@ -44,7 +44,7 @@ impl StructType {
         // Verify that we created a new or equivalent existing type.
         let self_ref = self_ptr.deref(ctx);
         let self_ref = self_ref.downcast_ref::<StructType>().unwrap();
-        assert!(self_ref.name.as_ref().unwrap() == &name);
+        assert!(self_ref.name.as_ref().unwrap() == name);
         assert!(
             self_ref.finalized == fields.is_some(),
             "Struct already exists, or is being finalized via new creation"
@@ -83,14 +83,30 @@ impl StructType {
 
     /// If a named struct already exists, get a pointer to it.
     /// Note that named structs are uniqued only on the name.
-    pub fn get_existing_named_struct(ctx: &Context, name: String) -> Option<Ptr<TypeObj>> {
-        let hash = StructType {
-            name: Some(name),
-            fields: vec![],
-            finalized: false,
-        }
-        .hash_type();
-        ctx.typehash_typeptr_map.get(&hash).cloned()
+    pub fn get_existing_named(ctx: &Context, name: &str) -> Option<Ptr<TypeObj>> {
+        Type::get_instance(
+            StructType {
+                name: Some(name.to_string()),
+                fields: vec![],
+                finalized: false,
+            },
+            ctx,
+        )
+    }
+
+    /// Get, if it already exists, a [Ptr] to an unnamed struct.
+    pub fn get_existing_unnamed(
+        ctx: &Context,
+        fields: Vec<(String, Ptr<TypeObj>)>,
+    ) -> Option<Ptr<TypeObj>> {
+        Type::get_instance(
+            StructType {
+                name: None,
+                fields,
+                finalized: true,
+            },
+            ctx,
+        )
     }
 }
 
@@ -223,7 +239,7 @@ mod tests {
         let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signless);
 
         // Create an opaque struct since we want a recursive type.
-        let list_struct = StructType::create_named(&mut ctx, "LinkedList".to_string(), None);
+        let list_struct = StructType::create_named(&mut ctx, "LinkedList", None);
         let list_struct_ptr = PointerType::get(&mut ctx, list_struct);
         let fields = vec![
             ("data".to_string(), int64_ptr),
@@ -236,6 +252,10 @@ mod tests {
             .unwrap()
             .finalize(fields);
 
+        let list_struct_2 = StructType::get_existing_named(&ctx, "LinkedList").unwrap();
+        assert!(list_struct == list_struct_2);
+        assert!(StructType::get_existing_named(&ctx, "LinkedList2").is_none());
+
         assert!(
             list_struct
                 .deref(&ctx)
@@ -244,5 +264,22 @@ mod tests {
                 .to_string(&ctx)
                 == "LinkedList { data: i64, next: LinkedList*, }"
         );
+
+        let head_fields = vec![
+            ("len".to_string(), int64_ptr),
+            ("first".to_string(), list_struct_ptr),
+        ];
+        let head_struct = StructType::get_unnamed(&mut ctx, head_fields.clone());
+        let head_struct2 = StructType::get_existing_unnamed(&ctx, head_fields).unwrap();
+        assert!(head_struct == head_struct2);
+        assert!(StructType::get_existing_unnamed(
+            &mut ctx,
+            vec![
+                ("len".to_string(), int64_ptr),
+                // The actual field is a LinkedList here, rather than a pointer type to it.
+                ("first".to_string(), list_struct),
+            ]
+        )
+        .is_none());
     }
 }

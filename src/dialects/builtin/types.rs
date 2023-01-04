@@ -25,6 +25,10 @@ impl IntegerType {
     pub fn get(ctx: &mut Context, width: u64, signedness: Signedness) -> Ptr<TypeObj> {
         Type::register_instance(IntegerType { width, signedness }, ctx)
     }
+    /// Get, if it already exists, an integer type.
+    pub fn get_existing(ctx: &Context, width: u64, signedness: Signedness) -> Option<Ptr<TypeObj>> {
+        Type::get_instance(IntegerType { width, signedness }, ctx)
+    }
 }
 
 impl Type for IntegerType {
@@ -76,6 +80,10 @@ impl PointerType {
     /// Get or create a new pointer type.
     pub fn get(ctx: &mut Context, to: Ptr<TypeObj>) -> Ptr<TypeObj> {
         Type::register_instance(PointerType { to }, ctx)
+    }
+    /// Get, if it already exists, a pointer type.
+    pub fn get_existing(ctx: &Context, to: Ptr<TypeObj>) -> Option<Ptr<TypeObj>> {
+        Type::get_instance(PointerType { to }, ctx)
     }
 }
 
@@ -153,6 +161,7 @@ mod tests {
         let int64pointer_ptr = PointerType { to: int64_ptr };
         let int64pointer_ptr = Type::register_instance(int64pointer_ptr, &mut ctx);
         assert!(int64pointer_ptr.deref(&ctx).to_string(&ctx) == "si64*");
+        assert!(int64pointer_ptr == PointerType::get(&mut ctx, int64_ptr));
 
         assert!(
             int64_ptr
@@ -162,5 +171,8 @@ mod tests {
                 .width
                 == 64
         );
+
+        assert!(IntegerType::get_existing(&ctx, 32, Signedness::Signed).unwrap() == int32_1_ptr);
+        assert!(PointerType::get_existing(&ctx, int64_ptr).unwrap() == int64pointer_ptr);
     }
 }
