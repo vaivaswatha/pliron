@@ -1,7 +1,8 @@
-use crate::common_traits::{Stringable, Verify};
+use crate::common_traits::{DisplayWithContext, Verify};
 use crate::context::{ArenaCell, ArenaObj, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
 use crate::storage_uniquer::TypeValueHash;
+use crate::with_context::AttachContext;
 
 use downcast_rs::{impl_downcast, Downcast};
 use std::marker::PhantomData;
@@ -27,7 +28,7 @@ use std::ops::Deref;
 ///   1. It manually implements Hash, ignoring these mutable fields.
 ///   2. A proper distinguisher content (such as a string), that is part
 ///      of the hash, is used so that uniquing still works.
-pub trait Type: Stringable + Verify + Downcast {
+pub trait Type: DisplayWithContext + Verify + Downcast {
     /// Compute and get the hash for this instance of Self.
     fn hash_type(&self) -> TypeValueHash;
     /// Is self equal to an other Type?
@@ -125,8 +126,8 @@ pub struct TypeId {
     pub name: TypeName,
 }
 
-/// Since we can't store the Type trait in the arena,
-/// we store boxed dyn objects of Type instead.
+/// Since we can't store the [Type] trait in the arena,
+/// we store boxed dyn objects of it instead.
 pub type TypeObj = Box<dyn Type>;
 
 fn eq_type(t1: &TypeObj, t2: &TypeObj) -> bool {
@@ -152,5 +153,12 @@ impl ArenaObj for TypeObj {
 
     fn remove_references(_ptr: Ptr<Self>, _ctx: &mut Context) {
         panic!("Cannot remove references to types")
+    }
+}
+
+impl AttachContext for TypeObj {}
+impl DisplayWithContext for Box<dyn Type> {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.as_ref().fmt(ctx, f)
     }
 }

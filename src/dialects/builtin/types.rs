@@ -1,10 +1,11 @@
 use crate::{
-    common_traits::{Stringable, Verify},
+    common_traits::{DisplayWithContext, Verify},
     context::{Context, Ptr},
     dialect::{Dialect, DialectName},
     error::CompilerError,
     r#type::{Type, TypeId, TypeName, TypeObj},
     storage_uniquer::TypeValueHash,
+    with_context::AttachContext,
 };
 
 #[derive(Hash, PartialEq, Eq)]
@@ -55,12 +56,14 @@ impl Type for IntegerType {
     }
 }
 
-impl Stringable for IntegerType {
-    fn to_string(&self, _ctx: &Context) -> String {
+impl AttachContext for IntegerType {}
+
+impl DisplayWithContext for IntegerType {
+    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self.signedness {
-            Signedness::Signed => format!("si{}", self.width),
-            Signedness::Unsigned => format!("ui{}", self.width),
-            Signedness::Signless => format!("i{}", self.width),
+            Signedness::Signed => write!(f, "si{}", self.width),
+            Signedness::Unsigned => write!(f, "ui{}", self.width),
+            Signedness::Signless => write!(f, "i{}", self.width),
         }
     }
 }
@@ -87,9 +90,10 @@ impl PointerType {
     }
 }
 
-impl Stringable for PointerType {
-    fn to_string(&self, ctx: &Context) -> String {
-        format!("{}*", self.to.deref(ctx).to_string(ctx))
+impl AttachContext for PointerType {}
+impl DisplayWithContext for PointerType {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}*", self.to.with_ctx(ctx))
     }
 }
 
@@ -134,6 +138,7 @@ mod tests {
     use crate::{
         context::Context,
         dialects::builtin::types::{IntegerType, PointerType, Signedness},
+        with_context::AttachContext,
     };
     #[test]
     fn test_types() {
@@ -160,7 +165,7 @@ mod tests {
 
         let int64pointer_ptr = PointerType { to: int64_ptr };
         let int64pointer_ptr = Type::register_instance(int64pointer_ptr, &mut ctx);
-        assert!(int64pointer_ptr.deref(&ctx).to_string(&ctx) == "si64*");
+        assert!(int64pointer_ptr.with_ctx(&ctx).to_string() == "si64*");
         assert!(int64pointer_ptr == PointerType::get(&mut ctx, int64_ptr));
 
         assert!(

@@ -3,7 +3,7 @@ use std::ops::Deref;
 use downcast_rs::{impl_downcast, Downcast};
 
 use crate::{
-    common_traits::{Stringable, Verify},
+    common_traits::{DisplayWithContext, Verify},
     context::{Context, Ptr},
     dialect::{Dialect, DialectName},
     operation::Operation,
@@ -39,7 +39,7 @@ pub(crate) type OpCreator = fn(Ptr<Operation>) -> OpObj;
 
 /// A wrapper around [Operation] for Op(code) specific work.
 /// All per-instance data must be in the underyling Operation.
-pub trait Op: Downcast + Verify + Stringable {
+pub trait Op: Downcast + Verify + DisplayWithContext {
     /// Get the underlying IR Operation
     fn get_operation(&self) -> Ptr<Operation>;
     /// Create a new Op object, given the containing operation.

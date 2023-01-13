@@ -1,11 +1,12 @@
 use crate::{
-    common_traits::{Stringable, Verify},
+    common_traits::{DisplayWithContext, Verify},
     context::{Context, Ptr},
     dialect::{Dialect, DialectName},
     dialects::builtin::properties::IsTerminator,
     error::CompilerError,
     op::{Op, OpId, OpName, OpObj},
     operation::Operation,
+    with_context::AttachContext,
 };
 
 /// Equivalent to LLVM's return opcode.
@@ -35,8 +36,9 @@ impl Op for ReturnOp {
     }
 }
 
-impl Stringable for ReturnOp {
-    fn to_string(&self, _ctx: &Context) -> String {
+impl AttachContext for ReturnOp {}
+impl DisplayWithContext for ReturnOp {
+    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         todo!()
     }
 }

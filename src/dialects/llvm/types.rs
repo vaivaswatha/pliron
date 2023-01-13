@@ -1,10 +1,11 @@
 use crate::{
-    common_traits::{Stringable, Verify},
+    common_traits::{DisplayWithContext, Verify},
     context::{Context, Ptr},
     dialect::{Dialect, DialectName},
     error::CompilerError,
     r#type::{Type, TypeId, TypeName, TypeObj},
     storage_uniquer::TypeValueHash,
+    with_context::AttachContext,
 };
 
 use std::hash::Hash;
@@ -121,8 +122,10 @@ impl Verify for StructType {
     }
 }
 
-impl Stringable for StructType {
-    fn to_string(&self, ctx: &Context) -> String {
+impl AttachContext for StructType {}
+
+impl DisplayWithContext for StructType {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use std::cell::RefCell;
         // Ugly, but also the simplest way to avoid infinite recursion.
         // MLIR does the same: see LLVMTypeSyntax::printStructType.
@@ -135,7 +138,7 @@ impl Stringable for StructType {
         if let Some(name) = &self.name {
             let in_printing = IN_PRINTING.with(|f| f.borrow().contains(name));
             if in_printing {
-                return name.clone();
+                return write!(f, "{}", name.clone());
             }
             IN_PRINTING.with(|f| f.borrow_mut().push(name.clone()));
             s = format!("{name} {{ ");
@@ -147,7 +150,7 @@ impl Stringable for StructType {
             s += [
                 field.0.clone(),
                 ": ".to_string(),
-                field.1.deref(ctx).to_string(ctx),
+                field.1.deref(ctx).with_ctx(ctx).to_string(),
                 ", ".to_string(),
             ]
             .concat()
@@ -159,7 +162,7 @@ impl Stringable for StructType {
             debug_assert!(IN_PRINTING.with(|f| f.borrow().last().unwrap() == name));
             IN_PRINTING.with(|f| f.borrow_mut().pop());
         }
-        s
+        write!(f, "{s}")
     }
 }
 
@@ -225,12 +228,12 @@ pub fn register(dialect: &mut Dialect) {
 #[cfg(test)]
 mod tests {
     use crate::{
-        common_traits::Stringable,
         context::Context,
         dialects::{
             builtin::types::{IntegerType, PointerType, Signedness},
             llvm::types::StructType,
         },
+        with_context::AttachContext,
     };
 
     #[test]
@@ -261,7 +264,8 @@ mod tests {
                 .deref(&ctx)
                 .downcast_ref::<StructType>()
                 .unwrap()
-                .to_string(&ctx)
+                .with_ctx(&ctx)
+                .to_string()
                 == "LinkedList { data: i64, next: LinkedList*, }"
         );
 

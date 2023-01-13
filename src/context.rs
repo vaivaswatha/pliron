@@ -1,11 +1,13 @@
 use crate::{
     basic_block::BasicBlock,
+    common_traits::DisplayWithContext,
     dialect::{Dialect, DialectName},
     op::{OpCreator, OpId},
     operation::Operation,
     r#type::TypeObj,
     region::Region,
-    storage_uniquer::{TypeValueHash, UniqueStore},
+    storage_uniquer::UniqueStore,
+    with_context::AttachContext,
 };
 use rustc_hash::FxHashMap;
 use std::{
@@ -21,22 +23,19 @@ pub type ArenaIndex = generational_arena::Index;
 /// A context stores all IR data of this compilation session.
 #[derive(Default)]
 pub struct Context {
-    /// Allocation pool for Operations.
+    /// Allocation pool for [Operation]s.
     pub operations: ArenaCell<Operation>,
-    /// Allocation pool for BasicBlocks.
+    /// Allocation pool for [BasicBlock]s.
     pub basic_blocks: ArenaCell<BasicBlock>,
-    /// Allocation pool for Regions.
+    /// Allocation pool for [Region]s.
     pub regions: ArenaCell<Region>,
-    /// Allocation pool for Types.
-    pub types: ArenaCell<TypeObj>,
-    /// A map from a type's unique hash to its's Ptr.
-    pub typehash_typeptr_map: FxHashMap<TypeValueHash, Ptr<TypeObj>>,
-    /// Registered dialects.
+    /// Registered [Dialect]s.
     pub dialects: FxHashMap<DialectName, Dialect>,
-    /// Registered Ops.
+    /// Registered [Op](crate::op::Op)s.
     pub ops: FxHashMap<OpId, OpCreator>,
-
+    /// Storage for uniqued [TypeObj]s.
     pub type_store: UniqueStore<TypeObj>,
+
     #[cfg(test)]
     pub(crate) linked_list_store: crate::linked_list::tests::LinkedListTestArena,
 }
@@ -127,5 +126,12 @@ impl<T: ArenaObj + 'static> Hash for Ptr<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         TypeId::of::<T>().hash(state);
         self.idx.hash(state);
+    }
+}
+
+impl<T: ArenaObj> AttachContext for Ptr<T> {}
+impl<T: ArenaObj + DisplayWithContext> DisplayWithContext for Ptr<T> {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.deref(ctx).fmt(ctx, f)
     }
 }

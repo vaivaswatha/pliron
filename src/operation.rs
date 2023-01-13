@@ -1,11 +1,12 @@
 use crate::{
     basic_block::BasicBlock,
-    common_traits::{Stringable, Verify},
+    common_traits::{DisplayWithContext, Verify},
     context::{ArenaCell, ArenaObj, Context, Ptr},
     error::CompilerError,
     linked_list::LinkedList,
     use_def_lists::{BlockDefDescr, Def, DefDescr, DefDescrTrait, Use, UseDescr, ValDefDescr},
     vec_exns::VecExtns,
+    with_context::AttachContext,
 };
 
 /// Represents the result of an [Operation].
@@ -226,8 +227,9 @@ impl<T: DefDescrTrait> Operand<T> {
     }
 }
 
-impl<T: DefDescrTrait> Stringable for Operand<T> {
-    fn to_string(&self, _ctx: &Context) -> String {
+impl<T: DefDescrTrait> AttachContext for Operand<T> {}
+impl<T: DefDescrTrait> DisplayWithContext for Operand<T> {
+    fn fmt(&self, _ctx: &Context, _ff: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         todo!()
     }
 }
