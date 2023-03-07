@@ -157,7 +157,7 @@ impl ArenaObj for TypeObj {
 }
 
 impl AttachContext for TypeObj {}
-impl DisplayWithContext for Box<dyn Type> {
+impl DisplayWithContext for TypeObj {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.as_ref().fmt(ctx, f)
     }

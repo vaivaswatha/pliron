@@ -1,4 +1,5 @@
 use crate::{
+    attribute::AttrObj,
     basic_block::BasicBlock,
     common_traits::DisplayWithContext,
     dialect::{Dialect, DialectName},
@@ -35,6 +36,8 @@ pub struct Context {
     pub ops: FxHashMap<OpId, OpCreator>,
     /// Storage for uniqued [TypeObj]s.
     pub type_store: UniqueStore<TypeObj>,
+    /// Storage for uniqued [AttrObj]s.
+    pub attr_store: UniqueStore<AttrObj>,
 
     #[cfg(test)]
     pub(crate) linked_list_store: crate::linked_list::tests::LinkedListTestArena,

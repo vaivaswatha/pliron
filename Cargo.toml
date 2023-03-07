@@ -15,3 +15,6 @@ keywords = ["pliron", "llvm", "mlir", "compiler"]
 generational-arena = "0.2"
 downcast-rs = "1.2.0"
 rustc-hash = "1.1.0"
+# thiserror = "1.0.24"
+# clap = "4.1.6"
+apint = "0.2.0"
