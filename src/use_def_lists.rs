@@ -20,7 +20,6 @@ use crate::{
 };
 
 /// A definition is a list of its uses.
-#[derive(Debug)]
 pub struct Def {
     /// The list of uses of this Def.
     uses: FxHashSet<UseDescr>,
@@ -113,7 +112,7 @@ pub trait DefDescrTrait: Copy + PartialEq {
 }
 
 /// Pointer to / describes a value definition.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ValDefDescr {
     OpResult {
         op: Ptr<Operation>,
@@ -183,7 +182,7 @@ impl DefDescrTrait for ValDefDescr {
 }
 
 /// Pointer to / describes a basic block definition.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct BlockDefDescr {
     pub(crate) block: Ptr<BasicBlock>,
 }
@@ -237,7 +236,7 @@ pub struct Use<Of: DefDescrTrait> {
 }
 
 /// Pointer to / describes a use.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash)]
 pub struct UseDescr {
     /// Uses of a def can only be in an operation.
     pub(crate) op: Ptr<Operation>,

@@ -6,7 +6,6 @@ use crate::{
 };
 
 /// [BasicBlock]s contained in this [Region].
-#[derive(Debug)]
 pub struct BlocksInRegion {
     first: Option<Ptr<BasicBlock>>,
     last: Option<Ptr<BasicBlock>>,
@@ -72,7 +71,6 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
 /// are considered to be the arguments to the region. It cannot have any
 /// CFG predecessors (i.e., no block can branch to the entry block).
 /// See [MLIR Region description](https://mlir.llvm.org/docs/LangRef/#regions).
-#[derive(Debug)]
 pub struct Region {
     pub(crate) self_ptr: Ptr<Region>,
     pub(crate) blocks_list: BlocksInRegion,

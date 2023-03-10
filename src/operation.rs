@@ -1,23 +1,27 @@
+use rustc_hash::FxHashMap;
+
 use crate::{
+    attribute::AttrObj,
     basic_block::BasicBlock,
     common_traits::{DisplayWithContext, Verify},
     context::{ArenaCell, ArenaObj, Context, Ptr},
     error::CompilerError,
     linked_list::LinkedList,
+    r#type::TypeObj,
     use_def_lists::{BlockDefDescr, Def, DefDescr, DefDescrTrait, Use, UseDescr, ValDefDescr},
-    vec_exns::VecExtns,
     with_context::AttachContext,
 };
 
 /// Represents the result of an [Operation].
-#[derive(Debug)]
 pub struct OpResult {
     /// The def containing the list of this result's uses.
     pub(crate) def: Def,
     /// Get the [Operation] that this is a result of.
-    pub(crate) def_op: Ptr<Operation>,
+    def_op: Ptr<Operation>,
     /// Index of this result in the [Operation] that this is part of.
-    pub(crate) res_idx: usize,
+    res_idx: usize,
+    /// [Type](crate::type::Type) of this operation result.
+    ty: Ptr<TypeObj>,
 }
 
 impl OpResult {
@@ -38,10 +42,14 @@ impl OpResult {
             res_idx: self.res_idx,
         })
     }
+
+    /// Get the [Type](crate::type::Type) of this operation result.
+    pub fn get_type(&self) -> Ptr<TypeObj> {
+        self.ty
+    }
 }
 
 /// Links an [Operation] with other operations and the container [BasicBlock]
-#[derive(Debug)]
 pub struct BlockLinks {
     /// Parent block of this operation.
     pub parent_block: Option<Ptr<BasicBlock>>,
@@ -64,7 +72,6 @@ impl BlockLinks {
 /// An operation is the basic unit of execution in the IR.
 /// The general idea is similar to MLIR's
 /// [Operation](https://mlir.llvm.org/docs/LangRef/#operations)
-#[derive(Debug)]
 pub struct Operation {
     /// A [Ptr] to self.
     pub self_ptr: Ptr<Operation>,
@@ -77,6 +84,8 @@ pub struct Operation {
     /// Links to the parent [BasicBlock] and
     /// previous and next [Operation]s in the block.
     pub block_links: BlockLinks,
+    /// A dictionary of attributes.
+    pub attributes: FxHashMap<&'static str, Ptr<AttrObj>>,
 }
 
 impl PartialEq for Operation {
@@ -117,22 +126,34 @@ impl Operation {
     /// Create a new, unlinked (i.e., not in a basic block) operation.
     pub fn new(
         ctx: &mut Context,
-        num_results: usize,
+        result_types: Vec<Ptr<TypeObj>>,
         operands: Vec<ValDefDescr>,
     ) -> Ptr<Operation> {
         let f = |self_ptr: Ptr<Operation>| Operation {
             self_ptr,
-            results: Vec::new_init(num_results, |res_idx| OpResult {
-                def: Def::new(),
-                def_op: self_ptr,
-                res_idx,
-            }),
+            results: vec![],
             operands: vec![],
             successors: vec![],
             block_links: BlockLinks::new_unlinked(),
+            attributes: FxHashMap::default(),
         };
+
+        // Create the new Operation.
         let newop = Self::alloc(ctx, f);
-        let operands: Vec<Operand<ValDefDescr>> = operands
+        // Update the results (we can't do this easily during creation).
+        let results = result_types
+            .into_iter()
+            .enumerate()
+            .map(|(res_idx, ty)| OpResult {
+                def: Def::new(),
+                def_op: newop,
+                ty,
+                res_idx,
+            })
+            .collect();
+        newop.deref_mut(ctx).results = results;
+        // Update the operands (we can't do this easily during creation).
+        let operands = operands
             .iter()
             .enumerate()
             .map(|(opd_idx, def)| Operand {
@@ -198,7 +219,6 @@ impl ArenaObj for Operation {
 }
 
 /// Container for a [Use] in an [Operation].
-#[derive(Debug)]
 pub struct Operand<T: DefDescrTrait> {
     pub(crate) r#use: Use<T>,
     /// This is the `opd_idx`'th operand of [user_op](Self::user_op).

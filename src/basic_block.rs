@@ -2,20 +2,21 @@ use crate::{
     context::{ArenaCell, ArenaObj, Context, Ptr},
     linked_list::{ContainsLinkedList, LinkedList},
     operation::Operation,
+    r#type::TypeObj,
     region::Region,
     use_def_lists::{Def, DefDescr, ValDefDescr},
-    vec_exns::VecExtns,
 };
 
 /// Argument to a [BasicBlock]
-#[derive(Debug)]
 pub struct BlockArgument {
     /// The def containing the list of this argument's uses.
     pub(crate) def: Def,
     /// A [Ptr] to the [BasicBlock] of which this is an argument.
-    pub(crate) def_block: Ptr<BasicBlock>,
+    def_block: Ptr<BasicBlock>,
     /// Index of this argument in the block's list of arguments.
-    pub(crate) arg_idx: usize,
+    arg_idx: usize,
+    /// The [Type](crate::type::Type) of this argument.
+    ty: Ptr<TypeObj>,
 }
 
 impl BlockArgument {
@@ -36,10 +37,14 @@ impl BlockArgument {
             arg_idx: self.arg_idx,
         })
     }
+
+    /// Get the [Type](crate::type::Type) of this block argument.
+    pub fn get_type(&self) -> Ptr<TypeObj> {
+        self.ty
+    }
 }
 
 /// [Operation]s contained in this [BasicBlock]
-#[derive(Debug)]
 pub struct OpsInBlock {
     first: Option<Ptr<Operation>>,
     last: Option<Ptr<Operation>>,
@@ -101,7 +106,6 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
 }
 
 /// Links a [BasicBlock] with other blocks and the container [Region].
-#[derive(Debug)]
 pub struct RegionLinks {
     /// Parent region of this block.
     pub parent_region: Option<Ptr<Region>>,
@@ -122,7 +126,6 @@ impl RegionLinks {
 }
 
 /// A basic block contains a list of [Operation]s. It may have [arguments](BlockArgument).
-#[derive(Debug)]
 pub struct BasicBlock {
     pub(crate) self_ptr: Ptr<BasicBlock>,
     pub(crate) ops_list: OpsInBlock,
@@ -144,19 +147,29 @@ impl BasicBlock {
     }
 
     /// Create a new Basic Block.
-    pub fn new(ctx: &mut Context, num_args: usize) -> Ptr<BasicBlock> {
+    pub fn new(ctx: &mut Context, arg_types: Vec<Ptr<TypeObj>>) -> Ptr<BasicBlock> {
         let f = |self_ptr: Ptr<BasicBlock>| BasicBlock {
             self_ptr,
-            args: Vec::new_init(num_args, |arg_idx| BlockArgument {
-                def: Def::new(),
-                def_block: self_ptr,
-                arg_idx,
-            }),
+            args: vec![],
             ops_list: OpsInBlock::new_empty(),
             preds: Def::new(),
             region_links: RegionLinks::new_unlinked(),
         };
-        Self::alloc(ctx, f)
+        let newblock = Self::alloc(ctx, f);
+        // Let's update the args of the new block. Easier to do it here than during creation.
+        let args = arg_types
+            .into_iter()
+            .enumerate()
+            .map(|(arg_idx, ty)| BlockArgument {
+                def: Def::new(),
+                def_block: newblock,
+                arg_idx,
+                ty,
+            })
+            .collect();
+        newblock.deref_mut(ctx).args = args;
+        // We're done.
+        newblock
     }
 
     /// Get a reference to the idx'th argument.
