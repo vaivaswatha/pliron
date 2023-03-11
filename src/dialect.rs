@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use crate::{context::Context, op::OpId, r#type::TypeId};
+use crate::{attribute::AttrId, context::Context, op::OpId, r#type::TypeId};
 
 /// Dialect name: Safe wrapper around a String.
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -30,6 +30,8 @@ pub struct Dialect {
     ops: Vec<OpId>,
     /// Types that are part of this dialect.
     types: Vec<TypeId>,
+    /// Attributes that are part of this dialect.
+    attributes: Vec<AttrId>,
 }
 
 impl Dialect {
@@ -39,6 +41,7 @@ impl Dialect {
             name,
             ops: vec![],
             types: vec![],
+            attributes: vec![],
         }
     }
 
@@ -47,16 +50,22 @@ impl Dialect {
         ctx.dialects.entry(self.name.clone()).or_insert(self);
     }
 
-    /// Add an Op to this dialect.
+    /// Add an [Op](crate::op::Op) to this dialect.
     pub fn add_op(&mut self, op: OpId) {
         assert!(op.dialect == self.name);
         self.ops.push(op);
     }
 
-    /// Add a Type to this dialect.
+    /// Add a [Type](crate::type::Type) to this dialect.
     pub fn add_type(&mut self, ty: TypeId) {
         assert!(ty.dialect == self.name);
         self.types.push(ty);
+    }
+
+    /// Add an [Attribute](crate::attribute::Attribute) to this dialect.
+    pub fn add_attr(&mut self, attr: AttrId) {
+        assert!(attr.dialect == self.name);
+        self.attributes.push(attr);
     }
 
     /// This Dialect's name.

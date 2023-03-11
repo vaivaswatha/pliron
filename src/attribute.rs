@@ -2,13 +2,14 @@
 //! See [MLIR Attributes](https://mlir.llvm.org/docs/LangRef/#attributes).
 //! Attributes are immutable and are uniqued.
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::Deref};
 
 use downcast_rs::{impl_downcast, Downcast};
 
 use crate::{
     common_traits::{DisplayWithContext, Verify},
     context::{ArenaCell, ArenaObj, Context, Ptr},
+    dialect::{Dialect, DialectName},
     storage_uniquer::TypeValueHash,
     with_context::AttachContext,
 };
@@ -63,6 +64,26 @@ pub trait Attribute: DisplayWithContext + Verify + Downcast {
             _dummy: PhantomData::<AttrObj>,
         }
     }
+
+    /// Get an [Attribute]'s static name. This is *not* per instantnce.
+    /// It is mostly useful for printing and parsing the attribute.
+    /// Uniquing does *not* use this, but instead uses [std::any::TypeId].
+    fn get_attr_id(&self) -> AttrId;
+
+    /// Same as [get_attr_id](Self::get_attr_id), but without the self reference.
+    fn get_attr_id_static() -> AttrId
+    where
+        Self: Sized;
+
+    /// Register this attribute's [AttrId] in the dialect it belongs to.
+    /// **Warning**: No check is made as to whether this attr is already registered
+    ///  in `dialect`.
+    fn register_attr_in_dialect(dialect: &mut Dialect)
+    where
+        Self: Sized,
+    {
+        dialect.add_attr(Self::get_attr_id_static());
+    }
 }
 impl_downcast!(Attribute);
 
@@ -101,4 +122,29 @@ impl DisplayWithContext for AttrObj {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.as_ref().fmt(ctx, f)
     }
+}
+
+#[derive(Clone, Hash, PartialEq, Eq)]
+/// An [Attribute]'s name (not including it's dialect).
+pub struct AttrName(String);
+
+impl AttrName {
+    /// Create a new AttrName.
+    pub fn new(name: &str) -> AttrName {
+        AttrName(name.to_string())
+    }
+}
+
+impl Deref for AttrName {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+/// A combination of a Attr's name and its dialect.
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub struct AttrId {
+    pub dialect: DialectName,
+    pub name: AttrName,
 }

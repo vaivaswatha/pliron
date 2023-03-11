@@ -1,9 +1,10 @@
 use apint::ApInt;
 
 use crate::{
-    attribute::{AttrObj, Attribute},
+    attribute::{AttrId, AttrName, AttrObj, Attribute},
     common_traits::{DisplayWithContext, Verify},
     context::{Context, Ptr},
+    dialect::{Dialect, DialectName},
     error::CompilerError,
     storage_uniquer::TypeValueHash,
     with_context::AttachContext,
@@ -24,6 +25,20 @@ impl Attribute for StringAttr {
             .downcast_ref::<Self>()
             .filter(|other| self.eq(other))
             .is_some()
+    }
+
+    fn get_attr_id(&self) -> crate::attribute::AttrId {
+        Self::get_attr_id_static()
+    }
+
+    fn get_attr_id_static() -> crate::attribute::AttrId
+    where
+        Self: Sized,
+    {
+        AttrId {
+            name: AttrName::new("String"),
+            dialect: DialectName::new("builtin"),
+        }
     }
 }
 
@@ -64,6 +79,20 @@ impl Attribute for IntegerAttr {
             .filter(|other| self.eq(other))
             .is_some()
     }
+
+    fn get_attr_id(&self) -> AttrId {
+        Self::get_attr_id_static()
+    }
+
+    fn get_attr_id_static() -> AttrId
+    where
+        Self: Sized,
+    {
+        AttrId {
+            name: AttrName::new("Integer"),
+            dialect: DialectName::new("builtin"),
+        }
+    }
 }
 
 impl AttachContext for IntegerAttr {}
@@ -85,6 +114,11 @@ impl IntegerAttr {
     pub fn get(ctx: &mut Context, value: ApInt) -> Ptr<AttrObj> {
         Attribute::register_instance(IntegerAttr(value), ctx)
     }
+}
+
+pub fn register(dialect: &mut Dialect) {
+    StringAttr::register_attr_in_dialect(dialect);
+    IntegerAttr::register_attr_in_dialect(dialect);
 }
 
 #[cfg(test)]
