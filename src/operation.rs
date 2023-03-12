@@ -7,6 +7,7 @@ use crate::{
     context::{ArenaCell, ArenaObj, Context, Ptr},
     error::CompilerError,
     linked_list::LinkedList,
+    op::{self, OpId, OpObj},
     r#type::TypeObj,
     use_def_lists::{BlockDefDescr, Def, DefDescr, DefDescrTrait, Use, UseDescr, ValDefDescr},
     with_context::AttachContext,
@@ -73,6 +74,8 @@ impl BlockLinks {
 /// The general idea is similar to MLIR's
 /// [Operation](https://mlir.llvm.org/docs/LangRef/#operations)
 pub struct Operation {
+    /// OpId of self.
+    pub opid: OpId,
     /// A [Ptr] to self.
     pub self_ptr: Ptr<Operation>,
     /// [Results](OpResult) defined by self.
@@ -126,10 +129,12 @@ impl Operation {
     /// Create a new, unlinked (i.e., not in a basic block) operation.
     pub fn new(
         ctx: &mut Context,
+        opid: OpId,
         result_types: Vec<Ptr<TypeObj>>,
         operands: Vec<ValDefDescr>,
     ) -> Ptr<Operation> {
         let f = |self_ptr: Ptr<Operation>| Operation {
+            opid,
             self_ptr,
             results: vec![],
             operands: vec![],
@@ -194,6 +199,16 @@ impl Operation {
     /// Get a mutable reference to the opd_idx'th successor.
     pub fn get_successor_mut(&mut self, opd_idx: usize) -> Option<&mut Operand<BlockDefDescr>> {
         self.successors.get_mut(opd_idx)
+    }
+
+    /// Create an OpObj corresponding to self.
+    pub fn get_op(&self, ctx: &Context) -> OpObj {
+        op::from_operation(ctx, self.get_opid(), self.self_ptr)
+    }
+
+    /// Get the OpId of the Op of this Operation.
+    pub fn get_opid(&self) -> OpId {
+        self.opid.clone()
     }
 }
 

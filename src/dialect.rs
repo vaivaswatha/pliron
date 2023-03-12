@@ -1,6 +1,9 @@
 use std::ops::Deref;
 
-use crate::{attribute::AttrId, context::Context, op::OpId, r#type::TypeId};
+use crate::{
+    attribute::AttrId, common_traits::DisplayWithContext, context::Context, op::OpId,
+    r#type::TypeId, with_context::AttachContext,
+};
 
 /// Dialect name: Safe wrapper around a String.
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -10,6 +13,13 @@ impl DialectName {
     /// Create a new DialectName
     pub fn new(name: &str) -> DialectName {
         DialectName(name.to_string())
+    }
+}
+
+impl AttachContext for DialectName {}
+impl DisplayWithContext for DialectName {
+    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -32,6 +42,13 @@ pub struct Dialect {
     types: Vec<TypeId>,
     /// Attributes that are part of this dialect.
     attributes: Vec<AttrId>,
+}
+
+impl AttachContext for Dialect {}
+impl DisplayWithContext for Dialect {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.name.with_ctx(ctx))
+    }
 }
 
 impl Dialect {

@@ -1,40 +1,20 @@
 use crate::{
     common_traits::{DisplayWithContext, Verify},
-    context::{Context, Ptr},
-    dialect::{Dialect, DialectName},
+    context::Context,
+    declare_op,
+    dialect::Dialect,
     dialects::builtin::properties::IsTerminator,
     error::CompilerError,
-    op::{Op, OpId, OpName, OpObj},
-    operation::Operation,
+    op::Op,
     with_context::AttachContext,
 };
 
-/// Equivalent to LLVM's return opcode.
-#[derive(Clone, Copy)]
-pub struct ReturnOp {
-    op: Ptr<Operation>,
-}
-
-impl Op for ReturnOp {
-    fn get_operation(&self) -> Ptr<Operation> {
-        self.op
-    }
-
-    fn create(op: Ptr<Operation>) -> OpObj {
-        Box::new(ReturnOp { op })
-    }
-
-    fn get_opid(&self) -> OpId {
-        Self::get_opid_static()
-    }
-
-    fn get_opid_static() -> OpId {
-        OpId {
-            name: OpName::new("ReturnOp"),
-            dialect: DialectName::new("llvm"),
-        }
-    }
-}
+declare_op!(
+    /// Equivalent to LLVM's return opcode.
+    ReturnOp,
+    "return",
+    "llvm"
+);
 
 impl AttachContext for ReturnOp {}
 impl DisplayWithContext for ReturnOp {
