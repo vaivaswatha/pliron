@@ -203,7 +203,7 @@ impl Operation {
 
     /// Create an OpObj corresponding to self.
     pub fn get_op(&self, ctx: &Context) -> OpObj {
-        op::from_operation(ctx, self.get_opid(), self.self_ptr)
+        op::from_operation(ctx, self.self_ptr)
     }
 
     /// Get the OpId of the Op of this Operation.

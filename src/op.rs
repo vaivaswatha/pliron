@@ -89,7 +89,8 @@ pub trait Op: Downcast + Verify + DisplayWithContext {
 }
 impl_downcast!(Op);
 
-pub fn from_operation(ctx: &Context, opid: OpId, op: Ptr<Operation>) -> OpObj {
+pub fn from_operation(ctx: &Context, op: Ptr<Operation>) -> OpObj {
+    let opid = op.deref(ctx).get_opid();
     (ctx.ops
         .get(&opid)
         .unwrap_or_else(|| panic!("Unregistered Op {}", opid.with_ctx(ctx))))(op)
