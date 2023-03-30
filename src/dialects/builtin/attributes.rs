@@ -2,55 +2,27 @@ use apint::ApInt;
 use sorted_vector_map::SortedVectorMap;
 
 use crate::{
-    attribute::{AttrId, AttrName, AttrObj, Attribute},
+    attribute::{AttrObj, Attribute},
     common_traits::{DisplayWithContext, Verify},
     context::{Context, Ptr},
-    dialect::{Dialect, DialectName},
+    dialect::Dialect,
     error::CompilerError,
+    impl_attr,
     storage_uniquer::TypeValueHash,
-    with_context::AttachContext,
 };
 
 /// An attribute containing a string.
 /// Similar to MLIR's [StringAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#stringattr).
 #[derive(Hash, PartialEq, Eq)]
 pub struct StringAttr(String);
-
-impl Attribute for StringAttr {
-    fn hash_attr(&self) -> TypeValueHash {
-        TypeValueHash::new(self)
-    }
-
-    fn eq_attr(&self, other: &dyn Attribute) -> bool {
-        other
-            .downcast_ref::<Self>()
-            .filter(|other| self.eq(other))
-            .is_some()
-    }
-
-    fn get_attr_id(&self) -> crate::attribute::AttrId {
-        Self::get_attr_id_static()
-    }
-
-    fn get_attr_id_static() -> crate::attribute::AttrId
-    where
-        Self: Sized,
-    {
-        AttrId {
-            name: AttrName::new("String"),
-            dialect: DialectName::new("builtin"),
-        }
-    }
-}
+impl_attr!(StringAttr, "String", "builtin");
 
 impl StringAttr {
-    /// Get or create a new integer type.
+    /// Get or create a new [StringAttr].
     pub fn get(ctx: &mut Context, value: String) -> Ptr<AttrObj> {
         Attribute::register_instance(StringAttr(value), ctx)
     }
 }
-
-impl AttachContext for StringAttr {}
 
 impl DisplayWithContext for StringAttr {
     fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -68,35 +40,7 @@ impl Verify for StringAttr {
 /// Similar to MLIR's [IntegerAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#integerattr).
 #[derive(Hash, PartialEq, Eq)]
 pub struct IntegerAttr(ApInt);
-
-impl Attribute for IntegerAttr {
-    fn hash_attr(&self) -> TypeValueHash {
-        TypeValueHash::new(self)
-    }
-
-    fn eq_attr(&self, other: &dyn Attribute) -> bool {
-        other
-            .downcast_ref::<Self>()
-            .filter(|other| self.eq(other))
-            .is_some()
-    }
-
-    fn get_attr_id(&self) -> AttrId {
-        Self::get_attr_id_static()
-    }
-
-    fn get_attr_id_static() -> AttrId
-    where
-        Self: Sized,
-    {
-        AttrId {
-            name: AttrName::new("Integer"),
-            dialect: DialectName::new("builtin"),
-        }
-    }
-}
-
-impl AttachContext for IntegerAttr {}
+impl_attr!(IntegerAttr, "Integer", "builtin");
 
 impl DisplayWithContext for IntegerAttr {
     fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -111,7 +55,7 @@ impl Verify for IntegerAttr {
 }
 
 impl IntegerAttr {
-    /// Get or create a new integer type.
+    /// Get or create a new [IntegerAttr].
     pub fn get(ctx: &mut Context, value: ApInt) -> Ptr<AttrObj> {
         Attribute::register_instance(IntegerAttr(value), ctx)
     }
@@ -121,35 +65,7 @@ impl IntegerAttr {
 /// Similar to MLIR's [DictionaryAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#dictionaryattr),
 #[derive(Hash, PartialEq, Eq)]
 pub struct DictionaryAttr(SortedVectorMap<&'static str, Ptr<AttrObj>>);
-
-impl Attribute for DictionaryAttr {
-    fn hash_attr(&self) -> TypeValueHash {
-        TypeValueHash::new(self)
-    }
-
-    fn eq_attr(&self, other: &dyn Attribute) -> bool {
-        other
-            .downcast_ref::<Self>()
-            .filter(|other| self.eq(other))
-            .is_some()
-    }
-
-    fn get_attr_id(&self) -> AttrId {
-        Self::get_attr_id_static()
-    }
-
-    fn get_attr_id_static() -> AttrId
-    where
-        Self: Sized,
-    {
-        AttrId {
-            name: AttrName::new("Dictionary"),
-            dialect: DialectName::new("builtin"),
-        }
-    }
-}
-
-impl AttachContext for DictionaryAttr {}
+impl_attr!(DictionaryAttr, "Dictionary", "builtin");
 
 impl DisplayWithContext for DictionaryAttr {
     fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -164,7 +80,7 @@ impl Verify for DictionaryAttr {
 }
 
 impl DictionaryAttr {
-    /// Get or create a new integer type.
+    /// Get or create a new [DictionaryAttr].
     pub fn get(ctx: &mut Context, value: Vec<(&'static str, Ptr<AttrObj>)>) -> Ptr<AttrObj> {
         let mut dict = SortedVectorMap::with_capacity(value.len());
         for (name, val) in value {

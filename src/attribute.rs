@@ -163,3 +163,71 @@ pub struct AttrId {
     pub dialect: DialectName,
     pub name: AttrName,
 }
+
+/// impl [Attribute] for a type with boilerplate code.
+///
+/// Usage:
+/// ```
+/// #[derive(PartialEq, Eq, Hash)]
+/// struct MyAttr { }
+/// impl_attr!(
+///     /// MyAttr is mine
+///     MyAttr,
+///     "name",
+///     "dialect"
+/// );
+/// # use pliron::{
+/// #     impl_attr, with_context::AttachContext, common_traits::DisplayWithContext,
+/// #     context::Context, error::CompilerError, common_traits::Verify,
+/// #     storage_uniquer::TypeValueHash, attribute::Attribute,
+/// # };
+/// # impl DisplayWithContext for MyAttr {
+/// #    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// #        todo!()
+/// #    }
+/// # }
+///
+/// # impl Verify for MyAttr {
+/// #   fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+/// #        todo!()
+/// #    }
+/// # }
+/// ```
+///
+/// This will generate the following code.
+/// ```ignore
+///     impl Attribute for MyAttr { ... }
+/// ```
+/// **Note**: pre-requisite traits for [Attribute] must already be implemented.
+///         Additionaly, Hash and Eq must be implemented by the type.
+#[macro_export]
+macro_rules! impl_attr {
+    (   $(#[$outer:meta])*
+        $structname: ident, $attr_name: literal, $dialect_name: literal) => {
+        $(#[$outer])*
+        impl $crate::attribute::Attribute for $structname {
+            fn hash_attr(&self) -> TypeValueHash {
+                TypeValueHash::new(self)
+            }
+
+            fn eq_attr(&self, other: &dyn Attribute) -> bool {
+                other
+                    .downcast_ref::<Self>()
+                    .filter(|other| self.eq(other))
+                    .is_some()
+            }
+
+            fn get_attr_id(&self) -> $crate::attribute::AttrId {
+                Self::get_attr_id_static()
+            }
+
+            fn get_attr_id_static() -> $crate::attribute::AttrId {
+                $crate::attribute::AttrId {
+                    name: $crate::attribute::AttrName::new($attr_name),
+                    dialect: $crate::dialect::DialectName::new($dialect_name),
+                }
+            }
+        }
+        impl $crate::with_context::AttachContext for $structname {}
+    }
+}

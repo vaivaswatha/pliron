@@ -5,6 +5,7 @@ use crate::storage_uniquer::TypeValueHash;
 use crate::with_context::AttachContext;
 
 use downcast_rs::{impl_downcast, Downcast};
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::Deref;
 
@@ -60,7 +61,7 @@ pub trait Type: DisplayWithContext + Verify + Downcast {
         let hash = t.hash_type();
         let idx = ctx
             .type_store
-            .get_or_create_unique(Box::new(t), hash, &eq_type);
+            .get_or_create_unique(Box::new(t), hash, &TypeObj::eq);
         Ptr {
             idx,
             _dummy: PhantomData::<TypeObj>,
@@ -131,8 +132,18 @@ pub struct TypeId {
 /// we store boxed dyn objects of it instead.
 pub type TypeObj = Box<dyn Type>;
 
-fn eq_type(t1: &TypeObj, t2: &TypeObj) -> bool {
-    (**t1).eq_type(&**t2)
+impl PartialEq for TypeObj {
+    fn eq(&self, other: &Self) -> bool {
+        (**self).eq_type(&**other)
+    }
+}
+
+impl Eq for TypeObj {}
+
+impl Hash for TypeObj {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(&u64::from(self.hash_type()).to_ne_bytes())
+    }
 }
 
 impl ArenaObj for TypeObj {
@@ -161,5 +172,73 @@ impl AttachContext for TypeObj {}
 impl DisplayWithContext for TypeObj {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.as_ref().fmt(ctx, f)
+    }
+}
+
+/// impl [Type] for a rust type with boilerplate code.
+///
+/// Usage:
+/// ```
+/// #[derive(PartialEq, Eq, Hash)]
+/// struct MyType { }
+/// impl_type!(
+///     /// MyType is mine
+///     MyType,
+///     "name",
+///     "dialect"
+/// );
+/// # use pliron::{
+/// #     impl_type, with_context::AttachContext, common_traits::DisplayWithContext,
+/// #     context::Context, error::CompilerError, common_traits::Verify,
+/// #     storage_uniquer::TypeValueHash, r#type::Type,
+/// # };
+/// # impl DisplayWithContext for MyType {
+/// #    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// #        todo!()
+/// #    }
+/// # }
+///
+/// # impl Verify for MyType {
+/// #   fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+/// #        todo!()
+/// #    }
+/// # }
+/// ```
+///
+/// This will generate the following code.
+/// ```ignore
+///     impl Type for MyType { ... }
+/// ```
+/// **Note**: pre-requisite traits for [Type] must already be implemented.
+///         Additionaly, Hash and Eq must be implemented by the rust type.
+#[macro_export]
+macro_rules! impl_type {
+    (   $(#[$outer:meta])*
+        $structname: ident, $type_name: literal, $dialect_name: literal) => {
+        $(#[$outer])*
+        impl $crate::r#type::Type for $structname {
+            fn hash_type(&self) -> TypeValueHash {
+                TypeValueHash::new(self)
+            }
+
+            fn eq_type(&self, other: &dyn Type) -> bool {
+                other
+                    .downcast_ref::<Self>()
+                    .filter(|other| self.eq(other))
+                    .is_some()
+            }
+
+            fn get_type_id(&self) -> $crate::r#type::TypeId {
+                Self::get_type_id_static()
+            }
+
+            fn get_type_id_static() -> $crate::r#type::TypeId {
+                $crate::r#type::TypeId {
+                    name: $crate::r#type::TypeName::new($type_name),
+                    dialect: $crate::dialect::DialectName::new($dialect_name),
+                }
+            }
+        }
+        impl $crate::with_context::AttachContext for $structname {}
     }
 }

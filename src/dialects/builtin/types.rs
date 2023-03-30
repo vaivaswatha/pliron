@@ -1,9 +1,10 @@
 use crate::{
     common_traits::{DisplayWithContext, Verify},
     context::{Context, Ptr},
-    dialect::{Dialect, DialectName},
+    dialect::Dialect,
     error::CompilerError,
-    r#type::{Type, TypeId, TypeName, TypeObj},
+    impl_type,
+    r#type::{Type, TypeObj},
     storage_uniquer::TypeValueHash,
     with_context::AttachContext,
 };
@@ -20,6 +21,7 @@ pub struct IntegerType {
     width: u64,
     signedness: Signedness,
 }
+impl_type!(IntegerType, "IntegerType", "builtin");
 
 impl IntegerType {
     /// Get or create a new integer type.
@@ -31,32 +33,6 @@ impl IntegerType {
         Type::get_instance(IntegerType { width, signedness }, ctx)
     }
 }
-
-impl Type for IntegerType {
-    fn hash_type(&self) -> TypeValueHash {
-        TypeValueHash::new(self)
-    }
-
-    fn get_type_id(&self) -> TypeId {
-        Self::get_type_id_static()
-    }
-
-    fn get_type_id_static() -> TypeId {
-        TypeId {
-            name: TypeName::new("IntegerType"),
-            dialect: DialectName::new("builtin"),
-        }
-    }
-
-    fn eq_type(&self, other: &dyn Type) -> bool {
-        other
-            .downcast_ref::<Self>()
-            .filter(|other| self.eq(other))
-            .is_some()
-    }
-}
-
-impl AttachContext for IntegerType {}
 
 impl DisplayWithContext for IntegerType {
     fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -78,6 +54,7 @@ impl Verify for IntegerType {
 pub struct PointerType {
     to: Ptr<TypeObj>,
 }
+impl_type!(PointerType, "PointerType", "builtin");
 
 impl PointerType {
     /// Get or create a new pointer type.
@@ -90,34 +67,9 @@ impl PointerType {
     }
 }
 
-impl AttachContext for PointerType {}
 impl DisplayWithContext for PointerType {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}*", self.to.with_ctx(ctx))
-    }
-}
-
-impl Type for PointerType {
-    fn hash_type(&self) -> TypeValueHash {
-        TypeValueHash::new(self)
-    }
-
-    fn get_type_id(&self) -> TypeId {
-        Self::get_type_id_static()
-    }
-
-    fn get_type_id_static() -> TypeId {
-        TypeId {
-            name: TypeName::new("PointerType"),
-            dialect: DialectName::new("builtin"),
-        }
-    }
-
-    fn eq_type(&self, other: &dyn Type) -> bool {
-        other
-            .downcast_ref::<Self>()
-            .filter(|other| self.eq(other))
-            .is_some()
     }
 }
 

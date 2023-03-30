@@ -1,9 +1,10 @@
 use crate::{
     common_traits::{DisplayWithContext, Verify},
     context::{Context, Ptr},
-    dialect::{Dialect, DialectName},
+    dialect::Dialect,
     error::CompilerError,
-    r#type::{Type, TypeId, TypeName, TypeObj},
+    impl_type,
+    r#type::{Type, TypeObj},
     storage_uniquer::TypeValueHash,
     with_context::AttachContext,
 };
@@ -23,6 +24,7 @@ pub struct StructType {
     fields: Vec<(String, Ptr<TypeObj>)>,
     finalized: bool,
 }
+impl_type!(StructType, "StructType", "llvm");
 
 impl StructType {
     /// Create a new named StructType.
@@ -122,8 +124,6 @@ impl Verify for StructType {
     }
 }
 
-impl AttachContext for StructType {}
-
 impl DisplayWithContext for StructType {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use std::cell::RefCell;
@@ -196,30 +196,6 @@ impl PartialEq for StructType {
 }
 
 impl Eq for StructType {}
-
-impl Type for StructType {
-    fn hash_type(&self) -> TypeValueHash {
-        TypeValueHash::new(self)
-    }
-
-    fn get_type_id(&self) -> TypeId {
-        Self::get_type_id_static()
-    }
-
-    fn get_type_id_static() -> TypeId {
-        TypeId {
-            name: TypeName::new("StructType"),
-            dialect: DialectName::new("llvm"),
-        }
-    }
-
-    fn eq_type(&self, other: &dyn Type) -> bool {
-        other
-            .downcast_ref::<Self>()
-            .filter(|other| self.eq(other))
-            .is_some()
-    }
-}
 
 pub fn register(dialect: &mut Dialect) {
     StructType::register_type_in_dialect(dialect);
