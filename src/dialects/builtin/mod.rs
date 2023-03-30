@@ -1,6 +1,6 @@
 pub mod attributes;
+pub mod op_traits;
 pub mod ops;
-pub mod properties;
 pub mod types;
 
 use crate::{

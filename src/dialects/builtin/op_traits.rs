@@ -1,6 +1,6 @@
 use crate::op::Op;
 
-/// A property to check if an Op is a terminator.
+/// A trait to check whether an Op is a terminator.
 pub trait IsTerminator: Op {
     /// Is this Op a terminator?
     fn is_terminator(&self) -> bool;

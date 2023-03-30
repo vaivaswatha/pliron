@@ -3,7 +3,7 @@ use crate::{
     context::Context,
     declare_op,
     dialect::Dialect,
-    dialects::builtin::properties::IsTerminator,
+    dialects::builtin::op_traits::IsTerminator,
     error::CompilerError,
     op::Op,
     with_context::AttachContext,
