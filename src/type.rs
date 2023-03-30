@@ -30,6 +30,7 @@ use std::ops::Deref;
 ///      of the hash, is used so that uniquing still works.
 pub trait Type: DisplayWithContext + Verify + Downcast {
     /// Compute and get the hash for this instance of Self.
+    /// Hash collisions can be a possibility.
     fn hash_type(&self) -> TypeValueHash;
     /// Is self equal to an other Type?
     fn eq_type(&self, other: &dyn Type) -> bool;

@@ -2,7 +2,11 @@
 //! See [MLIR Attributes](https://mlir.llvm.org/docs/LangRef/#attributes).
 //! Attributes are immutable and are uniqued.
 
-use std::{marker::PhantomData, ops::Deref};
+use std::{
+    hash::{Hash, Hasher},
+    marker::PhantomData,
+    ops::Deref,
+};
 
 use downcast_rs::{impl_downcast, Downcast};
 
@@ -29,6 +33,7 @@ use crate::{
 ///   - `value`
 pub trait Attribute: DisplayWithContext + Verify + Downcast {
     /// Compute and get the hash for this instance of Self.
+    /// Hash collisions can be a possibility.
     fn hash_attr(&self) -> TypeValueHash;
     /// Is self equal to an other Attribute?
     fn eq_attr(&self, other: &dyn Attribute) -> bool;
@@ -58,7 +63,7 @@ pub trait Attribute: DisplayWithContext + Verify + Downcast {
         let hash = t.hash_attr();
         let idx = ctx
             .attr_store
-            .get_or_create_unique(Box::new(t), hash, &eq_attr);
+            .get_or_create_unique(Box::new(t), hash, &AttrObj::eq);
         Ptr {
             idx,
             _dummy: PhantomData::<AttrObj>,
@@ -91,8 +96,18 @@ impl_downcast!(Attribute);
 /// we store boxed dyn objects of it instead.
 pub type AttrObj = Box<dyn Attribute>;
 
-fn eq_attr(t1: &AttrObj, t2: &AttrObj) -> bool {
-    (**t1).eq_attr(&**t2)
+impl PartialEq for AttrObj {
+    fn eq(&self, other: &Self) -> bool {
+        (**self).eq_attr(&**other)
+    }
+}
+
+impl Eq for AttrObj {}
+
+impl Hash for AttrObj {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(&u64::from(self.hash_attr()).to_ne_bytes())
+    }
 }
 
 impl ArenaObj for AttrObj {

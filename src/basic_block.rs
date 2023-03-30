@@ -1,4 +1,7 @@
+use rustc_hash::FxHashMap;
+
 use crate::{
+    attribute::AttrObj,
     context::{ArenaCell, ArenaObj, Context, Ptr},
     linked_list::{ContainsLinkedList, LinkedList},
     operation::Operation,
@@ -134,6 +137,8 @@ pub struct BasicBlock {
     /// Links to the parent [Region] and
     /// previous and next [BasicBlock]s in the block.
     pub region_links: RegionLinks,
+    /// A dictionary of attributes.
+    pub attributes: FxHashMap<&'static str, Ptr<AttrObj>>,
 }
 
 impl BasicBlock {
@@ -154,6 +159,7 @@ impl BasicBlock {
             ops_list: OpsInBlock::new_empty(),
             preds: Def::new(),
             region_links: RegionLinks::new_unlinked(),
+            attributes: FxHashMap::default(),
         };
         let newblock = Self::alloc(ctx, f);
         // Let's update the args of the new block. Easier to do it here than during creation.

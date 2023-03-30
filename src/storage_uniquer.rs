@@ -22,7 +22,7 @@ use crate::context::{ArenaCell, ArenaIndex};
 ///     let y = B { i: 10 };
 ///     assert!(TypeValueHash::new(&x) != TypeValueHash::new(&y));
 /// ```
-#[derive(Hash, Eq, PartialEq)]
+#[derive(Hash, Eq, PartialEq, Clone, Copy)]
 pub struct TypeValueHash {
     hash: u64,
 }
@@ -39,6 +39,12 @@ impl TypeValueHash {
     }
 }
 
+impl From<TypeValueHash> for u64 {
+    fn from(value: TypeValueHash) -> Self {
+        value.hash
+    }
+}
+
 /// Are the two objects equal.
 pub type UniqueStoreEq<'a, T> = &'a dyn Fn(&T, &T) -> bool;
 
@@ -47,7 +53,9 @@ pub type UniqueStoreIs<'a, T> = &'a dyn Fn(&T) -> bool;
 
 /// Store unique copy of objects.
 pub struct UniqueStore<T: 'static> {
+    /// The actual store, owning the objects.
     pub unique_store: ArenaCell<T>,
+    /// A hash index into the store.
     pub unique_stores_map: FxHashMap<TypeValueHash, Vec<ArenaIndex>>,
 }
 
@@ -109,6 +117,19 @@ impl<T: 'static> UniqueStore<T> {
 mod tests {
     use super::{TypeValueHash, UniqueStore};
 
+    #[test]
+
+    fn test_type_value_hash() {
+        let u32_tvh = TypeValueHash::new(&0u32);
+        assert!(u32_tvh == TypeValueHash::new(&0u32));
+        // With collisions, some of these asserts *may* fail.
+        assert!(u32_tvh != TypeValueHash::new(&0i32));
+        assert!(u32_tvh != TypeValueHash::new(&0u64));
+        assert!(u32_tvh != TypeValueHash::new(&1u32));
+        assert!(u64::from(u32_tvh) != u64::from(TypeValueHash::new(&0i32)));
+        assert!(u64::from(u32_tvh) != u64::from(TypeValueHash::new(&0u64)));
+        assert!(u64::from(u32_tvh) != u64::from(TypeValueHash::new(&1u32)));
+    }
     #[test]
     fn test_unique_store() {
         let mut u32_store = UniqueStore::<u32>::default();
