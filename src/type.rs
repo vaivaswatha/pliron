@@ -224,8 +224,7 @@ macro_rules! impl_type {
             fn eq_type(&self, other: &dyn Type) -> bool {
                 other
                     .downcast_ref::<Self>()
-                    .filter(|other| self.eq(other))
-                    .is_some()
+                    .map_or(false, |other| other == self)
             }
 
             fn get_type_id(&self) -> $crate::r#type::TypeId {

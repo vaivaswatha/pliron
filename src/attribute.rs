@@ -213,8 +213,7 @@ macro_rules! impl_attr {
             fn eq_attr(&self, other: &dyn Attribute) -> bool {
                 other
                     .downcast_ref::<Self>()
-                    .filter(|other| self.eq(other))
-                    .is_some()
+                    .map_or(false, |other| other == self)
             }
 
             fn get_attr_id(&self) -> $crate::attribute::AttrId {
