@@ -21,7 +21,7 @@ pub struct IntegerType {
     width: u64,
     signedness: Signedness,
 }
-impl_type!(IntegerType, "IntegerType", "builtin");
+impl_type!(IntegerType, "integer", "builtin");
 
 impl IntegerType {
     /// Get or create a new integer type.
@@ -54,7 +54,7 @@ impl Verify for IntegerType {
 pub struct PointerType {
     to: Ptr<TypeObj>,
 }
-impl_type!(PointerType, "PointerType", "builtin");
+impl_type!(PointerType, "pointer", "builtin");
 
 impl PointerType {
     /// Get or create a new pointer type.

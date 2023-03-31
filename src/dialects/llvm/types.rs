@@ -24,7 +24,7 @@ pub struct StructType {
     fields: Vec<(String, Ptr<TypeObj>)>,
     finalized: bool,
 }
-impl_type!(StructType, "StructType", "llvm");
+impl_type!(StructType, "struct", "llvm");
 
 impl StructType {
     /// Create a new named StructType.

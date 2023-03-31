@@ -35,7 +35,7 @@ impl Verify for ModuleOp {
 
 declare_op!(
     /// Integer constant.
-    /// See https://mlir.llvm.org/docs/Dialects/ArithOps/#arithconstant-mlirarithconstantop
+    /// See MLIR's [arith.constant](https://mlir.llvm.org/docs/Dialects/ArithOps/#arithconstant-mlirarithconstantop)
     ConstantOp,
     "constant",
     "builtin"
@@ -49,7 +49,7 @@ impl ConstantOp {
         attribute::clone::<IntegerAttr>(op.deref(ctx).attributes.get(Self::VAL_ATTR_KEY).unwrap())
     }
 
-    /// Create a new [ConstantOp]. The underlying [Operation] is not linked to a [BasicBlock].
+    /// Create a new [ConstantOp]. The underlying [Operation] is not linked to a [BasicBlock](crate::basic_block::BasicBlock).
     pub fn new_unlinked(ctx: &mut Context, value: AttrObj) -> ConstantOp {
         assert!(
             value.is::<IntegerAttr>(),
