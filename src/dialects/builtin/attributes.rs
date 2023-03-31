@@ -163,7 +163,8 @@ mod tests {
             ("hello", attribute::clone::<StringAttr>(&hello_attr)),
             ("world", attribute::clone::<StringAttr>(&world_attr)),
         ]);
-        let mut dict2 = SmallDictAttr::create(vec![("hello", StringAttr::create("hello".to_string()))]);
+        let mut dict2 =
+            SmallDictAttr::create(vec![("hello", StringAttr::create("hello".to_string()))]);
         let dict1_rev = SmallDictAttr::create(vec![
             ("world", attribute::clone::<StringAttr>(&world_attr)),
             ("hello", attribute::clone::<StringAttr>(&hello_attr)),
