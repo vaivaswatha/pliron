@@ -1,78 +1,28 @@
-//! Attributes are known-constant values of operations.
+//! Attributes are non-SSA data stored in [Operation](crate::operation::Operation)s.
 //! See [MLIR Attributes](https://mlir.llvm.org/docs/LangRef/#attributes).
-//! Attributes are immutable and are uniqued.
+//! Unlike in MLIR, we do not unique attributes, and hence they are mutable.
+//! These are similar in concept to [Properties](https://discourse.llvm.org/t/rfc-introducing-mlir-operation-properties/67846).
+//! Attribute objects are heavy, boxed, and not wrapped with [Ptr](crate::context::Ptr).
+//! They may or may not be clonable. See [clone].
 
-use std::{
-    hash::{Hash, Hasher},
-    marker::PhantomData,
-    ops::Deref,
-};
+use std::{hash::Hash, ops::Deref};
 
 use downcast_rs::{impl_downcast, Downcast};
 
 use crate::{
     common_traits::{DisplayWithContext, Verify},
-    context::{ArenaCell, ArenaObj, Context, Ptr},
+    context::Context,
     dialect::{Dialect, DialectName},
-    storage_uniquer::TypeValueHash,
     with_context::AttachContext,
 };
 
 /// Basic functionality that every attribute in the IR must implement.
-/// Attribute objects (instances of an attribute) are immutable once created,
-/// and are uniqued globally. Uniquing is based on the rust-type and contents.
-/// So, for example, if we have
-/// ```rust,ignore
-///     struct Int64Attr {
-///         value: u64
-///     }
-///     impl Attribute for Int64Attr { .. }
-/// ```
-/// the uniquing will include
-///   - [`std::any::TypeId::of::<Int64Attr>()`](std::any::TypeId)
-///   - `value`
 pub trait Attribute: DisplayWithContext + Verify + Downcast {
-    /// Compute and get the hash for this instance of Self.
-    /// Hash collisions can be a possibility.
-    fn hash_attr(&self) -> TypeValueHash;
     /// Is self equal to an other Attribute?
     fn eq_attr(&self, other: &dyn Attribute) -> bool;
 
-    /// Get a copyable pointer to this attribute. Unlike in other [ArenaObj]s,
-    /// we do not store a self pointer inside the object itself
-    /// because that can upset taking automatic hashes of the object.
-    fn get_self_ptr(&self, ctx: &Context) -> Ptr<AttrObj> {
-        let is = |other: &AttrObj| self.eq_attr(&**other);
-        let idx = ctx
-            .attr_store
-            .get(self.hash_attr(), &is)
-            .expect("Unregistered attribute object in existence");
-        Ptr {
-            idx,
-            _dummy: PhantomData::<AttrObj>,
-        }
-    }
-
-    /// Register an instance of a attribute in the provided [Context]
-    /// Returns a pointer to self. If the attribute was already registered,
-    /// a pointer to the existing object is returned.
-    fn register_instance(t: Self, ctx: &mut Context) -> Ptr<AttrObj>
-    where
-        Self: Sized,
-    {
-        let hash = t.hash_attr();
-        let idx = ctx
-            .attr_store
-            .get_or_create_unique(Box::new(t), hash, &AttrObj::eq);
-        Ptr {
-            idx,
-            _dummy: PhantomData::<AttrObj>,
-        }
-    }
-
     /// Get an [Attribute]'s static name. This is *not* per instantnce.
     /// It is mostly useful for printing and parsing the attribute.
-    /// Uniquing does *not* use this, but instead uses [std::any::TypeId].
     fn get_attr_id(&self) -> AttrId;
 
     /// Same as [get_attr_id](Self::get_attr_id), but without the self reference.
@@ -92,8 +42,7 @@ pub trait Attribute: DisplayWithContext + Verify + Downcast {
 }
 impl_downcast!(Attribute);
 
-/// Since we can't store the [Attribute] trait in the arena,
-/// we store boxed dyn objects of it instead.
+/// [Attribute] objects are boxed and stored in the IR.
 pub type AttrObj = Box<dyn Attribute>;
 
 impl PartialEq for AttrObj {
@@ -104,32 +53,16 @@ impl PartialEq for AttrObj {
 
 impl Eq for AttrObj {}
 
-impl Hash for AttrObj {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write(&u64::from(self.hash_attr()).to_ne_bytes())
-    }
-}
-
-impl ArenaObj for AttrObj {
-    fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
-        &ctx.attr_store.unique_store
-    }
-
-    fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
-        &mut ctx.attr_store.unique_store
-    }
-
-    fn get_self_ptr(&self, ctx: &Context) -> Ptr<Self> {
-        self.as_ref().get_self_ptr(ctx)
-    }
-
-    fn dealloc_sub_objects(_ptr: Ptr<Self>, _ctx: &mut Context) {
-        panic!("Cannot dealloc arena sub-objects of attributes")
-    }
-
-    fn remove_references(_ptr: Ptr<Self>, _ctx: &mut Context) {
-        panic!("Cannot remove references to attributes")
-    }
+/// Clone clonable attributes.
+/// ```
+///     # use pliron::{attribute, dialects::builtin::attributes::IntegerAttr};
+///     # use apint::ApInt;
+///     let int64 = IntegerAttr::create(ApInt::from_i64(0));
+///     let int64_clone = attribute::clone::<IntegerAttr>(&int64);
+///     assert!(int64 == int64_clone);
+/// ```
+pub fn clone<T: Clone + Attribute>(source: &AttrObj) -> AttrObj {
+    Box::new(source.downcast_ref::<T>().unwrap().clone())
 }
 
 impl AttachContext for AttrObj {}
@@ -206,10 +139,6 @@ macro_rules! impl_attr {
         $structname: ident, $attr_name: literal, $dialect_name: literal) => {
         $(#[$outer])*
         impl $crate::attribute::Attribute for $structname {
-            fn hash_attr(&self) -> TypeValueHash {
-                TypeValueHash::new(self)
-            }
-
             fn eq_attr(&self, other: &dyn Attribute) -> bool {
                 other
                     .downcast_ref::<Self>()

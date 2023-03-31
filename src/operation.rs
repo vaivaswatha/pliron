@@ -88,7 +88,7 @@ pub struct Operation {
     /// previous and next [Operation]s in the block.
     pub block_links: BlockLinks,
     /// A dictionary of attributes.
-    pub attributes: FxHashMap<&'static str, Ptr<AttrObj>>,
+    pub attributes: FxHashMap<&'static str, AttrObj>,
 }
 
 impl PartialEq for Operation {

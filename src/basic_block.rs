@@ -138,7 +138,7 @@ pub struct BasicBlock {
     /// previous and next [BasicBlock]s in the block.
     pub region_links: RegionLinks,
     /// A dictionary of attributes.
-    pub attributes: FxHashMap<&'static str, Ptr<AttrObj>>,
+    pub attributes: FxHashMap<&'static str, AttrObj>,
 }
 
 impl BasicBlock {

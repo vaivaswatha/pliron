@@ -14,3 +14,6 @@ pub fn register(ctx: &mut Context) {
     types::register(&mut dialect);
     attributes::register(&mut dialect);
 }
+
+/// Key for debug info related attributes.
+pub const ATTR_KEY_DEBUG_INFO: &str = "builtin.debug_info";
