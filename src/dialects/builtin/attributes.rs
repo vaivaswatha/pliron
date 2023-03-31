@@ -8,6 +8,7 @@ use crate::{
     dialect::Dialect,
     error::CompilerError,
     impl_attr,
+    with_context::AttachContext,
 };
 
 /// An attribute containing a string.
@@ -20,6 +21,12 @@ impl StringAttr {
     /// Create a new [StringAttr].
     pub fn create(value: String) -> AttrObj {
         Box::new(StringAttr(value))
+    }
+}
+
+impl From<StringAttr> for String {
+    fn from(value: StringAttr) -> Self {
+        value.0
     }
 }
 
@@ -60,6 +67,12 @@ impl IntegerAttr {
     }
 }
 
+impl From<IntegerAttr> for ApInt {
+    fn from(value: IntegerAttr) -> Self {
+        value.0
+    }
+}
+
 /// An attribute that is a small dictionary of other attributes.
 /// Implemented as a key-sorted list of key value pairs.
 /// Efficient only for small number of keys.
@@ -91,8 +104,8 @@ impl SmallDictAttr {
     }
 
     /// Add an entry to the dictionary.
-    pub fn insert(&mut self, value: (&'static str, AttrObj)) {
-        self.0.insert(value.0, value.1);
+    pub fn insert(&mut self, key: &'static str, val: AttrObj) {
+        self.0.insert(key, val);
     }
 
     /// Remove an entry from the dictionary.
@@ -104,12 +117,64 @@ impl SmallDictAttr {
     pub fn lookup<'a>(&'a self, key: &'static str) -> Option<&'a AttrObj> {
         self.0.get(key)
     }
+
+    /// Lookup a name in the dictionary, get a mutable reference.
+    pub fn lookup_mut<'a>(&'a mut self, key: &'static str) -> Option<&'a mut AttrObj> {
+        self.0.get_mut(key)
+    }
+}
+
+#[derive(PartialEq, Eq)]
+pub struct VecAttr(pub Vec<AttrObj>);
+impl_attr!(VecAttr, "Vec", "builtin");
+
+impl VecAttr {
+    pub fn create(value: Vec<AttrObj>) -> AttrObj {
+        Box::new(VecAttr(value))
+    }
+}
+
+impl DisplayWithContext for VecAttr {
+    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        todo!()
+    }
+}
+
+impl Verify for VecAttr {
+    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+        todo!()
+    }
+}
+
+/// Represent attributes that only have meaning from their existence.
+/// See [UnitAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#unitattr) in MLIR.
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub struct UnitAttr();
+impl_attr!(UnitAttr, "Unit", "builtin");
+
+impl UnitAttr {
+    pub fn create() -> AttrObj {
+        Box::new(UnitAttr())
+    }
+}
+
+impl DisplayWithContext for UnitAttr {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.get_attr_id().with_ctx(ctx))
+    }
+}
+
+impl Verify for UnitAttr {
+    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+        Ok(())
+    }
 }
 
 pub fn register(dialect: &mut Dialect) {
     StringAttr::register_attr_in_dialect(dialect);
     IntegerAttr::register_attr_in_dialect(dialect);
     SmallDictAttr::register_attr_in_dialect(dialect);
+    VecAttr::register_attr_in_dialect(dialect);
 }
 
 #[cfg(test)]
@@ -123,7 +188,7 @@ mod tests {
         with_context::AttachContext,
     };
 
-    use super::SmallDictAttr;
+    use super::{SmallDictAttr, VecAttr};
     #[test]
     fn test_integer_attributes() {
         let ctx = Context::new();
@@ -136,6 +201,12 @@ mod tests {
         assert!(
             int64_0_ptr.with_ctx(&ctx).to_string() == "0x0"
                 && int64_1_ptr.with_ctx(&ctx).to_string() == "0xf"
+        );
+        assert!(
+            ApInt::from(int64_0_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()).is_zero()
+                && ApInt::resize_to_i64(&ApInt::from(
+                    int64_1_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()
+                )) == 15
         );
     }
 
@@ -151,6 +222,10 @@ mod tests {
         assert!(
             str_0_ptr.with_ctx(&ctx).to_string() == "hello"
                 && str_1_ptr.with_ctx(&ctx).to_string() == "world"
+        );
+        assert!(
+            String::from(str_0_ptr.downcast_ref::<StringAttr>().unwrap().clone()) == "hello"
+                && String::from(str_1_ptr.downcast_ref::<StringAttr>().unwrap().clone()) == "world",
         );
     }
 
@@ -177,11 +252,24 @@ mod tests {
         assert!(dict1_attr.lookup("hello").unwrap() == &hello_attr);
         assert!(dict1_attr.lookup("world").unwrap() == &world_attr);
         assert!(dict1_attr.lookup("hello world").is_none());
-        dict2_attr.insert(("world", world_attr));
+        dict2_attr.insert("world", world_attr);
         assert!(dict1_attr == dict2_attr);
 
         dict1_attr.remove("hello");
         dict2_attr.remove("hello");
         assert!(&dict1 == &dict2);
+    }
+
+    #[test]
+    fn test_vec_attributes() {
+        let hello_attr = StringAttr::create("hello".to_string());
+        let world_attr = StringAttr::create("world".to_string());
+
+        let vec_attr = VecAttr::create(vec![
+            attribute::clone::<StringAttr>(&hello_attr),
+            attribute::clone::<StringAttr>(&world_attr),
+        ]);
+        let vec = vec_attr.downcast_ref::<VecAttr>().unwrap();
+        assert!(vec.0.len() == 2 && vec.0[0] == hello_attr && vec.0[1] == world_attr);
     }
 }

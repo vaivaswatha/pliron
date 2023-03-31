@@ -171,6 +171,11 @@ impl Operation {
         newop
     }
 
+    /// Number of results this operation has.
+    pub fn get_num_results(&self) -> usize {
+        self.results.len()
+    }
+
     /// Get a reference to the idx'th result.
     pub fn get_result(&self, idx: usize) -> Option<&OpResult> {
         self.results.get(idx)
@@ -189,6 +194,11 @@ impl Operation {
     /// Get a mutable reference to the opd_idx'th operand.
     pub fn get_operand_mut(&mut self, opd_idx: usize) -> Option<&mut Operand<ValDefDescr>> {
         self.operands.get_mut(opd_idx)
+    }
+
+    /// Get number of operands.
+    pub fn get_num_operands(&self) -> usize {
+        self.operands.len()
     }
 
     /// Get a reference to the opd_idx'th successor.

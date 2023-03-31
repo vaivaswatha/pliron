@@ -83,6 +83,13 @@ impl AttrName {
     }
 }
 
+impl AttachContext for AttrName {}
+impl DisplayWithContext for AttrName {
+    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl Deref for AttrName {
     type Target = String;
 
@@ -95,6 +102,18 @@ impl Deref for AttrName {
 pub struct AttrId {
     pub dialect: DialectName,
     pub name: AttrName,
+}
+
+impl AttachContext for AttrId {}
+impl DisplayWithContext for AttrId {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{}.{}",
+            self.dialect.with_ctx(ctx),
+            self.name.with_ctx(ctx)
+        )
+    }
 }
 
 /// impl [Attribute] for a type with boilerplate code.

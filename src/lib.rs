@@ -4,6 +4,7 @@ pub mod attribute;
 pub mod basic_block;
 pub mod common_traits;
 pub mod context;
+pub mod debug_info;
 pub mod dialect;
 pub mod dialects;
 pub mod error;
