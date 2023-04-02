@@ -1,6 +1,7 @@
 use std::ops::Deref;
 
 use downcast_rs::{impl_downcast, Downcast};
+use intertrait::CastFrom;
 
 use crate::{
     common_traits::{DisplayWithContext, Verify},
@@ -59,7 +60,15 @@ pub(crate) type OpCreator = fn(Ptr<Operation>) -> OpObj;
 
 /// A wrapper around [Operation] for Op(code) specific work.
 /// All per-instance data must be in the underyling Operation.
-pub trait Op: Downcast + Verify + DisplayWithContext {
+///
+/// [OpObj]s can be downcasted to their concrete types using
+/// [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
+///
+/// [OpObj]s can be casted into interface objects using
+/// [cast](intertrait::cast). A concrete Op that `impl`s
+/// an interface must use [cast_to](https://docs.rs/intertrait/latest/intertrait/#usage),
+/// allowing an [OpObj] to be cast to that interface object.
+pub trait Op: Downcast + Verify + DisplayWithContext + CastFrom {
     /// Get the underlying IR Operation
     fn get_operation(&self) -> Ptr<Operation>;
     /// Create a new Op object, given the containing operation.

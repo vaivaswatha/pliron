@@ -1,4 +1,5 @@
 //! Attributes are non-SSA data stored in [Operation](crate::operation::Operation)s.
+//!
 //! See [MLIR Attributes](https://mlir.llvm.org/docs/LangRef/#attributes).
 //! Unlike in MLIR, we do not unique attributes, and hence they are mutable.
 //! These are similar in concept to [Properties](https://discourse.llvm.org/t/rfc-introducing-mlir-operation-properties/67846).
@@ -8,6 +9,7 @@
 use std::{hash::Hash, ops::Deref};
 
 use downcast_rs::{impl_downcast, Downcast};
+use intertrait::CastFrom;
 
 use crate::{
     common_traits::{DisplayWithContext, Verify},
@@ -17,7 +19,15 @@ use crate::{
 };
 
 /// Basic functionality that every attribute in the IR must implement.
-pub trait Attribute: DisplayWithContext + Verify + Downcast {
+///
+/// [AttrObj]s can be downcasted to their concrete types using
+/// [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
+///
+/// [AttrObj]s can be casted into interface objects using
+/// [cast](intertrait::cast). A concrete Attribute that `impl`s
+/// an interface must use [cast_to](https://docs.rs/intertrait/latest/intertrait/#usage),
+/// allowing an [AttrObj] to be cast to that interface object.
+pub trait Attribute: DisplayWithContext + Verify + Downcast + CastFrom {
     /// Is self equal to an other Attribute?
     fn eq_attr(&self, other: &dyn Attribute) -> bool;
 
@@ -55,9 +65,12 @@ impl Eq for AttrObj {}
 
 /// Clone clonable attributes.
 /// ```
-///     # use pliron::{attribute, dialects::builtin::attributes::IntegerAttr};
+///     # use pliron::{attribute, dialects::builtin::
+///     #    {types::{IntegerType, Signedness}, attributes::IntegerAttr}, context::Context};
 ///     # use apint::ApInt;
-///     let int64 = IntegerAttr::create(ApInt::from_i64(0));
+///     # let mut ctx = Context::new();
+///     let i64_ty = IntegerType::get(&mut ctx, 32, Signedness::Signed);
+///     let int64 = IntegerAttr::create(i64_ty, ApInt::from_i64(0));
 ///     let int64_clone = attribute::clone::<IntegerAttr>(&int64);
 ///     assert!(int64 == int64_clone);
 /// ```
@@ -116,7 +129,7 @@ impl DisplayWithContext for AttrId {
     }
 }
 
-/// impl [Attribute] for a type with boilerplate code.
+/// impl [Attribute] for a rust type with boilerplate code.
 ///
 /// Usage:
 /// ```
@@ -151,7 +164,7 @@ impl DisplayWithContext for AttrId {
 ///     impl Attribute for MyAttr { ... }
 /// ```
 /// **Note**: pre-requisite traits for [Attribute] must already be implemented.
-///         Additionaly, Hash and Eq must be implemented by the type.
+///         Additionaly, Hash and PartialEq must be implemented by the type.
 #[macro_export]
 macro_rules! impl_attr {
     (   $(#[$outer:meta])*

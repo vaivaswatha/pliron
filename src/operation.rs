@@ -285,3 +285,9 @@ impl<T: DefDescrTrait> Verify for Operand<T> {
         Ok(())
     }
 }
+
+impl Verify for Operation {
+    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+        self.get_op(ctx).verify(ctx)
+    }
+}

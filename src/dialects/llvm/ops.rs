@@ -1,9 +1,11 @@
+use intertrait::cast_to;
+
 use crate::{
     common_traits::{DisplayWithContext, Verify},
     context::Context,
     declare_op,
     dialect::Dialect,
-    dialects::builtin::op_traits::IsTerminator,
+    dialects::builtin::op_interfaces::IsTerminatorInterface,
     error::CompilerError,
     op::Op,
     with_context::AttachContext,
@@ -11,6 +13,12 @@ use crate::{
 
 declare_op!(
     /// Equivalent to LLVM's return opcode.
+    ///
+    /// Operands:
+    ///
+    /// | operand | description |
+    /// |-----|-------|
+    /// | `arg` | any type |
     ReturnOp,
     "return",
     "llvm"
@@ -29,11 +37,8 @@ impl Verify for ReturnOp {
     }
 }
 
-impl IsTerminator for ReturnOp {
-    fn is_terminator(&self) -> bool {
-        true
-    }
-}
+#[cast_to]
+impl IsTerminatorInterface for ReturnOp {}
 
 pub fn register(ctx: &mut Context, dialect: &mut Dialect) {
     ReturnOp::register(ctx, dialect);

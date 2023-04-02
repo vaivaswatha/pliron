@@ -1,4 +1,5 @@
 //! Store unique instances of a rust type.
+//!
 //! Only a single unique copy (in self context) will
 //! exit of objects instantiated by this utility.
 

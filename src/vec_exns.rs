@@ -1,3 +1,5 @@
+//! Extend functionality of Rust vectors.
+
 pub trait VecExtns<T> {
     // Insert a new element and get back its index in the container.
     fn push_back(&mut self, t: T) -> usize;

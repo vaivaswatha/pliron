@@ -10,7 +10,12 @@ use crate::{
     with_context::AttachContext,
 };
 
-use super::{attributes::IntegerAttr, types::IntegerType};
+use super::{
+    attr_interfaces::TypedAttrInterface,
+    attributes::{FloatAttr, IntegerAttr},
+};
+
+use intertrait::cast::CastRef;
 
 declare_op!(
     /// Represents a module. See MLIR's
@@ -35,31 +40,49 @@ impl Verify for ModuleOp {
 
 declare_op!(
     /// Integer constant.
-    /// See MLIR's [arith.constant](https://mlir.llvm.org/docs/Dialects/ArithOps/#arithconstant-mlirarithconstantop)
+    /// See MLIR's [arith.constant](https://mlir.llvm.org/docs/Dialects/ArithOps/#arithconstant-mlirarithconstantop).
+    ///
+    /// Attributes:
+    ///
+    /// | key | value |
+    /// |-----|-------|
+    /// |[ATTR_KEY_VALUE](ConstantOp::ATTR_KEY_VALUE) | [IntegerAttr] or [FloatAttr] |
+    ///
+    /// Results:
+    ///
+    /// | result | description |
+    /// |-----|-------|
+    /// | `result` | any type |
     ConstantOp,
     "constant",
     "builtin"
 );
 
 impl ConstantOp {
-    const VAL_ATTR_KEY: &str = "constant.value";
+    /// Attribute key for the constant value.
+    pub const ATTR_KEY_VALUE: &str = "constant.value";
     /// Get the constant value that this Op defines.
     pub fn get_value(&self, ctx: &Context) -> AttrObj {
-        let op = self.get_operation();
-        attribute::clone::<IntegerAttr>(op.deref(ctx).attributes.get(Self::VAL_ATTR_KEY).unwrap())
+        let op = self.get_operation().deref(ctx);
+        let value = op.attributes.get(Self::ATTR_KEY_VALUE).unwrap();
+        if value.is::<IntegerAttr>() {
+            attribute::clone::<IntegerAttr>(value)
+        } else {
+            attribute::clone::<FloatAttr>(value)
+        }
     }
 
     /// Create a new [ConstantOp]. The underlying [Operation] is not linked to a [BasicBlock](crate::basic_block::BasicBlock).
     pub fn new_unlinked(ctx: &mut Context, value: AttrObj) -> ConstantOp {
-        assert!(
-            value.is::<IntegerAttr>(),
-            "Expected IntegerAttr when creating ConstantOp"
-        );
-        let result_type = IntegerType::get(ctx, 64, super::types::Signedness::Signed);
+        let result_type = (*value)
+            .cast::<dyn TypedAttrInterface>()
+            .expect("ConstantOp const value must provide TypedAttrInterface")
+            .get_type()
+            .unwrap();
         let op = Operation::new(ctx, Self::get_opid_static(), vec![result_type], vec![]);
         op.deref_mut(ctx)
             .attributes
-            .insert(Self::VAL_ATTR_KEY, value);
+            .insert(Self::ATTR_KEY_VALUE, value);
         ConstantOp { op }
     }
 }
@@ -74,7 +97,7 @@ impl DisplayWithContext for ConstantOp {
 impl Verify for ConstantOp {
     fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
         let value = self.get_value(ctx);
-        if !value.is::<IntegerAttr>() {
+        if !(value.is::<IntegerAttr>() || value.is::<FloatAttr>()) {
             return Err(CompilerError::VerificationError {
                 msg: "Unexpected constant type".to_string(),
             });

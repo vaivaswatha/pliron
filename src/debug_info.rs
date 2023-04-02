@@ -79,23 +79,35 @@ pub fn get_operation_result_name(
 
 #[cfg(test)]
 mod tests {
-    use apint::ApInt;
-
     use crate::{
+        common_traits::Verify,
         context::Context,
-        dialects::builtin::{attributes::IntegerAttr, ops::ConstantOp},
+        dialects::{
+            self,
+            builtin::{
+                attributes::IntegerAttr,
+                ops::ConstantOp,
+                types::{IntegerType, Signedness},
+            },
+        },
+        error::CompilerError,
         op::Op,
     };
+    use apint::ApInt;
 
     use super::{get_operation_result_name, set_operation_result_name};
 
     #[test]
-    fn test_op_result_name() {
+    fn test_op_result_name() -> Result<(), CompilerError> {
         let mut ctx = Context::new();
+        dialects::builtin::register(&mut ctx);
 
-        let cop = ConstantOp::new_unlinked(&mut ctx, IntegerAttr::create(ApInt::from(0)));
+        let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
+        let cop = ConstantOp::new_unlinked(&mut ctx, IntegerAttr::create(i64_ty, ApInt::from(0)));
         let op = cop.get_operation();
         set_operation_result_name(&mut ctx, op, 0, "foo".to_string());
         assert!(get_operation_result_name(&ctx, op, 0).unwrap() == "foo");
+        op.deref(&ctx).verify(&ctx)?;
+        Ok(())
     }
 }

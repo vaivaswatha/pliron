@@ -1,5 +1,6 @@
+pub mod attr_interfaces;
 pub mod attributes;
-pub mod op_traits;
+pub mod op_interfaces;
 pub mod ops;
 pub mod types;
 

@@ -1,15 +1,19 @@
 use apint::ApInt;
+use intertrait::cast_to;
 use sorted_vector_map::SortedVectorMap;
 
 use crate::{
     attribute::{AttrObj, Attribute},
     common_traits::{DisplayWithContext, Verify},
-    context::Context,
+    context::{Context, Ptr},
     dialect::Dialect,
     error::CompilerError,
     impl_attr,
+    r#type::TypeObj,
     with_context::AttachContext,
 };
+
+use super::attr_interfaces::TypedAttrInterface;
 
 /// An attribute containing a string.
 /// Similar to MLIR's [StringAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#stringattr).
@@ -45,12 +49,15 @@ impl Verify for StringAttr {
 /// An attribute containing an integer.
 /// Similar to MLIR's [IntegerAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#integerattr).
 #[derive(PartialEq, Eq, Clone)]
-pub struct IntegerAttr(ApInt);
+pub struct IntegerAttr {
+    ty: Ptr<TypeObj>,
+    val: ApInt,
+}
 impl_attr!(IntegerAttr, "Integer", "builtin");
 
 impl DisplayWithContext for IntegerAttr {
-    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "0x{:x}", self.0)
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "0x{:x}: {}", self.val, self.ty.with_ctx(ctx))
     }
 }
 
@@ -62,14 +69,64 @@ impl Verify for IntegerAttr {
 
 impl IntegerAttr {
     /// Create a new [IntegerAttr].
-    pub fn create(value: ApInt) -> AttrObj {
-        Box::new(IntegerAttr(value))
+    pub fn create(ty: Ptr<TypeObj>, val: ApInt) -> AttrObj {
+        Box::new(IntegerAttr { ty, val })
     }
 }
 
 impl From<IntegerAttr> for ApInt {
     fn from(value: IntegerAttr) -> Self {
+        value.val
+    }
+}
+
+#[cast_to]
+impl TypedAttrInterface for IntegerAttr {
+    fn get_type(&self) -> Option<Ptr<TypeObj>> {
+        Some(self.ty)
+    }
+}
+
+/// A dummy implementation until we have a good one.
+#[derive(PartialEq, Clone)]
+pub struct APFloat();
+
+/// An attribute containing an floating point value.
+/// Similar to MLIR's [FloatAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#floatattr).
+/// TODO: Use rustc's APFloat.
+#[derive(PartialEq, Clone)]
+pub struct FloatAttr(APFloat);
+impl_attr!(FloatAttr, "Float", "builtin");
+
+impl DisplayWithContext for FloatAttr {
+    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "<unimplimented>")
+    }
+}
+
+impl Verify for FloatAttr {
+    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+        todo!()
+    }
+}
+
+impl FloatAttr {
+    /// Create a new [FloatAttr].
+    pub fn create(value: APFloat) -> AttrObj {
+        Box::new(FloatAttr(value))
+    }
+}
+
+impl From<FloatAttr> for APFloat {
+    fn from(value: FloatAttr) -> Self {
         value.0
+    }
+}
+
+#[cast_to]
+impl TypedAttrInterface for FloatAttr {
+    fn get_type(&self) -> Option<Ptr<TypeObj>> {
+        todo!()
     }
 }
 
@@ -184,23 +241,27 @@ mod tests {
     use crate::{
         attribute,
         context::Context,
-        dialects::builtin::attributes::{IntegerAttr, StringAttr},
+        dialects::builtin::{
+            attributes::{IntegerAttr, StringAttr},
+            types::{IntegerType, Signedness},
+        },
         with_context::AttachContext,
     };
 
     use super::{SmallDictAttr, VecAttr};
     #[test]
     fn test_integer_attributes() {
-        let ctx = Context::new();
+        let mut ctx = Context::new();
+        let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
 
-        let int64_0_ptr = IntegerAttr::create(ApInt::from_i64(0));
-        let int64_1_ptr = IntegerAttr::create(ApInt::from_i64(15));
+        let int64_0_ptr = IntegerAttr::create(i64_ty, ApInt::from_i64(0));
+        let int64_1_ptr = IntegerAttr::create(i64_ty, ApInt::from_i64(15));
         assert!(int64_0_ptr.is::<IntegerAttr>() && &int64_0_ptr != &int64_1_ptr);
-        let int64_0_ptr2 = IntegerAttr::create(ApInt::from_i64(0));
+        let int64_0_ptr2 = IntegerAttr::create(i64_ty, ApInt::from_i64(0));
         assert!(int64_0_ptr == int64_0_ptr2);
         assert!(
-            int64_0_ptr.with_ctx(&ctx).to_string() == "0x0"
-                && int64_1_ptr.with_ctx(&ctx).to_string() == "0xf"
+            int64_0_ptr.with_ctx(&ctx).to_string() == "0x0: si64"
+                && int64_1_ptr.with_ctx(&ctx).to_string() == "0xf: si64"
         );
         assert!(
             ApInt::from(int64_0_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()).is_zero()

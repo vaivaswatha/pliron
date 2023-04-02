@@ -1,3 +1,11 @@
+//! Every SSA value, such as operation results or block arguments
+//! has a type defined by the type system.
+//!
+//! The type system is open, with no fixed list of types,
+//! and there are no restrictions on the abstractions they represent.
+//!
+//! See [MLIR Types](https://mlir.llvm.org/docs/DefiningDialects/AttributesAndTypes/#types)
+
 use crate::common_traits::{DisplayWithContext, Verify};
 use crate::context::{ArenaCell, ArenaObj, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
@@ -11,7 +19,9 @@ use std::ops::Deref;
 
 /// Basic functionality that every type in the IR must implement.
 /// Type objects (instances of a Type) are (mostly) immutable once created,
-/// and are uniqued globally. Uniquing is based on the type name and contents.
+/// and are uniqued globally. Uniquing is based on the type name (i.e.,
+/// the rust type being defined) and its contents.
+///
 /// So, for example, if we have
 /// ```rust,ignore
 ///     struct IntType {
