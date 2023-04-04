@@ -2,12 +2,14 @@ use rustc_hash::FxHashMap;
 
 use crate::{
     attribute::AttrObj,
+    common_traits::{DisplayWithContext, Verify},
     context::{ArenaCell, ArenaObj, Context, Ptr},
     linked_list::{ContainsLinkedList, LinkedList},
     operation::Operation,
     r#type::TypeObj,
     region::Region,
     use_def_lists::{Def, DefDescr, ValDefDescr},
+    with_context::AttachContext, error::CompilerError,
 };
 
 /// Argument to a [BasicBlock]
@@ -260,5 +262,21 @@ impl ArenaObj for BasicBlock {
 
     fn get_self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
         self.self_ptr
+    }
+}
+
+impl Verify for BasicBlock {
+    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+        self.iter(ctx).try_for_each(|op| op.deref(ctx).verify(ctx))
+    }
+}
+
+impl AttachContext for BasicBlock {}
+impl DisplayWithContext for BasicBlock {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        for op in self.iter(ctx) {
+            writeln!(f, "{}", op.with_ctx(ctx))?;
+        }
+        Ok(())
     }
 }

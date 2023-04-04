@@ -9,6 +9,7 @@ use crate::{
     linked_list::LinkedList,
     op::{self, OpId, OpObj},
     r#type::TypeObj,
+    region::Region,
     use_def_lists::{BlockDefDescr, Def, DefDescr, DefDescrTrait, Use, UseDescr, ValDefDescr},
     with_context::AttachContext,
 };
@@ -89,6 +90,8 @@ pub struct Operation {
     pub block_links: BlockLinks,
     /// A dictionary of attributes.
     pub attributes: FxHashMap<&'static str, AttrObj>,
+    /// Regions contained inside this operation.
+    pub regions: Vec<Ptr<Region>>,
 }
 
 impl PartialEq for Operation {
@@ -141,6 +144,7 @@ impl Operation {
             successors: vec![],
             block_links: BlockLinks::new_unlinked(),
             attributes: FxHashMap::default(),
+            regions: vec![],
         };
 
         // Create the new Operation.
@@ -229,8 +233,11 @@ impl ArenaObj for Operation {
     fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
         &mut ctx.operations
     }
-    fn dealloc_sub_objects(_ptr: Ptr<Self>, _ctx: &mut Context) {
-        todo!()
+    fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context) {
+        let regions = ptr.deref(ctx).regions.clone();
+        for region in regions {
+            ArenaObj::dealloc(region, ctx);
+        }
     }
     fn remove_references(ptr: Ptr<Self>, ctx: &mut Context) {
         // Unlink from parent block, if there's one.
@@ -289,5 +296,12 @@ impl<T: DefDescrTrait> Verify for Operand<T> {
 impl Verify for Operation {
     fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
         self.get_op(ctx).verify(ctx)
+    }
+}
+
+impl AttachContext for Operation {}
+impl DisplayWithContext for Operation {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.get_op(ctx).fmt(ctx, f)
     }
 }

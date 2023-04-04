@@ -131,11 +131,31 @@ impl Deref for TypeName {
         &self.0
     }
 }
+
+impl AttachContext for TypeName {}
+impl DisplayWithContext for TypeName {
+    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// A combination of a Type's name and its dialect.
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct TypeId {
     pub dialect: DialectName,
     pub name: TypeName,
+}
+
+impl AttachContext for TypeId {}
+impl DisplayWithContext for TypeId {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{}.{}",
+            self.dialect.with_ctx(ctx),
+            self.name.with_ctx(ctx)
+        )
+    }
 }
 
 /// Since we can't store the [Type] trait in the arena,

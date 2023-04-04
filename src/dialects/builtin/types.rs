@@ -9,7 +9,7 @@ use crate::{
     with_context::AttachContext,
 };
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
 pub enum Signedness {
     Signed,
     Unsigned,
@@ -32,6 +32,16 @@ impl IntegerType {
     pub fn get_existing(ctx: &Context, width: u64, signedness: Signedness) -> Option<Ptr<TypeObj>> {
         Type::get_instance(IntegerType { width, signedness }, ctx)
     }
+
+    /// Get width.
+    pub fn get_width(&self) -> u64 {
+        self.width
+    }
+
+    /// Get signedness.
+    pub fn get_signedness(&self) -> Signedness {
+        self.signedness
+    }
 }
 
 impl DisplayWithContext for IntegerType {
@@ -50,30 +60,63 @@ impl Verify for IntegerType {
     }
 }
 
+/// Map from a list of inputs to a list of results
+///
+/// See MLIR's [FunctionType](https://mlir.llvm.org/docs/Dialects/Builtin/#functiontype).
+///
 #[derive(Hash, PartialEq, Eq)]
-pub struct PointerType {
-    to: Ptr<TypeObj>,
+pub struct FunctionType {
+    /// Function arguments / inputs.
+    inputs: Vec<Ptr<TypeObj>>,
+    /// Function results / outputs.
+    results: Vec<Ptr<TypeObj>>,
 }
-impl_type!(PointerType, "pointer", "builtin");
+impl_type!(FunctionType, "Function", "builtin");
 
-impl PointerType {
-    /// Get or create a new pointer type.
-    pub fn get(ctx: &mut Context, to: Ptr<TypeObj>) -> Ptr<TypeObj> {
-        Type::register_instance(PointerType { to }, ctx)
+impl FunctionType {
+    /// Get or create a new Function type.
+    pub fn get(
+        ctx: &mut Context,
+        inputs: Vec<Ptr<TypeObj>>,
+        results: Vec<Ptr<TypeObj>>,
+    ) -> Ptr<TypeObj> {
+        Type::register_instance(FunctionType { inputs, results }, ctx)
     }
-    /// Get, if it already exists, a pointer type.
-    pub fn get_existing(ctx: &Context, to: Ptr<TypeObj>) -> Option<Ptr<TypeObj>> {
-        Type::get_instance(PointerType { to }, ctx)
+    /// Get, if it already exists, a Function type.
+    pub fn get_existing(
+        ctx: &Context,
+        inputs: Vec<Ptr<TypeObj>>,
+        results: Vec<Ptr<TypeObj>>,
+    ) -> Option<Ptr<TypeObj>> {
+        Type::get_instance(FunctionType { inputs, results }, ctx)
+    }
+
+    /// Get a reference to the function input / argument types.
+    pub fn get_inputs(&self) -> &Vec<Ptr<TypeObj>> {
+        &self.inputs
+    }
+
+    /// Get a reference to the function result / output types.
+    pub fn get_results(&self) -> &Vec<Ptr<TypeObj>> {
+        &self.results
     }
 }
 
-impl DisplayWithContext for PointerType {
+impl DisplayWithContext for FunctionType {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}*", self.to.with_ctx(ctx))
+        write!(f, "(")?;
+        for arg in &self.inputs {
+            write!(f, "{}", arg.with_ctx(ctx))?;
+        }
+        write!(f, ") -> (")?;
+        for res in &self.results {
+            write!(f, "{},", res.with_ctx(ctx))?;
+        }
+        write!(f, ")")
     }
 }
 
-impl Verify for PointerType {
+impl Verify for FunctionType {
     fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
         todo!()
     }
@@ -81,20 +124,20 @@ impl Verify for PointerType {
 
 pub fn register(dialect: &mut Dialect) {
     IntegerType::register_type_in_dialect(dialect);
-    PointerType::register_type_in_dialect(dialect);
+    FunctionType::register_type_in_dialect(dialect);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Type;
+    use super::FunctionType;
     use crate::{
         context::Context,
-        dialects::builtin::types::{IntegerType, PointerType, Signedness},
-        with_context::AttachContext,
+        dialects::builtin::types::{IntegerType, Signedness},
     };
     #[test]
-    fn test_types() {
+    fn test_integer_types() {
         let mut ctx = Context::new();
+
         let int32_1_ptr = IntegerType::get(&mut ctx, 32, Signedness::Signed);
         let int32_2_ptr = IntegerType::get(&mut ctx, 32, Signedness::Signed);
         let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signed);
@@ -114,22 +157,16 @@ mod tests {
         assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) == uint32_ptr);
         assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) != int32_1_ptr);
         assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) != int64_ptr);
+    }
 
-        let int64pointer_ptr = PointerType { to: int64_ptr };
-        let int64pointer_ptr = Type::register_instance(int64pointer_ptr, &mut ctx);
-        assert!(int64pointer_ptr.with_ctx(&ctx).to_string() == "si64*");
-        assert!(int64pointer_ptr == PointerType::get(&mut ctx, int64_ptr));
+    #[test]
+    fn test_function_types() {
+        let mut ctx = Context::new();
+        let int32_1_ptr = IntegerType::get(&mut ctx, 32, Signedness::Signed);
+        let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signed);
 
-        assert!(
-            int64_ptr
-                .deref(&ctx)
-                .downcast_ref::<IntegerType>()
-                .unwrap()
-                .width
-                == 64
-        );
-
-        assert!(IntegerType::get_existing(&ctx, 32, Signedness::Signed).unwrap() == int32_1_ptr);
-        assert!(PointerType::get_existing(&ctx, int64_ptr).unwrap() == int64pointer_ptr);
+        let ft = FunctionType::get(&mut ctx, vec![int32_1_ptr], vec![int64_ptr]).deref(&ctx);
+        let ft_ref = ft.downcast_ref::<FunctionType>().unwrap();
+        assert!(ft_ref.get_inputs()[0] == int32_1_ptr && ft_ref.get_results()[0] == int64_ptr);
     }
 }

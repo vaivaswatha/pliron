@@ -65,7 +65,7 @@ pub(crate) type OpCreator = fn(Ptr<Operation>) -> OpObj;
 /// [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 ///
 /// [OpObj]s can be casted into interface objects using
-/// [cast](intertrait::cast). A concrete Op that `impl`s
+/// [cast](intertrait::cast::CastRef). A concrete Op that `impl`s
 /// an interface must use [cast_to](https://docs.rs/intertrait/latest/intertrait/#usage),
 /// allowing an [OpObj] to be cast to that interface object.
 pub trait Op: Downcast + Verify + DisplayWithContext + CastFrom {

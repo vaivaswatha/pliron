@@ -82,8 +82,8 @@ impl From<IntegerAttr> for ApInt {
 
 #[cast_to]
 impl TypedAttrInterface for IntegerAttr {
-    fn get_type(&self) -> Option<Ptr<TypeObj>> {
-        Some(self.ty)
+    fn get_type(&self) -> Ptr<TypeObj> {
+        self.ty
     }
 }
 
@@ -125,7 +125,7 @@ impl From<FloatAttr> for APFloat {
 
 #[cast_to]
 impl TypedAttrInterface for FloatAttr {
-    fn get_type(&self) -> Option<Ptr<TypeObj>> {
+    fn get_type(&self) -> Ptr<TypeObj> {
         todo!()
     }
 }
@@ -227,28 +227,63 @@ impl Verify for UnitAttr {
     }
 }
 
+/// An attribute that does nothing but hold a Type.
+/// Same as MLIR's [TypeAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#typeattr).
+#[derive(PartialEq, Eq, Clone)]
+pub struct TypeAttr(Ptr<TypeObj>);
+impl_attr!(TypeAttr, "Type", "builtin");
+
+impl TypeAttr {
+    pub fn create(ty: Ptr<TypeObj>) -> AttrObj {
+        Box::new(TypeAttr(ty))
+    }
+}
+
+impl DisplayWithContext for TypeAttr {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "ptr<{}>", self.0.with_ctx(ctx))
+    }
+}
+
+impl Verify for TypeAttr {
+    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+        Ok(())
+    }
+}
+
+#[cast_to]
+impl TypedAttrInterface for TypeAttr {
+    fn get_type(&self) -> Ptr<TypeObj> {
+        self.0
+    }
+}
+
 pub fn register(dialect: &mut Dialect) {
     StringAttr::register_attr_in_dialect(dialect);
     IntegerAttr::register_attr_in_dialect(dialect);
     SmallDictAttr::register_attr_in_dialect(dialect);
     VecAttr::register_attr_in_dialect(dialect);
+    UnitAttr::register_attr_in_dialect(dialect);
+    TypeAttr::register_attr_in_dialect(dialect);
 }
 
 #[cfg(test)]
 mod tests {
     use apint::ApInt;
+    use intertrait::cast::CastRef;
 
     use crate::{
         attribute,
         context::Context,
         dialects::builtin::{
+            attr_interfaces::TypedAttrInterface,
             attributes::{IntegerAttr, StringAttr},
             types::{IntegerType, Signedness},
         },
         with_context::AttachContext,
     };
 
-    use super::{SmallDictAttr, VecAttr};
+    use super::{SmallDictAttr, TypeAttr, VecAttr};
     #[test]
     fn test_integer_attributes() {
         let mut ctx = Context::new();
@@ -332,5 +367,16 @@ mod tests {
         ]);
         let vec = vec_attr.downcast_ref::<VecAttr>().unwrap();
         assert!(vec.0.len() == 2 && vec.0[0] == hello_attr && vec.0[1] == world_attr);
+    }
+
+    #[test]
+    fn test_type_attributes() {
+        let mut ctx = Context::new();
+
+        let ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
+        let ty_attr = TypeAttr::create(ty);
+
+        let ty_interface = (*ty_attr).cast::<dyn TypedAttrInterface>().unwrap();
+        assert!(ty_interface.get_type() == ty);
     }
 }

@@ -1,8 +1,10 @@
 use crate::{
     basic_block::BasicBlock,
+    common_traits::{DisplayWithContext, Verify},
     context::{ArenaObj, Context, Ptr},
     linked_list::ContainsLinkedList,
     operation::Operation,
+    with_context::AttachContext, error::CompilerError,
 };
 
 /// [BasicBlock]s contained in this [Region].
@@ -142,5 +144,21 @@ impl ArenaObj for Region {
 
     fn remove_references(_ptr: Ptr<Self>, _ctx: &mut Context) {
         todo!()
+    }
+}
+
+impl Verify for Region {
+    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+        self.iter(ctx).try_for_each(|op| op.deref(ctx).verify(ctx))
+    }
+}
+
+impl AttachContext for Region {}
+impl DisplayWithContext for Region {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        for op in self.iter(ctx) {
+            writeln!(f, "{}", op.with_ctx(ctx))?;
+        }
+        Ok(())
     }
 }

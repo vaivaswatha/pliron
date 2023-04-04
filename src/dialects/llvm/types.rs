@@ -197,8 +197,48 @@ impl PartialEq for StructType {
 
 impl Eq for StructType {}
 
+#[derive(Hash, PartialEq, Eq)]
+pub struct PointerType {
+    to: Ptr<TypeObj>,
+}
+impl_type!(PointerType, "ptr", "llvm");
+
+impl PointerType {
+    /// Get or create a new pointer type.
+    pub fn get(ctx: &mut Context, to: Ptr<TypeObj>) -> Ptr<TypeObj> {
+        Type::register_instance(PointerType { to }, ctx)
+    }
+    /// Get, if it already exists, a pointer type.
+    pub fn get_existing(ctx: &Context, to: Ptr<TypeObj>) -> Option<Ptr<TypeObj>> {
+        Type::get_instance(PointerType { to }, ctx)
+    }
+
+    /// Get the pointee type.
+    pub fn get_pointee_type(&self) -> Ptr<TypeObj> {
+        self.to
+    }
+}
+
+impl DisplayWithContext for PointerType {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{}<{}>",
+            self.get_type_id().with_ctx(ctx),
+            self.to.with_ctx(ctx)
+        )
+    }
+}
+
+impl Verify for PointerType {
+    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+        todo!()
+    }
+}
+
 pub fn register(dialect: &mut Dialect) {
     StructType::register_type_in_dialect(dialect);
+    PointerType::register_type_in_dialect(dialect);
 }
 
 #[cfg(test)]
@@ -206,9 +246,10 @@ mod tests {
     use crate::{
         context::Context,
         dialects::{
-            builtin::types::{IntegerType, PointerType, Signedness},
-            llvm::types::StructType,
+            builtin::types::{IntegerType, Signedness},
+            llvm::types::{PointerType, StructType},
         },
+        r#type::Type,
         with_context::AttachContext,
     };
 
@@ -242,7 +283,7 @@ mod tests {
                 .unwrap()
                 .with_ctx(&ctx)
                 .to_string()
-                == "LinkedList { data: i64, next: LinkedList*, }"
+                == "LinkedList { data: i64, next: llvm.ptr<LinkedList>, }"
         );
 
         let head_fields = vec![
@@ -261,5 +302,37 @@ mod tests {
             ]
         )
         .is_none());
+    }
+
+    #[test]
+    fn test_pointer_types() {
+        let mut ctx = Context::new();
+        let int32_1_ptr = IntegerType::get(&mut ctx, 32, Signedness::Signed);
+        let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signed);
+
+        let int64pointer_ptr = PointerType { to: int64_ptr };
+        let int64pointer_ptr = Type::register_instance(int64pointer_ptr, &mut ctx);
+        assert!(int64pointer_ptr.with_ctx(&ctx).to_string() == "llvm.ptr<si64>");
+        assert!(int64pointer_ptr == PointerType::get(&mut ctx, int64_ptr));
+
+        assert!(
+            int64_ptr
+                .deref(&ctx)
+                .downcast_ref::<IntegerType>()
+                .unwrap()
+                .get_width()
+                == 64
+        );
+
+        assert!(IntegerType::get_existing(&ctx, 32, Signedness::Signed).unwrap() == int32_1_ptr);
+        assert!(PointerType::get_existing(&ctx, int64_ptr).unwrap() == int64pointer_ptr);
+        assert!(
+            int64pointer_ptr
+                .deref(&ctx)
+                .downcast_ref::<PointerType>()
+                .unwrap()
+                .get_pointee_type()
+                == int64_ptr
+        );
     }
 }
