@@ -2,9 +2,10 @@ use crate::{
     basic_block::BasicBlock,
     common_traits::{DisplayWithContext, Verify},
     context::{ArenaObj, Context, Ptr},
+    error::CompilerError,
     linked_list::ContainsLinkedList,
     operation::Operation,
-    with_context::AttachContext, error::CompilerError,
+    with_context::AttachContext,
 };
 
 /// [BasicBlock]s contained in this [Region].

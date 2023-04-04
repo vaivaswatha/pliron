@@ -4,12 +4,13 @@ use crate::{
     attribute::AttrObj,
     common_traits::{DisplayWithContext, Verify},
     context::{ArenaCell, ArenaObj, Context, Ptr},
+    error::CompilerError,
     linked_list::{ContainsLinkedList, LinkedList},
     operation::Operation,
     r#type::TypeObj,
     region::Region,
     use_def_lists::{Def, DefDescr, ValDefDescr},
-    with_context::AttachContext, error::CompilerError,
+    with_context::AttachContext,
 };
 
 /// Argument to a [BasicBlock]

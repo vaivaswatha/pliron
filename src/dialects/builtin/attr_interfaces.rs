@@ -1,10 +1,10 @@
 //! Common semantics, API and behaviour of [Attribute]s are
-//! abstracted into interfaces. 
-//! 
+//! abstracted into interfaces.
+//!
 //! Interfaces in pliron capture MLIR
 //! functionality of both [Traits](https://mlir.llvm.org/docs/Traits/)
 //! and [Interfaces](https://mlir.llvm.org/docs/Interfaces/).
-//! 
+//!
 //! [Attribute]s that implement an interface can choose to annotate
 //! the `impl` with [`#[cast_to]`](https://docs.rs/intertrait/latest/intertrait/#usage).
 //! This will enable an [AttrObj](crate::attribute::AttrObj) to be [cast](intertrait::cast::CastRef::cast)
