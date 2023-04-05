@@ -15,6 +15,7 @@ use std::cell::{Ref, RefMut};
 
 use crate::{
     basic_block::BasicBlock,
+    common_traits::Named,
     context::{Context, Ptr},
     operation::{Operand, Operation},
 };
@@ -35,7 +36,7 @@ impl Def {
 }
 
 /// A trait for [definition descriptors](DefDescr).
-pub trait DefDescrTrait: Copy + PartialEq {
+pub trait DefDescrTrait: Copy + PartialEq + Named {
     /// Get a reference to the underlying [Def].
     fn get_def<'a>(&self, ctx: &'a Context) -> Ref<'a, Def>;
     /// Get a mutable reference to the underlying [Def].
@@ -123,6 +124,22 @@ pub enum ValDefDescr {
         arg_idx: usize,
     },
 }
+
+impl Named for ValDefDescr {
+    fn get_name(&self, ctx: &Context) -> String {
+        match self {
+            ValDefDescr::OpResult { op, res_idx } => {
+                op.deref(ctx).get_result(*res_idx).unwrap().get_name(ctx)
+            }
+            ValDefDescr::BlockArgument { block, arg_idx } => block
+                .deref(ctx)
+                .get_argument(*arg_idx)
+                .unwrap()
+                .get_name(ctx),
+        }
+    }
+}
+
 impl DefDescrTrait for ValDefDescr {
     fn get_def<'a>(&self, ctx: &'a Context) -> Ref<'a, Def> {
         match self {
@@ -186,6 +203,13 @@ impl DefDescrTrait for ValDefDescr {
 pub struct BlockDefDescr {
     pub(crate) block: Ptr<BasicBlock>,
 }
+
+impl Named for BlockDefDescr {
+    fn get_name(&self, ctx: &Context) -> String {
+        self.block.deref(ctx).get_name(ctx)
+    }
+}
+
 impl DefDescrTrait for BlockDefDescr {
     fn get_def<'a>(&self, ctx: &'a Context) -> Ref<'a, Def> {
         let block = self.block.deref(ctx);
@@ -227,6 +251,12 @@ impl DefDescrTrait for BlockDefDescr {
 /// Pointer to / describes a definition.
 #[derive(Clone, Copy, Debug)]
 pub struct DefDescr<T: DefDescrTrait>(pub(crate) T);
+
+impl<T: DefDescrTrait + Named> Named for DefDescr<T> {
+    fn get_name(&self, ctx: &Context) -> String {
+        self.0.get_name(ctx)
+    }
+}
 
 /// A use is a pointer to its definition.
 #[derive(Clone, Copy, Debug)]

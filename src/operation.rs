@@ -3,14 +3,15 @@ use rustc_hash::FxHashMap;
 use crate::{
     attribute::AttrObj,
     basic_block::BasicBlock,
-    common_traits::{DisplayWithContext, Verify},
+    common_traits::{DisplayWithContext, Named, Verify},
     context::{ArenaCell, ArenaObj, Context, Ptr},
+    debug_info,
     error::CompilerError,
     linked_list::LinkedList,
     op::{self, OpId, OpObj},
     r#type::TypeObj,
     region::Region,
-    use_def_lists::{BlockDefDescr, Def, DefDescr, DefDescrTrait, Use, UseDescr, ValDefDescr},
+    use_def_lists::{BlockDefDescr, Def, DefDescrTrait, Use, UseDescr, ValDefDescr},
     with_context::AttachContext,
 };
 
@@ -37,17 +38,28 @@ impl OpResult {
         self.res_idx
     }
 
-    /// Build a [DefDescr] that describes this value.
-    pub fn build_def_descr(&self) -> DefDescr<ValDefDescr> {
-        DefDescr(ValDefDescr::OpResult {
+    /// Build a [ValDefDescr] that describes this value.
+    pub fn build_valdef_descr(&self) -> ValDefDescr {
+        ValDefDescr::OpResult {
             op: self.def_op,
             res_idx: self.res_idx,
-        })
+        }
     }
 
     /// Get the [Type](crate::type::Type) of this operation result.
     pub fn get_type(&self) -> Ptr<TypeObj> {
         self.ty
+    }
+}
+
+impl Named for OpResult {
+    fn get_name(&self, ctx: &Context) -> String {
+        debug_info::get_operation_result_name(ctx, self.def_op, self.res_idx).unwrap_or_else(|| {
+            let mut name = "op_".to_string();
+            name.push_str(&self.def_op.idx.into_raw_parts().0.to_string());
+            name.push_str(&format!("[{}]", self.res_idx));
+            name
+        })
     }
 }
 
@@ -280,9 +292,9 @@ impl<T: DefDescrTrait> Operand<T> {
 }
 
 impl<T: DefDescrTrait> AttachContext for Operand<T> {}
-impl<T: DefDescrTrait> DisplayWithContext for Operand<T> {
-    fn fmt(&self, _ctx: &Context, _ff: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        todo!()
+impl<T: DefDescrTrait + Named> DisplayWithContext for Operand<T> {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.r#use.def.get_name(ctx))
     }
 }
 

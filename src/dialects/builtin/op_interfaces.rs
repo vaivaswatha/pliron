@@ -16,6 +16,7 @@ use crate::{
     context::{Context, Ptr},
     linked_list::ContainsLinkedList,
     op::Op,
+    operation::Operation,
     region::Region,
 };
 
@@ -63,6 +64,10 @@ pub trait SingleBlockRegionInterface: Op {
             .deref(ctx)
             .get_head()
             .expect("Expected SingleBlockRegion Op to contain a block")
+    }
+
+    fn append_operation(&self, ctx: &mut Context, op: Ptr<Operation>, region_idx: usize) {
+        op.insert_at_back(self.get_body(ctx, region_idx), ctx);
     }
 }
 

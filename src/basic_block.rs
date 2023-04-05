@@ -2,14 +2,15 @@ use rustc_hash::FxHashMap;
 
 use crate::{
     attribute::AttrObj,
-    common_traits::{DisplayWithContext, Verify},
+    common_traits::{DisplayWithContext, Named, Verify},
     context::{ArenaCell, ArenaObj, Context, Ptr},
+    debug_info::get_block_arg_name,
     error::CompilerError,
     linked_list::{ContainsLinkedList, LinkedList},
     operation::Operation,
     r#type::TypeObj,
     region::Region,
-    use_def_lists::{Def, DefDescr, ValDefDescr},
+    use_def_lists::{Def, ValDefDescr},
     with_context::AttachContext,
 };
 
@@ -36,17 +37,40 @@ impl BlockArgument {
         self.arg_idx
     }
 
-    /// Build a [DefDescr] that describes this value.
-    pub fn build_def_descr(&self) -> DefDescr<ValDefDescr> {
-        DefDescr(ValDefDescr::BlockArgument {
+    /// Build a [ValDefDescr] that describes this value.
+    pub fn build_valdef_descr(&self) -> ValDefDescr {
+        ValDefDescr::BlockArgument {
             block: self.def_block,
             arg_idx: self.arg_idx,
-        })
+        }
     }
 
     /// Get the [Type](crate::type::Type) of this block argument.
     pub fn get_type(&self) -> Ptr<TypeObj> {
         self.ty
+    }
+}
+
+impl Named for BlockArgument {
+    fn get_name(&self, ctx: &Context) -> String {
+        get_block_arg_name(ctx, self.get_def_block(), self.arg_idx).unwrap_or_else(|| {
+            let mut name = self.def_block.deref(ctx).get_name(ctx);
+            name.push_str(&format!("[{}]", self.arg_idx));
+            name
+        })
+    }
+}
+
+impl AttachContext for BlockArgument {}
+
+impl DisplayWithContext for BlockArgument {
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{}:{}",
+            self.get_name(ctx),
+            self.get_type().with_ctx(ctx)
+        )
     }
 }
 
@@ -134,6 +158,7 @@ impl RegionLinks {
 /// A basic block contains a list of [Operation]s. It may have [arguments](BlockArgument).
 pub struct BasicBlock {
     pub(crate) self_ptr: Ptr<BasicBlock>,
+    pub(crate) label: Option<String>,
     pub(crate) ops_list: OpsInBlock,
     pub(crate) args: Vec<BlockArgument>,
     pub(crate) preds: Def,
@@ -142,6 +167,16 @@ pub struct BasicBlock {
     pub region_links: RegionLinks,
     /// A dictionary of attributes.
     pub attributes: FxHashMap<&'static str, AttrObj>,
+}
+
+impl Named for BasicBlock {
+    fn get_name(&self, _ctx: &Context) -> String {
+        self.label.as_ref().cloned().unwrap_or_else(|| {
+            let mut name = "block_".to_string();
+            name.push_str(&self.self_ptr.idx.into_raw_parts().0.to_string());
+            name
+        })
+    }
 }
 
 impl BasicBlock {
@@ -155,9 +190,14 @@ impl BasicBlock {
     }
 
     /// Create a new Basic Block.
-    pub fn new(ctx: &mut Context, arg_types: Vec<Ptr<TypeObj>>) -> Ptr<BasicBlock> {
+    pub fn new(
+        ctx: &mut Context,
+        label: Option<String>,
+        arg_types: Vec<Ptr<TypeObj>>,
+    ) -> Ptr<BasicBlock> {
         let f = |self_ptr: Ptr<BasicBlock>| BasicBlock {
             self_ptr,
+            label,
             args: vec![],
             ops_list: OpsInBlock::new_empty(),
             preds: Def::new(),
@@ -182,13 +222,18 @@ impl BasicBlock {
     }
 
     /// Get a reference to the idx'th argument.
-    pub fn get_argument(&self, idx: usize) -> Option<&BlockArgument> {
-        self.args.get(idx)
+    pub fn get_argument(&self, arg_idx: usize) -> Option<&BlockArgument> {
+        self.args.get(arg_idx)
     }
 
     /// Get a mutable reference to the idx'th argument.
-    pub fn get_argument_mut(&mut self, idx: usize) -> Option<&mut BlockArgument> {
-        self.args.get_mut(idx)
+    pub fn get_argument_mut(&mut self, arg_idx: usize) -> Option<&mut BlockArgument> {
+        self.args.get_mut(arg_idx)
+    }
+
+    /// Get the number of arguments.
+    pub fn get_num_arguments(&self) -> usize {
+        self.args.len()
     }
 }
 
@@ -275,8 +320,17 @@ impl Verify for BasicBlock {
 impl AttachContext for BasicBlock {}
 impl DisplayWithContext for BasicBlock {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}(", self.get_name(ctx))?;
+        for arg in self.args.iter() {
+            write!(f, "{}", arg.with_ctx(ctx))?;
+        }
+        writeln!(f, "):")?;
         for op in self.iter(ctx) {
-            writeln!(f, "{}", op.with_ctx(ctx))?;
+            writeln!(
+                f,
+                "{}",
+                indent::indent_all_by(2, op.with_ctx(ctx).to_string())
+            )?;
         }
         Ok(())
     }

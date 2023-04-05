@@ -241,7 +241,12 @@ impl TypeAttr {
 
 impl DisplayWithContext for TypeAttr {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "ptr<{}>", self.0.with_ctx(ctx))
+        write!(
+            f,
+            "{}<{}>",
+            self.get_attr_id().with_ctx(ctx),
+            self.0.with_ctx(ctx)
+        )
     }
 }
 

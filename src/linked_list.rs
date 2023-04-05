@@ -7,8 +7,10 @@ pub trait ContainsLinkedList<T: LinkedList> {
     /// Simply get the tail of the list.
     fn get_tail(&self) -> Option<Ptr<T>>;
     /// Simply set the head pointer.
+    /// WARNING: Do not use this directly.
     fn set_head(&mut self, head: Option<Ptr<T>>);
     /// Simply set the tail pointer
+    /// WARNING: Do not use this directly.
     fn set_tail(&mut self, tail: Option<Ptr<T>>);
     /// Get an iterator over the items. Context is borrowed throughout.
     fn iter<'a>(&self, ctx: &'a Context) -> LinkedListIter<'a, T> {
@@ -53,13 +55,16 @@ pub trait LinkedList: ArenaObj + PartialEq {
     fn get_next(&self) -> Option<Ptr<Self>>;
     /// Simple getter for the item previous to this in the list.
     fn get_prev(&self) -> Option<Ptr<Self>>;
-    /// Simply set the item next to this in the list.
-    fn set_next(&mut self, next: Option<Ptr<Self>>);
-    /// Simply set the item previous to this in the list.
-    fn set_prev(&mut self, prev: Option<Ptr<Self>>);
     /// Get a reference to the object that contains this linked list.
     fn get_container(&self) -> Option<Ptr<Self::ContainerType>>;
+    /// Simply set the item next to this in the list.
+    /// WARNING: Do not use this directly.
+    fn set_next(&mut self, next: Option<Ptr<Self>>);
+    /// Simply set the item previous to this in the list.
+    /// WARNING: Do not use this directly.
+    fn set_prev(&mut self, prev: Option<Ptr<Self>>);
     /// Set the container for this node.
+    /// WARNING: Do not use this directly.
     fn set_container(&mut self, container: Option<Ptr<Self::ContainerType>>);
 }
 

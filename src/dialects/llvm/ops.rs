@@ -8,6 +8,8 @@ use crate::{
     dialects::builtin::op_interfaces::IsTerminatorInterface,
     error::CompilerError,
     op::Op,
+    operation::Operation,
+    use_def_lists::ValDefDescr,
     with_context::AttachContext,
 };
 
@@ -24,10 +26,26 @@ declare_op!(
     "llvm"
 );
 
+impl ReturnOp {
+    pub fn new_unlinked(ctx: &mut Context, value: ValDefDescr) -> ReturnOp {
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![value]);
+        ReturnOp { op }
+    }
+}
+
 impl AttachContext for ReturnOp {}
 impl DisplayWithContext for ReturnOp {
-    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        todo!()
+    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{} {}",
+            self.get_opid().with_ctx(ctx),
+            self.get_operation()
+                .deref(ctx)
+                .get_operand(0)
+                .unwrap()
+                .with_ctx(ctx)
+        )
     }
 }
 

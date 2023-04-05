@@ -1,11 +1,12 @@
 use crate::{
     attribute::{self, AttrObj},
     basic_block::BasicBlock,
-    common_traits::{DisplayWithContext, Verify},
+    common_traits::{DisplayWithContext, Named, Verify},
     context::{Context, Ptr},
     declare_op,
     dialect::Dialect,
     error::CompilerError,
+    linked_list::ContainsLinkedList,
     op::Op,
     operation::Operation,
     r#type::TypeObj,
@@ -43,12 +44,13 @@ declare_op!(
 impl AttachContext for ModuleOp {}
 impl DisplayWithContext for ModuleOp {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let region = self.get_region(ctx).with_ctx(ctx).to_string();
         write!(
             f,
             "{} @{} {{\n{}}}",
             self.get_opid().with_ctx(ctx),
             self.get_symbol_name(ctx),
-            self.get_region(ctx).with_ctx(ctx),
+            indent::indent_all_by(2, region),
         )
     }
 }
@@ -76,12 +78,17 @@ impl ModuleOp {
 
         // Create a single region with an empty block.
         let region = Region::new(ctx, op);
-        let block = BasicBlock::new(ctx, vec![]);
+        let block = BasicBlock::new(ctx, None, vec![]);
         block.insert_at_front(region, ctx);
         let opref = &mut *op.deref_mut(ctx);
         opref.regions.push(region);
 
         opop
+    }
+
+    /// Add an [Operation] into this module.
+    pub fn add_operation(&self, ctx: &mut Context, op: Ptr<Operation>) {
+        self.append_operation(ctx, op, 0)
     }
 }
 
@@ -117,12 +124,12 @@ impl FuncOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![]);
 
         // Create a body region with an empty entry block.
-        let reg = Region::new(ctx, op);
-        let body = BasicBlock::new(ctx, vec![]);
-        body.insert_at_front(reg, ctx);
+        let region = Region::new(ctx, op);
+        let body = BasicBlock::new(ctx, Some("entry".to_string()), vec![]);
+        body.insert_at_front(region, ctx);
         {
             let opref = &mut *op.deref_mut(ctx);
-            opref.regions.push(reg);
+            opref.regions.push(region);
             // Set function type attributes.
             opref.attributes.insert(Self::ATTR_KEY_FUNC_TYPE, ty_attr);
         }
@@ -135,7 +142,14 @@ impl FuncOp {
     pub fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         let opref = self.get_operation().deref(ctx);
         let ty_attr = opref.attributes.get(Self::ATTR_KEY_FUNC_TYPE).unwrap();
-        ty_attr.cast::<dyn TypedAttrInterface>().unwrap().get_type()
+        (**ty_attr)
+            .cast::<dyn TypedAttrInterface>()
+            .unwrap()
+            .get_type()
+    }
+
+    pub fn get_entry_block(&self, ctx: &Context) -> Ptr<BasicBlock> {
+        self.get_region(ctx).deref(ctx).get_head().unwrap()
     }
 }
 
@@ -146,13 +160,14 @@ impl SymbolOpInterface for FuncOp {}
 impl AttachContext for FuncOp {}
 impl DisplayWithContext for FuncOp {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let region = self.get_region(ctx).with_ctx(ctx).to_string();
         write!(
             f,
-            "{} {}{} {{\n{}}}",
+            "{} @{}{} {{\n{}}}",
             self.get_opid().with_ctx(ctx),
             self.get_symbol_name(ctx),
             self.get_type(ctx).with_ctx(ctx),
-            self.get_region(ctx).with_ctx(ctx),
+            indent::indent_all_by(2, region),
         )
     }
 }
@@ -232,7 +247,17 @@ impl ConstantOp {
 impl AttachContext for ConstantOp {}
 impl DisplayWithContext for ConstantOp {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.get_value(ctx).with_ctx(ctx))
+        write!(
+            f,
+            "{} = {} {}",
+            self.get_opid().with_ctx(ctx),
+            self.get_operation()
+                .deref(ctx)
+                .get_result(0)
+                .unwrap()
+                .get_name(ctx),
+            self.get_value(ctx).with_ctx(ctx)
+        )
     }
 }
 

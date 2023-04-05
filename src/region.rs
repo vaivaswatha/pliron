@@ -157,8 +157,8 @@ impl Verify for Region {
 impl AttachContext for Region {}
 impl DisplayWithContext for Region {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        for op in self.iter(ctx) {
-            writeln!(f, "{}", op.with_ctx(ctx))?;
+        for block in self.iter(ctx) {
+            write!(f, "{}", block.with_ctx(ctx))?;
         }
         Ok(())
     }

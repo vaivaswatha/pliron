@@ -86,3 +86,8 @@ impl<'c, 't, T: 't + DebugWithContext, I: Iterator<Item = &'t T> + Clone> fmt::D
 pub trait Verify {
     fn verify(&self, ctx: &Context) -> Result<(), CompilerError>;
 }
+
+/// Anything that has a name.
+pub trait Named {
+    fn get_name(&self, ctx: &Context) -> String;
+}
