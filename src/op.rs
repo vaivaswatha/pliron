@@ -84,8 +84,8 @@ pub(crate) type OpCreator = fn(Ptr<Operation>) -> OpObj;
 pub trait Op: Downcast + Verify + DisplayWithContext + CastFrom {
     /// Get the underlying IR Operation
     fn get_operation(&self) -> Ptr<Operation>;
-    /// Create a new Op object, given the containing operation.
-    fn create(op: Ptr<Operation>) -> OpObj
+    /// Create a new Op object, by wrapping around an operation.
+    fn wrap_operation(op: Ptr<Operation>) -> OpObj
     where
         Self: Sized;
     /// Get this Op's OpId
@@ -103,7 +103,7 @@ pub trait Op: Downcast + Verify + DisplayWithContext + CastFrom {
         match ctx.ops.entry(Self::get_opid_static()) {
             std::collections::hash_map::Entry::Occupied(_) => (),
             std::collections::hash_map::Entry::Vacant(v) => {
-                v.insert(Self::create);
+                v.insert(Self::wrap_operation);
                 dialect.add_op(Self::get_opid_static());
             }
         }
@@ -178,7 +178,7 @@ macro_rules! declare_op {
                 self.op
             }
 
-            fn create(op: $crate::context::Ptr<$crate::operation::Operation>) -> $crate::op::OpObj {
+            fn wrap_operation(op: $crate::context::Ptr<$crate::operation::Operation>) -> $crate::op::OpObj {
                 Box::new($structname { op })
             }
 
