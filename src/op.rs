@@ -1,7 +1,26 @@
+//! An [Op] is a thin wrapper arround an [Operation], providing
+//! API specific to the [OpId] of that Operation.
+//!
+//! See MLIR's [Op](https://mlir.llvm.org/docs/Tutorials/Toy/Ch-2/#op-vs-operation-using-mlir-operations).
+//!
+//! Common semantics, API and behaviour of [Op]s are
+//! abstracted into Op interfaces. Interfaces in pliron capture MLIR
+//! functionality of both [Traits](https://mlir.llvm.org/docs/Traits/)
+//! and [Interfaces](https://mlir.llvm.org/docs/Interfaces/).
+//!
+//! [Op]s that implement an interface can choose to annotate
+//! the `impl` with [`#[cast_to]`](https://docs.rs/intertrait/latest/intertrait/#usage).
+//! This will enable an [Op] reference to be [cast](op_cast)
+//! into an interface object reference (or check if it [impls](op_impls) it).
+//! Without this, the cast will always fail.
+//!
+//! [OpObj]s can be downcasted to their concrete types using
+//! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
+
 use std::ops::Deref;
 
 use downcast_rs::{impl_downcast, Downcast};
-use intertrait::CastFrom;
+use intertrait::{cast::CastRef, CastFrom};
 
 use crate::{
     common_traits::{DisplayWithContext, Verify},
@@ -61,13 +80,7 @@ pub(crate) type OpCreator = fn(Ptr<Operation>) -> OpObj;
 /// A wrapper around [Operation] for Op(code) specific work.
 /// All per-instance data must be in the underyling Operation.
 ///
-/// [OpObj]s can be downcasted to their concrete types using
-/// [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
-///
-/// [OpObj]s can be casted into interface objects using
-/// [cast](intertrait::cast::CastRef). A concrete Op that `impl`s
-/// an interface must use [cast_to](https://docs.rs/intertrait/latest/intertrait/#usage),
-/// allowing an [OpObj] to be cast to that interface object.
+/// See [module](crate::op) documentation for more information.
 pub trait Op: Downcast + Verify + DisplayWithContext + CastFrom {
     /// Get the underlying IR Operation
     fn get_operation(&self) -> Ptr<Operation>;
@@ -106,6 +119,16 @@ pub fn from_operation(ctx: &Context, op: Ptr<Operation>) -> OpObj {
 }
 
 pub type OpObj = Box<dyn Op>;
+
+/// Cast reference to an [Op] object to an interface reference.
+pub fn op_cast<T: ?Sized + Op>(attr: &dyn Op) -> Option<&T> {
+    attr.cast::<T>()
+}
+
+/// Does this [Op] object implement interface T?
+pub fn op_impls<T: ?Sized + Op>(attr: &dyn Op) -> bool {
+    attr.impls::<T>()
+}
 
 /// Declare an [Op] and fill boilerplate impl code.
 ///

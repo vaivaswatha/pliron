@@ -1,5 +1,5 @@
 use crate::{
-    attribute::{self, AttrObj},
+    attribute::{self, attr_cast, AttrObj},
     basic_block::BasicBlock,
     common_traits::{DisplayWithContext, Named, Verify},
     context::{Context, Ptr},
@@ -21,7 +21,7 @@ use super::{
     types::FunctionType,
 };
 
-use intertrait::{cast::CastRef, cast_to};
+use intertrait::cast_to;
 
 declare_op!(
     /// Represents a module, a top level container operation.
@@ -142,8 +142,7 @@ impl FuncOp {
     pub fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         let opref = self.get_operation().deref(ctx);
         let ty_attr = opref.attributes.get(Self::ATTR_KEY_FUNC_TYPE).unwrap();
-        (**ty_attr)
-            .cast::<dyn TypedAttrInterface>()
+        attr_cast::<dyn TypedAttrInterface>(&**ty_attr)
             .unwrap()
             .get_type()
     }
@@ -232,8 +231,7 @@ impl ConstantOp {
     /// Create a new [ConstantOp]. The underlying [Operation] is not linked to a
     /// [BasicBlock](crate::basic_block::BasicBlock).
     pub fn new_unlinked(ctx: &mut Context, value: AttrObj) -> ConstantOp {
-        let result_type = (*value)
-            .cast::<dyn TypedAttrInterface>()
+        let result_type = attr_cast::<dyn TypedAttrInterface>(&*value)
             .expect("ConstantOp const value must provide TypedAttrInterface")
             .get_type();
         let op = Operation::new(ctx, Self::get_opid_static(), vec![result_type], vec![]);

@@ -1,16 +1,3 @@
-//! Common semantics, API and behaviour of [Op]s are
-//! abstracted into interfaces.
-//!
-//! Interfaces in pliron capture MLIR
-//! functionality of both [Traits](https://mlir.llvm.org/docs/Traits/)
-//! and [Interfaces](https://mlir.llvm.org/docs/Interfaces/).
-//!
-//! [Op]s that implement an interface can choose to annotate
-//! the `impl` with [`#[cast_to]`](https://docs.rs/intertrait/latest/intertrait/#usage).
-//! This will enable an [OpObj](crate::op::OpObj) to be [cast](intertrait::cast::CastRef::cast)
-//! into an interface object (or check if it [impls](intertrait::cast::CastRef::impls) it).
-//! Without this, a cast will always fail.
-
 use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},

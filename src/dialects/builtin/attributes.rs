@@ -275,10 +275,9 @@ pub fn register(dialect: &mut Dialect) {
 #[cfg(test)]
 mod tests {
     use apint::ApInt;
-    use intertrait::cast::CastRef;
 
     use crate::{
-        attribute,
+        attribute::{self, attr_cast},
         context::Context,
         dialects::builtin::{
             attr_interfaces::TypedAttrInterface,
@@ -381,7 +380,7 @@ mod tests {
         let ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
         let ty_attr = TypeAttr::create(ty);
 
-        let ty_interface = (*ty_attr).cast::<dyn TypedAttrInterface>().unwrap();
+        let ty_interface = attr_cast::<dyn TypedAttrInterface>(&*ty_attr).unwrap();
         assert!(ty_interface.get_type() == ty);
     }
 }

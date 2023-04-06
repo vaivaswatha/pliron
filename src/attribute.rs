@@ -5,11 +5,24 @@
 //! These are similar in concept to [Properties](https://discourse.llvm.org/t/rfc-introducing-mlir-operation-properties/67846).
 //! Attribute objects are heavy, boxed, and not wrapped with [Ptr](crate::context::Ptr).
 //! They may or may not be clonable. See [clone].
-
+//!
+//! Common semantics, API and behaviour of [Attribute]s are
+//! abstracted into interfaces. Interfaces in pliron capture MLIR
+//! functionality of both [Traits](https://mlir.llvm.org/docs/Traits/)
+//! and [Interfaces](https://mlir.llvm.org/docs/Interfaces/).
+//!
+//! [Attribute]s that implement an interface can choose to annotate
+//! the `impl` with [`#[cast_to]`](https://docs.rs/intertrait/latest/intertrait/#usage).
+//! This will enable an [Attribute] reference to be [cast](attr_cast)
+//! into an interface object reference (or check if it [impls](attr_impls) it).
+//! Without this, the cast will always fail.
+//!
+//! [AttrObj]s can be downcasted to their concrete types using
+/// [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 use std::{hash::Hash, ops::Deref};
 
 use downcast_rs::{impl_downcast, Downcast};
-use intertrait::CastFrom;
+use intertrait::{cast::CastRef, CastFrom};
 
 use crate::{
     common_traits::{DisplayWithContext, Verify},
@@ -20,13 +33,7 @@ use crate::{
 
 /// Basic functionality that every attribute in the IR must implement.
 ///
-/// [AttrObj]s can be downcasted to their concrete types using
-/// [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
-///
-/// [AttrObj]s can be casted into interface objects using
-/// [cast](intertrait::cast). A concrete Attribute that `impl`s
-/// an interface must use [cast_to](https://docs.rs/intertrait/latest/intertrait/#usage),
-/// allowing an [AttrObj] to be cast to that interface object.
+/// See [module](crate::attribute) documentation for more information.
 pub trait Attribute: DisplayWithContext + Verify + Downcast + CastFrom {
     /// Is self equal to an other Attribute?
     fn eq_attr(&self, other: &dyn Attribute) -> bool;
@@ -83,6 +90,16 @@ impl DisplayWithContext for AttrObj {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.as_ref().fmt(ctx, f)
     }
+}
+
+/// Cast reference to an [Attribute] object to an interface reference.
+pub fn attr_cast<T: ?Sized + Attribute>(attr: &dyn Attribute) -> Option<&T> {
+    attr.cast::<T>()
+}
+
+/// Does this [Attribute] object implement interface T?
+pub fn attr_impls<T: ?Sized + Attribute>(attr: &dyn Attribute) -> bool {
+    attr.impls::<T>()
 }
 
 #[derive(Clone, Hash, PartialEq, Eq)]
