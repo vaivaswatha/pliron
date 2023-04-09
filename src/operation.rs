@@ -54,12 +54,8 @@ impl OpResult {
 
 impl Named for OpResult {
     fn get_name(&self, ctx: &Context) -> String {
-        debug_info::get_operation_result_name(ctx, self.def_op, self.res_idx).unwrap_or_else(|| {
-            let mut name = "op_".to_string();
-            name.push_str(&self.def_op.idx.into_raw_parts().0.to_string());
-            name.push_str(&format!("[{}]", self.res_idx));
-            name
-        })
+        debug_info::get_operation_result_name(ctx, self.def_op, self.res_idx)
+            .unwrap_or_else(|| self.def_op.make_name("op") + &format!("[{}]", self.res_idx))
     }
 }
 

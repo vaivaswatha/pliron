@@ -98,11 +98,24 @@ pub struct Ptr<T: ArenaObj> {
 }
 
 impl<'a, T: ArenaObj> Ptr<T> {
+    /// Return a Ref to the pointee.
+    /// This borrows from a RefCell and the borrow is live
+    /// as long as the returned Ref lives.
     pub fn deref(&self, ctx: &'a Context) -> Ref<'a, T> {
         T::get_arena(ctx).get(self.idx).unwrap().borrow()
     }
+
+    /// Return a RefMut to the pointee.
+    /// This mutably borrows from a RefCell and the borrow is live
+    /// as long as the returned RefMut lives.
     pub fn deref_mut(&self, ctx: &'a Context) -> RefMut<'a, T> {
         T::get_arena(ctx).get(self.idx).unwrap().borrow_mut()
+    }
+
+    /// Create a unique (to the arena) name based on the arena index.
+    pub fn make_name(&self, name_base: &str) -> String {
+        let idx = self.idx.into_raw_parts();
+        name_base.to_string() + "_" + &idx.0.to_string() + "_" + &idx.1.to_string()
     }
 }
 

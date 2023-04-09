@@ -171,11 +171,10 @@ pub struct BasicBlock {
 
 impl Named for BasicBlock {
     fn get_name(&self, _ctx: &Context) -> String {
-        self.label.as_ref().cloned().unwrap_or_else(|| {
-            let mut name = "block_".to_string();
-            name.push_str(&self.self_ptr.idx.into_raw_parts().0.to_string());
-            name
-        })
+        self.label
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| self.self_ptr.make_name("block"))
     }
 }
 
