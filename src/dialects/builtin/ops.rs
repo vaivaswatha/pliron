@@ -1,3 +1,5 @@
+use std::cell::Ref;
+
 use crate::{
     attribute::{self, attr_cast, AttrObj},
     basic_block::BasicBlock,
@@ -8,7 +10,7 @@ use crate::{
     error::CompilerError,
     linked_list::ContainsLinkedList,
     op::Op,
-    operation::Operation,
+    operation::{OpResult, Operation},
     r#type::TypeObj,
     region::Region,
     with_context::AttachContext,
@@ -17,7 +19,9 @@ use crate::{
 use super::{
     attr_interfaces::TypedAttrInterface,
     attributes::{FloatAttr, IntegerAttr, TypeAttr},
-    op_interfaces::{OneRegionInterface, SingleBlockRegionInterface, SymbolOpInterface},
+    op_interfaces::{
+        OneRegionInterface, OneResultInterface, SingleBlockRegionInterface, SymbolOpInterface,
+    },
     types::FunctionType,
 };
 
@@ -279,6 +283,14 @@ impl Verify for ConstantOp {
             });
         }
         Ok(())
+    }
+}
+
+impl OneResultInterface for ConstantOp {
+    fn get_result<'a>(&self, ctx: &'a Context) -> Ref<'a, OpResult> {
+        Ref::map(self.get_operation().deref(ctx), |op| {
+            op.get_result(0).expect("ConstantOp must have one result")
+        })
     }
 }
 

@@ -10,7 +10,7 @@ use crate::{
     operation::Operation,
     r#type::TypeObj,
     region::Region,
-    use_def_lists::{Def, ValDefDescr},
+    use_def_lists::{Def, ValDef},
     with_context::AttachContext,
 };
 
@@ -37,14 +37,6 @@ impl BlockArgument {
         self.arg_idx
     }
 
-    /// Build a [ValDefDescr] that describes this value.
-    pub fn build_valdef_descr(&self) -> ValDefDescr {
-        ValDefDescr::BlockArgument {
-            block: self.def_block,
-            arg_idx: self.arg_idx,
-        }
-    }
-
     /// Get the [Type](crate::type::Type) of this block argument.
     pub fn get_type(&self) -> Ptr<TypeObj> {
         self.ty
@@ -58,6 +50,15 @@ impl Named for BlockArgument {
             name.push_str(&format!("[{}]", self.arg_idx));
             name
         })
+    }
+}
+
+impl From<&BlockArgument> for ValDef {
+    fn from(value: &BlockArgument) -> Self {
+        ValDef::BlockArgument {
+            block: value.def_block,
+            arg_idx: value.arg_idx,
+        }
     }
 }
 

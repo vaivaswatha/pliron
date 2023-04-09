@@ -114,7 +114,7 @@ pub trait DefDescrTrait: Copy + PartialEq + Named {
 
 /// Pointer to / describes a value definition.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum ValDefDescr {
+pub enum ValDef {
     OpResult {
         op: Ptr<Operation>,
         res_idx: usize,
@@ -125,13 +125,13 @@ pub enum ValDefDescr {
     },
 }
 
-impl Named for ValDefDescr {
+impl Named for ValDef {
     fn get_name(&self, ctx: &Context) -> String {
         match self {
-            ValDefDescr::OpResult { op, res_idx } => {
+            ValDef::OpResult { op, res_idx } => {
                 op.deref(ctx).get_result(*res_idx).unwrap().get_name(ctx)
             }
-            ValDefDescr::BlockArgument { block, arg_idx } => block
+            ValDef::BlockArgument { block, arg_idx } => block
                 .deref(ctx)
                 .get_argument(*arg_idx)
                 .unwrap()
@@ -140,7 +140,7 @@ impl Named for ValDefDescr {
     }
 }
 
-impl DefDescrTrait for ValDefDescr {
+impl DefDescrTrait for ValDef {
     fn get_def<'a>(&self, ctx: &'a Context) -> Ref<'a, Def> {
         match self {
             Self::OpResult { op, res_idx } => {
@@ -175,7 +175,7 @@ impl DefDescrTrait for ValDefDescr {
         &self,
         ctx: &'a Context,
         descr: &UseDescr,
-    ) -> Option<Ref<'a, Operand<ValDefDescr>>> {
+    ) -> Option<Ref<'a, Operand<ValDef>>> {
         assert!(
             self.get_def(ctx).uses.contains(descr),
             "This UseDescr is not a Use of this Def"
@@ -188,7 +188,7 @@ impl DefDescrTrait for ValDefDescr {
         &self,
         ctx: &'a Context,
         descr: &UseDescr,
-    ) -> Option<RefMut<'a, Operand<ValDefDescr>>> {
+    ) -> Option<RefMut<'a, Operand<ValDef>>> {
         assert!(
             self.get_def(ctx).uses.contains(descr),
             "This UseDescr is not a Use of this Def"
@@ -200,17 +200,17 @@ impl DefDescrTrait for ValDefDescr {
 
 /// Pointer to / describes a basic block definition.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct BlockDefDescr {
+pub struct BlockDef {
     pub(crate) block: Ptr<BasicBlock>,
 }
 
-impl Named for BlockDefDescr {
+impl Named for BlockDef {
     fn get_name(&self, ctx: &Context) -> String {
         self.block.deref(ctx).get_name(ctx)
     }
 }
 
-impl DefDescrTrait for BlockDefDescr {
+impl DefDescrTrait for BlockDef {
     fn get_def<'a>(&self, ctx: &'a Context) -> Ref<'a, Def> {
         let block = self.block.deref(ctx);
         Ref::map(block, |blockref| &blockref.preds)
@@ -225,7 +225,7 @@ impl DefDescrTrait for BlockDefDescr {
         &self,
         ctx: &'a Context,
         descr: &UseDescr,
-    ) -> Option<Ref<'a, Operand<BlockDefDescr>>> {
+    ) -> Option<Ref<'a, Operand<BlockDef>>> {
         assert!(
             self.get_def(ctx).uses.contains(descr),
             "This UseDescr is not a Use of this Def"
@@ -238,7 +238,7 @@ impl DefDescrTrait for BlockDefDescr {
         &self,
         ctx: &'a Context,
         descr: &UseDescr,
-    ) -> Option<RefMut<'a, Operand<BlockDefDescr>>> {
+    ) -> Option<RefMut<'a, Operand<BlockDef>>> {
         assert!(
             self.get_def(ctx).uses.contains(descr),
             "This UseDescr is not a Use of this Def"

@@ -9,7 +9,7 @@ use crate::{
     error::CompilerError,
     op::Op,
     operation::Operation,
-    use_def_lists::ValDefDescr,
+    use_def_lists::ValDef,
     with_context::AttachContext,
 };
 
@@ -27,7 +27,7 @@ declare_op!(
 );
 
 impl ReturnOp {
-    pub fn new_unlinked(ctx: &mut Context, value: ValDefDescr) -> ReturnOp {
+    pub fn new_unlinked(ctx: &mut Context, value: ValDef) -> ReturnOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![value]);
         ReturnOp { op }
     }

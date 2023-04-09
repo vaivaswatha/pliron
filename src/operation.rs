@@ -11,7 +11,7 @@ use crate::{
     op::{self, OpId, OpObj},
     r#type::TypeObj,
     region::Region,
-    use_def_lists::{BlockDefDescr, Def, DefDescrTrait, Use, UseDescr, ValDefDescr},
+    use_def_lists::{BlockDef, Def, DefDescrTrait, Use, UseDescr, ValDef},
     with_context::AttachContext,
 };
 
@@ -38,17 +38,18 @@ impl OpResult {
         self.res_idx
     }
 
-    /// Build a [ValDefDescr] that describes this value.
-    pub fn build_valdef_descr(&self) -> ValDefDescr {
-        ValDefDescr::OpResult {
-            op: self.def_op,
-            res_idx: self.res_idx,
-        }
-    }
-
     /// Get the [Type](crate::type::Type) of this operation result.
     pub fn get_type(&self) -> Ptr<TypeObj> {
         self.ty
+    }
+}
+
+impl From<&OpResult> for ValDef {
+    fn from(value: &OpResult) -> Self {
+        ValDef::OpResult {
+            op: value.def_op,
+            res_idx: value.res_idx,
+        }
     }
 }
 
@@ -90,9 +91,9 @@ pub struct Operation {
     /// [Results](OpResult) defined by self.
     pub results: Vec<OpResult>,
     /// [Operand]s used by self.
-    pub operands: Vec<Operand<ValDefDescr>>,
+    pub operands: Vec<Operand<ValDef>>,
     /// Control-flow-graph successors.
-    pub successors: Vec<Operand<BlockDefDescr>>,
+    pub successors: Vec<Operand<BlockDef>>,
     /// Links to the parent [BasicBlock] and
     /// previous and next [Operation]s in the block.
     pub block_links: BlockLinks,
@@ -142,7 +143,7 @@ impl Operation {
         ctx: &mut Context,
         opid: OpId,
         result_types: Vec<Ptr<TypeObj>>,
-        operands: Vec<ValDefDescr>,
+        operands: Vec<ValDef>,
     ) -> Ptr<Operation> {
         let f = |self_ptr: Ptr<Operation>| Operation {
             opid,
@@ -199,12 +200,12 @@ impl Operation {
     }
 
     /// Get a reference to the opd_idx'th operand.
-    pub fn get_operand(&self, opd_idx: usize) -> Option<&Operand<ValDefDescr>> {
+    pub fn get_operand(&self, opd_idx: usize) -> Option<&Operand<ValDef>> {
         self.operands.get(opd_idx)
     }
 
     /// Get a mutable reference to the opd_idx'th operand.
-    pub fn get_operand_mut(&mut self, opd_idx: usize) -> Option<&mut Operand<ValDefDescr>> {
+    pub fn get_operand_mut(&mut self, opd_idx: usize) -> Option<&mut Operand<ValDef>> {
         self.operands.get_mut(opd_idx)
     }
 
@@ -214,12 +215,12 @@ impl Operation {
     }
 
     /// Get a reference to the opd_idx'th successor.
-    pub fn get_successor(&self, opd_idx: usize) -> Option<&Operand<BlockDefDescr>> {
+    pub fn get_successor(&self, opd_idx: usize) -> Option<&Operand<BlockDef>> {
         self.successors.get(opd_idx)
     }
 
     /// Get a mutable reference to the opd_idx'th successor.
-    pub fn get_successor_mut(&mut self, opd_idx: usize) -> Option<&mut Operand<BlockDefDescr>> {
+    pub fn get_successor_mut(&mut self, opd_idx: usize) -> Option<&mut Operand<BlockDef>> {
         self.successors.get_mut(opd_idx)
     }
 

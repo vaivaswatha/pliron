@@ -7,6 +7,7 @@ use pliron::{
         self,
         builtin::{
             attributes::IntegerAttr,
+            op_interfaces::OneResultInterface,
             ops::{ConstantOp, FuncOp, ModuleOp},
             types::{FunctionType, IntegerType, Signedness},
         },
@@ -40,12 +41,7 @@ fn const_ret_in_mod() -> Result<(), CompilerError> {
     set_operation_result_name(ctx, const_op.get_operation(), 0, "c0".to_string());
 
     // Return the constant.
-    let const_op_res = const_op
-        .get_operation()
-        .deref(ctx)
-        .get_result(0)
-        .unwrap()
-        .build_valdef_descr();
+    let const_op_res = (&*const_op.get_result(&ctx)).into();
     let ret_op = ReturnOp::new_unlinked(ctx, const_op_res);
     ret_op.get_operation().insert_at_back(bb, ctx);
 

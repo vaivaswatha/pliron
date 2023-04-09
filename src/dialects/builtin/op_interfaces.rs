@@ -1,9 +1,11 @@
+use std::cell::Ref;
+
 use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
     linked_list::ContainsLinkedList,
     op::Op,
-    operation::Operation,
+    operation::{OpResult, Operation},
     region::Region,
 };
 
@@ -73,4 +75,9 @@ pub trait SymbolOpInterface: Op {
             .attributes
             .insert(super::ATTR_KEY_SYM_NAME, name_attr);
     }
+}
+
+/// An [Op] having exactly one result.
+pub trait OneResultInterface: Op {
+    fn get_result<'a>(&self, ctx: &'a Context) -> Ref<'a, OpResult>;
 }
