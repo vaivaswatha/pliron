@@ -13,6 +13,18 @@ inspired by [MLIR](https://mlir.llvm.org/docs/LangRef/) and written in safe Rust
 
       cargo test const_ret_in_mod -- --show-output
 
+  It should print something like:
+  ```mlir
+  builtin.module @bar {
+  block_0_0():
+    builtin.func @foo() -> () {
+      entry():
+        c0 = builtin.constant 0x0: si64
+        llvm.return c0
+    }
+  }
+  ```
+
 ## Using the Library
 `pliron` is currently in a nascent stage and not yet useful for
 real-world use. In the future it can be used by just adding

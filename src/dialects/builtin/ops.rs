@@ -252,12 +252,12 @@ impl DisplayWithContext for ConstantOp {
         write!(
             f,
             "{} = {} {}",
-            self.get_opid().with_ctx(ctx),
             self.get_operation()
                 .deref(ctx)
                 .get_result(0)
                 .unwrap()
                 .get_name(ctx),
+            self.get_opid().with_ctx(ctx),
             self.get_value(ctx).with_ctx(ctx)
         )
     }
