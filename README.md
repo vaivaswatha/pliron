@@ -16,12 +16,12 @@ inspired by [MLIR](https://mlir.llvm.org/docs/LangRef/) and written in safe Rust
   It should print something like:
   ```mlir
   builtin.module @bar {
-  block_0_0():
-    builtin.func @foo() -> () {
-      entry():
-        c0 = builtin.constant 0x0: si64
-        llvm.return c0
-    }
+    block_0_0():
+      builtin.func @foo() -> (si64,) {
+        entry():
+          c0 = builtin.constant 0x0: si64
+          llvm.return c0
+      }
   }
   ```
 

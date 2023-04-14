@@ -26,15 +26,15 @@ fn const_ret_in_mod() -> Result<(), CompilerError> {
     dialects::builtin::register(ctx);
     dialects::llvm::register(ctx);
 
+    let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
     let module = ModuleOp::new(ctx, "bar");
     // Our function is going to have type () -> ().
-    let func_ty = FunctionType::get(ctx, vec![], vec![]);
+    let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty]);
     let func = FuncOp::new_unlinked(ctx, "foo", func_ty);
     module.add_operation(ctx, func.get_operation());
     let bb = func.get_entry_block(ctx);
 
     // Create a `const 0` op and add it to bb.
-    let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
     let zero_const = IntegerAttr::create(i64_ty, ApInt::from(0));
     let const_op = ConstantOp::new_unlinked(ctx, zero_const);
     const_op.get_operation().insert_at_front(bb, ctx);
