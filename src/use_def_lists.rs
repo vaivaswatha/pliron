@@ -1,14 +1,12 @@
 //! # Use-Def and Def-Use Chains
 //! Like in LLVM, at the core of the IR infrastructure are SSA use-def chains.
 //! Use-def and def-use chains are composed of four key structures:
-//!   - [Def] represents a definition. At its core, it is just a list of its uses.
-//!   - [Use] represents a use of a definition. At its core, it is just a
-//!     description of / pointer to its definition.
+//!   - [ValDef] Describes either a block argument, or an operation result.
+//!   - [BlockDef] Describes a basic block as a definition. This allows using
+//!     use-def chains to find block predecessors.
 //!   - [UseDescr] describes a [Use], which is a pair composed of the [Operation] and the
 //!     [Operand](crate::operation::Operand) in that operation, which together forms a use.
-//!   - [DefDescr] describes a [Def], which is either the definition of a value
-//!     (result of an operation / block argument) or a [BasicBlock].
-//!     Def-use chains for basic blocks are used to track the predecessors of a block.
+//!     This may describe either a value use, or a basic block use (i.e., successors).
 
 use rustc_hash::FxHashSet;
 use std::cell::{Ref, RefMut};
