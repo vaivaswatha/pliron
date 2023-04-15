@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub mod attribute;
 pub mod basic_block;
 pub mod common_traits;
