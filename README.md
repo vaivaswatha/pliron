@@ -35,4 +35,4 @@ in your Rust project.
 * Some key design decisions are explained in the
   [introductory blog article](https://github.com/vaivaswatha/pliron/wiki/Introducing-pliron).
 * Code documentation can be found on
-  [docs.rs](https://docs.rs/pliron/0.1.2/pliron/).
+  [docs.rs](https://docs.rs/pliron/0.1.3/pliron/).
