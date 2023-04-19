@@ -37,35 +37,57 @@ pub trait ContainsLinkedList<T: LinkedList>: private::ContainsLinkedList<T> {
     /// Simply get the tail of the list.
     fn get_tail(&self) -> Option<Ptr<T>>;
     /// Get an iterator over the items. Context is borrowed throughout.
-    fn iter<'a>(&self, ctx: &'a Context) -> LinkedListIter<'a, T> {
-        LinkedListIter {
-            cur: self.get_head(),
+    fn iter<'a>(&self, ctx: &'a Context) -> Iter<'a, T> {
+        Iter {
+            next: self.get_head(),
+            next_back: self.get_tail(),
             ctx,
         }
     }
 }
 
 /// An iterator over the elements of a [LinkedList]
-pub struct LinkedListIter<'a, T: LinkedList> {
-    cur: Option<Ptr<T>>,
+pub struct Iter<'a, T: LinkedList> {
+    next: Option<Ptr<T>>,
+    next_back: Option<Ptr<T>>,
     ctx: &'a Context,
 }
 
-impl<'a, T> Iterator for LinkedListIter<'a, T>
-where
-    T: LinkedList,
-{
+impl<'a, T: LinkedList> Iterator for Iter<'a, T> {
     type Item = Ptr<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let cur_opt = self.cur;
-        match cur_opt {
-            Some(cur) => {
-                self.cur = cur.deref(self.ctx).get_next();
-                cur_opt
+        self.next.map(|curr| {
+            if curr
+                == self
+                    .next_back
+                    .expect("Some(next) => Some(next_back) violated")
+            {
+                self.next = None;
+                self.next_back = None;
+            } else {
+                self.next = curr.deref(self.ctx).get_next();
             }
-            None => None,
-        }
+            curr
+        })
+    }
+
+    fn last(mut self) -> Option<Self::Item> {
+        self.next_back()
+    }
+}
+
+impl<'a, T: LinkedList> DoubleEndedIterator for Iter<'a, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.next_back.map(|curr| {
+            if curr == self.next.expect("Some(next_back) => Some(next) violated") {
+                self.next_back = None;
+                self.next = None;
+            } else {
+                self.next_back = curr.deref(self.ctx).get_prev();
+            }
+            curr
+        })
     }
 }
 
@@ -402,17 +424,30 @@ pub(crate) mod tests {
     }
 
     fn validate_list(ctx: &Context, root: Ptr<LLRoot>, gold: Vec<u64>) {
-        let root: Vec<_> = root
+        let root_vec: Vec<_> = root
             .deref(ctx)
             .iter(ctx)
             .map(|n| n.deref(ctx).data)
             .collect();
-
         assert!(
-            root == gold,
+            root_vec == gold,
             "\nExpected: {:?}\nvs\nFound: {:?}",
             gold,
-            root
+            root_vec
+        );
+        // Compare reverses, to test the reverse iterator.
+        let root_rev_vec: Vec<_> = root
+            .deref(ctx)
+            .iter(ctx)
+            .rev()
+            .map(|n| n.deref(ctx).data)
+            .collect();
+        let gold_rev: Vec<_> = gold.iter().cloned().rev().collect();
+        assert!(
+            root_rev_vec == gold_rev,
+            "\nExpected: {:?}\nvs\nFound: {:?}",
+            gold_rev,
+            root_rev_vec,
         );
     }
 

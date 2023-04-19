@@ -92,52 +92,6 @@ impl OpsInBlock {
     }
 }
 
-/// An iterator for the [Operation]s in this [BasicBlock].
-/// This is created by [BasicBlock::iter].
-pub struct Iter<'a> {
-    next: Option<Ptr<Operation>>,
-    next_back: Option<Ptr<Operation>>,
-    ctx: &'a Context,
-}
-
-impl<'a> Iterator for Iter<'a> {
-    type Item = Ptr<Operation>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next.map(|curr| {
-            if curr
-                == self
-                    .next_back
-                    .expect("Some(next) => Some(next_back) violated")
-            {
-                self.next = None;
-                self.next_back = None;
-            } else {
-                self.next = curr.deref(self.ctx).block_links.next_op;
-            }
-            curr
-        })
-    }
-
-    fn last(mut self) -> Option<Self::Item> {
-        self.next_back()
-    }
-}
-
-impl<'a> DoubleEndedIterator for Iter<'a> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.next_back.map(|curr| {
-            if curr == self.next.expect("Some(next_back) => Some(next) violated") {
-                self.next_back = None;
-                self.next = None;
-            } else {
-                self.next_back = curr.deref(self.ctx).block_links.prev_op;
-            }
-            curr
-        })
-    }
-}
-
 /// Links a [BasicBlock] with other blocks and the container [Region].
 pub struct RegionLinks {
     /// Parent region of this block.
@@ -182,15 +136,6 @@ impl Named for BasicBlock {
 }
 
 impl BasicBlock {
-    /// Get an iterator to the operations inside this block.
-    pub fn iter<'a>(&self, ctx: &'a Context) -> Iter<'a> {
-        Iter {
-            next: self.ops_list.first,
-            next_back: self.ops_list.last,
-            ctx,
-        }
-    }
-
     /// Create a new Basic Block.
     pub fn new(
         ctx: &mut Context,

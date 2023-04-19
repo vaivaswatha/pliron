@@ -24,52 +24,6 @@ impl BlocksInRegion {
     }
 }
 
-/// An iterator for the [Operation]s in this [BasicBlock].
-/// This is created by [Region::iter()].
-pub struct Iter<'a> {
-    next: Option<Ptr<BasicBlock>>,
-    next_back: Option<Ptr<BasicBlock>>,
-    ctx: &'a Context,
-}
-
-impl<'a> Iterator for Iter<'a> {
-    type Item = Ptr<BasicBlock>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next.map(|curr| {
-            if curr
-                == self
-                    .next_back
-                    .expect("Some(next) => Some(next_back) violated")
-            {
-                self.next = None;
-                self.next_back = None;
-            } else {
-                self.next = curr.deref(self.ctx).region_links.next_block;
-            }
-            curr
-        })
-    }
-
-    fn last(mut self) -> Option<Self::Item> {
-        self.next_back()
-    }
-}
-
-impl<'a> DoubleEndedIterator for Iter<'a> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.next_back.map(|curr| {
-            if curr == self.next.expect("Some(next_back) => Some(next) violated") {
-                self.next_back = None;
-                self.next = None;
-            } else {
-                self.next_back = curr.deref(self.ctx).region_links.prev_block;
-            }
-            curr
-        })
-    }
-}
-
 /// A region is an ordered list of basic blocks contained in an Operation.
 /// The first block, called the entry block is special. Its arguments
 /// are considered to be the arguments to the region. It cannot have any
@@ -82,15 +36,6 @@ pub struct Region {
 }
 
 impl Region {
-    /// Get an iterator to the blocks inside this region.
-    pub fn iter<'a>(&self, ctx: &'a Context) -> Iter<'a> {
-        Iter {
-            next: self.blocks_list.first,
-            next_back: self.blocks_list.last,
-            ctx,
-        }
-    }
-
     /// Create a new Region.
     pub fn new(ctx: &mut Context, parent_op: Ptr<Operation>) -> Ptr<Region> {
         let f = |self_ptr: Ptr<Region>| Region {
