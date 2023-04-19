@@ -1,3 +1,4 @@
+//! Regions are containers for [BasicBlock]s within an [Operation].
 use crate::{
     basic_block::BasicBlock,
     common_traits::{DisplayWithContext, Verify},

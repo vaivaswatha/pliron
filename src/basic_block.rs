@@ -1,3 +1,5 @@
+//! [BasicBlock] is an list of [Operation]s.
+
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -10,14 +12,14 @@ use crate::{
     operation::Operation,
     r#type::TypeObj,
     region::Region,
-    use_def_lists::{Def, ValDef},
+    use_def_lists::{DefNode, Value},
     with_context::AttachContext,
 };
 
 /// Argument to a [BasicBlock]
 pub struct BlockArgument {
     /// The def containing the list of this argument's uses.
-    pub(crate) def: Def,
+    pub(crate) def: DefNode<Value>,
     /// A [Ptr] to the [BasicBlock] of which this is an argument.
     def_block: Ptr<BasicBlock>,
     /// Index of this argument in the block's list of arguments.
@@ -53,9 +55,9 @@ impl Named for BlockArgument {
     }
 }
 
-impl From<&BlockArgument> for ValDef {
+impl From<&BlockArgument> for Value {
     fn from(value: &BlockArgument) -> Self {
-        ValDef::BlockArgument {
+        Value::BlockArgument {
             block: value.def_block,
             arg_idx: value.arg_idx,
         }
@@ -162,7 +164,7 @@ pub struct BasicBlock {
     pub(crate) label: Option<String>,
     pub(crate) ops_list: OpsInBlock,
     pub(crate) args: Vec<BlockArgument>,
-    pub(crate) preds: Def,
+    pub(crate) preds: DefNode<Ptr<BasicBlock>>,
     /// Links to the parent [Region] and
     /// previous and next [BasicBlock]s in the block.
     pub region_links: RegionLinks,
@@ -200,7 +202,7 @@ impl BasicBlock {
             label,
             args: vec![],
             ops_list: OpsInBlock::new_empty(),
-            preds: Def::new(),
+            preds: DefNode::new(),
             region_links: RegionLinks::new_unlinked(),
             attributes: FxHashMap::default(),
         };
@@ -210,7 +212,7 @@ impl BasicBlock {
             .into_iter()
             .enumerate()
             .map(|(arg_idx, ty)| BlockArgument {
-                def: Def::new(),
+                def: DefNode::new(),
                 def_block: newblock,
                 arg_idx,
                 ty,
@@ -221,13 +223,18 @@ impl BasicBlock {
         newblock
     }
 
+    /// Get idx'th argument as a Value.
+    pub fn get_argument(&self, arg_idx: usize) -> Option<Value> {
+        self.args.get(arg_idx).map(|arg| arg.into())
+    }
+
     /// Get a reference to the idx'th argument.
-    pub fn get_argument(&self, arg_idx: usize) -> Option<&BlockArgument> {
+    pub(crate) fn get_argument_ref(&self, arg_idx: usize) -> Option<&BlockArgument> {
         self.args.get(arg_idx)
     }
 
     /// Get a mutable reference to the idx'th argument.
-    pub fn get_argument_mut(&mut self, arg_idx: usize) -> Option<&mut BlockArgument> {
+    pub(crate) fn get_argument_mut(&mut self, arg_idx: usize) -> Option<&mut BlockArgument> {
         self.args.get_mut(arg_idx)
     }
 

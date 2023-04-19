@@ -9,7 +9,7 @@ use crate::{
     error::CompilerError,
     op::Op,
     operation::Operation,
-    use_def_lists::ValDef,
+    use_def_lists::Value,
     with_context::AttachContext,
 };
 
@@ -27,7 +27,7 @@ declare_op!(
 );
 
 impl ReturnOp {
-    pub fn new_unlinked(ctx: &mut Context, value: ValDef) -> ReturnOp {
+    pub fn new_unlinked(ctx: &mut Context, value: Value) -> ReturnOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![value]);
         ReturnOp { op }
     }
@@ -42,7 +42,7 @@ impl DisplayWithContext for ReturnOp {
             self.get_opid().with_ctx(ctx),
             self.get_operation()
                 .deref(ctx)
-                .get_operand(0)
+                .get_operand_ref(0)
                 .unwrap()
                 .with_ctx(ctx)
         )
@@ -51,7 +51,7 @@ impl DisplayWithContext for ReturnOp {
 
 impl Verify for ReturnOp {
     fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
-        todo!()
+        Ok(())
     }
 }
 

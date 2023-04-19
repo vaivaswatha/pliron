@@ -1,7 +1,9 @@
+//! [Context] and [Ptr] together provide memory management for `pliron`.
+
 use crate::{
     attribute::AttrObj,
     basic_block::BasicBlock,
-    common_traits::DisplayWithContext,
+    common_traits::{DisplayWithContext, Verify},
     dialect::{Dialect, DialectName},
     op::{OpCreator, OpId},
     operation::Operation,
@@ -149,5 +151,11 @@ impl<T: ArenaObj> AttachContext for Ptr<T> {}
 impl<T: ArenaObj + DisplayWithContext> DisplayWithContext for Ptr<T> {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.deref(ctx).fmt(ctx, f)
+    }
+}
+
+impl<T: ArenaObj + Verify> Verify for Ptr<T> {
+    fn verify(&self, ctx: &Context) -> Result<(), crate::error::CompilerError> {
+        self.deref(ctx).verify(ctx)
     }
 }

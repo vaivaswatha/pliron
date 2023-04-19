@@ -1,3 +1,5 @@
+//! [Dialect]s are a mechanism to group related [Op](crate::op::Op)s, [Type](crate::type::Type)s
+//! and [Attribute](crate::attribute::Attribute)s.
 use std::ops::Deref;
 
 use crate::{

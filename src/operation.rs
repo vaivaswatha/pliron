@@ -1,3 +1,9 @@
+//! An operation is the basic unit of execution in the IR.
+//! The general idea is similar to MLIR's
+//! [Operation](https://mlir.llvm.org/docs/LangRef/#operations)
+
+use std::marker::PhantomData;
+
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -11,14 +17,14 @@ use crate::{
     op::{self, OpId, OpObj},
     r#type::TypeObj,
     region::Region,
-    use_def_lists::{BlockDef, Def, DefDescrTrait, Use, UseDescr, ValDef},
+    use_def_lists::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
     with_context::AttachContext,
 };
 
 /// Represents the result of an [Operation].
-pub struct OpResult {
+pub(crate) struct OpResult {
     /// The def containing the list of this result's uses.
-    pub(crate) def: Def,
+    pub(crate) def: DefNode<Value>,
     /// Get the [Operation] that this is a result of.
     def_op: Ptr<Operation>,
     /// Index of this result in the [Operation] that this is part of.
@@ -28,25 +34,15 @@ pub struct OpResult {
 }
 
 impl OpResult {
-    /// A [Ptr] to the [Operation] that this is a result of.
-    pub fn get_def_op(&self) -> Ptr<Operation> {
-        self.def_op
-    }
-
-    /// Index of this result in the [Operation] that this is part of.
-    pub fn get_res_idx(&self) -> usize {
-        self.res_idx
-    }
-
     /// Get the [Type](crate::type::Type) of this operation result.
     pub fn get_type(&self) -> Ptr<TypeObj> {
         self.ty
     }
 }
 
-impl From<&OpResult> for ValDef {
+impl From<&OpResult> for Value {
     fn from(value: &OpResult) -> Self {
-        ValDef::OpResult {
+        Value::OpResult {
             op: value.def_op,
             res_idx: value.res_idx,
         }
@@ -80,23 +76,21 @@ impl BlockLinks {
     }
 }
 
-/// An operation is the basic unit of execution in the IR.
-/// The general idea is similar to MLIR's
-/// [Operation](https://mlir.llvm.org/docs/LangRef/#operations)
+/// Basic unit of execution. May or may not be in a [BasicBlock].
 pub struct Operation {
     /// OpId of self.
-    pub opid: OpId,
+    pub(crate) opid: OpId,
     /// A [Ptr] to self.
-    pub self_ptr: Ptr<Operation>,
+    pub(crate) self_ptr: Ptr<Operation>,
     /// [Results](OpResult) defined by self.
-    pub results: Vec<OpResult>,
+    pub(crate) results: Vec<OpResult>,
     /// [Operand]s used by self.
-    pub operands: Vec<Operand<ValDef>>,
+    pub(crate) operands: Vec<Operand<Value>>,
     /// Control-flow-graph successors.
-    pub successors: Vec<Operand<BlockDef>>,
+    pub(crate) successors: Vec<Operand<Ptr<BasicBlock>>>,
     /// Links to the parent [BasicBlock] and
     /// previous and next [Operation]s in the block.
-    pub block_links: BlockLinks,
+    pub(crate) block_links: BlockLinks,
     /// A dictionary of attributes.
     pub attributes: FxHashMap<&'static str, AttrObj>,
     /// Regions contained inside this operation.
@@ -143,7 +137,7 @@ impl Operation {
         ctx: &mut Context,
         opid: OpId,
         result_types: Vec<Ptr<TypeObj>>,
-        operands: Vec<ValDef>,
+        operands: Vec<Value>,
     ) -> Ptr<Operation> {
         let f = |self_ptr: Ptr<Operation>| Operation {
             opid,
@@ -163,7 +157,7 @@ impl Operation {
             .into_iter()
             .enumerate()
             .map(|(res_idx, ty)| OpResult {
-                def: Def::new(),
+                def: DefNode::new(),
                 def_op: newop,
                 ty,
                 res_idx,
@@ -175,7 +169,14 @@ impl Operation {
             .iter()
             .enumerate()
             .map(|(opd_idx, def)| Operand {
-                r#use: def.add_use(ctx, UseDescr { op: newop, opd_idx }),
+                r#use: def.get_defnode_mut(ctx).add_use(
+                    *def,
+                    Use {
+                        op: newop,
+                        opd_idx,
+                        _dummy: PhantomData,
+                    },
+                ),
                 opd_idx,
                 user_op: newop,
             })
@@ -189,24 +190,26 @@ impl Operation {
         self.results.len()
     }
 
-    /// Get a reference to the idx'th result.
-    pub fn get_result(&self, idx: usize) -> Option<&OpResult> {
-        self.results.get(idx)
+    /// Get idx'th result as a Value.
+    pub fn get_result(&self, idx: usize) -> Option<Value> {
+        self.results.get(idx).map(|res| res.into())
     }
 
-    /// Get a mutable reference to the idx'th result.
-    pub fn get_result_mut(&mut self, idx: usize) -> Option<&mut OpResult> {
-        self.results.get_mut(idx)
+    /// Does any result of this operation have a use?
+    pub fn has_use(&self) -> bool {
+        self.results.iter().any(|res| !res.def.has_use())
     }
 
-    /// Get a reference to the opd_idx'th operand.
-    pub fn get_operand(&self, opd_idx: usize) -> Option<&Operand<ValDef>> {
-        self.operands.get(opd_idx)
+    /// Total number of uses (across all results).
+    pub fn num_uses(&self) -> usize {
+        self.results
+            .iter()
+            .fold(0, |count, res| count + res.def.num_uses())
     }
 
-    /// Get a mutable reference to the opd_idx'th operand.
-    pub fn get_operand_mut(&mut self, opd_idx: usize) -> Option<&mut Operand<ValDef>> {
-        self.operands.get_mut(opd_idx)
+    /// Get type of the idx'th result.
+    pub fn get_type(&self, idx: usize) -> Option<Ptr<TypeObj>> {
+        self.results.get(idx).map(|res| res.ty)
     }
 
     /// Get number of operands.
@@ -214,14 +217,24 @@ impl Operation {
         self.operands.len()
     }
 
-    /// Get a reference to the opd_idx'th successor.
-    pub fn get_successor(&self, opd_idx: usize) -> Option<&Operand<BlockDef>> {
-        self.successors.get(opd_idx)
+    /// Get a reference to the opd_idx'th operand.
+    pub fn get_operand(&self, opd_idx: usize) -> Option<Value> {
+        self.operands.get(opd_idx).map(|opd| opd.get_def())
     }
 
-    /// Get a mutable reference to the opd_idx'th successor.
-    pub fn get_successor_mut(&mut self, opd_idx: usize) -> Option<&mut Operand<BlockDef>> {
-        self.successors.get_mut(opd_idx)
+    /// Get number of successors
+    pub fn get_num_successors(&self) -> usize {
+        self.successors.len()
+    }
+
+    /// Get a reference to the opd_idx'th successor.
+    pub fn get_successor(&self, opd_idx: usize) -> Option<Ptr<BasicBlock>> {
+        self.successors.get(opd_idx).map(|succ| succ.get_def())
+    }
+
+    /// Get an iterator on the successors.
+    pub fn successors(&self) -> impl Iterator<Item = Ptr<BasicBlock>> + '_ {
+        self.successors.iter().map(|opd| opd.get_def())
     }
 
     /// Create an OpObj corresponding to self.
@@ -232,6 +245,39 @@ impl Operation {
     /// Get the OpId of the Op of this Operation.
     pub fn get_opid(&self) -> OpId {
         self.opid.clone()
+    }
+
+    /// Get a reference to the idx'th result.
+    pub(crate) fn get_result_ref(&self, idx: usize) -> Option<&OpResult> {
+        self.results.get(idx)
+    }
+
+    /// Get a mutable reference to the idx'th result.
+    pub(crate) fn get_result_mut(&mut self, idx: usize) -> Option<&mut OpResult> {
+        self.results.get_mut(idx)
+    }
+
+    /// Get a reference to the opd_idx'th operand.
+    pub(crate) fn get_operand_ref(&self, opd_idx: usize) -> Option<&Operand<Value>> {
+        self.operands.get(opd_idx)
+    }
+
+    /// Get a mutable reference to the opd_idx'th operand.
+    pub(crate) fn get_operand_mut(&mut self, opd_idx: usize) -> Option<&mut Operand<Value>> {
+        self.operands.get_mut(opd_idx)
+    }
+
+    /// Get a reference to the opd_idx'th successor.
+    pub(crate) fn get_successor_ref(&self, opd_idx: usize) -> Option<&Operand<Ptr<BasicBlock>>> {
+        self.successors.get(opd_idx)
+    }
+
+    /// Get a mutable reference to the opd_idx'th successor.
+    pub(crate) fn get_successor_mut(
+        &mut self,
+        opd_idx: usize,
+    ) -> Option<&mut Operand<Ptr<BasicBlock>>> {
+        self.successors.get_mut(opd_idx)
     }
 }
 
@@ -249,9 +295,24 @@ impl ArenaObj for Operation {
         }
     }
     fn remove_references(ptr: Ptr<Self>, ctx: &mut Context) {
+        // Ensure no uses
+        assert!(
+            !ptr.deref(ctx).has_use(),
+            "Attempt to remove an Operation when it still has uses"
+        );
         // Unlink from parent block, if there's one.
         if ptr.deref(ctx).block_links.parent_block.is_some() {
             ptr.remove(ctx);
+        }
+        // The operands cease to be a use of their definitions.
+        let operands = std::mem::take(&mut (ptr.deref_mut(ctx).operands));
+        for opd in operands {
+            opd.drop(ctx);
+        }
+        // The successors cease to be a use of their definitions.
+        let successors = std::mem::take(&mut (ptr.deref_mut(ctx).successors));
+        for succ in successors {
+            succ.drop(ctx);
         }
     }
     fn get_self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
@@ -260,50 +321,68 @@ impl ArenaObj for Operation {
 }
 
 /// Container for a [Use] in an [Operation].
-pub struct Operand<T: DefDescrTrait> {
-    pub(crate) r#use: Use<T>,
+pub(crate) struct Operand<T: DefUseParticipant> {
+    pub(crate) r#use: UseNode<T>,
     /// This is the `opd_idx`'th operand of [user_op](Self::user_op).
     pub(crate) opd_idx: usize,
     /// The [Operation] that contains this [Use]
     pub(crate) user_op: Ptr<Operation>,
 }
 
-impl<T: DefDescrTrait> Operand<T> {
-    /// i'th operand in the [Operation] that contains this.
-    pub fn get_opd_idx(&self) -> usize {
-        self.opd_idx
+impl<T: DefUseParticipant + DefTrait> Operand<T> {
+    /// Get the definition of this use.
+    fn get_def(&self) -> T {
+        self.r#use.get_def()
     }
 
-    /// Get the [Operation] of which this is an operand.
-    pub fn get_user_op(&self) -> Ptr<Operation> {
-        self.user_op
+    /// Drop this use, removing self from list of its definition's uses.
+    fn drop(&self, ctx: &mut Context) {
+        self.get_def().get_defnode_mut(ctx).remove_use(self.into());
     }
+}
 
-    /// Build a UseDescr describing this operand.
-    pub fn build_use_descr(&self) -> UseDescr {
-        UseDescr {
-            op: self.user_op,
-            opd_idx: self.opd_idx,
+impl<T: DefUseParticipant> From<&Operand<T>> for Use<T> {
+    fn from(value: &Operand<T>) -> Self {
+        Use {
+            op: value.user_op,
+            opd_idx: value.opd_idx,
+            _dummy: PhantomData,
         }
     }
 }
 
-impl<T: DefDescrTrait> AttachContext for Operand<T> {}
-impl<T: DefDescrTrait + Named> DisplayWithContext for Operand<T> {
+impl<T: DefUseParticipant> AttachContext for Operand<T> {}
+impl<T: DefUseParticipant + Named> DisplayWithContext for Operand<T> {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.r#use.def.get_name(ctx))
+        write!(f, "{}", self.r#use.get_def().get_name(ctx))
     }
 }
 
-impl<T: DefDescrTrait> Verify for Operand<T> {
+impl<T: DefUseParticipant + DefTrait> Verify for Operand<T> {
     fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
-        if !self.r#use.def.0.has_use_of(ctx, &self.build_use_descr()) {}
-        Ok(())
+        if !self
+            .r#use
+            .get_def()
+            .get_defnode_ref(ctx)
+            .has_use_of(&self.into())
+        {
+            Err(CompilerError::VerificationError {
+                msg: "Operand is not a use of its def".to_string(),
+            })
+        } else {
+            Ok(())
+        }
     }
 }
 
 impl Verify for Operation {
     fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+        for opd in &self.operands {
+            opd.verify(ctx)?;
+        }
+        for region in &self.regions {
+            region.verify(ctx)?;
+        }
         self.get_op(ctx).verify(ctx)
     }
 }

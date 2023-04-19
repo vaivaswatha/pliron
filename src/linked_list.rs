@@ -1,3 +1,4 @@
+//! Provide linked-list operations for `Ptr<T: LinkedList>`.
 use crate::context::{ArenaObj, Context, Ptr};
 
 /// An object that contains a linked list.
@@ -47,7 +48,7 @@ where
 /// Implements a linked list based on [Ptr]
 /// Types implementing this trait must provide simple
 /// getters and setters for prev and next fields.
-/// Actual linked list operations are implemented for Ptr<T: LinkedList>
+/// Actual linked list operations are implemented for `Ptr<T: LinkedList>`
 pub trait LinkedList: ArenaObj + PartialEq {
     type ContainerType: ContainsLinkedList<Self> + ArenaObj;
 

@@ -1,5 +1,3 @@
-use std::cell::Ref;
-
 use crate::{
     attribute::{self, attr_cast, AttrObj},
     basic_block::BasicBlock,
@@ -10,9 +8,10 @@ use crate::{
     error::CompilerError,
     linked_list::ContainsLinkedList,
     op::Op,
-    operation::{OpResult, Operation},
+    operation::Operation,
     r#type::TypeObj,
     region::Region,
+    use_def_lists::Value,
     with_context::AttachContext,
 };
 
@@ -287,10 +286,11 @@ impl Verify for ConstantOp {
 }
 
 impl OneResultInterface for ConstantOp {
-    fn get_result<'a>(&self, ctx: &'a Context) -> Ref<'a, OpResult> {
-        Ref::map(self.get_operation().deref(ctx), |op| {
-            op.get_result(0).expect("ConstantOp must have one result")
-        })
+    fn get_result(&self, ctx: &Context) -> Value {
+        self.get_operation()
+            .deref(ctx)
+            .get_result(0)
+            .expect("ConstantOp must have one result")
     }
 }
 

@@ -41,10 +41,16 @@ fn const_ret_in_mod() -> Result<(), CompilerError> {
     set_operation_result_name(ctx, const_op.get_operation(), 0, "c0".to_string());
 
     // Return the constant.
-    let const_op_res = (&*const_op.get_result(&ctx)).into();
-    let ret_op = ReturnOp::new_unlinked(ctx, const_op_res);
+    let ret_op = ReturnOp::new_unlinked(ctx, const_op.get_result(ctx));
     ret_op.get_operation().insert_at_back(bb, ctx);
 
     print!("{}\n", module.with_ctx(ctx));
-    module.verify(ctx)
+    module.verify(ctx)?;
+
+    /* TODO
+    let module_op = module.get_operation();
+    ArenaObj::dealloc(module_op, ctx);
+    */
+
+    Ok(())
 }
