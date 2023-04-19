@@ -13,7 +13,7 @@ use crate::{
     context::{ArenaCell, ArenaObj, Context, Ptr},
     debug_info,
     error::CompilerError,
-    linked_list::LinkedList,
+    linked_list::{private, LinkedList},
     op::{self, OpId, OpObj},
     r#type::TypeObj,
     region::Region,
@@ -103,31 +103,28 @@ impl PartialEq for Operation {
     }
 }
 
-impl LinkedList for Operation {
+impl private::LinkedList for Operation {
     type ContainerType = BasicBlock;
-
-    fn get_next(&self) -> Option<Ptr<Self>> {
-        self.block_links.next_op
-    }
-
-    fn get_prev(&self) -> Option<Ptr<Self>> {
-        self.block_links.prev_op
-    }
-
     fn set_next(&mut self, next: Option<Ptr<Self>>) {
         self.block_links.next_op = next;
     }
-
     fn set_prev(&mut self, prev: Option<Ptr<Self>>) {
         self.block_links.prev_op = prev;
     }
-
-    fn get_container(&self) -> Option<Ptr<BasicBlock>> {
-        self.block_links.parent_block
-    }
-
     fn set_container(&mut self, container: Option<Ptr<BasicBlock>>) {
         self.block_links.parent_block = container;
+    }
+}
+
+impl LinkedList for Operation {
+    fn get_next(&self) -> Option<Ptr<Self>> {
+        self.block_links.next_op
+    }
+    fn get_prev(&self) -> Option<Ptr<Self>> {
+        self.block_links.prev_op
+    }
+    fn get_container(&self) -> Option<Ptr<BasicBlock>> {
+        self.block_links.parent_block
     }
 }
 

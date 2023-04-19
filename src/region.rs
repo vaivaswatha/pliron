@@ -4,7 +4,7 @@ use crate::{
     common_traits::{DisplayWithContext, Verify},
     context::{ArenaObj, Context, Ptr},
     error::CompilerError,
-    linked_list::ContainsLinkedList,
+    linked_list::{private, ContainsLinkedList},
     operation::Operation,
     with_context::AttachContext,
 };
@@ -106,21 +106,21 @@ impl Region {
     }
 }
 
+impl private::ContainsLinkedList<BasicBlock> for Region {
+    fn set_head(&mut self, head: Option<Ptr<BasicBlock>>) {
+        self.blocks_list.first = head;
+    }
+    fn set_tail(&mut self, tail: Option<Ptr<BasicBlock>>) {
+        self.blocks_list.last = tail;
+    }
+}
+
 impl ContainsLinkedList<BasicBlock> for Region {
     fn get_head(&self) -> Option<Ptr<BasicBlock>> {
         self.blocks_list.first
     }
-
     fn get_tail(&self) -> Option<Ptr<BasicBlock>> {
         self.blocks_list.last
-    }
-
-    fn set_head(&mut self, head: Option<Ptr<BasicBlock>>) {
-        self.blocks_list.first = head;
-    }
-
-    fn set_tail(&mut self, tail: Option<Ptr<BasicBlock>>) {
-        self.blocks_list.last = tail;
     }
 }
 

@@ -1,18 +1,41 @@
 //! Provide linked-list operations for `Ptr<T: LinkedList>`.
-use crate::context::{ArenaObj, Context, Ptr};
+use crate::context::{Context, Ptr};
+
+/// The setter methods on [LinkedList] and [ContainsLinkedList]
+/// are not safe for using from anywhere except the impls here.
+/// But Rust doesn't allow private trait functions. Hence this
+/// [workaround](https://jack.wrenn.fyi/blog/private-trait-methods/)
+pub(crate) mod private {
+    use crate::context::{ArenaObj, Ptr};
+
+    pub trait ContainsLinkedList<T: LinkedList> {
+        /// Simply set the head pointer.
+        fn set_head(&mut self, head: Option<Ptr<T>>);
+        /// Simply set the tail pointer
+        fn set_tail(&mut self, tail: Option<Ptr<T>>);
+    }
+
+    pub trait LinkedList: ArenaObj + PartialEq {
+        type ContainerType: super::ContainsLinkedList<Self> + ArenaObj
+        where
+            Self: super::LinkedList;
+        /// Simply set the item next to this in the list.
+        fn set_next(&mut self, next: Option<Ptr<Self>>);
+        /// Simply set the item previous to this in the list.
+        fn set_prev(&mut self, prev: Option<Ptr<Self>>);
+        /// Set the container for this node.
+        fn set_container(&mut self, container: Option<Ptr<Self::ContainerType>>)
+        where
+            Self: super::LinkedList;
+    }
+}
 
 /// An object that contains a linked list.
-pub trait ContainsLinkedList<T: LinkedList> {
+pub trait ContainsLinkedList<T: LinkedList>: private::ContainsLinkedList<T> {
     /// Simply get the head of the list.
     fn get_head(&self) -> Option<Ptr<T>>;
     /// Simply get the tail of the list.
     fn get_tail(&self) -> Option<Ptr<T>>;
-    /// Simply set the head pointer.
-    /// WARNING: Do not use this directly.
-    fn set_head(&mut self, head: Option<Ptr<T>>);
-    /// Simply set the tail pointer
-    /// WARNING: Do not use this directly.
-    fn set_tail(&mut self, tail: Option<Ptr<T>>);
     /// Get an iterator over the items. Context is borrowed throughout.
     fn iter<'a>(&self, ctx: &'a Context) -> LinkedListIter<'a, T> {
         LinkedListIter {
@@ -22,6 +45,7 @@ pub trait ContainsLinkedList<T: LinkedList> {
     }
 }
 
+/// An iterator over the elements of a [LinkedList]
 pub struct LinkedListIter<'a, T: LinkedList> {
     cur: Option<Ptr<T>>,
     ctx: &'a Context,
@@ -49,24 +73,13 @@ where
 /// Types implementing this trait must provide simple
 /// getters and setters for prev and next fields.
 /// Actual linked list operations are implemented for `Ptr<T: LinkedList>`
-pub trait LinkedList: ArenaObj + PartialEq {
-    type ContainerType: ContainsLinkedList<Self> + ArenaObj;
-
+pub trait LinkedList: private::LinkedList {
     /// Simple getter for the item previous to this in the list.
     fn get_next(&self) -> Option<Ptr<Self>>;
     /// Simple getter for the item previous to this in the list.
     fn get_prev(&self) -> Option<Ptr<Self>>;
     /// Get a reference to the object that contains this linked list.
     fn get_container(&self) -> Option<Ptr<Self::ContainerType>>;
-    /// Simply set the item next to this in the list.
-    /// WARNING: Do not use this directly.
-    fn set_next(&mut self, next: Option<Ptr<Self>>);
-    /// Simply set the item previous to this in the list.
-    /// WARNING: Do not use this directly.
-    fn set_prev(&mut self, prev: Option<Ptr<Self>>);
-    /// Set the container for this node.
-    /// WARNING: Do not use this directly.
-    fn set_container(&mut self, container: Option<Ptr<Self::ContainerType>>);
 }
 
 /// Linked list operations on Ptr<T: LinkedList> for convenience and safety.
@@ -104,7 +117,10 @@ where
                 }
                 None => {
                     debug_assert!(container.deref(ctx).get_tail().unwrap() == mark);
-                    container.deref_mut(ctx).set_tail(Some(*self));
+                    private::ContainsLinkedList::set_tail(
+                        &mut (*container.deref_mut(ctx)),
+                        Some(*self),
+                    );
                 }
             }
             (*mark_ref).set_next(Some(*self));
@@ -149,7 +165,10 @@ where
                 }
                 None => {
                     debug_assert!(container.deref(ctx).get_head().unwrap() == mark);
-                    container.deref_mut(ctx).set_head(Some(*self));
+                    private::ContainsLinkedList::set_head(
+                        &mut (*container.deref_mut(ctx)),
+                        Some(*self),
+                    );
                 }
             }
             (*mark_ref).set_prev(Some(*self));
@@ -178,11 +197,11 @@ where
                 head.deref_mut(ctx).set_prev(Some(*self))
             }
             None => {
-                container_ref.set_tail(Some(*self));
+                private::ContainsLinkedList::set_tail(&mut (*container_ref), Some(*self));
             }
         }
         node.set_next(head);
-        container_ref.set_head(Some(*self));
+        private::ContainsLinkedList::set_head(&mut (*container_ref), Some(*self));
         node.set_container(Some(container));
     }
 
@@ -203,11 +222,11 @@ where
                 tail.deref_mut(ctx).set_next(Some(*self));
             }
             None => {
-                container_ref.set_head(Some(*self));
+                private::ContainsLinkedList::set_head(&mut (*container_ref), Some(*self));
             }
         }
         node.set_prev(tail);
-        container_ref.set_tail(Some(*self));
+        private::ContainsLinkedList::set_tail(&mut (*container_ref), Some(*self));
         node.set_container(Some(container));
     }
 
@@ -222,9 +241,10 @@ where
         match self.deref(ctx).get_next() {
             Some(next) => next.deref_mut(ctx).set_prev(self.deref(ctx).get_prev()),
             None => {
-                container
-                    .deref_mut(ctx)
-                    .set_tail(self.deref(ctx).get_prev());
+                private::ContainsLinkedList::set_tail(
+                    &mut (*container.deref_mut(ctx)),
+                    self.deref(ctx).get_prev(),
+                );
             }
         }
         match self.deref(ctx).get_prev() {
@@ -232,9 +252,10 @@ where
                 prev.deref_mut(ctx).set_prev(self.deref(ctx).get_next());
             }
             None => {
-                container
-                    .deref_mut(ctx)
-                    .set_head(self.deref(ctx).get_next());
+                private::ContainsLinkedList::set_head(
+                    &mut (*container.deref_mut(ctx)),
+                    self.deref(ctx).get_next(),
+                );
             }
         }
 
@@ -247,7 +268,7 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::{ContainsLinkedList, LinkedList};
+    use super::{private, ContainsLinkedList, LinkedList};
     use crate::context::{ArenaCell, ArenaObj, Context, Ptr};
 
     #[derive(PartialEq)]
@@ -289,16 +310,8 @@ pub(crate) mod tests {
         }
     }
 
-    impl LinkedList for LLNode {
+    impl private::LinkedList for LLNode {
         type ContainerType = LLRoot;
-
-        fn get_next(&self) -> Option<Ptr<Self>> {
-            self.next
-        }
-
-        fn get_prev(&self) -> Option<Ptr<Self>> {
-            self.prev
-        }
 
         fn set_next(&mut self, next: Option<Ptr<Self>>) {
             self.next = next;
@@ -308,12 +321,22 @@ pub(crate) mod tests {
             self.prev = prev;
         }
 
-        fn get_container(&self) -> Option<Ptr<Self::ContainerType>> {
-            self.parent
-        }
-
         fn set_container(&mut self, container: Option<Ptr<Self::ContainerType>>) {
             self.parent = container;
+        }
+    }
+
+    impl LinkedList for LLNode {
+        fn get_next(&self) -> Option<Ptr<Self>> {
+            self.next
+        }
+
+        fn get_prev(&self) -> Option<Ptr<Self>> {
+            self.prev
+        }
+
+        fn get_container(&self) -> Option<Ptr<Self::ContainerType>> {
+            self.parent
         }
     }
 
@@ -360,7 +383,9 @@ pub(crate) mod tests {
         fn get_tail(&self) -> Option<Ptr<LLNode>> {
             self.last
         }
+    }
 
+    impl private::ContainsLinkedList<LLNode> for LLRoot {
         fn set_head(&mut self, head: Option<Ptr<LLNode>>) {
             self.first = head;
         }

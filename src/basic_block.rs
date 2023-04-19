@@ -8,7 +8,7 @@ use crate::{
     context::{ArenaCell, ArenaObj, Context, Ptr},
     debug_info::get_block_arg_name,
     error::CompilerError,
-    linked_list::{ContainsLinkedList, LinkedList},
+    linked_list::{private, ContainsLinkedList, LinkedList},
     operation::Operation,
     r#type::TypeObj,
     region::Region,
@@ -93,7 +93,7 @@ impl OpsInBlock {
 }
 
 /// An iterator for the [Operation]s in this [BasicBlock].
-/// This is created by [BasicBlock::iter()].
+/// This is created by [BasicBlock::iter].
 pub struct Iter<'a> {
     next: Option<Ptr<Operation>>,
     next_back: Option<Ptr<Operation>>,
@@ -244,15 +244,7 @@ impl BasicBlock {
     }
 }
 
-impl ContainsLinkedList<Operation> for BasicBlock {
-    fn get_head(&self) -> Option<Ptr<Operation>> {
-        self.ops_list.first
-    }
-
-    fn get_tail(&self) -> Option<Ptr<Operation>> {
-        self.ops_list.last
-    }
-
+impl private::ContainsLinkedList<Operation> for BasicBlock {
     fn set_head(&mut self, head: Option<Ptr<Operation>>) {
         self.ops_list.first = head;
     }
@@ -262,37 +254,44 @@ impl ContainsLinkedList<Operation> for BasicBlock {
     }
 }
 
+impl ContainsLinkedList<Operation> for BasicBlock {
+    fn get_head(&self) -> Option<Ptr<Operation>> {
+        self.ops_list.first
+    }
+
+    fn get_tail(&self) -> Option<Ptr<Operation>> {
+        self.ops_list.last
+    }
+}
+
 impl PartialEq for BasicBlock {
     fn eq(&self, other: &Self) -> bool {
         self.self_ptr == other.self_ptr
     }
 }
 
-impl LinkedList for BasicBlock {
+impl private::LinkedList for BasicBlock {
     type ContainerType = Region;
-
-    fn get_next(&self) -> Option<Ptr<Self>> {
-        self.region_links.next_block
-    }
-
-    fn get_prev(&self) -> Option<Ptr<Self>> {
-        self.region_links.prev_block
-    }
-
     fn set_next(&mut self, next: Option<Ptr<Self>>) {
         self.region_links.next_block = next;
     }
-
     fn set_prev(&mut self, prev: Option<Ptr<Self>>) {
         self.region_links.prev_block = prev;
     }
-
-    fn get_container(&self) -> Option<Ptr<Self::ContainerType>> {
-        self.region_links.parent_region
-    }
-
     fn set_container(&mut self, container: Option<Ptr<Self::ContainerType>>) {
         self.region_links.parent_region = container;
+    }
+}
+
+impl LinkedList for BasicBlock {
+    fn get_next(&self) -> Option<Ptr<Self>> {
+        self.region_links.next_block
+    }
+    fn get_prev(&self) -> Option<Ptr<Self>> {
+        self.region_links.prev_block
+    }
+    fn get_container(&self) -> Option<Ptr<Self::ContainerType>> {
+        self.region_links.parent_region
     }
 }
 
