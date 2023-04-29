@@ -15,6 +15,7 @@ use pliron::{
     },
     error::CompilerError,
     op::Op,
+    operation::Operation,
     with_context::AttachContext,
 };
 
@@ -47,10 +48,9 @@ fn const_ret_in_mod() -> Result<(), CompilerError> {
     print!("{}\n", module.with_ctx(ctx));
     module.verify(ctx)?;
 
-    /* TODO
     let module_op = module.get_operation();
-    ArenaObj::dealloc(module_op, ctx);
-    */
+    Operation::erase(module_op, ctx);
+    assert!(ctx.operations.is_empty() && ctx.basic_blocks.is_empty() && ctx.regions.is_empty());
 
     Ok(())
 }

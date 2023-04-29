@@ -252,8 +252,21 @@ where
         node.set_container(Some(container));
     }
 
+    /// Is this node part of a linked list?
+    pub fn is_linked(&self, ctx: &Context) -> bool {
+        if self.deref(ctx).get_container().is_some() {
+            debug_assert!(
+                self.deref(ctx).get_next().is_none() && self.deref(ctx).get_prev().is_none(),
+                "Uncontained linked list node has next/prev node(s)"
+            );
+            true
+        } else {
+            false
+        }
+    }
+
     /// Unlink self from list.
-    pub fn remove(&self, ctx: &Context) {
+    pub fn unlink(&self, ctx: &Context) {
         let container = self.deref(ctx).get_container();
         debug_assert!(
             container.is_some(),
@@ -315,8 +328,6 @@ pub(crate) mod tests {
         }
 
         fn dealloc_sub_objects(_ptr: Ptr<Self>, _ctx: &mut Context) {}
-
-        fn remove_references(_ptr: Ptr<Self>, _ctx: &mut Context) {}
     }
 
     impl LLNode {
@@ -393,8 +404,6 @@ pub(crate) mod tests {
         }
 
         fn dealloc_sub_objects(_ptr: Ptr<Self>, _ctx: &mut Context) {}
-
-        fn remove_references(_ptr: Ptr<Self>, _ctx: &mut Context) {}
     }
 
     impl ContainsLinkedList<LLNode> for LLRoot {
@@ -466,9 +475,9 @@ pub(crate) mod tests {
         n2.insert_after(ctx, n1);
         validate_list(ctx, root, vec![1, 2]);
 
-        n1.remove(ctx);
+        n1.unlink(ctx);
         validate_list(ctx, root, vec![2]);
-        n2.remove(ctx);
+        n2.unlink(ctx);
         validate_list(ctx, root, vec![]);
 
         n1.insert_at_back(root, ctx);
@@ -476,7 +485,7 @@ pub(crate) mod tests {
         n2.insert_at_back(root, ctx);
         validate_list(ctx, root, vec![1, 2]);
 
-        n1.remove(ctx);
+        n1.unlink(ctx);
         validate_list(ctx, root, vec![2]);
         n3.insert_before(ctx, n2);
         validate_list(ctx, root, vec![3, 2]);
@@ -500,7 +509,7 @@ pub(crate) mod tests {
         let ctx = &mut Context::default();
         let n1 = LLNode::new(ctx, 1);
         // Removing an unlinked node must cause panic.
-        n1.remove(ctx);
+        n1.unlink(ctx);
     }
 
     #[test]
@@ -511,9 +520,9 @@ pub(crate) mod tests {
 
         let n1 = LLNode::new(ctx, 1);
         n1.insert_at_front(root, ctx);
-        n1.remove(ctx);
+        n1.unlink(ctx);
         // Removing an unlinked node must cause panic.
-        n1.remove(ctx);
+        n1.unlink(ctx);
     }
 
     #[test]

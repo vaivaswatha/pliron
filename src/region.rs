@@ -46,8 +46,17 @@ impl Region {
         Self::alloc(ctx, f)
     }
 
+    /// Get the operation that contains this region.
     pub fn get_parent_op(&self) -> Ptr<Operation> {
         self.parent_op
+    }
+
+    /// Drop all uses that this region holds.
+    pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &mut Context) {
+        let blocks: Vec<_> = ptr.deref(ctx).iter(ctx).collect();
+        for block in blocks {
+            BasicBlock::drop_all_uses(block, ctx);
+        }
     }
 }
 
@@ -87,10 +96,6 @@ impl ArenaObj for Region {
         for block in blocks {
             ArenaObj::dealloc(block, ctx);
         }
-    }
-
-    fn remove_references(_ptr: Ptr<Self>, _ctx: &mut Context) {
-        todo!()
     }
 }
 

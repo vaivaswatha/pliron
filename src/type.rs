@@ -192,10 +192,6 @@ impl ArenaObj for TypeObj {
     fn dealloc_sub_objects(_ptr: Ptr<Self>, _ctx: &mut Context) {
         panic!("Cannot dealloc arena sub-objects of types")
     }
-
-    fn remove_references(_ptr: Ptr<Self>, _ctx: &mut Context) {
-        panic!("Cannot remove references to types")
-    }
 }
 
 impl AttachContext for TypeObj {}

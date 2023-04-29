@@ -94,7 +94,7 @@ pub struct Operation {
     /// A dictionary of attributes.
     pub attributes: FxHashMap<&'static str, AttrObj>,
     /// Regions contained inside this operation.
-    pub regions: Vec<Ptr<Region>>,
+    pub(crate) regions: Vec<Ptr<Region>>,
 }
 
 impl PartialEq for Operation {
@@ -194,7 +194,7 @@ impl Operation {
 
     /// Does any result of this operation have a use?
     pub fn has_use(&self) -> bool {
-        self.results.iter().any(|res| !res.def.has_use())
+        self.results.iter().any(|res| res.def.has_use())
     }
 
     /// Total number of uses (across all results).
@@ -239,9 +239,55 @@ impl Operation {
         op::from_operation(ctx, self.self_ptr)
     }
 
+    /// Get a [Ptr] to the `reg_idx`th region.
+    pub fn get_region(&self, reg_idx: usize) -> Option<Ptr<Region>> {
+        self.regions.get(reg_idx).cloned()
+    }
+
+    /// Erase `reg_idx`'th region.
+    pub fn erase_region(ptr: Ptr<Self>, ctx: &mut Context, reg_idx: usize) {
+        let reg = *ptr.deref(ctx).regions.get(reg_idx).unwrap();
+        Region::drop_all_uses(reg, ctx);
+        ptr.deref_mut(ctx).regions.retain(|r| *r != reg);
+        ArenaObj::dealloc(reg, ctx);
+    }
+
     /// Get the OpId of the Op of this Operation.
     pub fn get_opid(&self) -> OpId {
         self.opid.clone()
+    }
+
+    /// Drop all uses that this operation holds.
+    pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &mut Context) {
+        // The operands cease to be a use of their definitions.
+        let operands = std::mem::take(&mut (ptr.deref_mut(ctx).operands));
+        for opd in operands {
+            opd.drop(ctx);
+        }
+        // The successors cease to be a use of their definitions.
+        let successors = std::mem::take(&mut (ptr.deref_mut(ctx).successors));
+        for succ in successors {
+            succ.drop(ctx);
+        }
+
+        let regions = ptr.deref(ctx).regions.clone();
+        for region in regions {
+            Region::drop_all_uses(region, ctx);
+        }
+    }
+
+    /// Unlink and deallocate this operation and everything that it contains.
+    /// There must not be any uses.
+    pub fn erase(ptr: Ptr<Self>, ctx: &mut Context) {
+        Self::drop_all_uses(ptr, ctx);
+        assert!(
+            !ptr.deref(ctx).has_use(),
+            "Operation with use(s) being erased"
+        );
+        if ptr.is_linked(ctx) {
+            ptr.unlink(ctx);
+        }
+        ArenaObj::dealloc(ptr, ctx);
     }
 
     /// Get a reference to the idx'th result.
@@ -289,27 +335,6 @@ impl ArenaObj for Operation {
         let regions = ptr.deref(ctx).regions.clone();
         for region in regions {
             ArenaObj::dealloc(region, ctx);
-        }
-    }
-    fn remove_references(ptr: Ptr<Self>, ctx: &mut Context) {
-        // Ensure no uses
-        assert!(
-            !ptr.deref(ctx).has_use(),
-            "Attempt to remove an Operation when it still has uses"
-        );
-        // Unlink from parent block, if there's one.
-        if ptr.deref(ctx).block_links.parent_block.is_some() {
-            ptr.remove(ctx);
-        }
-        // The operands cease to be a use of their definitions.
-        let operands = std::mem::take(&mut (ptr.deref_mut(ctx).operands));
-        for opd in operands {
-            opd.drop(ctx);
-        }
-        // The successors cease to be a use of their definitions.
-        let successors = std::mem::take(&mut (ptr.deref_mut(ctx).successors));
-        for succ in successors {
-            succ.drop(ctx);
         }
     }
     fn get_self_ptr(&self, _ctx: &Context) -> Ptr<Self> {

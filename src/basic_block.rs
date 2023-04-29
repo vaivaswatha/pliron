@@ -187,6 +187,42 @@ impl BasicBlock {
     pub fn get_num_arguments(&self) -> usize {
         self.args.len()
     }
+
+    /// Does this block a predecessor?
+    pub fn has_pred(&self) -> bool {
+        self.preds.has_use()
+    }
+
+    /// Number of predecessors to this block.
+    pub fn num_preds(&self) -> usize {
+        self.preds.num_uses()
+    }
+
+    /// Drop all uses that this block holds.
+    pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &mut Context) {
+        let ops: Vec<_> = ptr.deref(ctx).iter(ctx).collect();
+        for op in ops {
+            Operation::drop_all_uses(op, ctx);
+        }
+    }
+
+    /// Unlink and deallocate this block and everything that it contains.
+    /// There must not be any uses outside the block.
+    pub fn erase(ptr: Ptr<Self>, ctx: &mut Context) {
+        Self::drop_all_uses(ptr, ctx);
+        assert!(
+            !ptr.deref(ctx).has_pred(),
+            "BasicBlock with predecessor(s) being erase"
+        );
+
+        if ptr.deref(ctx).iter(ctx).any(|op| op.deref(ctx).has_use()) {
+            panic!("Attemping to erase block which has a use outside the block")
+        }
+        if ptr.is_linked(ctx) {
+            ptr.unlink(ctx);
+        }
+        ArenaObj::dealloc(ptr, ctx);
+    }
 }
 
 impl private::ContainsLinkedList<Operation> for BasicBlock {
@@ -253,10 +289,6 @@ impl ArenaObj for BasicBlock {
             ArenaObj::dealloc(op, ctx);
         }
     }
-    fn remove_references(_ptr: Ptr<Self>, _ctx: &mut Context) {
-        todo!()
-    }
-
     fn get_self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
         self.self_ptr
     }

@@ -1,7 +1,6 @@
 //! [Context] and [Ptr] together provide memory management for `pliron`.
 
 use crate::{
-    attribute::AttrObj,
     basic_block::BasicBlock,
     common_traits::{DisplayWithContext, Verify},
     dialect::{Dialect, DialectName},
@@ -38,8 +37,6 @@ pub struct Context {
     pub ops: FxHashMap<OpId, OpCreator>,
     /// Storage for uniqued [TypeObj]s.
     pub type_store: UniqueStore<TypeObj>,
-    /// Storage for uniqued [AttrObj]s.
-    pub attr_store: UniqueStore<AttrObj>,
 
     #[cfg(test)]
     pub(crate) linked_list_store: crate::linked_list::tests::LinkedListTestArena,
@@ -65,9 +62,6 @@ where
     /// If this object contains any ArenaObj itself, it must dealloc()
     /// all of those sub-objects. This is called when self is deallocated.
     fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context);
-    /// Remove pointers to this object from other objects.
-    /// Called when self is deallocated.
-    fn remove_references(ptr: Ptr<Self>, ctx: &mut Context);
 
     /// Allocates object on the arena, given a creator function.
     fn alloc<T: FnOnce(Ptr<Self>) -> Self>(ctx: &mut Context, f: T) -> Ptr<Self> {
@@ -86,7 +80,6 @@ where
 
     /// Deallocates this object from the arena.
     fn dealloc(ptr: Ptr<Self>, ctx: &mut Context) {
-        Self::remove_references(ptr, ctx);
         Self::dealloc_sub_objects(ptr, ctx);
         Self::get_arena_mut(ctx).remove(ptr.idx);
     }
@@ -112,6 +105,24 @@ impl<'a, T: ArenaObj> Ptr<T> {
     /// as long as the returned RefMut lives.
     pub fn deref_mut(&self, ctx: &'a Context) -> RefMut<'a, T> {
         T::get_arena(ctx).get(self.idx).unwrap().borrow_mut()
+    }
+
+    /// Try and return a Ref to the pointee.
+    /// This borrows from a RefCell and the borrow is live
+    /// as long as the returned Ref lives.
+    pub fn try_deref(&self, ctx: &'a Context) -> Option<Ref<'a, T>> {
+        T::get_arena(ctx).get(self.idx).unwrap().try_borrow().ok()
+    }
+
+    /// Try and return a RefMut to the pointee.
+    /// This mutably borrows from a RefCell and the borrow is live
+    /// as long as the returned RefMut lives.
+    pub fn try_deref_mut(&self, ctx: &'a Context) -> Option<RefMut<'a, T>> {
+        T::get_arena(ctx)
+            .get(self.idx)
+            .unwrap()
+            .try_borrow_mut()
+            .ok()
     }
 
     /// Create a unique (to the arena) name based on the arena index.
