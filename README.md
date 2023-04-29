@@ -8,10 +8,10 @@ and written in safe Rust.
 ## Build and Test
 * Install the [rust toolchain](https://www.rust-lang.org/tools/install).
 * `cargo build` and `cargo test` should build the compiler and run the testsuite.
-* To see a simple IR constructed (from the [const_ret_in_mod](tests/ir_construct.rs) test),
+* To see a simple IR constructed (by the [construct_and_erase](tests/ir_construct.rs) test),
   use the following command:
 
-      cargo test const_ret_in_mod -- --show-output
+      cargo test construct_and_erase -- --show-output
 
   It should print something like:
   ```mlir
