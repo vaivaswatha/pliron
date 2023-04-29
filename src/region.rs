@@ -2,7 +2,7 @@
 use crate::{
     basic_block::BasicBlock,
     common_traits::{DisplayWithContext, Verify},
-    context::{ArenaObj, Context, Ptr},
+    context::{private::ArenaObj, Context, Ptr},
     error::CompilerError,
     linked_list::{private, ContainsLinkedList},
     operation::Operation,

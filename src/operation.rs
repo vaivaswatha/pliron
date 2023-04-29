@@ -10,7 +10,7 @@ use crate::{
     attribute::AttrObj,
     basic_block::BasicBlock,
     common_traits::{DisplayWithContext, Named, Verify},
-    context::{ArenaCell, ArenaObj, Context, Ptr},
+    context::{private::ArenaObj, ArenaCell, Context, Ptr},
     debug_info,
     error::CompilerError,
     linked_list::{private, LinkedList},

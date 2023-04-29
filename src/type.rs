@@ -7,7 +7,7 @@
 //! See [MLIR Types](https://mlir.llvm.org/docs/DefiningDialects/AttributesAndTypes/#types)
 
 use crate::common_traits::{DisplayWithContext, Verify};
-use crate::context::{ArenaCell, ArenaObj, Context, Ptr};
+use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
 use crate::storage_uniquer::TypeValueHash;
 use crate::with_context::AttachContext;
@@ -46,9 +46,10 @@ pub trait Type: DisplayWithContext + Verify + Downcast {
     /// Is self equal to an other Type?
     fn eq_type(&self, other: &dyn Type) -> bool;
 
-    /// Get a copyable pointer to this type. Unlike in other [ArenaObj]s,
-    /// we do not store a self pointer inside the object itself
-    /// because that can upset taking automatic hashes of the object.
+    /// Get a copyable pointer to this type.
+    // Unlike in other [ArenaObj]s,
+    // we do not store a self pointer inside the object itself
+    // because that can upset taking automatic hashes of the object.
     fn get_self_ptr(&self, ctx: &Context) -> Ptr<TypeObj> {
         let is = |other: &TypeObj| self.eq_type(&**other);
         let idx = ctx

@@ -48,42 +48,50 @@ impl Context {
     }
 }
 
-/// An IR object owned by Context
-pub trait ArenaObj
-where
-    Self: Sized,
-{
-    /// Get the arena that has allocated this object.
-    fn get_arena(ctx: &Context) -> &ArenaCell<Self>;
-    /// Get the arena that has allocated this object.
-    fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self>;
-    /// Get a Ptr to self.
-    fn get_self_ptr(&self, ctx: &Context) -> Ptr<Self>;
-    /// If this object contains any ArenaObj itself, it must dealloc()
-    /// all of those sub-objects. This is called when self is deallocated.
-    fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context);
+pub(crate) mod private {
+    use std::{cell::RefCell, marker::PhantomData};
 
-    /// Allocates object on the arena, given a creator function.
-    fn alloc<T: FnOnce(Ptr<Self>) -> Self>(ctx: &mut Context, f: T) -> Ptr<Self> {
-        let creator = |idx: generational_arena::Index| {
-            let t = f(Ptr::<Self> {
-                idx,
-                _dummy: PhantomData::<Self>,
-            });
-            RefCell::new(t)
-        };
-        Ptr::<Self> {
-            idx: Self::get_arena_mut(ctx).insert_with(creator),
-            _dummy: PhantomData,
+    use super::{ArenaCell, Context, Ptr};
+
+    /// An IR object owned by Context
+    pub trait ArenaObj
+    where
+        Self: Sized,
+    {
+        /// Get the arena that has allocated this object.
+        fn get_arena(ctx: &Context) -> &ArenaCell<Self>;
+        /// Get the arena that has allocated this object.
+        fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self>;
+        /// Get a Ptr to self.
+        fn get_self_ptr(&self, ctx: &Context) -> Ptr<Self>;
+        /// If this object contains any ArenaObj itself, it must dealloc()
+        /// all of those sub-objects. This is called when self is deallocated.
+        fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context);
+
+        /// Allocates object on the arena, given a creator function.
+        fn alloc<T: FnOnce(Ptr<Self>) -> Self>(ctx: &mut Context, f: T) -> Ptr<Self> {
+            let creator = |idx: generational_arena::Index| {
+                let t = f(Ptr::<Self> {
+                    idx,
+                    _dummy: PhantomData::<Self>,
+                });
+                RefCell::new(t)
+            };
+            Ptr::<Self> {
+                idx: Self::get_arena_mut(ctx).insert_with(creator),
+                _dummy: PhantomData,
+            }
+        }
+
+        /// Deallocates this object from the arena.
+        fn dealloc(ptr: Ptr<Self>, ctx: &mut Context) {
+            Self::dealloc_sub_objects(ptr, ctx);
+            Self::get_arena_mut(ctx).remove(ptr.idx);
         }
     }
-
-    /// Deallocates this object from the arena.
-    fn dealloc(ptr: Ptr<Self>, ctx: &mut Context) {
-        Self::dealloc_sub_objects(ptr, ctx);
-        Self::get_arena_mut(ctx).remove(ptr.idx);
-    }
 }
+
+use private::ArenaObj;
 
 /// Pointer to an IR Object owned by Context.
 #[derive(Debug)]

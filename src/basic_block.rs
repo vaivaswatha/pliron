@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap;
 use crate::{
     attribute::AttrObj,
     common_traits::{DisplayWithContext, Named, Verify},
-    context::{ArenaCell, ArenaObj, Context, Ptr},
+    context::{private::ArenaObj, ArenaCell, Context, Ptr},
     debug_info::get_block_arg_name,
     error::CompilerError,
     linked_list::{private, ContainsLinkedList, LinkedList},
