@@ -142,6 +142,7 @@ impl FuncOp {
         opop
     }
 
+    /// Get the function signature (type).
     pub fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         let opref = self.get_operation().deref(ctx);
         let ty_attr = opref.attributes.get(Self::ATTR_KEY_FUNC_TYPE).unwrap();
@@ -150,8 +151,17 @@ impl FuncOp {
             .get_type()
     }
 
+    /// Get the entry block of this function.
     pub fn get_entry_block(&self, ctx: &Context) -> Ptr<BasicBlock> {
         self.get_region(ctx).deref(ctx).get_head().unwrap()
+    }
+
+    /// Get an iterator over all operations.
+    pub fn op_iter<'a>(&self, ctx: &'a Context) -> impl Iterator<Item = Ptr<Operation>> + 'a {
+        self.get_region(ctx)
+            .deref(ctx)
+            .iter(ctx)
+            .flat_map(|bb| bb.deref(ctx).iter(ctx))
     }
 }
 

@@ -294,7 +294,7 @@ mod tests {
         let head_struct2 = StructType::get_existing_unnamed(&ctx, head_fields).unwrap();
         assert!(head_struct == head_struct2);
         assert!(StructType::get_existing_unnamed(
-            &mut ctx,
+            &ctx,
             vec![
                 ("len".to_string(), int64_ptr),
                 // The actual field is a LinkedList here, rather than a pointer type to it.

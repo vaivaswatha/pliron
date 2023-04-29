@@ -7,26 +7,29 @@ use pliron::{
         self,
         builtin::{
             attributes::IntegerAttr,
-            op_interfaces::OneResultInterface,
+            op_interfaces::{OneResultInterface, SingleBlockRegionInterface},
             ops::{ConstantOp, FuncOp, ModuleOp},
             types::{FunctionType, IntegerType, Signedness},
         },
         llvm::ops::ReturnOp,
     },
     error::CompilerError,
+    linked_list::ContainsLinkedList,
     op::Op,
     operation::Operation,
     with_context::AttachContext,
 };
 
+fn setup_context_dialects() -> Context {
+    let mut ctx = Context::new();
+    dialects::builtin::register(&mut ctx);
+    dialects::llvm::register(&mut ctx);
+    ctx
+}
+
 // Create a print a module "bar", with a function "foo"
 // containing a single `return 0`.
-#[test]
-fn const_ret_in_mod() -> Result<(), CompilerError> {
-    let ctx = &mut Context::new();
-    dialects::builtin::register(ctx);
-    dialects::llvm::register(ctx);
-
+fn const_ret_in_mod(ctx: &mut Context) -> Result<ModuleOp, CompilerError> {
     let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
     let module = ModuleOp::new(ctx, "bar");
     // Our function is going to have type () -> ().
@@ -45,12 +48,43 @@ fn const_ret_in_mod() -> Result<(), CompilerError> {
     let ret_op = ReturnOp::new_unlinked(ctx, const_op.get_result(ctx));
     ret_op.get_operation().insert_at_back(bb, ctx);
 
-    print!("{}\n", module.with_ctx(ctx));
+    println!("{}", module.with_ctx(ctx));
     module.verify(ctx)?;
 
-    let module_op = module.get_operation();
+    Ok(module)
+}
+
+#[test]
+fn construct_and_erase() -> Result<(), CompilerError> {
+    let ctx = &mut setup_context_dialects();
+    let module_op = const_ret_in_mod(ctx)?.get_operation();
     Operation::erase(module_op, ctx);
     assert!(ctx.operations.is_empty() && ctx.basic_blocks.is_empty() && ctx.regions.is_empty());
-
     Ok(())
+}
+
+#[test]
+#[should_panic(expected = "Operation with use(s) being erased")]
+fn removed_used_op() {
+    let ctx = &mut setup_context_dialects();
+
+    // const_ret_in_mod builds a module with a function.
+    let func_op = const_ret_in_mod(ctx)
+        .unwrap()
+        .get_body(ctx, 0)
+        .deref(ctx)
+        .get_head()
+        .unwrap()
+        .deref(ctx)
+        .get_op(ctx);
+    let func_op = func_op.downcast_ref::<FuncOp>().unwrap();
+
+    // Search for the const_op in the function.
+    let const_op = func_op
+        .op_iter(ctx)
+        .find(|op| op.deref(ctx).get_op(ctx).is::<ConstantOp>())
+        .expect("Expected to find a constant op");
+
+    // const_op is used in the return. Erasing it must panic.
+    Operation::erase(const_op, ctx);
 }

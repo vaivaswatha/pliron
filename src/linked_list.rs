@@ -254,15 +254,13 @@ where
 
     /// Is this node part of a linked list?
     pub fn is_linked(&self, ctx: &Context) -> bool {
-        if self.deref(ctx).get_container().is_some() {
-            debug_assert!(
-                self.deref(ctx).get_next().is_none() && self.deref(ctx).get_prev().is_none(),
-                "Uncontained linked list node has next/prev node(s)"
-            );
-            true
-        } else {
-            false
-        }
+        let has_container = self.deref(ctx).get_container().is_some();
+        debug_assert!(
+            has_container
+                || self.deref(ctx).get_next().is_none() && self.deref(ctx).get_prev().is_none(),
+            "LinkedList node has no container, but has next/prev node"
+        );
+        has_container
     }
 
     /// Unlink self from list.
@@ -469,11 +467,17 @@ pub(crate) mod tests {
         let n2 = LLNode::new(ctx, 2);
         let n3 = LLNode::new(ctx, 3);
 
+        assert!(!n1.is_linked(ctx) && !n2.is_linked(ctx) && !n3.is_linked(ctx));
+
         n1.insert_at_front(root, ctx);
         validate_list(ctx, root, vec![1]);
 
+        assert!(n1.is_linked(ctx) && !n2.is_linked(ctx) && !n3.is_linked(ctx));
+
         n2.insert_after(ctx, n1);
         validate_list(ctx, root, vec![1, 2]);
+
+        assert!(n1.is_linked(ctx) && n2.is_linked(ctx) && !n3.is_linked(ctx));
 
         n1.unlink(ctx);
         validate_list(ctx, root, vec![2]);
@@ -487,8 +491,10 @@ pub(crate) mod tests {
 
         n1.unlink(ctx);
         validate_list(ctx, root, vec![2]);
+        assert!(!n1.is_linked(ctx) && n2.is_linked(ctx) && !n3.is_linked(ctx));
         n3.insert_before(ctx, n2);
         validate_list(ctx, root, vec![3, 2]);
+        assert!(!n1.is_linked(ctx) && n2.is_linked(ctx) && n3.is_linked(ctx));
     }
 
     #[test]
