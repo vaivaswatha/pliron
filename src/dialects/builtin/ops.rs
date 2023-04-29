@@ -302,6 +302,13 @@ impl OneResultInterface for ConstantOp {
             .get_result(0)
             .expect("ConstantOp must have one result")
     }
+
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        self.get_operation()
+            .deref(ctx)
+            .get_type(0)
+            .expect("ConstantOp must have one result")
+    }
 }
 
 pub fn register(ctx: &mut Context, dialect: &mut Dialect) {

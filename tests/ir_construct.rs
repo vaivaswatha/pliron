@@ -88,3 +88,44 @@ fn removed_used_op() {
     // const_op is used in the return. Erasing it must panic.
     Operation::erase(const_op, ctx);
 }
+#[test]
+fn replace_c0_with_c1() -> Result<(), CompilerError> {
+    let ctx = &mut setup_context_dialects();
+    let module = const_ret_in_mod(ctx).unwrap();
+
+    // const_ret_in_mod builds a module with a function.
+    let func_op = module
+        .get_body(ctx, 0)
+        .deref(ctx)
+        .get_head()
+        .unwrap()
+        .deref(ctx)
+        .get_op(ctx);
+    let func_op = func_op.downcast_ref::<FuncOp>().unwrap();
+
+    // Search for the const_op in the function.
+    let const0_op_ptr = func_op
+        .op_iter(ctx)
+        .find(|op| op.deref(ctx).get_op(ctx).is::<ConstantOp>())
+        .expect("Expected to find a constant op");
+    let const0_op = *const0_op_ptr
+        .deref(ctx)
+        .get_op(ctx)
+        .downcast_ref::<ConstantOp>()
+        .unwrap();
+
+    // Insert a new constant.
+    let one_const = IntegerAttr::create(const0_op.get_type(ctx), ApInt::from(1));
+    let const1_op = ConstantOp::new_unlinked(ctx, one_const);
+    const1_op.get_operation().insert_after(ctx, const0_op_ptr);
+    set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".to_string());
+    let const0_val = const0_op.get_result(ctx);
+    const0_val.replace_some_uses_with(ctx, |_, _| true, &const1_op.get_result(ctx));
+
+    Operation::erase(const0_op_ptr, ctx);
+
+    println!("{}", module.with_ctx(ctx));
+    module.verify(ctx)?;
+
+    Ok(())
+}

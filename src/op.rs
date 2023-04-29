@@ -111,6 +111,7 @@ pub trait Op: Downcast + Verify + DisplayWithContext + CastFrom {
 }
 impl_downcast!(Op);
 
+/// Create [OpObj] from [`Ptr<Operation>`](Operation)
 pub fn from_operation(ctx: &Context, op: Ptr<Operation>) -> OpObj {
     let opid = op.deref(ctx).get_opid();
     (ctx.ops

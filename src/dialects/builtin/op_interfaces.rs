@@ -4,6 +4,7 @@ use crate::{
     linked_list::ContainsLinkedList,
     op::Op,
     operation::Operation,
+    r#type::TypeObj,
     region::Region,
     use_def_lists::Value,
 };
@@ -79,4 +80,5 @@ pub trait SymbolOpInterface: Op {
 /// An [Op] having exactly one result.
 pub trait OneResultInterface: Op {
     fn get_result(&self, ctx: &Context) -> Value;
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj>;
 }
