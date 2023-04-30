@@ -150,7 +150,7 @@ impl DisplayWithContext for AttrId {
 ///
 /// Usage:
 /// ```
-/// #[derive(PartialEq, Eq, Hash)]
+/// #[derive(PartialEq, Eq)]
 /// struct MyAttr { }
 /// impl_attr!(
 ///     /// MyAttr is mine
@@ -161,7 +161,7 @@ impl DisplayWithContext for AttrId {
 /// # use pliron::{
 /// #     impl_attr, with_context::AttachContext, common_traits::DisplayWithContext,
 /// #     context::Context, error::CompilerError, common_traits::Verify,
-/// #     storage_uniquer::TypeValueHash, attribute::Attribute,
+/// #     attribute::Attribute,
 /// # };
 /// # impl DisplayWithContext for MyAttr {
 /// #    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -181,7 +181,7 @@ impl DisplayWithContext for AttrId {
 ///     impl Attribute for MyAttr { ... }
 /// ```
 /// **Note**: pre-requisite traits for [Attribute] must already be implemented.
-///         Additionaly, Hash and PartialEq must be implemented by the type.
+///         Additionaly, PartialEq must be implemented by the type.
 #[macro_export]
 macro_rules! impl_attr {
     (   $(#[$outer:meta])*
