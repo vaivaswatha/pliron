@@ -18,6 +18,7 @@ use crate::{
     r#type::TypeObj,
     region::Region,
     use_def_lists::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
+    vec_exns::VecExtns,
     with_context::AttachContext,
 };
 
@@ -135,6 +136,7 @@ impl Operation {
         opid: OpId,
         result_types: Vec<Ptr<TypeObj>>,
         operands: Vec<Value>,
+        num_regions: usize,
     ) -> Ptr<Operation> {
         let f = |self_ptr: Ptr<Operation>| Operation {
             opid,
@@ -179,6 +181,8 @@ impl Operation {
             })
             .collect();
         newop.deref_mut(ctx).operands = operands;
+        newop.deref_mut(ctx).regions = Vec::new_init(num_regions, |_| Region::new(ctx, newop));
+
         newop
     }
 
