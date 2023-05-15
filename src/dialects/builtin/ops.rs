@@ -10,7 +10,6 @@ use crate::{
     op::Op,
     operation::Operation,
     r#type::TypeObj,
-    region::Region,
     use_def_lists::Value,
     with_context::AttachContext,
 };
@@ -60,13 +59,9 @@ impl DisplayWithContext for ModuleOp {
 
 impl Verify for ModuleOp {
     fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+        self.verify_one_region(ctx)?;
         let op = &*self.op.deref(ctx);
-        if op.regions.len() != 1 {
-            return Err(CompilerError::VerificationError {
-                msg: "ModuleOp must have single region.".to_string(),
-            });
-        }
-        op.regions[0].deref(ctx).verify(ctx)
+        op.get_region(0).unwrap().deref(ctx).verify(ctx)
     }
 }
 
@@ -75,16 +70,14 @@ impl ModuleOp {
     /// The underlying [Operation] is not linked to a [BasicBlock](crate::basic_block::BasicBlock).
     /// The returned module has a single [Region] with a single (BasicBlock)[crate::basic_block::BasicBlock].
     pub fn new(ctx: &mut Context, name: &str) -> ModuleOp {
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![]);
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1);
         let opop = ModuleOp { op };
         opop.set_symbol_name(ctx, name);
 
-        // Create a single region with an empty block.
-        let region = Region::new(ctx, op);
+        // Create an empty block.
+        let region = op.deref_mut(ctx).get_region(0).unwrap();
         let block = BasicBlock::new(ctx, None, vec![]);
         block.insert_at_front(region, ctx);
-        let opref = &mut *op.deref_mut(ctx);
-        opref.regions.push(region);
 
         opop
     }
@@ -124,15 +117,14 @@ impl FuncOp {
     /// The returned function has a single region with an empty `entry` block.
     pub fn new_unlinked(ctx: &mut Context, name: &str, ty: Ptr<TypeObj>) -> FuncOp {
         let ty_attr = TypeAttr::create(ty);
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![]);
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1);
 
-        // Create a body region with an empty entry block.
-        let region = Region::new(ctx, op);
+        // Create an empty entry block.
+        let region = op.deref_mut(ctx).get_region(0).unwrap();
         let body = BasicBlock::new(ctx, Some("entry".to_string()), vec![]);
         body.insert_at_front(region, ctx);
         {
             let opref = &mut *op.deref_mut(ctx);
-            opref.regions.push(region);
             // Set function type attributes.
             opref.attributes.insert(Self::ATTR_KEY_FUNC_TYPE, ty_attr);
         }
@@ -203,6 +195,9 @@ impl Verify for FuncOp {
                 msg: "Incorrect number of results or operands".to_string(),
             });
         }
+        self.verify_one_region(ctx)?;
+        let op = &*self.op.deref(ctx);
+        op.get_region(0).unwrap().deref(ctx).verify(ctx)?;
         Ok(())
     }
 }
@@ -247,7 +242,7 @@ impl ConstantOp {
         let result_type = attr_cast::<dyn TypedAttrInterface>(&*value)
             .expect("ConstantOp const value must provide TypedAttrInterface")
             .get_type();
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![result_type], vec![]);
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![result_type], vec![], 0);
         op.deref_mut(ctx)
             .attributes
             .insert(Self::ATTR_KEY_VALUE, value);

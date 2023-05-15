@@ -1,6 +1,7 @@
 use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
+    error::CompilerError,
     linked_list::ContainsLinkedList,
     op::Op,
     operation::Operation,
@@ -37,19 +38,31 @@ pub trait RegionKindInterface: Op {
 /// [Op]s that have exactly one region.
 pub trait OneRegionInterface: Op {
     fn get_region(&self, ctx: &Context) -> Ptr<Region> {
-        *self
-            .get_operation()
+        self.get_operation()
             .deref(ctx)
-            .regions
-            .get(0)
+            .get_region(0)
             .expect("Expected OneRegion Op to contain a region")
+    }
+
+    /// Checks that the operation has exactly one region.
+    fn verify_one_region(&self, ctx: &Context) -> Result<(), CompilerError> {
+        let self_op = self.get_operation().deref(ctx);
+        if self_op.regions.len() != 1 {
+            return Err(CompilerError::VerificationError {
+                msg: "OneRegion Op must have single region.".to_string(),
+            });
+        }
+        Ok(())
     }
 }
 
 /// [Op]s with regions that have a single block.
 pub trait SingleBlockRegionInterface: Op {
     fn get_body(&self, ctx: &Context, region_idx: usize) -> Ptr<BasicBlock> {
-        self.get_operation().deref(ctx).regions[region_idx]
+        self.get_operation()
+            .deref(ctx)
+            .get_region(region_idx)
+            .expect("Expected SingleBlockRegion Op to contain a region")
             .deref(ctx)
             .get_head()
             .expect("Expected SingleBlockRegion Op to contain a block")

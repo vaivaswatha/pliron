@@ -28,7 +28,7 @@ declare_op!(
 
 impl ReturnOp {
     pub fn new_unlinked(ctx: &mut Context, value: Value) -> ReturnOp {
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![value]);
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![value], 0);
         ReturnOp { op }
     }
 }
