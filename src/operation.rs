@@ -18,7 +18,6 @@ use crate::{
     r#type::TypeObj,
     region::Region,
     use_def_lists::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
-    vec_exns::VecExtns,
     with_context::AttachContext,
 };
 
