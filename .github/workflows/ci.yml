@@ -14,8 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - name: Setup
-      run: rustup component add clippy rustfmt
+    - uses: dtolnay/rust-toolchain@stable
     - name: Build
       run: RUSTFLAGS="-D warnings" cargo build --verbose
 
@@ -23,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@stable
     - name: Run tests
       run: cargo test --verbose
 
@@ -30,6 +31,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@stable
     - name: Clippy
       run: cargo clippy -- -D warnings
 
@@ -37,6 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@stable
     - name: Code format
       run: cargo fmt --check
 
@@ -44,5 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@stable
     - name: Documentation
       run: RUSTDOCFLAGS="-D warnings" cargo doc
