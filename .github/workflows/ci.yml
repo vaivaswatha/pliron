@@ -13,20 +13,37 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v3
-
     - name: Setup
       run: rustup component add clippy rustfmt
-
     - name: Build
       run: RUSTFLAGS="-D warnings" cargo build --verbose
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
     - name: Run tests
+      needs: build
       run: cargo test --verbose
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
     - name: Clippy
+      needs: build
       run: cargo clippy -- -D warnings
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
     - name: Code format
+      needs: build
       run: cargo fmt --check
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
     - name: Documentation
+      needs: build
       run: RUSTDOCFLAGS="-D warnings" cargo doc
