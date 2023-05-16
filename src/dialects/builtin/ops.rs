@@ -196,9 +196,7 @@ impl Verify for FuncOp {
             });
         }
         self.verify_one_region(ctx)?;
-        let op = &*self.op.deref(ctx);
-        op.get_region(0).unwrap().deref(ctx).verify(ctx)?;
-        Ok(())
+        op.get_region(0).unwrap().deref(ctx).verify(ctx)
     }
 }
 
