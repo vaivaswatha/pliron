@@ -15,7 +15,7 @@ impl<T> VecExtns<T> for Vec<T> {
 
     fn new_init<U: FnMut(usize) -> T>(size: usize, mut initf: U) -> Vec<T> {
         let mut v = Vec::<T>::with_capacity(size);
-        for i in [0, size] {
+        for i in 0..size {
             v.push(initf(i));
         }
         v
