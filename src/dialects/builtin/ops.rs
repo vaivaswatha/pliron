@@ -68,7 +68,7 @@ impl Verify for ModuleOp {
 impl ModuleOp {
     /// Create a new [ModuleOp].
     /// The underlying [Operation] is not linked to a [BasicBlock](crate::basic_block::BasicBlock).
-    /// The returned module has a single [Region] with a single (BasicBlock)[crate::basic_block::BasicBlock].
+    /// The returned module has a single [crate::region::Region] with a single (BasicBlock)[crate::basic_block::BasicBlock].
     pub fn new(ctx: &mut Context, name: &str) -> ModuleOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1);
         let opop = ModuleOp { op };
