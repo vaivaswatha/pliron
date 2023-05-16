@@ -11,7 +11,6 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -22,28 +21,28 @@ jobs:
 
   tests:
     runs-on: ubuntu-latest
+    needs: build
     steps:
     - name: Run tests
-      needs: build
       run: cargo test --verbose
 
   clippy:
     runs-on: ubuntu-latest
+    needs: build
     steps:
     - name: Clippy
-      needs: build
       run: cargo clippy -- -D warnings
 
   format:
     runs-on: ubuntu-latest
+    needs: build
     steps:
     - name: Code format
-      needs: build
       run: cargo fmt --check
 
   docs:
     runs-on: ubuntu-latest
+    needs: build
     steps:
     - name: Documentation
-      needs: build
       run: RUSTDOCFLAGS="-D warnings" cargo doc
