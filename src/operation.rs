@@ -167,18 +167,7 @@ impl Operation {
         let operands = operands
             .iter()
             .enumerate()
-            .map(|(opd_idx, def)| Operand {
-                r#use: def.get_defnode_mut(ctx).add_use(
-                    *def,
-                    Use {
-                        op: newop,
-                        opd_idx,
-                        _dummy: PhantomData,
-                    },
-                ),
-                opd_idx,
-                user_op: newop,
-            })
+            .map(|(opd_idx, def)| Operand::new(ctx, *def, newop, opd_idx))
             .collect();
         newop.deref_mut(ctx).operands = operands;
         newop.deref_mut(ctx).regions = Vec::new_init(num_regions, |_| Region::new(ctx, newop));
@@ -223,6 +212,14 @@ impl Operation {
         self.operands.get(opd_idx).map(|opd| opd.get_def())
     }
 
+    /// Replace opd_idx'th operand with `other`.
+    pub fn replace_operand(&mut self, ctx: &Context, opd_idx: usize, other: Value) {
+        self.operands
+            .get_mut(opd_idx)
+            .unwrap_or_else(|| panic!("No operand at index {}", opd_idx))
+            .replace(ctx, other);
+    }
+
     /// Get number of successors
     pub fn get_num_successors(&self) -> usize {
         self.successors.len()
@@ -231,6 +228,14 @@ impl Operation {
     /// Get a reference to the opd_idx'th successor.
     pub fn get_successor(&self, opd_idx: usize) -> Option<Ptr<BasicBlock>> {
         self.successors.get(opd_idx).map(|succ| succ.get_def())
+    }
+
+    /// Replace opd_idx'th successor with `other`.
+    pub fn replace_successor(&mut self, ctx: &Context, opd_idx: usize, other: Ptr<BasicBlock>) {
+        self.successors
+            .get_mut(opd_idx)
+            .unwrap_or_else(|| panic!("No successor at index {}", opd_idx))
+            .replace(ctx, other);
     }
 
     /// Get an iterator on the successors.
@@ -362,8 +367,32 @@ impl<T: DefUseParticipant + DefTrait> Operand<T> {
     }
 
     /// Drop this use, removing self from list of its definition's uses.
-    fn drop(&self, ctx: &mut Context) {
+    fn drop(&self, ctx: &Context) {
         self.get_def().get_defnode_mut(ctx).remove_use(self.into());
+    }
+
+    /// Replace this operand to use another definition.
+    fn replace(&mut self, ctx: &Context, other: T) {
+        let user_op = self.user_op;
+        let opd_idx = self.opd_idx;
+        self.drop(ctx);
+        *self = Self::new(ctx, other, user_op, opd_idx);
+    }
+
+    /// As `user_op`'s `opd_idx`'th operand, create a new Operand.
+    fn new(ctx: &Context, def: T, user_op: Ptr<Operation>, opd_idx: usize) -> Operand<T> {
+        Operand {
+            r#use: def.get_defnode_mut(ctx).add_use(
+                def,
+                Use {
+                    op: user_op,
+                    opd_idx,
+                    _dummy: PhantomData,
+                },
+            ),
+            user_op,
+            opd_idx,
+        }
     }
 }
 
