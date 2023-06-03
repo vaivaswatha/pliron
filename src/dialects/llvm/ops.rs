@@ -1,5 +1,3 @@
-use intertrait::cast_to;
-
 use crate::{
     common_traits::{DisplayWithContext, Verify},
     context::Context,
@@ -7,6 +5,7 @@ use crate::{
     dialect::Dialect,
     dialects::builtin::op_interfaces::IsTerminatorInterface,
     error::CompilerError,
+    impl_op_interface,
     op::Op,
     operation::Operation,
     use_def_lists::Value,
@@ -33,7 +32,6 @@ impl ReturnOp {
     }
 }
 
-impl AttachContext for ReturnOp {}
 impl DisplayWithContext for ReturnOp {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
@@ -55,8 +53,7 @@ impl Verify for ReturnOp {
     }
 }
 
-#[cast_to]
-impl IsTerminatorInterface for ReturnOp {}
+impl_op_interface!(IsTerminatorInterface for ReturnOp {});
 
 pub fn register(ctx: &mut Context, dialect: &mut Dialect) {
     ReturnOp::register(ctx, dialect);

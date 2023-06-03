@@ -23,3 +23,4 @@ intertrait = "0.2.2"
 indent = "0.1.1"
 # Required by intertrait
 linkme = "0.2"
+paste = "1.0"

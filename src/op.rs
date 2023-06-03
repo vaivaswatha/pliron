@@ -7,12 +7,15 @@
 //! abstracted into Op interfaces. Interfaces in pliron capture MLIR
 //! functionality of both [Traits](https://mlir.llvm.org/docs/Traits/)
 //! and [Interfaces](https://mlir.llvm.org/docs/Interfaces/).
+//! Interfaces must all implement an associated function named `verify` with
+//! the type [OpInterfaceVerifier].
 //!
-//! [Op]s that implement an interface can choose to annotate
-//! the `impl` with [`#[cast_to]`](https://docs.rs/intertrait/latest/intertrait/#usage).
-//! This will enable an [Op] reference to be [cast](op_cast)
-//! into an interface object reference (or check if it [impls](op_impls) it).
-//! Without this, the cast will always fail.
+//! [Op]s that implement an interface must do so using the
+//! [impl_op_interface](crate::impl_op_interface) macro.
+//! This ensures that the interface verifier is automatically called,
+//! and that a `&dyn Op` object can be [cast](op_cast) into an interface object,
+//! (or that it can be checked if the interface is [implemented](op_impls))
+//! with ease.
 //!
 //! [OpObj]s can be downcasted to their concrete types using
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
@@ -26,6 +29,7 @@ use crate::{
     common_traits::{DisplayWithContext, Verify},
     context::{Context, Ptr},
     dialect::{Dialect, DialectName},
+    error::CompilerError,
     operation::Operation,
     with_context::AttachContext,
 };
@@ -95,6 +99,9 @@ pub trait Op: Downcast + Verify + DisplayWithContext + CastFrom {
     where
         Self: Sized;
 
+    /// Verify all interfaces implemented by this op.
+    fn verify_interfaces(&self, ctx: &Context) -> Result<(), CompilerError>;
+
     /// Register Op in Context and add it to dialect.
     fn register(ctx: &mut Context, dialect: &mut Dialect)
     where
@@ -122,16 +129,19 @@ pub fn from_operation(ctx: &Context, op: Ptr<Operation>) -> OpObj {
 pub type OpObj = Box<dyn Op>;
 
 /// Cast reference to an [Op] object to an interface reference.
-pub fn op_cast<T: ?Sized + Op>(attr: &dyn Op) -> Option<&T> {
-    attr.cast::<T>()
+pub fn op_cast<T: ?Sized + Op>(op: &dyn Op) -> Option<&T> {
+    op.cast::<T>()
 }
 
 /// Does this [Op] object implement interface T?
-pub fn op_impls<T: ?Sized + Op>(attr: &dyn Op) -> bool {
-    attr.impls::<T>()
+pub fn op_impls<T: ?Sized + Op>(op: &dyn Op) -> bool {
+    op.impls::<T>()
 }
 
-/// Declare an [Op] and fill boilerplate impl code.
+/// Every op interface must have a function named `verify` with this type.
+pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<(), CompilerError>;
+
+/// Declare an [Op]
 ///
 /// Usage:
 /// ```
@@ -142,10 +152,9 @@ pub fn op_impls<T: ?Sized + Op>(attr: &dyn Op) -> bool {
 ///     "dialect"
 /// );
 /// # use pliron::{
-/// #     declare_op, with_context::AttachContext, common_traits::DisplayWithContext,
+/// #     op::Op, declare_op, with_context::AttachContext, common_traits::DisplayWithContext,
 /// #     context::Context, error::CompilerError, common_traits::Verify
 /// # };
-/// # impl AttachContext for MyOp {}
 /// # impl DisplayWithContext for MyOp {
 /// #    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 /// #        todo!()
@@ -158,19 +167,15 @@ pub fn op_impls<T: ?Sized + Op>(attr: &dyn Op) -> bool {
 /// #    }
 /// # }
 /// ```
-///
-/// This will generate the following code.
-/// ```ignore
-///     struct MyOp {
-///       op: Ptr<Operation>,
-///     }
-///     impl Op for MyOp {...}
-/// ```
 /// **Note**: pre-requisite traits for [Op] must already be implemented.
 #[macro_export]
 macro_rules! declare_op {
     (   $(#[$outer:meta])*
         $structname: ident, $op_name: literal, $dialect_name: literal) => {
+        paste::paste!{
+            #[linkme::distributed_slice]
+            pub static [<INTERFACE_VERIFIERS_ $structname:upper>]: [$crate::op::OpInterfaceVerifier] = [..];
+        }
         #[derive(Clone, Copy)]
         $(#[$outer])*
         pub struct $structname { op: $crate::context::Ptr<$crate::operation::Operation> }
@@ -193,6 +198,73 @@ macro_rules! declare_op {
                     dialect: $crate::dialect::DialectName::new($dialect_name),
                 }
             }
+
+            fn verify_interfaces(&self, ctx: &Context) -> Result<(), CompilerError> {
+                let interface_verifiers = paste::paste!{[<INTERFACE_VERIFIERS_ $structname:upper>]};
+                for verifier in interface_verifiers {
+                    verifier(self, ctx)?;
+                }
+                Ok(())
+            }
         }
+        impl $crate::with_context::AttachContext for $structname {}
     }
+}
+
+/// Implement an Op Interface for an Op. The interface trait must define
+/// a `verify` function with type [OpInterfaceVerifier]
+///
+/// Usage:
+/// ```
+/// declare_op!(
+///     /// MyOp is mine
+///     MyOp,
+///     "name",
+///     "dialect"
+/// );
+/// trait MyOpInterface: Op {
+///     fn gubbi(&self);
+///     fn verify(op: &dyn Op, ctx: &Context) -> Result<(), CompilerError>
+///         where
+///         Self: Sized,
+///     {
+///         Ok(())
+///     }
+/// }
+/// impl_op_interface!(
+///     MyOpInterface for MyOp
+///     {
+///         fn gubbi(&self) { println!("gubbi"); }
+///     }
+/// );
+/// # use pliron::{
+/// #     op::Op, declare_op, impl_op_interface,with_context::AttachContext,
+/// #     common_traits::DisplayWithContext, context::Context, error::CompilerError,
+/// #     common_traits::Verify
+/// # };
+/// # impl DisplayWithContext for MyOp {
+/// #    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// #        todo!()
+/// #    }
+/// # }
+///
+/// # impl Verify for MyOp {
+/// #   fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+/// #        todo!()
+/// #    }
+/// # }
+#[macro_export]
+macro_rules! impl_op_interface {
+    ($intr_name: ident for $op_name: ident { $($tt:tt)* }) => {
+        paste::paste!{
+            #[linkme::distributed_slice([<INTERFACE_VERIFIERS_ $op_name:upper>])]
+            static [<VERIFY_ $intr_name:upper _FOR_ $op_name:upper>] :
+                $crate::op::OpInterfaceVerifier = <$op_name as $intr_name>::verify;
+        }
+
+        #[intertrait::cast_to]
+        impl $intr_name for $op_name {
+            $($tt)*
+        }
+    };
 }

@@ -8,12 +8,20 @@ use crate::{
     r#type::TypeObj,
     region::Region,
     use_def_lists::Value,
+    with_context::AttachContext,
 };
 
 use super::attributes::StringAttr;
 
 /// An [Op] implementing this interface is a block terminator.
-pub trait IsTerminatorInterface: Op {}
+pub trait IsTerminatorInterface: Op {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<(), CompilerError>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+}
 
 /// Describe the abstract semantics of [Regions](crate::region::Region).
 ///
@@ -33,6 +41,13 @@ pub trait RegionKindInterface: Op {
     /// Return true if the region with the given index inside this operation
     /// must require dominance to hold.
     fn has_ssa_dominance(idx: usize) -> bool;
+
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<(), CompilerError>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
 }
 
 /// [Op]s that have exactly one region.
@@ -45,11 +60,17 @@ pub trait OneRegionInterface: Op {
     }
 
     /// Checks that the operation has exactly one region.
-    fn verify_one_region(&self, ctx: &Context) -> Result<(), CompilerError> {
-        let self_op = self.get_operation().deref(ctx);
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<(), CompilerError>
+    where
+        Self: Sized,
+    {
+        let self_op = op.get_operation().deref(ctx);
         if self_op.regions.len() != 1 {
             return Err(CompilerError::VerificationError {
-                msg: "OneRegion Op must have single region.".to_string(),
+                msg: format!(
+                    "Op {} must have single region.",
+                    op.get_opid().with_ctx(ctx)
+                ),
             });
         }
         Ok(())
@@ -58,6 +79,7 @@ pub trait OneRegionInterface: Op {
 
 /// [Op]s with regions that have a single block.
 pub trait SingleBlockRegionInterface: Op {
+    /// Get the single body block in `region_idx`.
     fn get_body(&self, ctx: &Context, region_idx: usize) -> Ptr<BasicBlock> {
         self.get_operation()
             .deref(ctx)
@@ -68,19 +90,41 @@ pub trait SingleBlockRegionInterface: Op {
             .expect("Expected SingleBlockRegion Op to contain a block")
     }
 
+    /// Insert an operation at the end of the single block in `region_idx`.
     fn append_operation(&self, ctx: &mut Context, op: Ptr<Operation>, region_idx: usize) {
         op.insert_at_back(self.get_body(ctx, region_idx), ctx);
+    }
+
+    /// Checks that the operation has regions with single block.
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<(), CompilerError>
+    where
+        Self: Sized,
+    {
+        let self_op = op.get_operation().deref(ctx);
+        for region in &self_op.regions {
+            if region.deref(ctx).iter(ctx).count() != 1 {
+                return Err(CompilerError::VerificationError {
+                    msg: format!(
+                        "SingleBlockRegion Op {} must have single region.",
+                        self_op.get_opid().with_ctx(ctx)
+                    ),
+                });
+            }
+        }
+        Ok(())
     }
 }
 
 /// [Op] that defines or declares a [symbol](https://mlir.llvm.org/docs/SymbolsAndSymbolTables/#symbol).
 pub trait SymbolOpInterface: Op {
+    // Get the name of the symbol defined by this operation.
     fn get_symbol_name(&self, ctx: &Context) -> String {
         let self_op = self.get_operation().deref(ctx);
         let s_attr = self_op.attributes.get(super::ATTR_KEY_SYM_NAME).unwrap();
         String::from(s_attr.downcast_ref::<StringAttr>().unwrap().clone())
     }
 
+    /// Set a name for the symbol defined by this operation.
     fn set_symbol_name(&self, ctx: &mut Context, name: &str) {
         let name_attr = StringAttr::create(name.to_string());
         let mut self_op = self.get_operation().deref_mut(ctx);
@@ -88,10 +132,56 @@ pub trait SymbolOpInterface: Op {
             .attributes
             .insert(super::ATTR_KEY_SYM_NAME, name_attr);
     }
+
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<(), CompilerError>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
 }
 
 /// An [Op] having exactly one result.
 pub trait OneResultInterface: Op {
-    fn get_result(&self, ctx: &Context) -> Value;
-    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj>;
+    /// Get the single result defined by this Op.
+    fn get_result(&self, ctx: &Context) -> Value {
+        self.get_operation()
+            .deref(ctx)
+            .get_result(0)
+            .unwrap_or_else(|| {
+                panic!(
+                    "{} must have exactly one result",
+                    self.get_opid().with_ctx(ctx)
+                )
+            })
+    }
+
+    // Get the type of the single result defined by this Op.
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        self.get_operation()
+            .deref(ctx)
+            .get_type(0)
+            .unwrap_or_else(|| {
+                panic!(
+                    "{} must have exactly one result",
+                    self.get_opid().with_ctx(ctx)
+                )
+            })
+    }
+
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<(), CompilerError>
+    where
+        Self: Sized,
+    {
+        let op = &*op.get_operation().deref(ctx);
+        if op.get_num_results() != 1 {
+            return Err(CompilerError::VerificationError {
+                msg: format!(
+                    "Expected exactly one result on operation {}",
+                    op.get_opid().with_ctx(ctx)
+                ),
+            });
+        }
+        Ok(())
+    }
 }

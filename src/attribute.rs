@@ -10,12 +10,15 @@
 //! abstracted into interfaces. Interfaces in pliron capture MLIR
 //! functionality of both [Traits](https://mlir.llvm.org/docs/Traits/)
 //! and [Interfaces](https://mlir.llvm.org/docs/Interfaces/).
+//! Interfaces must all implement an associated function named `verify` with
+//! the type [AttrInterfaceVerifier].
 //!
-//! [Attribute]s that implement an interface can choose to annotate
-//! the `impl` with [`#[cast_to]`](https://docs.rs/intertrait/latest/intertrait/#usage).
-//! This will enable an [Attribute] reference to be [cast](attr_cast)
-//! into an interface object reference (or check if it [impls](attr_impls) it).
-//! Without this, the cast will always fail.
+//! [Attribute]s that implement an interface must do so using the
+//! [impl_attr_interface](crate::impl_attr_interface) macro.
+//! This ensures that the interface verifier is automatically called,
+//! and that a `&dyn Attribute` object can be [cast](attr_cast) into an
+//! interface object, (or that it can be checked if the interface
+//! is [implemented](attr_impls)) with ease.
 //!
 //! [AttrObj]s can be downcasted to their concrete types using
 /// [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
@@ -28,6 +31,7 @@ use crate::{
     common_traits::{DisplayWithContext, Verify},
     context::Context,
     dialect::{Dialect, DialectName},
+    error::CompilerError,
     with_context::AttachContext,
 };
 
@@ -46,6 +50,9 @@ pub trait Attribute: DisplayWithContext + Verify + Downcast + CastFrom {
     fn get_attr_id_static() -> AttrId
     where
         Self: Sized;
+
+    /// Verify all interfaces implemented by this attribute.
+    fn verify_interfaces(&self, ctx: &Context) -> Result<(), CompilerError>;
 
     /// Register this attribute's [AttrId] in the dialect it belongs to.
     /// **Warning**: No check is made as to whether this attr is already registered
@@ -146,7 +153,10 @@ impl DisplayWithContext for AttrId {
     }
 }
 
-/// impl [Attribute] for a rust type with boilerplate code.
+/// Every attribute interface must have a function named `verify` with this type.
+pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<(), CompilerError>;
+
+/// impl [Attribute] for a rust type.
 ///
 /// Usage:
 /// ```
@@ -175,17 +185,17 @@ impl DisplayWithContext for AttrId {
 /// #    }
 /// # }
 /// ```
-///
-/// This will generate the following code.
-/// ```ignore
-///     impl Attribute for MyAttr { ... }
-/// ```
 /// **Note**: pre-requisite traits for [Attribute] must already be implemented.
 ///         Additionaly, PartialEq must be implemented by the type.
 #[macro_export]
 macro_rules! impl_attr {
     (   $(#[$outer:meta])*
         $structname: ident, $attr_name: literal, $dialect_name: literal) => {
+        paste::paste!{
+            #[linkme::distributed_slice]
+            pub static [<INTERFACE_VERIFIERS_ $structname:upper>]:
+                [$crate::attribute::AttrInterfaceVerifier] = [..];
+        }
         $(#[$outer])*
         impl $crate::attribute::Attribute for $structname {
             fn eq_attr(&self, other: &dyn Attribute) -> bool {
@@ -204,7 +214,74 @@ macro_rules! impl_attr {
                     dialect: $crate::dialect::DialectName::new($dialect_name),
                 }
             }
+            fn verify_interfaces(&self, ctx: &Context) -> Result<(), CompilerError> {
+                let interface_verifiers = paste::paste!{[<INTERFACE_VERIFIERS_ $structname:upper>]};
+                for verifier in interface_verifiers {
+                    verifier(self, ctx)?;
+                }
+                Ok(())
+            }
         }
         impl $crate::with_context::AttachContext for $structname {}
     }
+}
+
+/// Implement an Attribute Interface for an Attribute.
+/// The interface trait must define a `verify` function with type [AttrInterfaceVerifier].
+///
+/// Usage:
+/// ```
+/// #[derive(PartialEq, Eq)]
+/// struct MyAttr { }
+/// impl_attr!(
+///     /// MyAttr is mine
+///     MyAttr,
+///     "name",
+///     "dialect"
+/// );
+/// trait MyAttrInterface: Attribute {
+///     fn monu(&self);
+///     fn verify(attr: &dyn Attribute, ctx: &Context) -> Result<(), CompilerError>
+///         where
+///         Self: Sized,
+///     {
+///         Ok(())
+///     }
+/// }
+/// impl_attr_interface!(
+///     MyAttrInterface for MyAttr
+///     {
+///         fn monu(&self) { println!("monu"); }
+///     }
+/// );
+/// # use pliron::{
+/// #     impl_attr, with_context::AttachContext, common_traits::DisplayWithContext,
+/// #     context::Context, error::CompilerError, common_traits::Verify,
+/// #     attribute::Attribute, impl_attr_interface
+/// # };
+/// # impl DisplayWithContext for MyAttr {
+/// #    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// #        todo!()
+/// #    }
+/// # }
+///
+/// # impl Verify for MyAttr {
+/// #   fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+/// #        todo!()
+/// #    }
+/// # }
+#[macro_export]
+macro_rules! impl_attr_interface {
+    ($intr_name: ident for $attr_name: ident { $($tt:tt)* }) => {
+        paste::paste!{
+            #[linkme::distributed_slice([<INTERFACE_VERIFIERS_ $attr_name:upper>])]
+            static [<VERIFY_ $intr_name:upper _FOR_ $attr_name:upper>] :
+                $crate::attribute::AttrInterfaceVerifier = <$attr_name as $intr_name>::verify;
+        }
+
+        #[intertrait::cast_to]
+        impl $intr_name for $attr_name {
+            $($tt)*
+        }
+    };
 }

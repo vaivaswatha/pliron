@@ -180,9 +180,7 @@ where
             prev = mark_ref.get_prev();
             match prev {
                 Some(prev) => {
-                    debug_assert!(
-                        prev.deref(ctx).get_next().unwrap() == mark.deref(ctx).get_self_ptr(ctx)
-                    );
+                    debug_assert!(prev.deref(ctx).get_next().unwrap() == mark);
                     prev.deref_mut(ctx).set_next(Some(*self));
                 }
                 None => {

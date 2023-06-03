@@ -432,13 +432,19 @@ impl<T: DefUseParticipant + DefTrait> Verify for Operand<T> {
 
 impl Verify for Operation {
     fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+        for _attr in self.attributes.values() {
+            // TODO.
+            // attr.verify(ctx)?;
+            // attr.verify_interfaces(ctx)?;
+        }
         for opd in &self.operands {
             opd.verify(ctx)?;
         }
         for region in &self.regions {
             region.verify(ctx)?;
         }
-        self.get_op(ctx).verify(ctx)
+        self.get_op(ctx).verify(ctx)?;
+        self.get_op(ctx).verify_interfaces(ctx)
     }
 }
 

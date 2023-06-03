@@ -8,7 +8,7 @@ use crate::{
     context::{Context, Ptr},
     dialect::Dialect,
     error::CompilerError,
-    impl_attr,
+    impl_attr, impl_attr_interface,
     r#type::TypeObj,
     with_context::AttachContext,
 };
@@ -80,12 +80,11 @@ impl From<IntegerAttr> for ApInt {
     }
 }
 
-#[cast_to]
-impl TypedAttrInterface for IntegerAttr {
+impl_attr_interface!(TypedAttrInterface for IntegerAttr {
     fn get_type(&self) -> Ptr<TypeObj> {
         self.ty
     }
-}
+});
 
 /// A dummy implementation until we have a good one.
 #[derive(PartialEq, Clone)]

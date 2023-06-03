@@ -202,7 +202,13 @@ impl DisplayWithContext for TypeObj {
     }
 }
 
-/// impl [Type] for a rust type with boilerplate code.
+impl Verify for TypeObj {
+    fn verify(&self, ctx: &Context) -> Result<(), crate::error::CompilerError> {
+        self.as_ref().verify(ctx)
+    }
+}
+
+/// impl [Type] for a rust type
 ///
 /// Usage:
 /// ```
@@ -230,11 +236,6 @@ impl DisplayWithContext for TypeObj {
 /// #        todo!()
 /// #    }
 /// # }
-/// ```
-///
-/// This will generate the following code.
-/// ```ignore
-///     impl Type for MyType { ... }
 /// ```
 /// **Note**: pre-requisite traits for [Type] must already be implemented.
 ///         Additionaly, Hash and Eq must be implemented by the rust type.

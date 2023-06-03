@@ -6,11 +6,11 @@ use crate::{
     declare_op,
     dialect::Dialect,
     error::CompilerError,
+    impl_op_interface,
     linked_list::ContainsLinkedList,
     op::Op,
     operation::Operation,
     r#type::TypeObj,
-    use_def_lists::Value,
     with_context::AttachContext,
 };
 
@@ -22,8 +22,6 @@ use super::{
     },
     types::FunctionType,
 };
-
-use intertrait::cast_to;
 
 declare_op!(
     /// Represents a module, a top level container operation.
@@ -43,7 +41,6 @@ declare_op!(
     "builtin"
 );
 
-impl AttachContext for ModuleOp {}
 impl DisplayWithContext for ModuleOp {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let region = self.get_region(ctx).with_ctx(ctx).to_string();
@@ -58,8 +55,8 @@ impl DisplayWithContext for ModuleOp {
 }
 
 impl Verify for ModuleOp {
-    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
-        self.verify_one_region(ctx)
+    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+        Ok(())
     }
 }
 
@@ -86,10 +83,9 @@ impl ModuleOp {
     }
 }
 
-impl OneRegionInterface for ModuleOp {}
-impl SingleBlockRegionInterface for ModuleOp {}
-#[cast_to]
-impl SymbolOpInterface for ModuleOp {}
+impl_op_interface!(OneRegionInterface for ModuleOp {});
+impl_op_interface!(SingleBlockRegionInterface for ModuleOp {});
+impl_op_interface!(SymbolOpInterface for ModuleOp {});
 
 declare_op!(
     /// An operation with a name containing a single SSA control-flow-graph region.
@@ -155,11 +151,9 @@ impl FuncOp {
     }
 }
 
-impl OneRegionInterface for FuncOp {}
-#[cast_to]
-impl SymbolOpInterface for FuncOp {}
+impl_op_interface!(OneRegionInterface for FuncOp {});
+impl_op_interface!(SymbolOpInterface for FuncOp {});
 
-impl AttachContext for FuncOp {}
 impl DisplayWithContext for FuncOp {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let region = self.get_region(ctx).with_ctx(ctx).to_string();
@@ -188,7 +182,7 @@ impl Verify for FuncOp {
                 msg: "Incorrect number of results or operands".to_string(),
             });
         }
-        self.verify_one_region(ctx)
+        Ok(())
     }
 }
 
@@ -240,7 +234,6 @@ impl ConstantOp {
     }
 }
 
-impl AttachContext for ConstantOp {}
 impl DisplayWithContext for ConstantOp {
     fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
@@ -275,21 +268,7 @@ impl Verify for ConstantOp {
     }
 }
 
-impl OneResultInterface for ConstantOp {
-    fn get_result(&self, ctx: &Context) -> Value {
-        self.get_operation()
-            .deref(ctx)
-            .get_result(0)
-            .expect("ConstantOp must have one result")
-    }
-
-    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.get_operation()
-            .deref(ctx)
-            .get_type(0)
-            .expect("ConstantOp must have one result")
-    }
-}
+impl_op_interface! (OneResultInterface for ConstantOp {});
 
 pub fn register(ctx: &mut Context, dialect: &mut Dialect) {
     ModuleOp::register(ctx, dialect);
