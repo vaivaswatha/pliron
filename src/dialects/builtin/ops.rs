@@ -183,11 +183,6 @@ impl Verify for FuncOp {
             });
         }
         let op = &*self.get_operation().deref(ctx);
-        if op.get_opid() != Self::get_opid_static() {
-            return Err(CompilerError::VerificationError {
-                msg: "Incorrect OpId".to_string(),
-            });
-        }
         if op.get_num_results() != 0 || op.get_num_operands() != 0 {
             return Err(CompilerError::VerificationError {
                 msg: "Incorrect number of results or operands".to_string(),
@@ -271,11 +266,6 @@ impl Verify for ConstantOp {
             });
         }
         let op = &*self.get_operation().deref(ctx);
-        if op.get_opid() != Self::get_opid_static() {
-            return Err(CompilerError::VerificationError {
-                msg: "Incorrect OpId".to_string(),
-            });
-        }
         if op.get_num_results() != 1 || op.get_num_operands() != 0 {
             return Err(CompilerError::VerificationError {
                 msg: "Incorrect number of results or operands".to_string(),
