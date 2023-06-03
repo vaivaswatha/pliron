@@ -126,6 +126,7 @@ pub fn from_operation(ctx: &Context, op: Ptr<Operation>) -> OpObj {
         .unwrap_or_else(|| panic!("Unregistered Op {}", opid.with_ctx(ctx))))(op)
 }
 
+/// [Op] objects are boxed and stored in the IR.
 pub type OpObj = Box<dyn Op>;
 
 /// Cast reference to an [Op] object to an interface reference.

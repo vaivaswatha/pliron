@@ -1,5 +1,8 @@
+//! Utilities for error handling
+
 use std::fmt::Display;
 
+/// The kinds of errors we have during compilation.
 #[derive(Debug)]
 pub enum CompilerError {
     BadInput { msg: String },

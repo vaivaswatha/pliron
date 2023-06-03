@@ -1,3 +1,5 @@
+//! Utility traits such as [DisplayWithContext], [Verify] etc.
+
 use core::fmt;
 
 use crate::{
