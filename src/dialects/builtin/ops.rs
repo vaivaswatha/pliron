@@ -59,9 +59,7 @@ impl DisplayWithContext for ModuleOp {
 
 impl Verify for ModuleOp {
     fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
-        self.verify_one_region(ctx)?;
-        let op = &*self.op.deref(ctx);
-        op.get_region(0).unwrap().deref(ctx).verify(ctx)
+        self.verify_one_region(ctx)
     }
 }
 
@@ -195,8 +193,7 @@ impl Verify for FuncOp {
                 msg: "Incorrect number of results or operands".to_string(),
             });
         }
-        self.verify_one_region(ctx)?;
-        op.get_region(0).unwrap().deref(ctx).verify(ctx)
+        self.verify_one_region(ctx)
     }
 }
 
