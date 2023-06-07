@@ -14,6 +14,7 @@ pub fn register(ctx: &mut Context) {
     ops::register(ctx, &mut dialect);
     types::register(&mut dialect);
     attributes::register(&mut dialect);
+    dialect.register(ctx);
 }
 
 /// Key for debug info related attributes.
