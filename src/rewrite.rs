@@ -18,7 +18,6 @@ impl PatternApplicator {
         Self { patterns }
     }
 
-    // TODO: use PatternRewriter instead of GenericPatternRewriter
     pub fn match_and_rewrite<R: PatternRewriter>(
         &self,
         ctx: &mut Context,

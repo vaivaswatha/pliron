@@ -252,7 +252,7 @@ mod tests {
                 &self,
                 ctx: &mut Context,
                 op: Ptr<Operation>,
-                rewriter: & mut dyn PatternRewriter,
+                rewriter: &mut dyn PatternRewriter,
             ) -> Result<(), CompilerError> {
                 let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
                 let zero_const = IntegerAttr::create(i64_ty, ApInt::from(0));
