@@ -58,7 +58,7 @@ impl DerefMut for AccumulatingListener {
     }
 }
 
-pub trait PatternRewriter<'a, L: Listener> {
+pub trait PatternRewriter {
     /// Sets the insertion point to the specified operation, which will cause
     /// subsequent insertions to go right before it.
     fn set_insertion_point(&mut self, op: Ptr<Operation>);
@@ -67,18 +67,21 @@ pub trait PatternRewriter<'a, L: Listener> {
     fn get_insertion_point(&self) -> Option<Ptr<Operation>>;
 
     /// Returns the listener for this pattern rewriter.
-    fn get_listener_mut<'b>(&'b mut self) -> Option<&'b mut L>;
+    // fn get_listener_mut<'b>(&mut self) -> Option<&'b mut dyn Listener>;
+
+    /// Invokes the specified function with the listener for this pattern rewriter.
+    fn invoke_listener(&mut self, f: Box<dyn Fn(&mut dyn Listener)>);
 
     // /// Sets the listener for this pattern rewriter.
     // fn set_listener(&mut self, listener: L);
 
     /// Insert an operation at the current insertion point.
-    fn insert(&'a mut self, ctx: &Context, op: Ptr<Operation>) -> Result<(), CompilerError> {
+    fn insert(&mut self, ctx: &Context, op: Ptr<Operation>) -> Result<(), CompilerError> {
         if let Some(insertion_point) = &self.get_insertion_point() {
             op.insert_before(ctx, *insertion_point);
-            if let Some(mut listener) = self.get_listener_mut() {
+            self.invoke_listener(Box::new(move |listener| {
                 listener.notify_operation_inserted(op);
-            }
+            }));
         } else {
             return Err(CompilerError::VerificationError {
                 msg: "OpBuilder::create failed. No insertion point set for pattern rewriter"
@@ -92,7 +95,7 @@ pub trait PatternRewriter<'a, L: Listener> {
     /// values. The number of provided values must match the number of results of
     /// the operation.
     fn replace_op_with(
-        &'a mut self,
+        &mut self,
         ctx: &mut Context,
         op: Ptr<Operation>,
         new_op: Ptr<Operation>,
@@ -116,22 +119,22 @@ pub trait PatternRewriter<'a, L: Listener> {
 
     /// This method erases an operation that is known to have no uses. The uses of
     /// the given operation *must* be known to be dead.
-    fn erase_op(&'a mut self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), CompilerError> {
-        if let Some(listener) = self.get_listener_mut() {
+    fn erase_op(&mut self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), CompilerError> {
+        self.invoke_listener(Box::new(move |listener| {
             listener.notify_operation_removed(op);
-        }
+        }));
         Operation::erase(op, ctx);
         Ok(())
     }
 }
 
-pub struct GenericPatternRewriter<L: Listener> {
+pub struct GenericPatternRewriter {
     insertion_point: Option<Ptr<Operation>>,
-    listener: Option<L>,
+    listener: Option<Box<dyn Listener>>,
 }
 
-impl<L: Listener> GenericPatternRewriter<L> {
-    pub fn new(listener: Option<L>) -> Self {
+impl GenericPatternRewriter {
+    pub fn new(listener: Option<Box<dyn Listener>>) -> Self {
         Self {
             insertion_point: None,
             listener,
@@ -139,7 +142,7 @@ impl<L: Listener> GenericPatternRewriter<L> {
     }
 }
 
-impl<'a, L: Listener> PatternRewriter<'a, L> for GenericPatternRewriter<L> {
+impl PatternRewriter for GenericPatternRewriter {
     fn set_insertion_point(&mut self, op: Ptr<Operation>) {
         self.insertion_point = Some(op);
     }
@@ -148,8 +151,10 @@ impl<'a, L: Listener> PatternRewriter<'a, L> for GenericPatternRewriter<L> {
         self.insertion_point
     }
 
-    fn get_listener_mut<'b>(&'b mut self) -> Option<&'b mut L> {
-        todo!()
+    fn invoke_listener(&mut self, f: Box<dyn Fn(&mut dyn Listener)>) {
+        if let Some(listener) = &mut self.listener {
+            f(listener.as_mut());
+        }
     }
 }
 
@@ -179,7 +184,7 @@ impl MatchResult {
 ///   * Single-step RewritePattern with "matchAndRewrite"
 ///     - By overloading the "matchAndRewrite" function, the user can perform
 ///       the rewrite in the same call as the match.
-pub trait OpRewritePattern<'a, L: Listener> {
+pub trait OpRewritePattern {
     fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> MatchResult;
 
     /// Rewrite the IR rooted at the specified operation with the result of
@@ -190,7 +195,7 @@ pub trait OpRewritePattern<'a, L: Listener> {
         &self,
         ctx: &mut Context,
         op: Ptr<Operation>,
-        rewriter: &'a mut dyn PatternRewriter<L>,
+        rewriter: &mut dyn PatternRewriter,
     ) -> Result<(), CompilerError>;
 
     /// Attempt to match against code rooted at the specified operation.
@@ -199,7 +204,7 @@ pub trait OpRewritePattern<'a, L: Listener> {
         &self,
         ctx: &mut Context,
         op: Ptr<Operation>,
-        rewriter: &'a mut dyn PatternRewriter<L>,
+        rewriter: &mut dyn PatternRewriter,
     ) -> Result<MatchResult, CompilerError> {
         let res = self.match_op(ctx, op);
         match res {
@@ -229,7 +234,7 @@ mod tests {
         #[derive(Debug, Default)]
         pub struct ConstantOpLowering {}
 
-        impl<'a, L: Listener> OpRewritePattern<'a, L> for ConstantOpLowering {
+        impl OpRewritePattern for ConstantOpLowering {
             fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> MatchResult {
                 if op
                     .deref(ctx)
@@ -247,7 +252,7 @@ mod tests {
                 &self,
                 ctx: &mut Context,
                 op: Ptr<Operation>,
-                rewriter: &'a mut dyn PatternRewriter<L>,
+                rewriter: & mut dyn PatternRewriter,
             ) -> Result<(), CompilerError> {
                 let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
                 let zero_const = IntegerAttr::create(i64_ty, ApInt::from(0));
