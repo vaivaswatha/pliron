@@ -70,7 +70,7 @@ pub trait PatternRewriter {
     // fn get_listener_mut<'b>(&mut self) -> Option<&'b mut dyn Listener>;
 
     /// Invokes the specified function with the listener for this pattern rewriter.
-    fn invoke_listener(&mut self, f: Box<dyn Fn(&mut dyn Listener)>);
+    fn invoke_listener(&mut self, f: &dyn Fn(&mut dyn Listener));
 
     // /// Sets the listener for this pattern rewriter.
     // fn set_listener(&mut self, listener: L);
@@ -79,9 +79,9 @@ pub trait PatternRewriter {
     fn insert(&mut self, ctx: &Context, op: Ptr<Operation>) -> Result<(), CompilerError> {
         if let Some(insertion_point) = &self.get_insertion_point() {
             op.insert_before(ctx, *insertion_point);
-            self.invoke_listener(Box::new(move |listener| {
+            self.invoke_listener(&|listener| {
                 listener.notify_operation_inserted(op);
-            }));
+            });
         } else {
             return Err(CompilerError::VerificationError {
                 msg: "OpBuilder::create failed. No insertion point set for pattern rewriter"
@@ -120,9 +120,9 @@ pub trait PatternRewriter {
     /// This method erases an operation that is known to have no uses. The uses of
     /// the given operation *must* be known to be dead.
     fn erase_op(&mut self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), CompilerError> {
-        self.invoke_listener(Box::new(move |listener| {
+        self.invoke_listener(&|listener| {
             listener.notify_operation_removed(op);
-        }));
+        });
         Operation::erase(op, ctx);
         Ok(())
     }
@@ -151,7 +151,7 @@ impl PatternRewriter for GenericPatternRewriter {
         self.insertion_point
     }
 
-    fn invoke_listener(&mut self, f: Box<dyn Fn(&mut dyn Listener)>) {
+    fn invoke_listener(&mut self, f: &dyn Fn(&mut dyn Listener)) {
         if let Some(listener) = &mut self.listener {
             f(listener.as_mut());
         }
