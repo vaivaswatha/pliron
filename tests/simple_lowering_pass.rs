@@ -55,9 +55,8 @@ impl OpRewritePattern for TestLoweringRewritePattern {
     ) -> Result<(), CompilerError> {
         let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
         let one_const = IntegerAttr::create(i64_ty, ApInt::from(1));
-        let const_op = ConstantOp::new_unlinked(ctx, one_const);
-        rewriter.insert(ctx, const_op.get_operation())?;
-        rewriter.erase_op(ctx, op)?;
+        let new_op = ConstantOp::new_unlinked(ctx, one_const);
+        rewriter.replace_op_with(ctx, op, new_op.get_operation())?;
         Ok(())
     }
 }

@@ -7,6 +7,7 @@ use crate::debug_info::get_operation_result_name;
 use crate::debug_info::set_operation_result_name;
 use crate::error::CompilerError;
 use crate::operation::Operation;
+use crate::use_def_lists::Value;
 
 pub trait Listener {
     /// Notification handler for when an operation is inserted into the builder.
@@ -96,15 +97,17 @@ pub trait PatternRewriter {
         if let Some(op_result_name) = op_result_name {
             set_operation_result_name(ctx, new_op, 0, op_result_name);
         }
-        new_op.insert_after(ctx, new_op);
-        {
-            let new_op = new_op.deref(ctx);
-            let opop = op.deref(ctx);
-            for i in 0..opop.get_num_results() {
-                let op_val = opop.get_result(i).unwrap();
-                op_val.replace_some_uses_with(ctx, |_, _| true, &new_op.get_result(i).unwrap());
-            }
+        let old_val_to_new_val_map: Vec<(Value, Value)> = op
+            .deref(ctx)
+            .results
+            .iter()
+            .map(Value::from)
+            .zip(new_op.deref(ctx).results.iter().map(Value::from))
+            .collect::<Vec<_>>();
+        for (old_val, new_val) in old_val_to_new_val_map {
+            old_val.replace_some_uses_with(ctx, |_, _| true, &new_val);
         }
+        new_op.insert_after(ctx, op);
         self.erase_op(ctx, op)?;
         Ok(())
     }
