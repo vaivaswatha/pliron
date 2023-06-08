@@ -7,6 +7,7 @@ use pliron::debug_info::set_operation_result_name;
 use pliron::dialect::Dialect;
 use pliron::dialect::DialectName;
 use pliron::dialect_conversion::apply_partial_conversion;
+use pliron::dialect_conversion::ConversionTarget;
 use pliron::dialects;
 use pliron::dialects::builtin::attributes::IntegerAttr;
 use pliron::dialects::builtin::op_interfaces::OneResultInterface;
@@ -20,12 +21,11 @@ use pliron::dialects::llvm::ops::ReturnOp;
 use pliron::error::CompilerError;
 use pliron::op::Op;
 use pliron::operation::Operation;
-use pliron::pass::ConversionTarget;
 use pliron::pass::Pass;
 use pliron::pass::PassManager;
 use pliron::pattern_match::MatchResult;
-use pliron::pattern_match::OpRewritePattern;
 use pliron::pattern_match::PatternRewriter;
+use pliron::pattern_match::RewritePattern;
 use pliron::rewrite::RewritePatternSet;
 use pliron::with_context::AttachContext;
 
@@ -33,7 +33,7 @@ use pliron::with_context::AttachContext;
 #[derive(Debug, Default)]
 pub struct TestLoweringRewritePattern {}
 
-impl OpRewritePattern for TestLoweringRewritePattern {
+impl RewritePattern for TestLoweringRewritePattern {
     fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> MatchResult {
         if op
             .deref(ctx)

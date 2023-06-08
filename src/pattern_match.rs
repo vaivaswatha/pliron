@@ -1,6 +1,3 @@
-use std::ops::Deref;
-use std::ops::DerefMut;
-
 use crate::context::Context;
 use crate::context::Ptr;
 use crate::debug_info::get_operation_result_name;
@@ -9,6 +6,7 @@ use crate::error::CompilerError;
 use crate::operation::Operation;
 use crate::use_def_lists::Value;
 
+/// Listener to be invoked when PatternRewriter make changes
 pub trait Listener {
     /// Notification handler for when an operation is inserted into the builder.
     /// `op` is the operation that was inserted.
@@ -37,20 +35,11 @@ impl Listener for AccumulatingListener {
     }
 }
 
-impl Deref for AccumulatingListener {
-    type Target = dyn Listener;
-
-    fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-impl DerefMut for AccumulatingListener {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
-}
-
+/// This class coordinates the application of a rewrite on a set of IR,
+/// providing a way for clients to track mutations and create new operations.
+/// This class serves as a common API for IR mutation between pattern rewrites
+/// and non-pattern rewrites, and facilitates the development of shared
+/// IR transformation utilities.
 pub trait PatternRewriter {
     /// Sets the insertion point to the specified operation, which will cause
     /// subsequent insertions to go right before it.
@@ -59,10 +48,7 @@ pub trait PatternRewriter {
     /// Returns the current insertion point, or None if there is no insertion point.
     fn get_insertion_point(&self) -> Option<Ptr<Operation>>;
 
-    /// Returns the listener for this pattern rewriter.
-    // fn get_listener_mut<'b>(&mut self) -> Option<&'b mut dyn Listener>;
-
-    /// Invokes the specified function with the listener for this pattern rewriter.
+    /// Invokes the closure with the listener for this pattern rewriter.
     fn invoke_listener(&mut self, f: &dyn Fn(&mut dyn Listener));
 
     // /// Sets the listener for this pattern rewriter.
@@ -153,6 +139,7 @@ impl PatternRewriter for GenericPatternRewriter {
     }
 }
 
+/// The result of the pattern match.
 pub enum MatchResult {
     /// The pattern match failed.
     Fail,
@@ -169,8 +156,6 @@ impl MatchResult {
     }
 }
 
-// Designed after MLIR's RewritePattern:
-
 /// RewritePattern is a trait for all DAG to DAG replacements.
 /// There are two possible usages of this trait:
 ///   * Multi-step RewritePattern with "match" and "rewrite"
@@ -179,7 +164,8 @@ impl MatchResult {
 ///   * Single-step RewritePattern with "matchAndRewrite"
 ///     - By overloading the "matchAndRewrite" function, the user can perform
 ///       the rewrite in the same call as the match.
-pub trait OpRewritePattern {
+pub trait RewritePattern {
+    /// Attempt to match against code rooted at the specified operation,
     fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> MatchResult;
 
     /// Rewrite the IR rooted at the specified operation with the result of
@@ -229,7 +215,7 @@ mod tests {
         #[derive(Debug, Default)]
         pub struct ConstantOpLowering {}
 
-        impl OpRewritePattern for ConstantOpLowering {
+        impl RewritePattern for ConstantOpLowering {
             fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> MatchResult {
                 if op
                     .deref(ctx)
