@@ -20,18 +20,10 @@ pub trait Listener {
     // TODO:: add more notifications (in-place modifications, replaced operations, etc.)
 }
 
+#[derive(Default)]
 pub struct AccumulatingListener {
     pub inserted_ops: Vec<Ptr<Operation>>,
     pub removed_ops: Vec<Ptr<Operation>>,
-}
-
-impl AccumulatingListener {
-    pub fn new() -> Self {
-        Self {
-            inserted_ops: vec![],
-            removed_ops: vec![],
-        }
-    }
 }
 
 impl Listener for AccumulatingListener {

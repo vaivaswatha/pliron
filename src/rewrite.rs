@@ -36,16 +36,13 @@ impl PatternApplicator {
     }
 }
 
+#[derive(Default)]
 pub struct RewritePatternSet {
     /// The set of patterns to match against.
     pub patterns: Vec<Box<dyn OpRewritePattern>>,
 }
 
-impl<'a> RewritePatternSet {
-    pub fn new() -> Self {
-        Self { patterns: vec![] }
-    }
-
+impl RewritePatternSet {
     pub fn add(&mut self, pattern: Box<dyn OpRewritePattern>) {
         self.patterns.push(pattern);
     }

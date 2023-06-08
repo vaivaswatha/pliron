@@ -22,6 +22,9 @@ use crate::{
     with_context::AttachContext,
 };
 
+mod visitor;
+pub use visitor::*;
+
 /// Represents the result of an [Operation].
 pub(crate) struct OpResult {
     /// The def containing the list of this result's uses.

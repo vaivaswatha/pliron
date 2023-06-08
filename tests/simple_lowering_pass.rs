@@ -77,7 +77,7 @@ impl Pass for TestLoweringPass {
         let mut target = ConversionTarget::new();
         target.add_illegal_dialect(Dialect::get_ref(ctx, DialectName::new("builtin")).unwrap());
         target.add_legal_dialect(Dialect::get_ref(ctx, DialectName::new("llvm")).unwrap());
-        let mut patterns = RewritePatternSet::new();
+        let mut patterns = RewritePatternSet::default();
         patterns.add(Box::<TestLoweringRewritePattern>::default());
         apply_partial_conversion(ctx, op, &target, patterns)?;
         Ok(())
