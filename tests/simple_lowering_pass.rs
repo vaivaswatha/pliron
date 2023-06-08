@@ -29,7 +29,7 @@ use pliron::pattern_match::PatternRewriter;
 use pliron::rewrite::RewritePatternSet;
 use pliron::with_context::AttachContext;
 
-// since there is not much ops in llvm dialect so far, let's swap all the constants with 1
+// since there is not much ops in llvm dialect so far, let's swap all the constants with constant of 1
 #[derive(Debug, Default)]
 pub struct TestLoweringRewritePattern {}
 
@@ -121,6 +121,7 @@ fn create_mod_op(
 
 #[test]
 fn run_pass() {
+    // since there is not much ops in llvm dialect so far, let's swap all the constants with constant of 1
     let mut ctx = setup_context_dialects();
     let (module, _, _, _) = create_mod_op(&mut ctx).unwrap();
     // before the transformation

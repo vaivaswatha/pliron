@@ -1,7 +1,6 @@
 use crate::context::Context;
 use crate::context::Ptr;
 use crate::error::CompilerError;
-use crate::operation::walk;
 use crate::operation::Operation;
 use crate::operation::WalkOrder;
 use crate::operation::WalkResut;
@@ -18,7 +17,7 @@ pub fn apply_partial_conversion(
     pattern_set: RewritePatternSet,
 ) -> Result<(), CompilerError> {
     let mut to_convert: Vec<Ptr<Operation>> = vec![];
-    walk(ctx, op, WalkOrder::PostOrder, &mut |op| {
+    op.walk(ctx, WalkOrder::PostOrder, &mut |op| {
         to_convert.push(op);
         // TODO: Don't check this operation's children for conversion if the operation is recursively legal.
         WalkResut::Advance
