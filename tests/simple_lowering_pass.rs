@@ -17,34 +17,29 @@ use pliron::dialects::builtin::ops::ModuleOp;
 use pliron::dialects::builtin::types::FunctionType;
 use pliron::dialects::builtin::types::IntegerType;
 use pliron::dialects::builtin::types::Signedness;
+use pliron::dialects::llvm;
 use pliron::dialects::llvm::ops::ReturnOp;
 use pliron::error::CompilerError;
 use pliron::op::Op;
 use pliron::operation::Operation;
 use pliron::pass::Pass;
 use pliron::pass::PassManager;
-use pliron::pattern_match::MatchResult;
 use pliron::pattern_match::PatternRewriter;
 use pliron::pattern_match::RewritePattern;
 use pliron::rewrite::RewritePatternSet;
 use pliron::with_context::AttachContext;
 
-// since there is not much ops in llvm dialect so far, let's swap all the constants with constant of 1
+/// since there is not much ops  so far, let's remove all the return ops
 #[derive(Debug, Default)]
 pub struct TestLoweringRewritePattern {}
 
 impl RewritePattern for TestLoweringRewritePattern {
-    fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> MatchResult {
-        if op
+    fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> Result<bool, anyhow::Error> {
+        Ok(op
             .deref(ctx)
             .get_op(ctx)
-            .downcast_ref::<ConstantOp>()
-            .is_some()
-        {
-            MatchResult::Success
-        } else {
-            MatchResult::Fail
-        }
+            .downcast_ref::<llvm::ops::ReturnOp>()
+            .is_some())
     }
 
     fn rewrite(
@@ -52,11 +47,8 @@ impl RewritePattern for TestLoweringRewritePattern {
         ctx: &mut Context,
         op: Ptr<Operation>,
         rewriter: &mut dyn PatternRewriter,
-    ) -> Result<(), CompilerError> {
-        let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
-        let one_const = IntegerAttr::create(i64_ty, ApInt::from(1));
-        let new_op = ConstantOp::new_unlinked(ctx, one_const);
-        rewriter.replace_op_with(ctx, op, new_op.get_operation())?;
+    ) -> Result<(), anyhow::Error> {
+        rewriter.erase_op(ctx, op)?;
         Ok(())
     }
 }
@@ -73,12 +65,12 @@ impl Pass for TestLoweringPass {
         ctx: &mut Context,
         op: Ptr<Operation>,
     ) -> Result<(), CompilerError> {
-        let mut target = ConversionTarget::new();
-        target.add_illegal_dialect(Dialect::get_ref(ctx, DialectName::new("builtin")).unwrap());
-        target.add_legal_dialect(Dialect::get_ref(ctx, DialectName::new("llvm")).unwrap());
+        let mut target = ConversionTarget::default();
+        target.add_illegal_dialect(Dialect::get_ref(ctx, DialectName::new("llvm")).unwrap());
+        target.add_legal_dialect(Dialect::get_ref(ctx, DialectName::new("builtin")).unwrap());
         let mut patterns = RewritePatternSet::default();
         patterns.add(Box::<TestLoweringRewritePattern>::default());
-        apply_partial_conversion(ctx, op, &target, patterns)?;
+        apply_partial_conversion(ctx, op, target, patterns)?;
         Ok(())
     }
 }
@@ -121,7 +113,7 @@ fn create_mod_op(
 
 #[test]
 fn run_pass() {
-    // since there is not much ops in llvm dialect so far, let's swap all the constants with constant of 1
+    // since there is not much ops  so far, let's remove all the return ops
     let mut ctx = setup_context_dialects();
     let (module, _, _, _) = create_mod_op(&mut ctx).unwrap();
     // before the transformation
@@ -144,8 +136,7 @@ fn run_pass() {
           block_0_0():
             builtin.func @foo() -> (si64,) {
               entry():
-                c0 = builtin.constant 0x1: si64
-                llvm.return c0
+                c0 = builtin.constant 0x0: si64
             }
         }"#]]
     .assert_eq(&module.with_ctx(&ctx).to_string());

@@ -1,8 +1,9 @@
+use thiserror::Error;
+
 use crate::context::Context;
 use crate::context::Ptr;
 use crate::debug_info::get_operation_result_name;
 use crate::debug_info::set_operation_result_name;
-use crate::error::CompilerError;
 use crate::operation::Operation;
 use crate::use_def_lists::Value;
 
@@ -35,6 +36,12 @@ impl Listener for AccumulatingListener {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum PatternRewriterError {
+    #[error("Pattern match failed: {0}")]
+    PatternFailed(#[from] anyhow::Error),
+}
+
 /// This class coordinates the application of a rewrite on a set of IR,
 /// providing a way for clients to track mutations and create new operations.
 /// This class serves as a common API for IR mutation between pattern rewrites
@@ -55,18 +62,12 @@ pub trait PatternRewriter {
     // fn set_listener(&mut self, listener: L);
 
     /// Insert an operation at the current insertion point.
-    fn insert(&mut self, ctx: &Context, op: Ptr<Operation>) -> Result<(), CompilerError> {
-        if let Some(insertion_point) = &self.get_insertion_point() {
-            op.insert_before(ctx, *insertion_point);
-            self.invoke_listener(&|listener| {
-                listener.notify_operation_inserted(op);
-            });
-        } else {
-            return Err(CompilerError::VerificationError {
-                msg: "OpBuilder::create failed. No insertion point set for pattern rewriter"
-                    .to_string(),
-            });
-        };
+    fn insert(&mut self, ctx: &Context, op: Ptr<Operation>) -> Result<(), PatternRewriterError> {
+        let insertion_point = self.get_insertion_point().unwrap();
+        op.insert_before(ctx, insertion_point);
+        self.invoke_listener(&|listener| {
+            listener.notify_operation_inserted(op);
+        });
         Ok(())
     }
 
@@ -78,7 +79,7 @@ pub trait PatternRewriter {
         ctx: &mut Context,
         op: Ptr<Operation>,
         new_op: Ptr<Operation>,
-    ) -> Result<(), CompilerError> {
+    ) -> Result<(), PatternRewriterError> {
         let op_result_name = get_operation_result_name(ctx, op, 0);
         if let Some(op_result_name) = op_result_name {
             set_operation_result_name(ctx, new_op, 0, op_result_name);
@@ -100,7 +101,11 @@ pub trait PatternRewriter {
 
     /// This method erases an operation that is known to have no uses. The uses of
     /// the given operation *must* be known to be dead.
-    fn erase_op(&mut self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), CompilerError> {
+    fn erase_op(
+        &mut self,
+        ctx: &mut Context,
+        op: Ptr<Operation>,
+    ) -> Result<(), PatternRewriterError> {
         self.invoke_listener(&|listener| {
             listener.notify_operation_removed(op);
         });
@@ -139,23 +144,6 @@ impl PatternRewriter for GenericPatternRewriter {
     }
 }
 
-/// The result of the pattern match.
-pub enum MatchResult {
-    /// The pattern match failed.
-    Fail,
-    /// The pattern match succeeded.
-    Success,
-}
-
-impl MatchResult {
-    pub fn is_success(&self) -> bool {
-        match self {
-            MatchResult::Success => true,
-            MatchResult::Fail => false,
-        }
-    }
-}
-
 /// RewritePattern is a trait for all DAG to DAG replacements.
 /// There are two possible usages of this trait:
 ///   * Multi-step RewritePattern with "match" and "rewrite"
@@ -166,7 +154,7 @@ impl MatchResult {
 ///       the rewrite in the same call as the match.
 pub trait RewritePattern {
     /// Attempt to match against code rooted at the specified operation,
-    fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> MatchResult;
+    fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> Result<bool, anyhow::Error>;
 
     /// Rewrite the IR rooted at the specified operation with the result of
     /// this pattern, generating any new operations with the specified
@@ -177,7 +165,7 @@ pub trait RewritePattern {
         ctx: &mut Context,
         op: Ptr<Operation>,
         rewriter: &mut dyn PatternRewriter,
-    ) -> Result<(), CompilerError>;
+    ) -> Result<(), anyhow::Error>;
 
     /// Attempt to match against code rooted at the specified operation.
     /// If successful, this function will automatically perform the rewrite.
@@ -186,15 +174,13 @@ pub trait RewritePattern {
         ctx: &mut Context,
         op: Ptr<Operation>,
         rewriter: &mut dyn PatternRewriter,
-    ) -> Result<MatchResult, CompilerError> {
-        let res = self.match_op(ctx, op);
-        match res {
-            MatchResult::Fail => (),
-            MatchResult::Success => {
-                self.rewrite(ctx, op, rewriter)?;
-            }
-        };
-        Ok(res)
+    ) -> Result<bool, anyhow::Error> {
+        if self.match_op(ctx, op)? {
+            self.rewrite(ctx, op, rewriter)?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 
@@ -216,17 +202,12 @@ mod tests {
         pub struct ConstantOpLowering {}
 
         impl RewritePattern for ConstantOpLowering {
-            fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> MatchResult {
-                if op
+            fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> Result<bool, anyhow::Error> {
+                Ok(op
                     .deref(ctx)
                     .get_op(ctx)
                     .downcast_ref::<ConstantOp>()
-                    .is_some()
-                {
-                    MatchResult::Success
-                } else {
-                    MatchResult::Fail
-                }
+                    .is_some())
             }
 
             fn rewrite(
@@ -234,7 +215,7 @@ mod tests {
                 ctx: &mut Context,
                 op: Ptr<Operation>,
                 rewriter: &mut dyn PatternRewriter,
-            ) -> Result<(), CompilerError> {
+            ) -> Result<(), anyhow::Error> {
                 let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
                 let zero_const = IntegerAttr::create(i64_ty, ApInt::from(0));
                 let const_op = ConstantOp::new_unlinked(ctx, zero_const);

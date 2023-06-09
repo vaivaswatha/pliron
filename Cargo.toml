@@ -25,6 +25,8 @@ indent = "0.1.1"
 linkme = "0.2"
 paste = "1.0"
 inventory = "0.3"
+thiserror = "1.0.24"
+anyhow = "1.0.42"
 
 [dev-dependencies]
 expect-test = "1.4.0"
