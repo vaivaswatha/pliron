@@ -3,6 +3,8 @@
 //!
 //! See MLIR's [Op](https://mlir.llvm.org/docs/Tutorials/Toy/Ch-2/#op-vs-operation-using-mlir-operations).
 //!
+//! New [Op]s can be easily declared using the [declare_op](crate::declare_op) macro.
+//!
 //! Common semantics, API and behaviour of [Op]s are
 //! abstracted into Op interfaces. Interfaces in pliron capture MLIR
 //! functionality of both [Traits](https://mlir.llvm.org/docs/Traits/)

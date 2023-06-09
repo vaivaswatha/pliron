@@ -6,6 +6,8 @@
 //! Attribute objects are heavy, boxed, and not wrapped with [Ptr](crate::context::Ptr).
 //! They may or may not be clonable. See [clone].
 //!
+//! The [impl_attr](crate::impl_attr) macro can be used to implement [Attribute] for a rust type.
+//!
 //! Common semantics, API and behaviour of [Attribute]s are
 //! abstracted into interfaces. Interfaces in pliron capture MLIR
 //! functionality of both [Traits](https://mlir.llvm.org/docs/Traits/)

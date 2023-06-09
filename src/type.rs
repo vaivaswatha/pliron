@@ -5,6 +5,8 @@
 //! and there are no restrictions on the abstractions they represent.
 //!
 //! See [MLIR Types](https://mlir.llvm.org/docs/DefiningDialects/AttributesAndTypes/#types)
+//!
+//! The [impl_type](crate::impl_type) macro can be used to implement [Type] for a rust type.
 
 use crate::common_traits::{DisplayWithContext, Verify};
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
