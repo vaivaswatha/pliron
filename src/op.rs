@@ -174,8 +174,15 @@ macro_rules! declare_op {
     (   $(#[$outer:meta])*
         $structname: ident, $op_name: literal, $dialect_name: literal) => {
         paste::paste!{
-            #[linkme::distributed_slice]
-            pub static [<INTERFACE_VERIFIERS_ $structname:upper>]: [$crate::op::OpInterfaceVerifier] = [..];
+            #[allow(non_camel_case_types)]
+            pub struct [<OpInterfaceVerifier_ $structname>](pub $crate::op::OpInterfaceVerifier);
+            impl $structname {
+                pub const fn build_interface_verifier(verifier: $crate::op::OpInterfaceVerifier) ->
+                [<OpInterfaceVerifier_ $structname>] {
+                    [<OpInterfaceVerifier_ $structname>](verifier)
+                }
+            }
+            inventory::collect!([<OpInterfaceVerifier_ $structname>]);
         }
         #[derive(Clone, Copy)]
         $(#[$outer])*
@@ -201,9 +208,11 @@ macro_rules! declare_op {
             }
 
             fn verify_interfaces(&self, ctx: &Context) -> Result<(), CompilerError> {
-                let interface_verifiers = paste::paste!{[<INTERFACE_VERIFIERS_ $structname:upper>]};
+                let interface_verifiers = paste::paste!{
+                    inventory::iter::<[<OpInterfaceVerifier_ $structname>]>
+                };
                 for verifier in interface_verifiers {
-                    verifier(self, ctx)?;
+                    (verifier.0)(self, ctx)?;
                 }
                 Ok(())
             }
@@ -256,11 +265,11 @@ macro_rules! declare_op {
 /// # }
 #[macro_export]
 macro_rules! impl_op_interface {
-    ($intr_name: ident for $op_name: ident { $($tt:tt)* }) => {
+    ($intr_name:ident for $op_name:path { $($tt:tt)* }) => {
         paste::paste!{
-            #[linkme::distributed_slice([<INTERFACE_VERIFIERS_ $op_name:upper>])]
-            static [<VERIFY_ $intr_name:upper _FOR_ $op_name:upper>] :
-                $crate::op::OpInterfaceVerifier = <$op_name as $intr_name>::verify;
+            inventory::submit! {
+                $op_name::build_interface_verifier(<$op_name as $intr_name>::verify)
+            }
         }
 
         #[intertrait::cast_to]

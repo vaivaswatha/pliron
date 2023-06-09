@@ -39,7 +39,7 @@ use std::ops::Deref;
 ///   1. It manually implements Hash, ignoring these mutable fields.
 ///   2. A proper distinguisher content (such as a string), that is part
 ///      of the hash, is used so that uniquing still works.
-pub trait Type: DisplayWithContext + Verify + Downcast {
+pub trait Type: DisplayWithContext + Verify + Downcast + Sync {
     /// Compute and get the hash for this instance of Self.
     /// Hash collisions can be a possibility.
     fn hash_type(&self) -> TypeValueHash;

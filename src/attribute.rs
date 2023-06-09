@@ -38,7 +38,7 @@ use crate::{
 /// Basic functionality that every attribute in the IR must implement.
 ///
 /// See [module](crate::attribute) documentation for more information.
-pub trait Attribute: DisplayWithContext + Verify + Downcast + CastFrom {
+pub trait Attribute: DisplayWithContext + Verify + Downcast + CastFrom + Sync {
     /// Is self equal to an other Attribute?
     fn eq_attr(&self, other: &dyn Attribute) -> bool;
 
@@ -192,9 +192,15 @@ macro_rules! impl_attr {
     (   $(#[$outer:meta])*
         $structname: ident, $attr_name: literal, $dialect_name: literal) => {
         paste::paste!{
-            #[linkme::distributed_slice]
-            pub static [<INTERFACE_VERIFIERS_ $structname:upper>]:
-                [$crate::attribute::AttrInterfaceVerifier] = [..];
+            #[allow(non_camel_case_types)]
+            pub struct [<AttrInterfaceVerifier_ $structname>](pub $crate::attribute::AttrInterfaceVerifier);
+            impl $structname {
+                pub const fn build_interface_verifier(verifier: $crate::attribute::AttrInterfaceVerifier) ->
+                [<AttrInterfaceVerifier_ $structname>] {
+                    [<AttrInterfaceVerifier_ $structname>](verifier)
+                }
+            }
+            inventory::collect!([<AttrInterfaceVerifier_ $structname>]);
         }
         $(#[$outer])*
         impl $crate::attribute::Attribute for $structname {
@@ -215,9 +221,11 @@ macro_rules! impl_attr {
                 }
             }
             fn verify_interfaces(&self, ctx: &Context) -> Result<(), CompilerError> {
-                let interface_verifiers = paste::paste!{[<INTERFACE_VERIFIERS_ $structname:upper>]};
+                let interface_verifiers = paste::paste!{
+                    inventory::iter::<[<AttrInterfaceVerifier_ $structname>]>
+                };
                 for verifier in interface_verifiers {
-                    verifier(self, ctx)?;
+                    (verifier.0)(self, ctx)?;
                 }
                 Ok(())
             }
@@ -272,11 +280,11 @@ macro_rules! impl_attr {
 /// # }
 #[macro_export]
 macro_rules! impl_attr_interface {
-    ($intr_name: ident for $attr_name: ident { $($tt:tt)* }) => {
+    ($intr_name:ident for $attr_name:path { $($tt:tt)* }) => {
         paste::paste!{
-            #[linkme::distributed_slice([<INTERFACE_VERIFIERS_ $attr_name:upper>])]
-            static [<VERIFY_ $intr_name:upper _FOR_ $attr_name:upper>] :
-                $crate::attribute::AttrInterfaceVerifier = <$attr_name as $intr_name>::verify;
+            inventory::submit! {
+                $attr_name::build_interface_verifier(<$attr_name as $intr_name>::verify)
+            }
         }
 
         #[intertrait::cast_to]
