@@ -35,9 +35,5 @@ impl PassManager {
 pub trait Pass {
     fn name(&self) -> &str;
 
-    fn run_on_operation(
-        &mut self,
-        ctx: &mut Context,
-        op: Ptr<Operation>,
-    ) -> Result<(), CompilerError>;
+    fn run_on_operation(&self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), CompilerError>;
 }
