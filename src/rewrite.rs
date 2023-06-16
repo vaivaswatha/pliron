@@ -16,19 +16,20 @@ impl PatternApplicator {
     }
 
     /// Attempt to match and rewrite the given op with any pattern
+    #[must_use]
     pub fn match_and_rewrite(
         &self,
         ctx: &mut Context,
         op: Ptr<Operation>,
         rewriter: &mut dyn PatternRewriter,
-    ) -> Result<(), PatternRewriterError> {
+    ) -> Result<bool, PatternRewriterError> {
         for pattern in self.patterns.patterns.iter() {
             rewriter.set_insertion_point(op);
             if pattern.match_and_rewrite(ctx, op, rewriter)? {
-                break;
+                return Ok(true);
             }
         }
-        Ok(())
+        Ok(false)
     }
 }
 

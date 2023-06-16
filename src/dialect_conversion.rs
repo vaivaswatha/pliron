@@ -101,6 +101,8 @@ impl LegalOpDetails {
 enum LegalizationError {
     #[error("Legalization failed. RewritePattern error: {0}")]
     RewritePatternError(#[from] PatternRewriterError),
+    #[error("Legalization failed: {msg}")]
+    Failure { msg: String },
 }
 
 struct OperationLegalizer {
@@ -145,7 +147,14 @@ impl OperationLegalizer {
         op: Ptr<Operation>,
         rewriter: &mut dyn PatternRewriter,
     ) -> Result<(), LegalizationError> {
-        self.applicator.match_and_rewrite(ctx, op, rewriter)?;
+        if !self.applicator.match_and_rewrite(ctx, op, rewriter)? {
+            return Err(LegalizationError::Failure {
+                msg: format!(
+                    "match_and_rewrite failed on operation: {:?}",
+                    op.with_ctx(ctx).to_string()
+                ),
+            });
+        }
         Ok(())
     }
 
@@ -164,9 +173,6 @@ pub fn apply_partial_conversion(
 ) -> Result<(), ConversionError> {
     let op_convertor = OperationConverter::new(target, pattern_set, OpConversionMode::Partial);
     op_convertor.convert_operations(ctx, vec![op])?;
-
-    // let applicatior = PatternApplicator::new(pattern_set);
-    // applicatior.match_and_rewrite::<GenericPatternRewriter>(ctx, op_to_convert, &mut rewriter)?;
     // TODO: legalize newly inserted/replaced operations
     Ok(())
 }
@@ -232,9 +238,10 @@ impl OperationConverter {
         let listener = Box::<AccumulatingListener>::default();
         let mut rewriter = GenericPatternRewriter::new(Some(listener));
         for op in to_convert.into_iter() {
-            self.convert(ctx, op, &mut rewriter)?;
+            // TODO: check if the op is not yet erased/unlinked
+            // (think module op pass that erases/swaps nested ops)
             // TODO: if the operation is legal, skip it, if not, legalize by running the pattern set on it
-            // applicatior.match_and_rewrite::<GenericPatternRewriter>(ctx, *op, &mut rewriter)?;
+            self.convert(ctx, op, &mut rewriter)?;
         }
 
         Ok(())
