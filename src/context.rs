@@ -119,7 +119,9 @@ impl<'a, T: ArenaObj> Ptr<T> {
     /// This borrows from a RefCell and the borrow is live
     /// as long as the returned Ref lives.
     pub fn try_deref(&self, ctx: &'a Context) -> Option<Ref<'a, T>> {
-        T::get_arena(ctx).get(self.idx).unwrap().try_borrow().ok()
+        T::get_arena(ctx)
+            .get(self.idx)
+            .and_then(|t| t.try_borrow().ok())
     }
 
     /// Try and return a RefMut to the pointee.
@@ -128,15 +130,18 @@ impl<'a, T: ArenaObj> Ptr<T> {
     pub fn try_deref_mut(&self, ctx: &'a Context) -> Option<RefMut<'a, T>> {
         T::get_arena(ctx)
             .get(self.idx)
-            .unwrap()
-            .try_borrow_mut()
-            .ok()
+            .and_then(|t| t.try_borrow_mut().ok())
     }
 
     /// Create a unique (to the arena) name based on the arena index.
     pub fn make_name(&self, name_base: &str) -> String {
         let idx = self.idx.into_raw_parts();
         name_base.to_string() + "_" + &idx.0.to_string() + "_" + &idx.1.to_string()
+    }
+
+    /// Returns true if pointee is still in the arena, and not erased/deallocated.
+    pub fn is_alive(&self, ctx: &Context) -> bool {
+        T::get_arena(ctx).contains(self.idx)
     }
 }
 

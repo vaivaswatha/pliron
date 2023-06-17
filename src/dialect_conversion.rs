@@ -158,6 +158,10 @@ impl OperationLegalizer {
         Ok(())
     }
 
+    pub fn is_legal(&self, ctx: &Context, op: Ptr<Operation>) -> bool {
+        self.target.is_legal(ctx, op).is_legal()
+    }
+
     pub fn is_illegal(&self, ctx: &Context, op: Ptr<Operation>) -> bool {
         !self.target.is_legal(ctx, op).is_legal()
     }
@@ -225,7 +229,7 @@ impl OperationConverter {
         let target = &self.legalizer.target;
         let mut to_convert: Vec<Ptr<Operation>> = vec![];
         for op in ops {
-            op.walk(ctx, WalkOrder::PostOrder, &mut |op| {
+            op.walk(ctx, WalkOrder::PreOrder, &mut |op| {
                 to_convert.push(op);
                 match target.is_legal(ctx, op) {
                     LegalOpDetails::Legal {
@@ -238,9 +242,16 @@ impl OperationConverter {
         let listener = Box::<AccumulatingListener>::default();
         let mut rewriter = GenericPatternRewriter::new(Some(listener));
         for op in to_convert.into_iter() {
-            // TODO: check if the op is not yet erased/unlinked
-            // (think module op pass that erases/swaps nested ops)
-            // TODO: if the operation is legal, skip it, if not, legalize by running the pattern set on it
+            if !op.is_alive(ctx) {
+                // the op is erased
+                continue;
+            }
+            if !op.is_linked(ctx) {
+                continue;
+            }
+            if self.legalizer.is_legal(ctx, op) {
+                continue;
+            }
             self.convert(ctx, op, &mut rewriter)?;
         }
 

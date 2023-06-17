@@ -154,6 +154,7 @@ impl PatternRewriter for GenericPatternRewriter {
 ///       the rewrite in the same call as the match.
 pub trait RewritePattern {
     /// Attempt to match against code rooted at the specified operation,
+    /// Returns true if the pattern was matched, false otherwise.
     fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> Result<bool, anyhow::Error>;
 
     /// Rewrite the IR rooted at the specified operation with the result of
@@ -169,6 +170,7 @@ pub trait RewritePattern {
 
     /// Attempt to match against code rooted at the specified operation.
     /// If successful, this function will automatically perform the rewrite.
+    /// Returns true if the pattern was matched and rewrite was ran on the op, false otherwise.
     fn match_and_rewrite(
         &self,
         ctx: &mut Context,

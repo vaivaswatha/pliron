@@ -15,8 +15,8 @@ impl PatternApplicator {
         Self { patterns }
     }
 
-    /// Attempt to match and rewrite the given op with any pattern
-    #[must_use]
+    /// Attempt to match and rewrite the given op with any pattern.
+    /// Returns true if any pattern matched the op or false if none did.
     pub fn match_and_rewrite(
         &self,
         ctx: &mut Context,
