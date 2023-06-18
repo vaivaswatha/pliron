@@ -23,6 +23,7 @@ use pliron::error::CompilerError;
 use pliron::op::Op;
 use pliron::operation::Operation;
 use pliron::pass::Pass;
+use pliron::pass::PassError;
 use pliron::pass::PassManager;
 use pliron::pattern_match::PatternRewriter;
 use pliron::pattern_match::RewritePattern;
@@ -60,7 +61,7 @@ impl Pass for TestLoweringPass {
         "test-pass"
     }
 
-    fn run_on_operation(&self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), CompilerError> {
+    fn run_on_operation(&self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), PassError> {
         let mut target = ConversionTarget::default();
         target.add_illegal_dialect(Dialect::get_ref(ctx, DialectName::new("llvm")).unwrap());
         target.add_legal_dialect(Dialect::get_ref(ctx, DialectName::new("builtin")).unwrap());
