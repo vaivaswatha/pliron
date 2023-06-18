@@ -37,7 +37,6 @@ pub enum LegalizationAction {
 #[derive(Default)]
 pub struct ConversionTarget {
     legal_dialects: FxHashMap<DialectName, LegalizationAction>,
-    illegal_dialects: FxHashMap<DialectName, LegalizationAction>,
 }
 
 impl ConversionTarget {
@@ -51,7 +50,7 @@ impl ConversionTarget {
             .or_insert(LegalizationAction::Legal);
     }
     pub fn add_illegal_dialect(&mut self, dialect: &Dialect) {
-        self.illegal_dialects
+        self.legal_dialects
             .entry(dialect.get_name().clone())
             .or_insert(LegalizationAction::Illegal);
     }
@@ -62,18 +61,22 @@ impl ConversionTarget {
 
     pub fn is_legal(&self, ctx: &Context, op: Ptr<Operation>) -> LegalOpDetails {
         let dialect_name = op.deref(ctx).get_opid().dialect;
-        if self.legal_dialects.contains_key(&dialect_name) {
-            LegalOpDetails::Legal {
-                is_recursively_legal: false,
-            }
-        } else {
-            LegalOpDetails::Illegal
+        match self.legal_dialects.get(&dialect_name) {
+            Some(legal_action) => match legal_action {
+                LegalizationAction::Legal => LegalOpDetails::Legal {
+                    is_recursively_legal: false,
+                },
+                LegalizationAction::Dynamic => todo!(),
+                LegalizationAction::Illegal => LegalOpDetails::Illegal,
+            },
+            None => LegalOpDetails::Unknown,
         }
     }
 }
 
 /// A structure containing additional information describing a specific legal
 /// operation instance.
+#[derive(PartialEq, Eq)]
 pub enum LegalOpDetails {
     Illegal,
     Legal {
@@ -83,18 +86,6 @@ pub enum LegalOpDetails {
         is_recursively_legal: bool,
     },
     Unknown,
-}
-
-impl LegalOpDetails {
-    pub fn is_legal(&self) -> bool {
-        match self {
-            LegalOpDetails::Illegal => false,
-            LegalOpDetails::Legal {
-                is_recursively_legal: _,
-            } => true,
-            LegalOpDetails::Unknown => false,
-        }
-    }
 }
 
 #[derive(Debug, Error)]
@@ -158,12 +149,14 @@ impl OperationLegalizer {
         Ok(())
     }
 
+    /// Check if the given operation is set as legal for this target.
     pub fn is_legal(&self, ctx: &Context, op: Ptr<Operation>) -> bool {
-        self.target.is_legal(ctx, op).is_legal()
+        matches!(self.target.is_legal(ctx, op), LegalOpDetails::Legal { .. })
     }
 
+    /// Check if the given operation is set as illegal for this target.
     pub fn is_illegal(&self, ctx: &Context, op: Ptr<Operation>) -> bool {
-        !self.target.is_legal(ctx, op).is_legal()
+        self.target.is_legal(ctx, op) == LegalOpDetails::Illegal
     }
 }
 

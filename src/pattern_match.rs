@@ -112,6 +112,14 @@ pub trait PatternRewriter {
         Operation::erase(op, ctx);
         Ok(())
     }
+
+    /// This method is a wrapper around a root update of an operation. It
+    /// wraps calls to capture the op state diff around the given f.
+    fn update_root_in_place(&self, f: &mut dyn FnMut()) -> Result<(), PatternRewriterError> {
+        // TODO: hooks for capturing op state diff before and after
+        f();
+        Ok(())
+    }
 }
 
 pub struct GenericPatternRewriter {

@@ -1,6 +1,6 @@
 use crate::context::Context;
 use crate::context::Ptr;
-use crate::error::CompilerError;
+use crate::dialect_conversion::ConversionError;
 use crate::operation::Operation;
 
 #[derive(Default)]
@@ -18,8 +18,8 @@ impl PassManager {
     }
 
     /// Run all of the passes on the given operation.
-    pub fn run(&mut self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), CompilerError> {
-        for pass in self.passes.iter_mut() {
+    pub fn run(&self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), PassError> {
+        for pass in self.passes.iter() {
             pass.run_on_operation(ctx, op)?;
         }
         Ok(())
@@ -35,5 +35,11 @@ impl PassManager {
 pub trait Pass {
     fn name(&self) -> &str;
 
-    fn run_on_operation(&self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), CompilerError>;
+    fn run_on_operation(&self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), PassError>;
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum PassError {
+    #[error("Conversion failed: {0}")]
+    ConversionError(#[from] ConversionError),
 }
