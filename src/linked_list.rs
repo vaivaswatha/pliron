@@ -280,7 +280,7 @@ where
         }
         match self.deref(ctx).get_prev() {
             Some(prev) => {
-                prev.deref_mut(ctx).set_prev(self.deref(ctx).get_next());
+                prev.deref_mut(ctx).set_next(self.deref(ctx).get_next());
             }
             None => {
                 private::ContainsLinkedList::set_head(
@@ -464,22 +464,34 @@ pub(crate) mod tests {
         let n1 = LLNode::new(ctx, 1);
         let n2 = LLNode::new(ctx, 2);
         let n3 = LLNode::new(ctx, 3);
+        let n4 = LLNode::new(ctx, 4);
 
-        assert!(!n1.is_linked(ctx) && !n2.is_linked(ctx) && !n3.is_linked(ctx));
+        assert!(
+            !n1.is_linked(ctx) && !n2.is_linked(ctx) && !n3.is_linked(ctx) && !n4.is_linked(ctx)
+        );
 
         n1.insert_at_front(root, ctx);
         validate_list(ctx, root, vec![1]);
 
-        assert!(n1.is_linked(ctx) && !n2.is_linked(ctx) && !n3.is_linked(ctx));
+        assert!(
+            n1.is_linked(ctx) && !n2.is_linked(ctx) && !n3.is_linked(ctx) && !n4.is_linked(ctx)
+        );
 
         n2.insert_after(ctx, n1);
         validate_list(ctx, root, vec![1, 2]);
 
-        assert!(n1.is_linked(ctx) && n2.is_linked(ctx) && !n3.is_linked(ctx));
+        assert!(n1.is_linked(ctx) && n2.is_linked(ctx) && !n3.is_linked(ctx) && !n4.is_linked(ctx));
 
-        n1.unlink(ctx);
-        validate_list(ctx, root, vec![2]);
+        n4.insert_after(ctx, n2);
+        validate_list(ctx, root, vec![1, 2, 4]);
+
+        assert!(n1.is_linked(ctx) && n2.is_linked(ctx) && !n3.is_linked(ctx) && n4.is_linked(ctx));
+
         n2.unlink(ctx);
+        validate_list(ctx, root, vec![1, 4]);
+        n1.unlink(ctx);
+        validate_list(ctx, root, vec![4]);
+        n4.unlink(ctx);
         validate_list(ctx, root, vec![]);
 
         n1.insert_at_back(root, ctx);
