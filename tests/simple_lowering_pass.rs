@@ -61,7 +61,7 @@ impl Pass for TestLoweringPass {
         "test-pass"
     }
 
-    fn run_on_operation(&self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), PassError> {
+    fn run_on_operation(&self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), anyhow::Error> {
         let mut target = ConversionTarget::default();
         target.add_illegal_dialect(Dialect::get_ref(ctx, DialectName::new("llvm")).unwrap());
         target.add_legal_dialect(Dialect::get_ref(ctx, DialectName::new("builtin")).unwrap());
