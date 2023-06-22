@@ -22,7 +22,7 @@ impl PassManager {
         for pass in self.passes.iter() {
             pass.run_on_operation(ctx, op)
                 .map_err(|e| PassError::Failure {
-                    cause: e.into(),
+                    cause: e,
                     pass: pass.name().to_string(),
                     root_op: op.with_ctx(ctx).to_string(),
                 })?;

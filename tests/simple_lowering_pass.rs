@@ -23,7 +23,6 @@ use pliron::error::CompilerError;
 use pliron::op::Op;
 use pliron::operation::Operation;
 use pliron::pass::Pass;
-use pliron::pass::PassError;
 use pliron::pass::PassManager;
 use pliron::pattern_match::PatternRewriter;
 use pliron::pattern_match::RewritePattern;
