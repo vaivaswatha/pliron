@@ -176,6 +176,8 @@ impl PatternRewriter for GenericPatternRewriter {
 ///     - By overloading the "matchAndRewrite" function, the user can perform
 ///       the rewrite in the same call as the match.
 pub trait RewritePattern {
+    fn name(&self) -> String;
+
     /// Attempt to match against code rooted at the specified operation,
     /// Returns true if the pattern was matched, false otherwise.
     fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> Result<bool, anyhow::Error>;
@@ -227,6 +229,10 @@ mod tests {
         pub struct ConstantOpLowering {}
 
         impl RewritePattern for ConstantOpLowering {
+            fn name(&self) -> String {
+                "ConstantOpLowering".to_string()
+            }
+
             fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> Result<bool, anyhow::Error> {
                 Ok(op
                     .deref(ctx)

@@ -34,6 +34,10 @@ use pliron::with_context::AttachContext;
 pub struct TestLoweringRewritePattern {}
 
 impl RewritePattern for TestLoweringRewritePattern {
+    fn name(&self) -> String {
+        "TestLoweringRewritePattern".to_string()
+    }
+
     fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> Result<bool, anyhow::Error> {
         Ok(op
             .deref(ctx)

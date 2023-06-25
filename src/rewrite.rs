@@ -25,7 +25,12 @@ impl PatternApplicator {
     ) -> Result<bool, PatternRewriterError> {
         for pattern in self.patterns.patterns.iter() {
             rewriter.set_insertion_point(op);
-            if pattern.match_and_rewrite(ctx, op, rewriter)? {
+            if pattern.match_and_rewrite(ctx, op, rewriter).map_err(|e| {
+                PatternRewriterError::PatternFailed {
+                    error: e,
+                    pattern_name: pattern.name(),
+                }
+            })? {
                 return Ok(true);
             }
         }
