@@ -138,11 +138,6 @@ impl<'a, T: ArenaObj> Ptr<T> {
         let idx = self.idx.into_raw_parts();
         name_base.to_string() + "_" + &idx.0.to_string() + "_" + &idx.1.to_string()
     }
-
-    /// Returns true if pointee is still in the arena, and not erased/deallocated.
-    pub fn is_alive(&self, ctx: &Context) -> bool {
-        T::get_arena(ctx).contains(self.idx)
-    }
 }
 
 impl<T: ArenaObj> Clone for Ptr<T> {

@@ -1,3 +1,4 @@
+use rustc_hash::FxHashSet;
 use thiserror::Error;
 
 use crate::context::Context;
@@ -13,9 +14,11 @@ pub trait Listener {
     /// `op` is the operation that was inserted.
     fn notify_operation_inserted(&mut self, op: Ptr<Operation>);
 
-    /// This is called on an operation that a rewrite is removing, right before
+    /// This is called on an operation that a rewrite is erasing, right before
     /// the operation is deleted. At this point, the operation has zero uses.
-    fn notify_operation_removed(&mut self, op: Ptr<Operation>);
+    fn notify_operation_erased(&mut self, op: Ptr<Operation>);
+
+    fn get_erased_ops(&self) -> &FxHashSet<Ptr<Operation>>;
 
     // TODO:: add more notifications (in-place modifications, replaced operations, etc.)
 }
@@ -23,7 +26,7 @@ pub trait Listener {
 #[derive(Default)]
 pub struct AccumulatingListener {
     pub inserted_ops: Vec<Ptr<Operation>>,
-    pub removed_ops: Vec<Ptr<Operation>>,
+    pub erased_ops: FxHashSet<Ptr<Operation>>,
 }
 
 impl Listener for AccumulatingListener {
@@ -31,15 +34,23 @@ impl Listener for AccumulatingListener {
         self.inserted_ops.push(op);
     }
 
-    fn notify_operation_removed(&mut self, op: Ptr<Operation>) {
-        self.removed_ops.push(op);
+    fn notify_operation_erased(&mut self, op: Ptr<Operation>) {
+        self.erased_ops.insert(op);
+    }
+
+    fn get_erased_ops(&self) -> &FxHashSet<Ptr<Operation>> {
+        &self.erased_ops
     }
 }
 
 #[derive(Debug, Error)]
 pub enum PatternRewriterError {
-    #[error("Pattern match failed: {0}")]
-    PatternFailed(#[from] anyhow::Error),
+    #[error("Pattern match {pattern_name} failed with error: {error}")]
+    PatternFailed {
+        #[source]
+        error: anyhow::Error,
+        pattern_name: String,
+    },
 }
 
 /// This class coordinates the application of a rewrite on a set of IR,
@@ -107,7 +118,7 @@ pub trait PatternRewriter {
         op: Ptr<Operation>,
     ) -> Result<(), PatternRewriterError> {
         self.invoke_listener(&|listener| {
-            listener.notify_operation_removed(op);
+            listener.notify_operation_erased(op);
         });
         Operation::erase(op, ctx);
         Ok(())
@@ -133,6 +144,10 @@ impl GenericPatternRewriter {
             insertion_point: None,
             listener,
         }
+    }
+
+    pub fn get_listener(&self) -> Option<&Box<dyn Listener>> {
+        self.listener.as_ref()
     }
 }
 

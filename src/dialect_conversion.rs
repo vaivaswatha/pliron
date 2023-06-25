@@ -235,8 +235,12 @@ impl OperationConverter {
         let listener = Box::<AccumulatingListener>::default();
         let mut rewriter = GenericPatternRewriter::new(Some(listener));
         for op in to_convert.into_iter() {
-            if !op.is_alive(ctx) {
-                // the op is erased
+            if rewriter
+                .get_listener()
+                .unwrap()
+                .get_erased_ops()
+                .contains(&op)
+            {
                 continue;
             }
             if !op.is_linked(ctx) {
