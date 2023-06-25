@@ -146,8 +146,8 @@ impl GenericPatternRewriter {
         }
     }
 
-    pub fn get_listener(&self) -> Option<&Box<dyn Listener>> {
-        self.listener.as_ref()
+    pub fn get_listener(&self) -> Option<&dyn Listener> {
+        self.listener.as_deref()
     }
 }
 
