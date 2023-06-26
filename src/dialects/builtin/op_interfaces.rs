@@ -190,6 +190,13 @@ pub trait OneResultInterface: Op {
 pub trait CallOpInterface {
     /// Returns the symbol of the callee of this call operation.
     fn get_callee_sym(&self, ctx: &Context) -> String;
+
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<(), CompilerError>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
 }
 
 /// Returns the symbols of the callees of all the call operations in this operation.
@@ -208,5 +215,12 @@ pub trait GetCalleesInterface<T: CallOpInterface + Op>: Op {
             }
         }
         callees
+    }
+
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<(), CompilerError>
+    where
+        Self: Sized,
+    {
+        Ok(())
     }
 }
