@@ -200,27 +200,17 @@ pub trait CallOpInterface {
 }
 
 /// Returns the symbols of the callees of all the call operations in this operation.
-pub trait GetCalleesInterface<T: CallOpInterface + Op>: Op {
-    /// Returns the symbols of the callees of all the call operations in this operation.
-    fn get_callees_syms(&self, ctx: &Context) -> Vec<String> {
-        let self_op = self.get_operation().deref(ctx);
-        let mut callees = Vec::new();
-        for region in &self_op.regions {
-            for block in region.deref(ctx).iter(ctx) {
-                for op in block.deref(ctx).iter(ctx) {
-                    if let Some(call_op) = op.deref(ctx).get_op(ctx).downcast_ref::<T>() {
-                        callees.push(call_op.get_callee_sym(ctx));
-                    }
+pub fn get_callees_syms<T: CallOpInterface + Op>(op: Ptr<Operation>, ctx: &Context) -> Vec<String> {
+    let ref_op = op.deref(ctx);
+    let mut callees = Vec::new();
+    for region in &ref_op.regions {
+        for block in region.deref(ctx).iter(ctx) {
+            for op in block.deref(ctx).iter(ctx) {
+                if let Some(call_op) = op.deref(ctx).get_op(ctx).downcast_ref::<T>() {
+                    callees.push(call_op.get_callee_sym(ctx));
                 }
             }
         }
-        callees
     }
-
-    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<(), CompilerError>
-    where
-        Self: Sized,
-    {
-        Ok(())
-    }
+    callees
 }
