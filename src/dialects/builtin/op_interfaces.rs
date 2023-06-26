@@ -3,7 +3,7 @@ use crate::{
     context::{Context, Ptr},
     error::CompilerError,
     linked_list::ContainsLinkedList,
-    op::Op,
+    op::{op_cast, Op},
     operation::Operation,
     r#type::TypeObj,
     region::Region,
@@ -187,7 +187,7 @@ pub trait OneResultInterface: Op {
 }
 
 /// An [Op] that calls a function
-pub trait CallOpInterface {
+pub trait CallOpInterface: Op {
     /// Returns the symbol of the callee of this call operation.
     fn get_callee_sym(&self, ctx: &Context) -> String;
 
@@ -200,13 +200,15 @@ pub trait CallOpInterface {
 }
 
 /// Returns the symbols of the callees of all the call operations in this operation.
-pub fn get_callees_syms<T: CallOpInterface + Op>(ctx: &Context, op: Ptr<Operation>) -> Vec<String> {
+pub fn get_callees_syms(ctx: &Context, op: Ptr<Operation>) -> Vec<String> {
     let ref_op = op.deref(ctx);
     let mut callees = Vec::new();
     for region in &ref_op.regions {
         for block in region.deref(ctx).iter(ctx) {
             for op in block.deref(ctx).iter(ctx) {
-                if let Some(call_op) = op.deref(ctx).get_op(ctx).downcast_ref::<T>() {
+                if let Some(call_op) =
+                    op_cast::<dyn CallOpInterface>(op.deref(ctx).get_op(ctx).as_ref())
+                {
                     callees.push(call_op.get_callee_sym(ctx));
                 }
             }
