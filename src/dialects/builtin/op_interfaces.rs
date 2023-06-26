@@ -200,7 +200,7 @@ pub trait CallOpInterface {
 }
 
 /// Returns the symbols of the callees of all the call operations in this operation.
-pub fn get_callees_syms<T: CallOpInterface + Op>(op: Ptr<Operation>, ctx: &Context) -> Vec<String> {
+pub fn get_callees_syms<T: CallOpInterface + Op>(ctx: &Context, op: Ptr<Operation>) -> Vec<String> {
     let ref_op = op.deref(ctx);
     let mut callees = Vec::new();
     for region in &ref_op.regions {
