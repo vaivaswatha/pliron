@@ -121,7 +121,9 @@ impl<'a, T: ArenaObj> Ptr<T> {
     pub fn try_deref(&self, ctx: &'a Context) -> Option<Ref<'a, T>> {
         T::get_arena(ctx)
             .get(self.idx)
-            .and_then(|t| t.try_borrow().ok())
+            .expect("Ptr not found in the arena. Check if this Ptr was erased earlier.")
+            .try_borrow()
+            .ok()
     }
 
     /// Try and return a RefMut to the pointee.
@@ -130,7 +132,9 @@ impl<'a, T: ArenaObj> Ptr<T> {
     pub fn try_deref_mut(&self, ctx: &'a Context) -> Option<RefMut<'a, T>> {
         T::get_arena(ctx)
             .get(self.idx)
-            .and_then(|t| t.try_borrow_mut().ok())
+            .expect("Ptr not found in the arena. Check if this Ptr was erased earlier.")
+            .try_borrow_mut()
+            .ok()
     }
 
     /// Create a unique (to the arena) name based on the arena index.
