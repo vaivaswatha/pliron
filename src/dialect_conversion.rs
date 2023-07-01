@@ -141,8 +141,8 @@ impl OperationLegalizer {
         if !self.applicator.match_and_rewrite(ctx, op, rewriter)? {
             return Err(LegalizationError::Failure {
                 msg: format!(
-                    "match_and_rewrite failed on operation: {:?}",
-                    op.with_ctx(ctx).to_string()
+                    "applicator failed to match any pattern on operation: {}",
+                    op.deref(ctx).get_opid().with_ctx(ctx)
                 ),
             });
         }
