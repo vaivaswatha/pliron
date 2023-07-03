@@ -243,9 +243,6 @@ impl OperationConverter {
             {
                 continue;
             }
-            if !op.is_linked(ctx) {
-                continue;
-            }
             if self.legalizer.is_legal(ctx, op) {
                 continue;
             }
