@@ -64,7 +64,7 @@ impl Verify for IntegerType {
 ///
 /// See MLIR's [FunctionType](https://mlir.llvm.org/docs/Dialects/Builtin/#functiontype).
 ///
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Clone)]
 pub struct FunctionType {
     /// Function arguments / inputs.
     inputs: Vec<Ptr<TypeObj>>,
