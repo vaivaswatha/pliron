@@ -6,7 +6,7 @@ use super::Operation;
 
 /// A utility result that is used to signal how to proceed with an ongoing walk:
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum WalkResut {
+pub enum WalkResult {
     /// the walk will be interrupted and no more operations, regions
     /// or blocks will be visited.
     Interrupt,
@@ -31,15 +31,15 @@ impl Ptr<Operation> {
     /// operations with respect to their nested ones
     /// is specified by 'order'. A callback on a block or operation is allowed to erase that block
     /// or operation only if the walk is in post-order.
-    pub fn walk<F>(&self, ctx: &Context, order: WalkOrder, callback: &mut F) -> WalkResut
+    pub fn walk<F>(&self, ctx: &Context, order: WalkOrder, callback: &mut F) -> WalkResult
     where
-        F: FnMut(Ptr<Operation>) -> WalkResut,
+        F: FnMut(Ptr<Operation>) -> WalkResult,
     {
         if order == WalkOrder::PreOrder {
             match callback(*self) {
-                WalkResut::Interrupt => return WalkResut::Interrupt,
-                WalkResut::Skip => return WalkResut::Advance,
-                WalkResut::Advance => (),
+                WalkResult::Interrupt => return WalkResult::Interrupt,
+                WalkResult::Skip => return WalkResult::Advance,
+                WalkResult::Advance => (),
             }
         }
         let regions = self.deref(ctx).regions.clone();
@@ -48,8 +48,8 @@ impl Ptr<Operation> {
             for block in blocks {
                 let block_ops: Vec<_> = block.deref_mut(ctx).iter(ctx).collect();
                 for nested_op in block_ops {
-                    if nested_op.walk(ctx, order, callback) == WalkResut::Interrupt {
-                        return WalkResut::Interrupt;
+                    if nested_op.walk(ctx, order, callback) == WalkResult::Interrupt {
+                        return WalkResult::Interrupt;
                     }
                 }
             }
@@ -57,6 +57,6 @@ impl Ptr<Operation> {
         if order == WalkOrder::PostOrder {
             return callback(*self);
         }
-        WalkResut::Advance
+        WalkResult::Advance
     }
 }

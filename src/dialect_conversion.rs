@@ -11,7 +11,7 @@ use crate::op::Op;
 use crate::op::OpId;
 use crate::operation::Operation;
 use crate::operation::WalkOrder;
-use crate::operation::WalkResut;
+use crate::operation::WalkResult;
 use crate::pattern_match::AccumulatingListener;
 use crate::pattern_match::GenericPatternRewriter;
 use crate::pattern_match::PatternRewriter;
@@ -227,8 +227,8 @@ impl OperationConverter {
                 match target.is_legal(ctx, op) {
                     LegalOpDetails::Legal {
                         is_recursively_legal,
-                    } if is_recursively_legal => WalkResut::Skip,
-                    _ => WalkResut::Advance,
+                    } if is_recursively_legal => WalkResult::Skip,
+                    _ => WalkResult::Advance,
                 }
             });
         }
