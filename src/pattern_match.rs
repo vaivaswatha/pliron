@@ -72,8 +72,8 @@ pub trait PatternRewriter {
     // /// Sets the listener for this pattern rewriter.
     // fn set_listener(&mut self, listener: L);
 
-    /// Insert an operation at the current insertion point.
-    fn insert(&mut self, ctx: &Context, op: Ptr<Operation>) -> Result<(), PatternRewriterError> {
+    /// Insert an operation at the current insertion point (before the mark).
+    fn insert_before(&mut self, ctx: &Context, op: Ptr<Operation>) -> Result<(), PatternRewriterError> {
         let insertion_point = self.get_insertion_point().unwrap();
         op.insert_before(ctx, insertion_point);
         self.invoke_listener(&|listener| {
@@ -250,7 +250,7 @@ mod tests {
                 let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
                 let zero_const = IntegerAttr::create(i64_ty, ApInt::from(0));
                 let const_op = ConstantOp::new_unlinked(ctx, zero_const);
-                rewriter.insert(ctx, const_op.get_operation())?;
+                rewriter.insert_before(ctx, const_op.get_operation())?;
                 // const_op.get_operation().insert_before(ctx, op);
                 rewriter.erase_op(ctx, op)?;
                 Ok(())
