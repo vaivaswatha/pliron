@@ -73,7 +73,11 @@ pub trait PatternRewriter {
     // fn set_listener(&mut self, listener: L);
 
     /// Insert an operation at the current insertion point (before the mark).
-    fn insert_before(&mut self, ctx: &Context, op: Ptr<Operation>) -> Result<(), PatternRewriterError> {
+    fn insert_before(
+        &mut self,
+        ctx: &Context,
+        op: Ptr<Operation>,
+    ) -> Result<(), PatternRewriterError> {
         let insertion_point = self.get_insertion_point().unwrap();
         op.insert_before(ctx, insertion_point);
         self.invoke_listener(&|listener| {
