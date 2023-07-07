@@ -176,9 +176,11 @@ macro_rules! declare_op {
     (   $(#[$outer:meta])*
         $structname: ident, $op_name: literal, $dialect_name: literal) => {
         paste::paste!{
+            /// Interface verifier
             #[allow(non_camel_case_types)]
             pub struct [<OpInterfaceVerifier_ $structname>](pub $crate::op::OpInterfaceVerifier);
             impl $structname {
+                /// Returns the interface verifier
                 pub const fn build_interface_verifier(verifier: $crate::op::OpInterfaceVerifier) ->
                 [<OpInterfaceVerifier_ $structname>] {
                     [<OpInterfaceVerifier_ $structname>](verifier)
