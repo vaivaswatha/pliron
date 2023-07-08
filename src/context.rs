@@ -119,7 +119,11 @@ impl<'a, T: ArenaObj> Ptr<T> {
     /// This borrows from a RefCell and the borrow is live
     /// as long as the returned Ref lives.
     pub fn try_deref(&self, ctx: &'a Context) -> Option<Ref<'a, T>> {
-        T::get_arena(ctx).get(self.idx).unwrap().try_borrow().ok()
+        T::get_arena(ctx)
+            .get(self.idx)
+            .expect("Ptr not found in the arena. Check if this Ptr was erased earlier.")
+            .try_borrow()
+            .ok()
     }
 
     /// Try and return a RefMut to the pointee.
@@ -128,7 +132,7 @@ impl<'a, T: ArenaObj> Ptr<T> {
     pub fn try_deref_mut(&self, ctx: &'a Context) -> Option<RefMut<'a, T>> {
         T::get_arena(ctx)
             .get(self.idx)
-            .unwrap()
+            .expect("Ptr not found in the arena. Check if this Ptr was erased earlier.")
             .try_borrow_mut()
             .ok()
     }
