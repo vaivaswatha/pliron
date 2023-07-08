@@ -1,5 +1,11 @@
+use combine::{
+    choice, many1,
+    parser::{char::digit, char::string},
+    ParseResult, Parser, Stream,
+};
+
 use crate::{
-    common_traits::{DisplayWithContext, Verify},
+    common_traits::{DisplayWithContext, Parsable, ParsableState, Verify},
     context::{Context, Ptr},
     dialect::Dialect,
     error::CompilerError,
@@ -41,6 +47,23 @@ impl IntegerType {
     /// Get signedness.
     pub fn get_signedness(&self) -> Signedness {
         self.signedness
+    }
+}
+
+impl Parsable for IntegerType {
+    type Parsed = Ptr<TypeObj>;
+    fn parse<'a, Input: Stream<Token = char> + 'a>(
+        parsable_state: &mut ParsableState<Input>,
+    ) -> ParseResult<Self::Parsed, Input::Error> {
+        let mut choicer = choice((
+            string::<Input>("si").map(|_| Signedness::Signed),
+            string("ui").map(|_| Signedness::Unsigned),
+            string("i").map(|_| Signedness::Signless),
+        ))
+        .and(many1::<String, _, _>(digit()).map(|digits| digits.parse::<u64>().unwrap()));
+        choicer
+            .parse_stream(&mut parsable_state.stream)
+            .map(|(signedness, width)| IntegerType::get(parsable_state.state, width, signedness))
     }
 }
 
@@ -129,8 +152,12 @@ pub fn register(dialect: &mut Dialect) {
 
 #[cfg(test)]
 mod tests {
+    use combine::{easy, eof, stream::position, Parser};
+    use expect_test::expect;
+
     use super::FunctionType;
     use crate::{
+        common_traits::{Parsable, ParsableState},
         context::Context,
         dialects::builtin::types::{IntegerType, Signedness},
     };
@@ -168,5 +195,44 @@ mod tests {
         let ft = FunctionType::get(&mut ctx, vec![int32_1_ptr], vec![int64_ptr]).deref(&ctx);
         let ft_ref = ft.downcast_ref::<FunctionType>().unwrap();
         assert!(ft_ref.get_inputs()[0] == int32_1_ptr && ft_ref.get_results()[0] == int64_ptr);
+    }
+
+    #[test]
+    fn test_integer_parsing() {
+        let mut ctx = Context::new();
+        let input_stream = easy::Stream::from("si64");
+        let input_state = ParsableState {
+            stream: input_stream,
+            state: &mut ctx,
+        };
+
+        let res = IntegerType::get_parser()
+            .and(eof())
+            .parse(input_state)
+            .unwrap()
+            .0
+             .0;
+        assert!(res == IntegerType::get_existing(&ctx, 64, Signedness::Signed).unwrap())
+    }
+
+    #[test]
+    fn test_integer_parsing_errs() {
+        let mut ctx = Context::new();
+        let input_string = position::Stream::new("asi64");
+        let input_stream = easy::Stream::from(input_string);
+        let input_state = ParsableState {
+            stream: input_stream,
+            state: &mut ctx,
+        };
+
+        let res = IntegerType::get_parser().parse(input_state);
+        let err_msg = format!("{}", res.err().unwrap());
+
+        let expected_err_msg = expect![[r#"
+            Parse error at line: 1, column: 1
+            Unexpected `a`
+            Expected si, ui or i
+        "#]];
+        expected_err_msg.assert_eq(&err_msg);
     }
 }

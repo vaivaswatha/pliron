@@ -25,3 +25,7 @@ indent = "0.1.1"
 linkme = "0.2"
 paste = "1.0"
 inventory = "0.3"
+combine = "4.6.6"
+
+[dev-dependencies]
+expect-test = "1.4.0"

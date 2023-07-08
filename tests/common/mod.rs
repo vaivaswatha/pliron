@@ -1,4 +1,5 @@
 use apint::ApInt;
+use expect_test::expect;
 use pliron::{
     common_traits::Verify,
     context::Context,
@@ -48,7 +49,18 @@ pub fn const_ret_in_mod(
     let ret_op = ReturnOp::new_unlinked(ctx, const_op.get_result(ctx));
     ret_op.get_operation().insert_at_back(bb, ctx);
 
-    println!("{}", module.with_ctx(ctx));
+    let printed = format!("{}", module.with_ctx(ctx));
+    expect![[r#"
+        builtin.module @bar {
+          block_0_0():
+            builtin.func @foo() -> (si64,) {
+              entry():
+                c0 = builtin.constant 0x0: si64
+                llvm.return c0
+            }
+        }"#]]
+    .assert_eq(&printed);
+
     module.get_operation().verify(ctx)?;
 
     Ok((module, func, const_op, ret_op))

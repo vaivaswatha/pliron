@@ -1,4 +1,5 @@
 use apint::ApInt;
+use expect_test::expect;
 use pliron::{
     common_traits::Verify,
     debug_info::set_operation_result_name,
@@ -8,6 +9,7 @@ use pliron::{
     error::CompilerError,
     op::Op,
     operation::Operation,
+    with_context::AttachContext,
 };
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
@@ -79,11 +81,36 @@ fn replace_c0_with_c1_operand() -> Result<(), CompilerError> {
         .insert_after(ctx, const_op.get_operation());
     set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".to_string());
 
+    let printed = format!("{}", module_op.with_ctx(ctx));
+    expect![[r#"
+        builtin.module @bar {
+          block_0_0():
+            builtin.func @foo() -> (si64,) {
+              entry():
+                c0 = builtin.constant 0x0: si64
+                c1 = builtin.constant 0x1: si64
+                llvm.return c0
+            }
+        }"#]]
+    .assert_eq(&printed);
+
     ret_op
         .get_operation()
         .deref_mut(ctx)
         .replace_operand(ctx, 0, const1_op.get_result(ctx));
     Operation::erase(const_op.get_operation(), ctx);
+
+    let printed = format!("{}", module_op.with_ctx(ctx));
+    expect![[r#"
+        builtin.module @bar {
+          block_0_0():
+            builtin.func @foo() -> (si64,) {
+              entry():
+                c1 = builtin.constant 0x1: si64
+                llvm.return c1
+            }
+        }"#]]
+    .assert_eq(&printed);
 
     module_op.get_operation().verify(ctx)?;
 
