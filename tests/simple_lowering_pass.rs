@@ -34,36 +34,25 @@ use pliron::with_context::AttachContext;
 pub struct TestLoweringRewritePattern {}
 
 impl RewritePattern for TestLoweringRewritePattern {
-    fn name(&self) -> String {
-        "TestLoweringRewritePattern".to_string()
-    }
-
-    fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> Result<bool, anyhow::Error> {
-        Ok(op
-            .deref(ctx)
-            .get_op(ctx)
-            .downcast_ref::<llvm::ops::ReturnOp>()
-            .is_some())
-    }
-
-    fn rewrite(
+    fn match_and_rewrite(
         &self,
         ctx: &mut Context,
         op: Ptr<Operation>,
         rewriter: &mut dyn PatternRewriter,
-    ) -> Result<(), anyhow::Error> {
-        rewriter.erase_op(ctx, op)?;
-        Ok(())
+    ) -> Result<bool, anyhow::Error> {
+        let deref_op = op.deref(ctx).get_op(ctx);
+        let Some(return_op) = deref_op
+            .downcast_ref::<llvm::ops::ReturnOp>() else {
+            return Ok(false);
+        };
+        rewriter.erase_op(ctx, return_op.get_operation())?;
+        Ok(true)
     }
 }
 
 pub struct TestLoweringPass {}
 
 impl Pass for TestLoweringPass {
-    fn name(&self) -> &str {
-        "test-pass"
-    }
-
     fn run_on_operation(&self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), anyhow::Error> {
         let mut target = ConversionTarget::default();
         target.add_illegal_dialect(Dialect::get_ref(ctx, DialectName::new("llvm")).unwrap());
@@ -140,4 +129,10 @@ fn run_pass() {
             }
         }"#]]
     .assert_eq(&module.with_ctx(&ctx).to_string());
+}
+
+#[test]
+fn pass_name() {
+    let pass = TestLoweringPass {};
+    assert_eq!(pass.name(), "TestLoweringPass".to_string());
 }

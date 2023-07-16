@@ -180,11 +180,18 @@ impl PatternRewriter for GenericPatternRewriter {
 ///     - By overloading the "matchAndRewrite" function, the user can perform
 ///       the rewrite in the same call as the match.
 pub trait RewritePattern {
-    fn name(&self) -> String;
+    fn name(&self) -> String {
+        use std::any::type_name;
+        let full_type_name = type_name::<Self>().to_string();
+        let type_name = full_type_name.split("::").last().unwrap_or(&full_type_name);
+        type_name.to_string()
+    }
 
     /// Attempt to match against code rooted at the specified operation,
     /// Returns true if the pattern was matched, false otherwise.
-    fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> Result<bool, anyhow::Error>;
+    fn match_op(&self, _ctx: &Context, _op: Ptr<Operation>) -> Result<bool, anyhow::Error> {
+        unimplemented!("match_op not implemented for {}", self.name());
+    }
 
     /// Rewrite the IR rooted at the specified operation with the result of
     /// this pattern, generating any new operations with the specified
@@ -192,10 +199,12 @@ pub trait RewritePattern {
     /// compiler error), the IR is left in a valid state.
     fn rewrite(
         &self,
-        ctx: &mut Context,
-        op: Ptr<Operation>,
-        rewriter: &mut dyn PatternRewriter,
-    ) -> Result<(), anyhow::Error>;
+        _ctx: &mut Context,
+        _op: Ptr<Operation>,
+        _rewriter: &mut dyn PatternRewriter,
+    ) -> Result<(), anyhow::Error> {
+        unimplemented!("rewrite not implemented for {}", self.name());
+    }
 
     /// Attempt to match against code rooted at the specified operation.
     /// If successful, this function will automatically perform the rewrite.
@@ -233,10 +242,6 @@ mod tests {
         pub struct ConstantOpLowering {}
 
         impl RewritePattern for ConstantOpLowering {
-            fn name(&self) -> String {
-                "ConstantOpLowering".to_string()
-            }
-
             fn match_op(&self, ctx: &Context, op: Ptr<Operation>) -> Result<bool, anyhow::Error> {
                 Ok(op
                     .deref(ctx)

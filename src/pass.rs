@@ -38,7 +38,12 @@ impl PassManager {
 ///   - modify any state within the parent operation, this includes adding
 ///     additional operations.
 pub trait Pass {
-    fn name(&self) -> &str;
+    fn name(&self) -> String {
+        use std::any::type_name;
+        let full_type_name = type_name::<Self>().to_string();
+        let type_name = full_type_name.split("::").last().unwrap_or(&full_type_name);
+        type_name.to_string()
+    }
 
     fn run_on_operation(&self, ctx: &mut Context, op: Ptr<Operation>) -> Result<(), anyhow::Error>;
 }
