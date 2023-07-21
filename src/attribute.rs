@@ -30,17 +30,17 @@ use downcast_rs::{impl_downcast, Downcast};
 use intertrait::{cast::CastRef, CastFrom};
 
 use crate::{
-    common_traits::{DisplayWithContext, Verify},
+    common_traits::Verify,
     context::Context,
     dialect::{Dialect, DialectName},
     error::CompilerError,
-    with_context::AttachContext,
+    printable::{self, Printable},
 };
 
 /// Basic functionality that every attribute in the IR must implement.
 ///
 /// See [module](crate::attribute) documentation for more information.
-pub trait Attribute: DisplayWithContext + Verify + Downcast + CastFrom + Sync {
+pub trait Attribute: Printable + Verify + Downcast + CastFrom + Sync {
     /// Is self equal to an other Attribute?
     fn eq_attr(&self, other: &dyn Attribute) -> bool;
 
@@ -94,10 +94,14 @@ pub fn clone<T: Clone + Attribute>(source: &AttrObj) -> AttrObj {
     Box::new(source.downcast_ref::<T>().unwrap().clone())
 }
 
-impl AttachContext for AttrObj {}
-impl DisplayWithContext for AttrObj {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.as_ref().fmt(ctx, f)
+impl Printable for AttrObj {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        self.as_ref().fmt(ctx, state, f)
     }
 }
 
@@ -122,9 +126,13 @@ impl AttrName {
     }
 }
 
-impl AttachContext for AttrName {}
-impl DisplayWithContext for AttrName {
-    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Printable for AttrName {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -143,15 +151,14 @@ pub struct AttrId {
     pub name: AttrName,
 }
 
-impl AttachContext for AttrId {}
-impl DisplayWithContext for AttrId {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}.{}",
-            self.dialect.with_ctx(ctx),
-            self.name.with_ctx(ctx)
-        )
+impl Printable for AttrId {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "{}.{}", self.dialect.disp(ctx), self.name.disp(ctx))
     }
 }
 
@@ -171,12 +178,17 @@ pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<(), Comp
 ///     "dialect"
 /// );
 /// # use pliron::{
-/// #     impl_attr, with_context::AttachContext, common_traits::DisplayWithContext,
+/// #     impl_attr, printable::{self, Printable},
 /// #     context::Context, error::CompilerError, common_traits::Verify,
 /// #     attribute::Attribute,
 /// # };
-/// # impl DisplayWithContext for MyAttr {
-/// #    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// # impl Printable for MyAttr {
+/// #    fn fmt(&self,
+/// #           _ctx: &Context,
+/// #           _state: &printable::State,
+/// #           _f: &mut core::fmt::Formatter<'_>)
+/// #        -> core::fmt::Result
+/// #    {
 /// #        todo!()
 /// #    }
 /// # }
@@ -232,7 +244,6 @@ macro_rules! impl_attr {
                 Ok(())
             }
         }
-        impl $crate::with_context::AttachContext for $structname {}
     }
 }
 
@@ -265,12 +276,12 @@ macro_rules! impl_attr {
 ///     }
 /// );
 /// # use pliron::{
-/// #     impl_attr, with_context::AttachContext, common_traits::DisplayWithContext,
+/// #     impl_attr, printable::{self, Printable},
 /// #     context::Context, error::CompilerError, common_traits::Verify,
 /// #     attribute::Attribute, impl_attr_interface
 /// # };
-/// # impl DisplayWithContext for MyAttr {
-/// #    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// # impl Printable for MyAttr {
+/// #    fn fmt(&self, _ctx: &Context, _state: &printable::State, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 /// #        todo!()
 /// #    }
 /// # }

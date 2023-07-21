@@ -5,14 +5,14 @@ use combine::{
 };
 
 use crate::{
-    common_traits::{DisplayWithContext, Parsable, ParsableState, Verify},
+    common_traits::{Parsable, ParsableState, Verify},
     context::{Context, Ptr},
     dialect::Dialect,
     error::CompilerError,
     impl_type,
+    printable::{self, ListSeparator, Printable, PrintableIter},
     r#type::{Type, TypeObj},
     storage_uniquer::TypeValueHash,
-    with_context::AttachContext,
 };
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
@@ -67,8 +67,13 @@ impl Parsable for IntegerType {
     }
 }
 
-impl DisplayWithContext for IntegerType {
-    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Printable for IntegerType {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         match &self.signedness {
             Signedness::Signed => write!(f, "si{}", self.width),
             Signedness::Unsigned => write!(f, "ui{}", self.width),
@@ -125,17 +130,20 @@ impl FunctionType {
     }
 }
 
-impl DisplayWithContext for FunctionType {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "(")?;
-        for arg in &self.inputs {
-            write!(f, "{}", arg.with_ctx(ctx))?;
-        }
-        write!(f, ") -> (")?;
-        for res in &self.results {
-            write!(f, "{},", res.with_ctx(ctx))?;
-        }
-        write!(f, ")")
+impl Printable for FunctionType {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        let sep = ListSeparator::Char(',');
+        write!(
+            f,
+            "({}) -> ({})",
+            self.inputs.iter().iprint(ctx, state, sep),
+            self.results.iter().iprint(ctx, state, sep)
+        )
     }
 }
 

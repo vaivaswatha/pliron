@@ -1,12 +1,13 @@
 //! Regions are containers for [BasicBlock]s within an [Operation].
 use crate::{
     basic_block::BasicBlock,
-    common_traits::{DisplayWithContext, Verify},
+    common_traits::Verify,
     context::{private::ArenaObj, Context, Ptr},
     error::CompilerError,
+    indented_block,
     linked_list::{private, ContainsLinkedList},
     operation::Operation,
-    with_context::AttachContext,
+    printable::{self, fmt_indented_newline, fmt_iter, ListSeparator, Printable},
 };
 
 /// [BasicBlock]s contained in this [Region].
@@ -105,12 +106,22 @@ impl Verify for Region {
     }
 }
 
-impl AttachContext for Region {}
-impl DisplayWithContext for Region {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        for block in self.iter(ctx) {
-            write!(f, "{}", block.with_ctx(ctx))?;
-        }
+impl Printable for Region {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "{{")?;
+
+        indented_block!(state, {
+            fmt_indented_newline(state, f)?;
+            fmt_iter(self.iter(ctx), ctx, state, ListSeparator::Newline, f)?;
+        });
+
+        fmt_indented_newline(state, f)?;
+        write!(f, "}}")?;
         Ok(())
     }
 }

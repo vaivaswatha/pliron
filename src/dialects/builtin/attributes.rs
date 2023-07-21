@@ -4,13 +4,13 @@ use sorted_vector_map::SortedVectorMap;
 
 use crate::{
     attribute::{AttrObj, Attribute},
-    common_traits::{DisplayWithContext, Verify},
+    common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::CompilerError,
     impl_attr, impl_attr_interface,
+    printable::{self, Printable},
     r#type::TypeObj,
-    with_context::AttachContext,
 };
 
 use super::attr_interfaces::TypedAttrInterface;
@@ -34,8 +34,13 @@ impl From<StringAttr> for String {
     }
 }
 
-impl DisplayWithContext for StringAttr {
-    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Printable for StringAttr {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -55,9 +60,14 @@ pub struct IntegerAttr {
 }
 impl_attr!(IntegerAttr, "Integer", "builtin");
 
-impl DisplayWithContext for IntegerAttr {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "0x{:x}: {}", self.val, self.ty.with_ctx(ctx))
+impl Printable for IntegerAttr {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "0x{:x}: {}", self.val, self.ty.disp(ctx))
     }
 }
 
@@ -97,8 +107,13 @@ pub struct APFloat();
 pub struct FloatAttr(APFloat);
 impl_attr!(FloatAttr, "Float", "builtin");
 
-impl DisplayWithContext for FloatAttr {
-    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Printable for FloatAttr {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(f, "<unimplimented>")
     }
 }
@@ -137,8 +152,13 @@ impl TypedAttrInterface for FloatAttr {
 pub struct SmallDictAttr(SortedVectorMap<&'static str, AttrObj>);
 impl_attr!(SmallDictAttr, "SmallDict", "builtin");
 
-impl DisplayWithContext for SmallDictAttr {
-    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Printable for SmallDictAttr {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        _f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         todo!()
     }
 }
@@ -190,8 +210,13 @@ impl VecAttr {
     }
 }
 
-impl DisplayWithContext for VecAttr {
-    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Printable for VecAttr {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        _f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         todo!()
     }
 }
@@ -214,9 +239,14 @@ impl UnitAttr {
     }
 }
 
-impl DisplayWithContext for UnitAttr {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.get_attr_id().with_ctx(ctx))
+impl Printable for UnitAttr {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "{}", self.get_attr_id().disp(ctx))
     }
 }
 
@@ -238,14 +268,14 @@ impl TypeAttr {
     }
 }
 
-impl DisplayWithContext for TypeAttr {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}<{}>",
-            self.get_attr_id().with_ctx(ctx),
-            self.0.with_ctx(ctx)
-        )
+impl Printable for TypeAttr {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "{}<{}>", self.get_attr_id().disp(ctx), self.0.disp(ctx))
     }
 }
 
@@ -283,7 +313,7 @@ mod tests {
             attributes::{IntegerAttr, StringAttr},
             types::{IntegerType, Signedness},
         },
-        with_context::AttachContext,
+        printable::Printable,
     };
 
     use super::{SmallDictAttr, TypeAttr, VecAttr};
@@ -298,8 +328,8 @@ mod tests {
         let int64_0_ptr2 = IntegerAttr::create(i64_ty, ApInt::from_i64(0));
         assert!(int64_0_ptr == int64_0_ptr2);
         assert!(
-            int64_0_ptr.with_ctx(&ctx).to_string() == "0x0: si64"
-                && int64_1_ptr.with_ctx(&ctx).to_string() == "0xf: si64"
+            int64_0_ptr.disp(&ctx).to_string() == "0x0: si64"
+                && int64_1_ptr.disp(&ctx).to_string() == "0xf: si64"
         );
         assert!(
             ApInt::from(int64_0_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()).is_zero()
@@ -319,8 +349,8 @@ mod tests {
         let str_0_ptr2 = StringAttr::create("hello".to_string());
         assert!(str_0_ptr == str_0_ptr2);
         assert!(
-            str_0_ptr.with_ctx(&ctx).to_string() == "hello"
-                && str_1_ptr.with_ctx(&ctx).to_string() == "world"
+            str_0_ptr.disp(&ctx).to_string() == "hello"
+                && str_1_ptr.disp(&ctx).to_string() == "world"
         );
         assert!(
             String::from(str_0_ptr.downcast_ref::<StringAttr>().unwrap().clone()) == "hello"

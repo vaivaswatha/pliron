@@ -4,16 +4,17 @@ use rustc_hash::FxHashMap;
 
 use crate::{
     attribute::AttrObj,
-    common_traits::{DisplayWithContext, Named, Verify},
+    common_traits::{Named, Verify},
     context::{private::ArenaObj, ArenaCell, Context, Ptr},
     debug_info::get_block_arg_name,
     error::CompilerError,
+    indented_block,
     linked_list::{private, ContainsLinkedList, LinkedList},
     operation::Operation,
+    printable::{self, indented_nl, ListSeparator, Printable, PrintableIter},
     r#type::TypeObj,
     region::Region,
     use_def_lists::{DefNode, Value},
-    with_context::AttachContext,
 };
 
 /// Argument to a [BasicBlock]
@@ -64,16 +65,14 @@ impl From<&BlockArgument> for Value {
     }
 }
 
-impl AttachContext for BlockArgument {}
-
-impl DisplayWithContext for BlockArgument {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}:{}",
-            self.get_name(ctx),
-            self.get_type().with_ctx(ctx)
-        )
+impl Printable for BlockArgument {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "{}:{}", self.get_name(ctx), self.get_type().disp(ctx))
     }
 }
 
@@ -300,21 +299,31 @@ impl Verify for BasicBlock {
     }
 }
 
-impl AttachContext for BasicBlock {}
-impl DisplayWithContext for BasicBlock {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}(", self.get_name(ctx))?;
-        for arg in self.args.iter() {
-            write!(f, "{}", arg.with_ctx(ctx))?;
-        }
-        writeln!(f, "):")?;
-        for op in self.iter(ctx) {
-            writeln!(
+impl Printable for BasicBlock {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(
+            f,
+            "{}({}):",
+            self.get_name(ctx),
+            self.args
+                .iter()
+                .iprint(ctx, state, ListSeparator::Char(','))
+        )?;
+
+        indented_block!(state, {
+            write!(
                 f,
-                "{}",
-                indent::indent_all_by(2, op.with_ctx(ctx).to_string())
+                "{}{}",
+                indented_nl(state),
+                self.iter(ctx).iprint(ctx, state, ListSeparator::Newline)
             )?;
-        }
+        });
+
         Ok(())
     }
 }

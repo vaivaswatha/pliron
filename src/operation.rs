@@ -9,17 +9,17 @@ use rustc_hash::FxHashMap;
 use crate::{
     attribute::AttrObj,
     basic_block::BasicBlock,
-    common_traits::{DisplayWithContext, Named, Verify},
+    common_traits::{Named, Verify},
     context::{private::ArenaObj, ArenaCell, Context, Ptr},
     debug_info,
     error::CompilerError,
     linked_list::{private, LinkedList},
     op::{self, OpId, OpObj},
+    printable::{self, Printable},
     r#type::TypeObj,
     region::Region,
     use_def_lists::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
     vec_exns::VecExtns,
-    with_context::AttachContext,
 };
 
 /// Represents the result of an [Operation].
@@ -406,9 +406,13 @@ impl<T: DefUseParticipant> From<&Operand<T>> for Use<T> {
     }
 }
 
-impl<T: DefUseParticipant> AttachContext for Operand<T> {}
-impl<T: DefUseParticipant + Named> DisplayWithContext for Operand<T> {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl<T: DefUseParticipant + Named> Printable for Operand<T> {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(f, "{}", self.r#use.get_def().get_name(ctx))
     }
 }
@@ -448,9 +452,13 @@ impl Verify for Operation {
     }
 }
 
-impl AttachContext for Operation {}
-impl DisplayWithContext for Operation {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.get_op(ctx).fmt(ctx, f)
+impl Printable for Operation {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        self.get_op(ctx).fmt(ctx, state, f)
     }
 }

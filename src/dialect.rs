@@ -3,8 +3,11 @@
 use std::ops::Deref;
 
 use crate::{
-    attribute::AttrId, common_traits::DisplayWithContext, context::Context, op::OpId,
-    r#type::TypeId, with_context::AttachContext,
+    attribute::AttrId,
+    context::Context,
+    op::OpId,
+    printable::{self, Printable},
+    r#type::TypeId,
 };
 
 /// Dialect name: Safe wrapper around a String.
@@ -18,9 +21,13 @@ impl DialectName {
     }
 }
 
-impl AttachContext for DialectName {}
-impl DisplayWithContext for DialectName {
-    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Printable for DialectName {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -46,10 +53,14 @@ pub struct Dialect {
     attributes: Vec<AttrId>,
 }
 
-impl AttachContext for Dialect {}
-impl DisplayWithContext for Dialect {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.name.with_ctx(ctx))
+impl Printable for Dialect {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "{}", self.name.disp(ctx))
     }
 }
 

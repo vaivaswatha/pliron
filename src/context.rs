@@ -2,14 +2,14 @@
 
 use crate::{
     basic_block::BasicBlock,
-    common_traits::{DisplayWithContext, Verify},
+    common_traits::Verify,
     dialect::{Dialect, DialectName},
     op::{OpCreator, OpId},
     operation::Operation,
+    printable::{self, Printable},
     r#type::TypeObj,
     region::Region,
     storage_uniquer::UniqueStore,
-    with_context::AttachContext,
 };
 use rustc_hash::FxHashMap;
 use std::{
@@ -166,10 +166,14 @@ impl<T: ArenaObj + 'static> Hash for Ptr<T> {
     }
 }
 
-impl<T: ArenaObj> AttachContext for Ptr<T> {}
-impl<T: ArenaObj + DisplayWithContext> DisplayWithContext for Ptr<T> {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.deref(ctx).fmt(ctx, f)
+impl<T: ArenaObj + Printable> Printable for Ptr<T> {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        self.deref(ctx).fmt(ctx, state, f)
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::{
     attribute::{self, attr_cast, AttrObj},
     basic_block::BasicBlock,
-    common_traits::{DisplayWithContext, Named, Verify},
+    common_traits::{Named, Verify},
     context::{Context, Ptr},
     declare_op,
     dialect::Dialect,
@@ -10,8 +10,8 @@ use crate::{
     linked_list::ContainsLinkedList,
     op::Op,
     operation::Operation,
+    printable::{self, Printable},
     r#type::TypeObj,
-    with_context::AttachContext,
 };
 
 use super::{
@@ -41,16 +41,21 @@ declare_op!(
     "builtin"
 );
 
-impl DisplayWithContext for ModuleOp {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let region = self.get_region(ctx).with_ctx(ctx).to_string();
+impl Printable for ModuleOp {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(
             f,
-            "{} @{} {{\n{}}}",
-            self.get_opid().with_ctx(ctx),
+            "{} @{} ",
+            self.get_opid().disp(ctx),
             self.get_symbol_name(ctx),
-            indent::indent_all_by(2, region),
-        )
+        )?;
+        self.get_region(ctx).fmt(ctx, state, f)?;
+        Ok(())
     }
 }
 
@@ -154,17 +159,22 @@ impl FuncOp {
 impl_op_interface!(OneRegionInterface for FuncOp {});
 impl_op_interface!(SymbolOpInterface for FuncOp {});
 
-impl DisplayWithContext for FuncOp {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let region = self.get_region(ctx).with_ctx(ctx).to_string();
+impl Printable for FuncOp {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(
             f,
-            "{} @{}{} {{\n{}}}",
-            self.get_opid().with_ctx(ctx),
+            "{} @{}{} ",
+            self.get_opid().disp(ctx),
             self.get_symbol_name(ctx),
-            self.get_type(ctx).with_ctx(ctx),
-            indent::indent_all_by(2, region),
-        )
+            self.get_type(ctx).disp(ctx),
+        )?;
+        self.get_region(ctx).fmt(ctx, state, f)?;
+        Ok(())
     }
 }
 
@@ -234,8 +244,13 @@ impl ConstantOp {
     }
 }
 
-impl DisplayWithContext for ConstantOp {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Printable for ConstantOp {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(
             f,
             "{} = {} {}",
@@ -244,8 +259,8 @@ impl DisplayWithContext for ConstantOp {
                 .get_result(0)
                 .unwrap()
                 .get_name(ctx),
-            self.get_opid().with_ctx(ctx),
-            self.get_value(ctx).with_ctx(ctx)
+            self.get_opid().disp(ctx),
+            self.get_value(ctx).disp(ctx)
         )
     }
 }

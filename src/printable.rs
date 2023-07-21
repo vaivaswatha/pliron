@@ -1,0 +1,320 @@
+//! IR objects that are to be printed must implement [Printable].
+
+use std::{
+    cell::RefCell,
+    fmt::{self, Display},
+    rc::Rc,
+};
+
+use crate::{common_traits::RcSharable, context::Context};
+
+#[derive(Clone)]
+struct StateInner {
+    // Number of spaces per indentation
+    indent_width: u16,
+    // Current indentation
+    cur_indent: u16,
+}
+
+impl Default for StateInner {
+    fn default() -> Self {
+        Self {
+            indent_width: 2,
+            cur_indent: 0,
+        }
+    }
+}
+
+/// A light weight reference counted wrapper around a state for [Printable].
+#[derive(Default)]
+pub struct State(Rc<RefCell<StateInner>>);
+
+impl State {
+    /// Number of spaces per indentation
+    pub fn get_indent_width(&self) -> u16 {
+        self.0.as_ref().borrow().indent_width
+    }
+
+    /// Set the current indentation width
+    pub fn set_indent_width(&self, indent_width: u16) {
+        self.0.as_ref().borrow_mut().indent_width = indent_width;
+    }
+
+    /// What's the indentation we're at right now?
+    pub fn get_current_indent(&self) -> u16 {
+        self.0.as_ref().borrow().cur_indent
+    }
+
+    /// Increase the current indentation by [Self::get_indent_width]
+    pub fn push_indent(&self) {
+        let mut inner = self.0.as_ref().borrow_mut();
+        inner.cur_indent += inner.indent_width;
+    }
+    /// Decrease the current indentation by [Self::get_indent_width].
+    pub fn pop_indent(&self) {
+        let mut inner = self.0.as_ref().borrow_mut();
+        inner.cur_indent -= inner.indent_width;
+    }
+}
+
+impl RcSharable for State {
+    /// Light weight (reference counted) clone.
+    fn share(&self) -> Self {
+        State(self.0.clone())
+    }
+
+    /// New copy that doesn't share the internal state of self.
+    fn replicate(&self) -> Self {
+        State(Rc::new(RefCell::new(self.0.borrow().clone())))
+    }
+}
+
+/// All statements in the block are indented during [fmt](Printable::fmt).
+/// Simply wraps the block with [State::push_indent] and [State::pop_indent].
+///
+/// See [Printable] for example usage.
+#[macro_export]
+macro_rules! indented_block {
+    ($state:ident, { $($tt:tt)* }) => {
+        $state.push_indent();
+        $($tt)*
+        $state.pop_indent();
+    }
+}
+
+/// An object that implements [Display].
+struct Displayable<'t, 'c, T: Printable> {
+    t: &'t T,
+    ctx: &'c Context,
+    state: State,
+}
+
+impl<'t, 'c, T: Printable> Display for Displayable<'t, 'c, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.t.fmt(self.ctx, &self.state, f)
+    }
+}
+
+/// Easy printing of IR objects.
+///
+/// [disp](Self::disp) calls [print](Self::print) with a default [State],
+/// but otherwise, are both equivalent.
+///
+/// [Iterator]s that are [Clone]able have the [PrintableIter] trait automatically
+/// implemented, providing corresponding methods [idisp](PrintableIter::idisp) and
+/// [iprint](PrintableIter::iprint).
+///
+/// Example:
+/// ```
+/// use pliron::{context::Context, printable::{State, Printable, ListSeparator, PrintableIter}};
+/// use std::fmt;
+/// struct S {
+///     i: i64,
+/// }
+/// impl Printable for S {
+///     fn fmt(&self, _ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>)
+///     -> fmt::Result
+///     {
+///         write!(f, "{}", self.i)
+///     }
+/// }
+///
+/// let ctx = Context::new();
+/// assert!(S { i: 108 }.disp(&ctx).to_string() == "108");
+/// let state = State::default();
+/// assert!(S { i: 0 }.print(&ctx, &state).to_string() == "0");
+/// let svec = vec![ S { i: 8 }, S { i: 16 } ];
+/// assert!(svec.iter().idisp(&ctx, ListSeparator::Char(',')).to_string() == "8,16");
+/// ```
+pub trait Printable {
+    fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+
+    /// Get a [Display]'able object from the given [Context] and default [State].
+    fn disp<'t, 'c>(&'t self, ctx: &'c Context) -> Box<dyn Display + 'c>
+    where
+        Self: Sized + 'c,
+        't: 'c,
+    {
+        self.print(ctx, &State::default())
+    }
+
+    /// Get a [Display]'able object from the given [Context] and [State].
+    fn print<'t, 'c>(&'t self, ctx: &'c Context, state: &State) -> Box<dyn Display + 'c>
+    where
+        Self: Sized + 'c,
+        't: 'c,
+    {
+        Box::new(Displayable {
+            t: self,
+            ctx,
+            state: state.share(),
+        })
+    }
+}
+
+impl<'a, T: Printable> Printable for &'a T {
+    fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        (*self).fmt(ctx, state, f)
+    }
+}
+
+#[derive(Clone, Copy)]
+/// When printing lists, how must they be separated
+pub enum ListSeparator {
+    Newline,
+    Char(char),
+}
+
+/// Iterate over [Item](Iterator::Item)s in an [Iterator] and print them.
+pub fn fmt_iter<I>(
+    mut iter: I,
+    ctx: &Context,
+    state: &State,
+    sep: ListSeparator,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result
+where
+    I: Iterator,
+    I::Item: Printable,
+{
+    if let Some(first) = iter.next() {
+        first.fmt(ctx, state, f)?;
+    }
+    for item in iter {
+        match sep {
+            ListSeparator::Newline => {
+                fmt_indented_newline(state, f)?;
+            }
+            ListSeparator::Char(c) => {
+                write!(f, "{}", c)?;
+            }
+        }
+        item.fmt(ctx, state, f)?;
+    }
+    Ok(())
+}
+
+/// An object that implmeents [Display] for [Iterator]s
+struct DisplayableIter<'c, I>
+where
+    I: Iterator + Clone,
+    I::Item: Printable,
+{
+    iter: I,
+    ctx: &'c Context,
+    state: State,
+    sep: ListSeparator,
+}
+
+impl<'c, I> Display for DisplayableIter<'c, I>
+where
+    I: Iterator + Clone,
+    I::Item: Printable,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_iter(self.iter.clone(), self.ctx, &self.state, self.sep, f)
+    }
+}
+
+/// Functionality to iterate over and print [Printable] [Item](Iterator::Item)s.
+/// Automatically implemented for suitable [Iterator]s.
+pub trait PrintableIter
+where
+    Self: Iterator + Clone,
+    Self::Item: Printable,
+{
+    fn fmt(
+        self,
+        ctx: &Context,
+        state: &State,
+        sep: ListSeparator,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result;
+
+    /// Get a [Display]'able object from the given [Context] and default [State].
+    fn idisp<'c>(self, ctx: &'c Context, sep: ListSeparator) -> Box<dyn Display + 'c>
+    where
+        Self: Sized + 'c,
+    {
+        self.iprint(ctx, &State::default(), sep)
+    }
+
+    /// Get a [Display]'able object from the given [Context] and [State].
+    fn iprint<'c>(
+        self,
+        ctx: &'c Context,
+        state: &State,
+        sep: ListSeparator,
+    ) -> Box<dyn Display + 'c>
+    where
+        Self: Sized + 'c,
+    {
+        Box::new(DisplayableIter {
+            iter: self,
+            ctx,
+            state: state.share(),
+            sep,
+        })
+    }
+}
+
+impl<I> PrintableIter for I
+where
+    I: Iterator + Clone,
+    I::Item: Printable,
+{
+    fn fmt(
+        self,
+        ctx: &Context,
+        state: &State,
+        sep: ListSeparator,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        fmt_iter(self, ctx, state, sep, f)
+    }
+}
+
+/// Print a new line followed by indentation as per current state.
+pub fn fmt_indented_newline(state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let align = state.get_current_indent().into();
+    write!(f, "\n{:>align$}", "")?;
+    Ok(())
+}
+
+struct IndentedNewliner {
+    state: State,
+}
+
+impl Display for IndentedNewliner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_indented_newline(&self.state, f)
+    }
+}
+
+/// Print a new line followed by indentation as per current state.
+pub fn indented_nl(state: &State) -> impl Display {
+    IndentedNewliner {
+        state: state.share(),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::common_traits::RcSharable;
+
+    use super::State;
+
+    #[test]
+    fn test_state_cloning() {
+        let state = State::default();
+        let cur_indent = state.get_current_indent();
+        state.push_indent();
+        assert!(cur_indent < state.get_current_indent());
+        let state_new = state.replicate();
+        state.pop_indent();
+        assert!(state_new.get_current_indent() != state.get_current_indent());
+        let state_new_2 = state_new.share();
+        state_new_2.push_indent();
+        assert!(state_new.get_current_indent() == state_new_2.get_current_indent());
+    }
+}

@@ -53,6 +53,16 @@ pub struct Iter<'a, T: LinkedList> {
     ctx: &'a Context,
 }
 
+impl<'a, T: LinkedList> Clone for Iter<'a, T> {
+    fn clone(&self) -> Self {
+        Self {
+            next: self.next,
+            next_back: self.next_back,
+            ctx: self.ctx,
+        }
+    }
+}
+
 impl<'a, T: LinkedList> Iterator for Iter<'a, T> {
     type Item = Ptr<T>;
 
