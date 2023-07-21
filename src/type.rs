@@ -8,11 +8,11 @@
 //!
 //! The [impl_type](crate::impl_type) macro can be used to implement [Type] for a rust type.
 
-use crate::common_traits::{DisplayWithContext, Verify};
+use crate::common_traits::Verify;
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
+use crate::printable::{self, Printable};
 use crate::storage_uniquer::TypeValueHash;
-use crate::with_context::AttachContext;
 
 use downcast_rs::{impl_downcast, Downcast};
 use std::hash::{Hash, Hasher};
@@ -41,7 +41,7 @@ use std::ops::Deref;
 ///   1. It manually implements Hash, ignoring these mutable fields.
 ///   2. A proper distinguisher content (such as a string), that is part
 ///      of the hash, is used so that uniquing still works.
-pub trait Type: DisplayWithContext + Verify + Downcast + Sync {
+pub trait Type: Printable + Verify + Downcast + Sync {
     /// Compute and get the hash for this instance of Self.
     /// Hash collisions can be a possibility.
     fn hash_type(&self) -> TypeValueHash;
@@ -135,9 +135,13 @@ impl Deref for TypeName {
     }
 }
 
-impl AttachContext for TypeName {}
-impl DisplayWithContext for TypeName {
-    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Printable for TypeName {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -149,15 +153,14 @@ pub struct TypeId {
     pub name: TypeName,
 }
 
-impl AttachContext for TypeId {}
-impl DisplayWithContext for TypeId {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}.{}",
-            self.dialect.with_ctx(ctx),
-            self.name.with_ctx(ctx)
-        )
+impl Printable for TypeId {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "{}.{}", self.dialect.disp(ctx), self.name.disp(ctx))
     }
 }
 
@@ -197,10 +200,14 @@ impl ArenaObj for TypeObj {
     }
 }
 
-impl AttachContext for TypeObj {}
-impl DisplayWithContext for TypeObj {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.as_ref().fmt(ctx, f)
+impl Printable for TypeObj {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        self.as_ref().fmt(ctx, state, f)
     }
 }
 
@@ -223,16 +230,21 @@ impl Verify for TypeObj {
 ///     "dialect"
 /// );
 /// # use pliron::{
-/// #     impl_type, with_context::AttachContext, common_traits::DisplayWithContext,
+/// #     impl_type, printable::{self, Printable},
 /// #     context::Context, error::CompilerError, common_traits::Verify,
 /// #     storage_uniquer::TypeValueHash, r#type::Type,
 /// # };
-/// # impl DisplayWithContext for MyType {
-/// #    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// # impl Printable for MyType {
+/// #    fn fmt(&self,
+/// #           _ctx: &Context,
+/// #          _state: &printable::State,
+/// #          _f: &mut core::fmt::Formatter<'_>)
+/// #    -> core::fmt::Result
+/// #    {
 /// #        todo!()
 /// #    }
 /// # }
-///
+/// #
 /// # impl Verify for MyType {
 /// #   fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
 /// #        todo!()
@@ -268,6 +280,5 @@ macro_rules! impl_type {
                 }
             }
         }
-        impl $crate::with_context::AttachContext for $structname {}
     }
 }

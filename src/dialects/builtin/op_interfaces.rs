@@ -5,10 +5,10 @@ use crate::{
     linked_list::ContainsLinkedList,
     op::{op_cast, Op},
     operation::Operation,
+    printable::Printable,
     r#type::TypeObj,
     region::Region,
     use_def_lists::Value,
-    with_context::AttachContext,
 };
 
 use super::attributes::StringAttr;
@@ -67,10 +67,7 @@ pub trait OneRegionInterface: Op {
         let self_op = op.get_operation().deref(ctx);
         if self_op.regions.len() != 1 {
             return Err(CompilerError::VerificationError {
-                msg: format!(
-                    "Op {} must have single region.",
-                    op.get_opid().with_ctx(ctx)
-                ),
+                msg: format!("Op {} must have single region.", op.get_opid().disp(ctx)),
             });
         }
         Ok(())
@@ -106,7 +103,7 @@ pub trait SingleBlockRegionInterface: Op {
                 return Err(CompilerError::VerificationError {
                     msg: format!(
                         "SingleBlockRegion Op {} must have single region.",
-                        self_op.get_opid().with_ctx(ctx)
+                        self_op.get_opid().disp(ctx)
                     ),
                 });
             }
@@ -148,12 +145,7 @@ pub trait OneResultInterface: Op {
         self.get_operation()
             .deref(ctx)
             .get_result(0)
-            .unwrap_or_else(|| {
-                panic!(
-                    "{} must have exactly one result",
-                    self.get_opid().with_ctx(ctx)
-                )
-            })
+            .unwrap_or_else(|| panic!("{} must have exactly one result", self.get_opid().disp(ctx)))
     }
 
     // Get the type of the single result defined by this Op.
@@ -161,12 +153,7 @@ pub trait OneResultInterface: Op {
         self.get_operation()
             .deref(ctx)
             .get_type(0)
-            .unwrap_or_else(|| {
-                panic!(
-                    "{} must have exactly one result",
-                    self.get_opid().with_ctx(ctx)
-                )
-            })
+            .unwrap_or_else(|| panic!("{} must have exactly one result", self.get_opid().disp(ctx)))
     }
 
     fn verify(op: &dyn Op, ctx: &Context) -> Result<(), CompilerError>
@@ -178,7 +165,7 @@ pub trait OneResultInterface: Op {
             return Err(CompilerError::VerificationError {
                 msg: format!(
                     "Expected exactly one result on operation {}",
-                    op.get_opid().with_ctx(ctx)
+                    op.get_opid().disp(ctx)
                 ),
             });
         }

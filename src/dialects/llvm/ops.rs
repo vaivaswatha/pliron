@@ -1,5 +1,5 @@
 use crate::{
-    common_traits::{DisplayWithContext, Verify},
+    common_traits::Verify,
     context::Context,
     declare_op,
     dialect::Dialect,
@@ -8,8 +8,8 @@ use crate::{
     impl_op_interface,
     op::Op,
     operation::Operation,
+    printable::{self, Printable},
     use_def_lists::Value,
-    with_context::AttachContext,
 };
 
 declare_op!(
@@ -32,17 +32,22 @@ impl ReturnOp {
     }
 }
 
-impl DisplayWithContext for ReturnOp {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Printable for ReturnOp {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(
             f,
             "{} {}",
-            self.get_opid().with_ctx(ctx),
+            self.get_opid().disp(ctx),
             self.get_operation()
                 .deref(ctx)
                 .get_operand_ref(0)
                 .unwrap()
-                .with_ctx(ctx)
+                .disp(ctx)
         )
     }
 }

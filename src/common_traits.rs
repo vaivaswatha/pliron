@@ -1,90 +1,8 @@
-//! Utility traits such as [DisplayWithContext], [Verify] etc.
-
-use core::fmt;
+//! Utility traits such as [Named], [Verify] etc.
 
 use combine::{ParseResult, Parser, Stream};
 
-use crate::{
-    context::Context,
-    error::CompilerError,
-    with_context::{AttachContext, IterWithContext, WithContext},
-};
-
-// Traits for Display and Debug but with a paired Context.
-
-///  Same as [fmt::Display], but with a [Context]. Example usage:
-/// ```
-/// use pliron::{with_context::*, common_traits::DisplayWithContext, context::Context};
-/// use std::fmt;
-/// struct S {
-///     i: i64,
-/// }
-/// impl AttachContext for S {}
-/// impl DisplayWithContext for S {
-///     fn fmt(&self, _ctx: &Context, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-///         write!(f, "{}", self.i)
-///     }
-/// }
-///
-/// let ctx = Context::new();
-/// assert!(S { i: 108 }.with_ctx(&ctx).to_string() == "108");
-/// ```
-pub trait DisplayWithContext: AttachContext {
-    fn fmt(&self, ctx: &Context, f: &mut fmt::Formatter<'_>) -> fmt::Result;
-}
-
-impl<T: DisplayWithContext> fmt::Display for WithContext<'_, '_, T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.t.fmt(self.ctx, f)
-    }
-}
-
-/// Same as [fmt::Debug], but with a [Context]. Example usage:
-/// ```
-/// use pliron::{with_context::*, common_traits::DebugWithContext, context::Context};
-/// use std::fmt;
-/// struct S {
-///     i: i64,
-/// }
-/// impl AttachContext for S {}
-/// impl DebugWithContext for S {
-///     fn fmt(&self, _ctx: &Context, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-///         write!(f, "{}", self.i)
-///     }
-/// }
-/// fn test() {
-///     let ctx = Context::new();
-///     dbg!(S {i: 64 }.with_ctx(&ctx));
-///     let sv = vec![S { i: 0 }, S { i: 1 }, S { i: 2 }];
-///     dbg!(sv.iter().with_ctx(&ctx));
-/// }
-/// // Calling `test` will print:
-/// // [
-/// //    0,
-/// //    1,
-/// //    2,
-/// // ]
-/// ```
-pub trait DebugWithContext: AttachContext {
-    fn fmt(&self, ctx: &Context, f: &mut fmt::Formatter<'_>) -> fmt::Result;
-}
-
-impl<T: DebugWithContext> fmt::Debug for WithContext<'_, '_, T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.t.fmt(self.ctx, f)
-    }
-}
-
-// Implement [DebugWithContext] for any clonable [Iterator] whose [Item](Iterator::Item)
-// implements [DebugWithContext].
-// We need to clone the iterator because `fmt` below doesn't allow consuming it.
-impl<'c, 't, T: 't + DebugWithContext, I: Iterator<Item = &'t T> + Clone> fmt::Debug
-    for IterWithContext<'c, I>
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_list().entries(self.clone()).finish()
-    }
-}
+use crate::{context::Context, error::CompilerError};
 
 /// Check and ensure correctness.
 pub trait Verify {
@@ -96,9 +14,22 @@ pub trait Named {
     fn get_name(&self, ctx: &Context) -> String;
 }
 
+/// For types that contain a reference-counted container,
+/// provides methods to [share](Self::share) (i.e., [Rc::clone](std::rc::Rc::clone))
+/// and [deep copy](Self::replicate) inner data.
+/// This just avoids ambiguity over using `Rc::clone`, which doesn't clone
+/// inner data but increases the reference count.
+pub trait RcSharable {
+    /// Light weight (reference counted) clone.
+    fn share(&self) -> Self;
+
+    /// New copy that doesn't share the internal state of self.
+    fn replicate(&self) -> Self;
+}
+
 pub type ParsableState<'a, Input> = combine::stream::state::Stream<Input, &'a mut Context>;
 
-/// Any object that can be parsed from its [DisplayWithContext] text.
+/// Any object that can be parsed from its [Printable](crate::printable::Printable) text.
 ///
 /// Implement [parse](Parsable::parse) and call [get_parser](Parsable::get_parser)
 /// to get a parser combinator that can be combined with any other parser

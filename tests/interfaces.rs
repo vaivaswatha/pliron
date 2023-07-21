@@ -2,7 +2,7 @@ mod common;
 
 use pliron::{
     attribute::Attribute,
-    common_traits::{DisplayWithContext, Verify},
+    common_traits::Verify,
     context::{Context, Ptr},
     declare_op,
     dialect::{Dialect, DialectName},
@@ -17,6 +17,7 @@ use pliron::{
     impl_attr, impl_attr_interface, impl_op_interface,
     op::Op,
     operation::Operation,
+    printable::{self, Printable},
     r#type::TypeObj,
 };
 
@@ -26,8 +27,13 @@ declare_op!(ZeroResultOp, "zero_results", "test");
 
 impl_op_interface!(OneResultInterface for ZeroResultOp {});
 
-impl DisplayWithContext for ZeroResultOp {
-    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Printable for ZeroResultOp {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(f, "zero_results",)
     }
 }
@@ -61,7 +67,7 @@ fn check_intrf_verfiy_errs() {
 
     assert!(matches!(
         module_op.get_operation().verify(ctx),
-        Err(CompilerError::VerificationError { msg }) 
+        Err(CompilerError::VerificationError { msg })
         if msg == "Expected exactly one result on operation test.zero_results"));
 }
 
@@ -98,8 +104,13 @@ impl Verify for MyAttr {
         Ok(())
     }
 }
-impl DisplayWithContext for MyAttr {
-    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Printable for MyAttr {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(f, "MyAttr")
     }
 }

@@ -28,12 +28,12 @@ use downcast_rs::{impl_downcast, Downcast};
 use intertrait::{cast::CastRef, CastFrom};
 
 use crate::{
-    common_traits::{DisplayWithContext, Verify},
+    common_traits::Verify,
     context::{Context, Ptr},
     dialect::{Dialect, DialectName},
     error::CompilerError,
     operation::Operation,
-    with_context::AttachContext,
+    printable::{self, Printable},
 };
 
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -55,9 +55,13 @@ impl Deref for OpName {
     }
 }
 
-impl AttachContext for OpName {}
-impl DisplayWithContext for OpName {
-    fn fmt(&self, _ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Printable for OpName {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -69,15 +73,14 @@ pub struct OpId {
     pub name: OpName,
 }
 
-impl AttachContext for OpId {}
-impl DisplayWithContext for OpId {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}.{}",
-            self.dialect.with_ctx(ctx),
-            self.name.with_ctx(ctx)
-        )
+impl Printable for OpId {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "{}.{}", self.dialect.disp(ctx), self.name.disp(ctx))
     }
 }
 
@@ -87,7 +90,7 @@ pub(crate) type OpCreator = fn(Ptr<Operation>) -> OpObj;
 /// All per-instance data must be in the underyling Operation.
 ///
 /// See [module](crate::op) documentation for more information.
-pub trait Op: Downcast + Verify + DisplayWithContext + CastFrom {
+pub trait Op: Downcast + Verify + Printable + CastFrom {
     /// Get the underlying IR Operation
     fn get_operation(&self) -> Ptr<Operation>;
     /// Create a new Op object, by wrapping around an operation.
@@ -125,7 +128,7 @@ pub fn from_operation(ctx: &Context, op: Ptr<Operation>) -> OpObj {
     let opid = op.deref(ctx).get_opid();
     (ctx.ops
         .get(&opid)
-        .unwrap_or_else(|| panic!("Unregistered Op {}", opid.with_ctx(ctx))))(op)
+        .unwrap_or_else(|| panic!("Unregistered Op {}", opid.disp(ctx))))(op)
 }
 
 /// [Op] objects are boxed and stored in the IR.
@@ -155,11 +158,13 @@ pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<(), CompilerError
 ///     "dialect"
 /// );
 /// # use pliron::{
-/// #     op::Op, declare_op, with_context::AttachContext, common_traits::DisplayWithContext,
+/// #     op::Op, declare_op, printable::{self, Printable},
 /// #     context::Context, error::CompilerError, common_traits::Verify
 /// # };
-/// # impl DisplayWithContext for MyOp {
-/// #    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// # impl Printable for MyOp {
+/// #    fn fmt(&self, _ctx: &Context, _state: &printable::State, _f: &mut core::fmt::Formatter<'_>)
+/// #     -> core::fmt::Result
+/// #    {
 /// #        todo!()
 /// #    }
 /// # }
@@ -221,7 +226,6 @@ macro_rules! declare_op {
                 Ok(())
             }
         }
-        impl $crate::with_context::AttachContext for $structname {}
     }
 }
 
@@ -252,12 +256,12 @@ macro_rules! declare_op {
 ///     }
 /// );
 /// # use pliron::{
-/// #     op::Op, declare_op, impl_op_interface,with_context::AttachContext,
-/// #     common_traits::DisplayWithContext, context::Context, error::CompilerError,
+/// #     op::Op, declare_op, impl_op_interface,
+/// #     printable::{self, Printable}, context::Context, error::CompilerError,
 /// #     common_traits::Verify
 /// # };
-/// # impl DisplayWithContext for MyOp {
-/// #    fn fmt(&self, _ctx: &Context, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// # impl Printable for MyOp {
+/// #    fn fmt(&self, _ctx: &Context, _state: &printable::State, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 /// #        todo!()
 /// #    }
 /// # }

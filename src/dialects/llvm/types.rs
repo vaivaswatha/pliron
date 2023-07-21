@@ -1,12 +1,12 @@
 use crate::{
-    common_traits::{DisplayWithContext, Verify},
+    common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::CompilerError,
     impl_type,
+    printable::{self, Printable},
     r#type::{Type, TypeObj},
     storage_uniquer::TypeValueHash,
-    with_context::AttachContext,
 };
 
 use std::hash::Hash;
@@ -124,8 +124,13 @@ impl Verify for StructType {
     }
 }
 
-impl DisplayWithContext for StructType {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Printable for StructType {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         use std::cell::RefCell;
         // Ugly, but also the simplest way to avoid infinite recursion.
         // MLIR does the same: see LLVMTypeSyntax::printStructType.
@@ -150,7 +155,7 @@ impl DisplayWithContext for StructType {
             s += [
                 field.0.clone(),
                 ": ".to_string(),
-                field.1.deref(ctx).with_ctx(ctx).to_string(),
+                field.1.deref(ctx).disp(ctx).to_string(),
                 ", ".to_string(),
             ]
             .concat()
@@ -219,14 +224,14 @@ impl PointerType {
     }
 }
 
-impl DisplayWithContext for PointerType {
-    fn fmt(&self, ctx: &Context, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}<{}>",
-            self.get_type_id().with_ctx(ctx),
-            self.to.with_ctx(ctx)
-        )
+impl Printable for PointerType {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "{}<{}>", self.get_type_id().disp(ctx), self.to.disp(ctx))
     }
 }
 
@@ -249,8 +254,8 @@ mod tests {
             builtin::types::{IntegerType, Signedness},
             llvm::types::{PointerType, StructType},
         },
+        printable::Printable,
         r#type::Type,
-        with_context::AttachContext,
     };
 
     #[test]
@@ -281,7 +286,7 @@ mod tests {
                 .deref(&ctx)
                 .downcast_ref::<StructType>()
                 .unwrap()
-                .with_ctx(&ctx)
+                .disp(&ctx)
                 .to_string()
                 == "LinkedList { data: i64, next: llvm.ptr<LinkedList>, }"
         );
@@ -312,7 +317,7 @@ mod tests {
 
         let int64pointer_ptr = PointerType { to: int64_ptr };
         let int64pointer_ptr = Type::register_instance(int64pointer_ptr, &mut ctx);
-        assert!(int64pointer_ptr.with_ctx(&ctx).to_string() == "llvm.ptr<si64>");
+        assert!(int64pointer_ptr.disp(&ctx).to_string() == "llvm.ptr<si64>");
         assert!(int64pointer_ptr == PointerType::get(&mut ctx, int64_ptr));
 
         assert!(
