@@ -10,6 +10,7 @@ pub mod error;
 pub mod linked_list;
 pub mod op;
 pub mod operation;
+pub mod parsable;
 pub mod printable;
 pub mod region;
 pub mod storage_uniquer;

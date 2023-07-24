@@ -5,11 +5,12 @@ use combine::{
 };
 
 use crate::{
-    common_traits::{Parsable, ParsableState, Verify},
+    common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::CompilerError,
     impl_type,
+    parsable::{Parsable, StateStream},
     printable::{self, ListSeparator, Printable, PrintableIter},
     r#type::{Type, TypeObj},
     storage_uniquer::TypeValueHash,
@@ -53,17 +54,22 @@ impl IntegerType {
 impl Parsable for IntegerType {
     type Parsed = Ptr<TypeObj>;
     fn parse<'a, Input: Stream<Token = char> + 'a>(
-        parsable_state: &mut ParsableState<Input>,
+        state_stream: &mut StateStream<Input>,
     ) -> ParseResult<Self::Parsed, Input::Error> {
-        let mut choicer = choice((
+        // Choose b/w si/ui/i ...
+        let choicer = choice((
             string::<Input>("si").map(|_| Signedness::Signed),
             string("ui").map(|_| Signedness::Unsigned),
             string("i").map(|_| Signedness::Signless),
-        ))
-        .and(many1::<String, _, _>(digit()).map(|digits| digits.parse::<u64>().unwrap()));
-        choicer
-            .parse_stream(&mut parsable_state.stream)
-            .map(|(signedness, width)| IntegerType::get(parsable_state.state, width, signedness))
+        ));
+
+        // following by an integer.
+        let mut parser = choicer
+            .and(many1::<String, _, _>(digit()).map(|digits| digits.parse::<u64>().unwrap()));
+
+        parser
+            .parse_stream(&mut state_stream.stream)
+            .map(|(signedness, width)| IntegerType::get(state_stream.state.ctx, width, signedness))
     }
 }
 
@@ -165,9 +171,9 @@ mod tests {
 
     use super::FunctionType;
     use crate::{
-        common_traits::{Parsable, ParsableState},
         context::Context,
         dialects::builtin::types::{IntegerType, Signedness},
+        parsable::{self, Parsable, StateStream},
     };
     #[test]
     fn test_integer_types() {
@@ -209,14 +215,14 @@ mod tests {
     fn test_integer_parsing() {
         let mut ctx = Context::new();
         let input_stream = easy::Stream::from("si64");
-        let input_state = ParsableState {
+        let state_stream = StateStream {
             stream: input_stream,
-            state: &mut ctx,
+            state: parsable::State { ctx: &mut ctx },
         };
 
-        let res = IntegerType::get_parser()
+        let res = IntegerType::parser()
             .and(eof())
-            .parse(input_state)
+            .parse(state_stream)
             .unwrap()
             .0
              .0;
@@ -228,12 +234,12 @@ mod tests {
         let mut ctx = Context::new();
         let input_string = position::Stream::new("asi64");
         let input_stream = easy::Stream::from(input_string);
-        let input_state = ParsableState {
+        let state_stream = StateStream {
             stream: input_stream,
-            state: &mut ctx,
+            state: parsable::State { ctx: &mut ctx },
         };
 
-        let res = IntegerType::get_parser().parse(input_state);
+        let res = IntegerType::parser().parse(state_stream);
         let err_msg = format!("{}", res.err().unwrap());
 
         let expected_err_msg = expect![[r#"

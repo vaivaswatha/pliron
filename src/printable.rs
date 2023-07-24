@@ -194,7 +194,7 @@ where
     Ok(())
 }
 
-/// An object that implmeents [Display] for [Iterator]s
+/// An object that implements [Display] for [Iterator]s
 struct DisplayableIter<'c, I>
 where
     I: Iterator + Clone,
