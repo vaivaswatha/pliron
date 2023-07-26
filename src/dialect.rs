@@ -8,7 +8,7 @@ use crate::{
     attribute::AttrId,
     context::Context,
     op::OpId,
-    parsable::{self, Parsable, ParsableStream, StateStream},
+    parsable::{self, EasableStream, Parsable, StateStream},
     printable::{self, Printable},
     r#type::TypeId,
 };
@@ -38,9 +38,9 @@ impl Printable for DialectName {
 impl Parsable for DialectName {
     type Parsed = DialectName;
 
-    fn parse<'a>(
-        state_stream: &mut StateStream<'a>,
-    ) -> ParseResult<Self::Parsed, easy::ParseError<ParsableStream<'a>>>
+    fn parse<'a, S: EasableStream + 'a>(
+        state_stream: &mut StateStream<'a, S>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<S>>
     where
         Self: Sized,
     {
@@ -143,13 +143,13 @@ impl Dialect {
 
 #[cfg(test)]
 mod test {
-    use combine::{easy, stream::position};
+
     use expect_test::expect;
 
     use crate::{
         context::Context,
         dialects,
-        parsable::{self, Parsable, StateStream},
+        parsable::{self, easy_positioned_state_stream, Parsable},
         printable::Printable,
     };
 
@@ -160,11 +160,8 @@ mod test {
         let mut ctx = Context::new();
         dialects::builtin::register(&mut ctx);
 
-        let input_stream = easy::Stream::from(position::Stream::new("non_existant"));
-        let state_stream = StateStream {
-            stream: input_stream,
-            state: parsable::State { ctx: &mut ctx },
-        };
+        let state_stream =
+            easy_positioned_state_stream("non_existant", parsable::State { ctx: &mut ctx });
 
         let res = DialectName::parser().parse(state_stream);
         let err_msg = format!("{}", res.err().unwrap());
@@ -175,11 +172,8 @@ mod test {
         "#]];
         expected_err_msg.assert_eq(&err_msg);
 
-        let input_stream = easy::Stream::from(position::Stream::new("builtin"));
-        let state_stream = StateStream {
-            stream: input_stream,
-            state: parsable::State { ctx: &mut ctx },
-        };
+        let state_stream =
+            easy_positioned_state_stream("builtin", parsable::State { ctx: &mut ctx });
 
         let parsed = DialectName::parser().parse(state_stream).unwrap().0;
         assert_eq!(parsed.disp(&ctx).to_string(), "builtin");
