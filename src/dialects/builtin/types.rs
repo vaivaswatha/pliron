@@ -1,7 +1,7 @@
 use combine::{
-    choice, many1,
+    choice, easy, many1,
     parser::{char::digit, char::string},
-    ParseResult, Parser, Stream,
+    ParseResult, Parser,
 };
 
 use crate::{
@@ -10,7 +10,7 @@ use crate::{
     dialect::Dialect,
     error::CompilerError,
     impl_type,
-    parsable::{Parsable, StateStream},
+    parsable::{Parsable, ParsableStream, StateStream},
     printable::{self, ListSeparator, Printable, PrintableIter},
     r#type::{Type, TypeObj},
     storage_uniquer::TypeValueHash,
@@ -53,17 +53,20 @@ impl IntegerType {
 
 impl Parsable for IntegerType {
     type Parsed = Ptr<TypeObj>;
-    fn parse<'a, Input: Stream<Token = char> + 'a>(
-        state_stream: &mut StateStream<Input>,
-    ) -> ParseResult<Self::Parsed, Input::Error> {
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<ParsableStream<'a>>>
+    where
+        Self: Sized,
+    {
         // Choose b/w si/ui/i ...
         let choicer = choice((
-            string::<Input>("si").map(|_| Signedness::Signed),
+            string("si").map(|_| Signedness::Signed),
             string("ui").map(|_| Signedness::Unsigned),
             string("i").map(|_| Signedness::Signless),
         ));
 
-        // following by an integer.
+        // followed by an integer.
         let mut parser = choicer
             .and(many1::<String, _, _>(digit()).map(|digits| digits.parse::<u64>().unwrap()));
 
@@ -214,7 +217,7 @@ mod tests {
     #[test]
     fn test_integer_parsing() {
         let mut ctx = Context::new();
-        let input_stream = easy::Stream::from("si64");
+        let input_stream = easy::Stream::from(position::Stream::new("si64"));
         let state_stream = StateStream {
             stream: input_stream,
             state: parsable::State { ctx: &mut ctx },

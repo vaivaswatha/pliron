@@ -2,10 +2,13 @@
 //! and [Attribute](crate::attribute::Attribute)s.
 use std::ops::Deref;
 
+use combine::{easy, ParseResult, Parser};
+
 use crate::{
     attribute::AttrId,
     context::Context,
     op::OpId,
+    parsable::{self, Parsable, ParsableStream, StateStream},
     printable::{self, Printable},
     r#type::TypeId,
 };
@@ -29,6 +32,30 @@ impl Printable for DialectName {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl Parsable for DialectName {
+    type Parsed = DialectName;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<ParsableStream<'a>>>
+    where
+        Self: Sized,
+    {
+        let id = parsable::parse_id();
+        let mut parser = id.and_then(|dialect_name| {
+            let dialect_name = DialectName::new(&dialect_name);
+            if state_stream.state.ctx.dialects.contains_key(&dialect_name) {
+                Ok(dialect_name)
+            } else {
+                Err(easy::Error::Message(
+                    format!("Unregistered dialect {}", *dialect_name).into(),
+                ))
+            }
+        });
+        parser.parse_stream(&mut state_stream.stream)
     }
 }
 
@@ -111,5 +138,50 @@ impl Dialect {
     /// Get mutable reference to a registered Dialect by name.
     pub fn get_mut(ctx: &mut Context, name: DialectName) -> Option<&mut Dialect> {
         ctx.dialects.get_mut(&name)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use combine::{easy, stream::position};
+    use expect_test::expect;
+
+    use crate::{
+        context::Context,
+        dialects,
+        parsable::{self, Parsable, StateStream},
+        printable::Printable,
+    };
+
+    use super::DialectName;
+
+    #[test]
+    fn parse_dialect() {
+        let mut ctx = Context::new();
+        dialects::builtin::register(&mut ctx);
+
+        let input_stream = easy::Stream::from(position::Stream::new("non_existant"));
+        let state_stream = StateStream {
+            stream: input_stream,
+            state: parsable::State { ctx: &mut ctx },
+        };
+
+        let res = DialectName::parser().parse(state_stream);
+        let err_msg = format!("{}", res.err().unwrap());
+
+        let expected_err_msg = expect![[r#"
+            Parse error at line: 1, column: 1
+            Unregistered dialect non_existant
+        "#]];
+        expected_err_msg.assert_eq(&err_msg);
+
+        let input_stream = easy::Stream::from(position::Stream::new("builtin"));
+        let state_stream = StateStream {
+            stream: input_stream,
+            state: parsable::State { ctx: &mut ctx },
+        };
+
+        let parsed = DialectName::parser().parse(state_stream).unwrap().0;
+        assert_eq!(parsed.disp(&ctx).to_string(), "builtin");
     }
 }
