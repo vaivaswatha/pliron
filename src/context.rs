@@ -142,10 +142,7 @@ impl<'a, T: ArenaObj> Ptr<T> {
 
 impl<T: ArenaObj> Clone for Ptr<T> {
     fn clone(&self) -> Ptr<T> {
-        Ptr {
-            idx: self.idx,
-            _dummy: PhantomData,
-        }
+        *self
     }
 }
 

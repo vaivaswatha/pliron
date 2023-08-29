@@ -125,6 +125,10 @@ impl<'t, 'c, T: Printable> Display for Displayable<'t, 'c, T> {
 /// assert!(S { i: 0 }.print(&ctx, &state).to_string() == "0");
 /// let svec = vec![ S { i: 8 }, S { i: 16 } ];
 /// assert!(svec.iter().idisp(&ctx, ListSeparator::Char(',')).to_string() == "8,16");
+/// use pliron::{indented_block, printable::indented_nl};
+/// indented_block!(state, {
+///     assert_eq!(format!("{}{}", indented_nl(&state), S { i: 108 }.print(&ctx, &state)), "\n  108");
+/// });
 /// ```
 pub trait Printable {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result;

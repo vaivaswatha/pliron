@@ -254,11 +254,7 @@ impl Printable for ConstantOp {
         write!(
             f,
             "{} = {} {}",
-            self.get_operation()
-                .deref(ctx)
-                .get_result(0)
-                .unwrap()
-                .get_name(ctx),
+            self.get_result(ctx).get_name(ctx),
             self.get_opid().disp(ctx),
             self.get_value(ctx).disp(ctx)
         )
@@ -274,7 +270,7 @@ impl Verify for ConstantOp {
             });
         }
         let op = &*self.get_operation().deref(ctx);
-        if op.get_num_results() != 1 || op.get_num_operands() != 0 {
+        if op.get_num_operands() != 0 {
             return Err(CompilerError::VerificationError {
                 msg: "Incorrect number of results or operands".to_string(),
             });
