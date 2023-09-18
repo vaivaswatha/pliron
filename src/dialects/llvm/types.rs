@@ -1,9 +1,12 @@
+use combine::{easy, ParseResult};
+
 use crate::{
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::CompilerError,
     impl_type,
+    parsable::{Parsable, StateStream},
     printable::{self, Printable},
     r#type::{Type, TypeObj},
     storage_uniquer::TypeValueHash,
@@ -200,6 +203,19 @@ impl PartialEq for StructType {
     }
 }
 
+impl Parsable for StructType {
+    type Parsed = Ptr<TypeObj>;
+
+    fn parse<'a>(
+        _state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+}
+
 impl Eq for StructType {}
 
 #[derive(Hash, PartialEq, Eq)]
@@ -235,6 +251,19 @@ impl Printable for PointerType {
     }
 }
 
+impl Parsable for PointerType {
+    type Parsed = Ptr<TypeObj>;
+
+    fn parse<'a>(
+        _state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+}
+
 impl Verify for PointerType {
     fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
         todo!()
@@ -242,8 +271,8 @@ impl Verify for PointerType {
 }
 
 pub fn register(dialect: &mut Dialect) {
-    StructType::register_type_in_dialect(dialect);
-    PointerType::register_type_in_dialect(dialect);
+    StructType::register_type_in_dialect(dialect, StructType::parser_fn);
+    PointerType::register_type_in_dialect(dialect, PointerType::parser_fn);
 }
 
 #[cfg(test)]

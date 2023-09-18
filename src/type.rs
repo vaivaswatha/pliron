@@ -11,9 +11,12 @@
 use crate::common_traits::Verify;
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
+use crate::parsable::{parse_id, Parsable, ParserFn, StateStream};
 use crate::printable::{self, Printable};
 use crate::storage_uniquer::TypeValueHash;
 
+use combine::parser::char::spaces;
+use combine::{easy, parser, ParseResult, Parser, Positioned};
 use downcast_rs::{impl_downcast, Downcast};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
@@ -105,13 +108,11 @@ pub trait Type: Printable + Verify + Downcast + Sync {
         Self: Sized;
 
     /// Register this Type's [TypeId] in the dialect it belongs to.
-    /// **Warning**: No check is made as to whether this type is already registered
-    ///  in `dialect`.
-    fn register_type_in_dialect(dialect: &mut Dialect)
+    fn register_type_in_dialect(dialect: &mut Dialect, parser: ParserFn<Ptr<TypeObj>>)
     where
         Self: Sized,
     {
-        dialect.add_type(Self::get_type_id_static());
+        dialect.add_type(Self::get_type_id_static(), parser);
     }
 }
 impl_downcast!(Type);
@@ -146,11 +147,44 @@ impl Printable for TypeName {
     }
 }
 
+impl Parsable for TypeName {
+    type Parsed = TypeName;
+
+    fn parse<'a>(
+        state_stream: &mut crate::parsable::StateStream<'a>,
+    ) -> combine::ParseResult<Self::Parsed, combine::easy::ParseError<StateStream<'a>>>
+    where
+        Self: Sized,
+    {
+        parse_id()
+            .map(|name| TypeName::new(&name))
+            .parse_stream(&mut state_stream.stream)
+    }
+}
+
 /// A combination of a Type's name and its dialect.
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct TypeId {
     pub dialect: DialectName,
     pub name: TypeName,
+}
+
+impl Parsable for TypeId {
+    type Parsed = TypeId;
+
+    // Parses (but does not validate) a TypeId.
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    where
+        Self: Sized,
+    {
+        let mut parser = DialectName::parser()
+            .skip(parser::char::char('.'))
+            .and(TypeName::parser())
+            .map(|(dialect, name)| TypeId { dialect, name });
+        parser.parse_stream(state_stream)
+    }
 }
 
 impl Printable for TypeId {
@@ -280,5 +314,97 @@ macro_rules! impl_type {
                 }
             }
         }
+    }
+}
+
+/// Parse an identified type, which is [TypeId](crate::type::TypeId) followed by its contents.
+pub fn type_parse<'a>(
+    state_stream: &mut StateStream<'a>,
+) -> ParseResult<Ptr<TypeObj>, easy::ParseError<StateStream<'a>>> {
+    let position = state_stream.stream.position();
+    let type_id_parser = TypeId::parser().skip(spaces());
+
+    let mut type_parser = type_id_parser.then(|type_id: TypeId| {
+        combine::parser(move |parsable_state: &mut StateStream<'a>| {
+            let state = &parsable_state.state;
+            let dialect = state
+                .ctx
+                .dialects
+                .get(&type_id.dialect)
+                .expect("Dialect name parsed but dialect isn't registered");
+            let Some(type_parser) = dialect.types.get(&type_id) else {
+                return ParseResult::CommitErr(easy::Errors::from_errors(
+                    position,
+                    vec![easy::Error::Message(
+                        format!("Unregistered type {}.", type_id.disp(state.ctx)).into(),
+                    )],
+                ))
+                .into_result();
+            };
+            type_parser(&()).parse_stream(parsable_state).into_result()
+        })
+    });
+
+    type_parser.parse_stream(state_stream)
+}
+
+//// A parser combinator to parse [TypeId](crate::type::TypeId) followed by the type's contents.
+pub fn type_parser<'a>(
+) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
+    combine::parser(|parsable_state: &mut StateStream<'a>| type_parse(parsable_state).into_result())
+        .boxed()
+}
+
+#[cfg(test)]
+mod test {
+    use expect_test::expect;
+
+    use crate::{
+        context::Context,
+        dialects,
+        parsable::{self, state_stream_from_iterator},
+        printable::Printable,
+        r#type::type_parser,
+    };
+
+    #[test]
+    fn test_parse_type() {
+        let mut ctx = Context::new();
+        dialects::builtin::register(&mut ctx);
+
+        let state_stream =
+            state_stream_from_iterator("builtin.some".chars(), parsable::State { ctx: &mut ctx });
+
+        let res = type_parser().parse(state_stream);
+        let err_msg = format!("{}", res.err().unwrap());
+
+        let expected_err_msg = expect![[r#"
+        Parse error at line: 1, column: 1
+        Unregistered type builtin.some.
+    "#]];
+        expected_err_msg.assert_eq(&err_msg);
+
+        let state_stream = state_stream_from_iterator(
+            "builtin.integer a".chars(),
+            parsable::State { ctx: &mut ctx },
+        );
+
+        let res = type_parser().parse(state_stream);
+        let err_msg = format!("{}", res.err().unwrap());
+
+        let expected_err_msg = expect![[r#"
+        Parse error at line: 1, column: 17
+        Unexpected `a`
+        Expected si, ui or i
+    "#]];
+        expected_err_msg.assert_eq(&err_msg);
+
+        let state_stream = state_stream_from_iterator(
+            "builtin.integer si32".chars(),
+            parsable::State { ctx: &mut ctx },
+        );
+
+        let parsed = type_parser().parse(state_stream).unwrap().0;
+        assert_eq!(parsed.disp(&ctx).to_string(), "si32");
     }
 }

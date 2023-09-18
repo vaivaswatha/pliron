@@ -10,7 +10,7 @@ use crate::{
     dialect::Dialect,
     error::CompilerError,
     impl_type,
-    parsable::{EasableStream, Parsable, StateStream},
+    parsable::{Parsable, StateStream},
     printable::{self, ListSeparator, Printable, PrintableIter},
     r#type::{Type, TypeObj},
     storage_uniquer::TypeValueHash,
@@ -53,9 +53,9 @@ impl IntegerType {
 
 impl Parsable for IntegerType {
     type Parsed = Ptr<TypeObj>;
-    fn parse<'a, S: EasableStream + 'a>(
-        state_stream: &mut StateStream<'a, S>,
-    ) -> ParseResult<Self::Parsed, easy::ParseError<S>>
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
     where
         Self: Sized,
     {
@@ -156,6 +156,19 @@ impl Printable for FunctionType {
     }
 }
 
+impl Parsable for FunctionType {
+    type Parsed = Ptr<TypeObj>;
+
+    fn parse<'a>(
+        _state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+}
+
 impl Verify for FunctionType {
     fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
         todo!()
@@ -163,8 +176,8 @@ impl Verify for FunctionType {
 }
 
 pub fn register(dialect: &mut Dialect) {
-    IntegerType::register_type_in_dialect(dialect);
-    FunctionType::register_type_in_dialect(dialect);
+    IntegerType::register_type_in_dialect(dialect, IntegerType::parser_fn);
+    FunctionType::register_type_in_dialect(dialect, FunctionType::parser_fn);
 }
 
 #[cfg(test)]
@@ -176,7 +189,7 @@ mod tests {
     use crate::{
         context::Context,
         dialects::builtin::types::{IntegerType, Signedness},
-        parsable::{self, easy_positioned_state_stream, Parsable},
+        parsable::{self, state_stream_from_iterator, Parsable},
     };
     #[test]
     fn test_integer_types() {
@@ -217,7 +230,8 @@ mod tests {
     #[test]
     fn test_integer_parsing() {
         let mut ctx = Context::new();
-        let state_stream = easy_positioned_state_stream("si64", parsable::State { ctx: &mut ctx });
+        let state_stream =
+            state_stream_from_iterator("si64".chars(), parsable::State { ctx: &mut ctx });
 
         let res = IntegerType::parser()
             .and(eof())
@@ -231,7 +245,8 @@ mod tests {
     #[test]
     fn test_integer_parsing_errs() {
         let mut ctx = Context::new();
-        let state_stream = easy_positioned_state_stream("asi64", parsable::State { ctx: &mut ctx });
+        let a = "asi64".to_string();
+        let state_stream = state_stream_from_iterator(a.chars(), parsable::State { ctx: &mut ctx });
 
         let res = IntegerType::parser().parse(state_stream);
         let err_msg = format!("{}", res.err().unwrap());

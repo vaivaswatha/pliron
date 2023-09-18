@@ -3,14 +3,15 @@
 use std::ops::Deref;
 
 use combine::{easy, ParseResult, Parser};
+use rustc_hash::FxHashMap;
 
 use crate::{
     attribute::AttrId,
-    context::Context,
+    context::{Context, Ptr},
     op::OpId,
-    parsable::{self, EasableStream, Parsable, StateStream},
+    parsable::{self, Parsable, ParserFn, StateStream},
     printable::{self, Printable},
-    r#type::TypeId,
+    r#type::{TypeId, TypeObj},
 };
 
 /// Dialect name: Safe wrapper around a String.
@@ -38,9 +39,9 @@ impl Printable for DialectName {
 impl Parsable for DialectName {
     type Parsed = DialectName;
 
-    fn parse<'a, S: EasableStream + 'a>(
-        state_stream: &mut StateStream<'a, S>,
-    ) -> ParseResult<Self::Parsed, easy::ParseError<S>>
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
     where
         Self: Sized,
     {
@@ -71,13 +72,13 @@ impl Deref for DialectName {
 /// Dialects are identified by their names.
 pub struct Dialect {
     /// Name of this dialect.
-    name: DialectName,
+    pub name: DialectName,
     /// Ops that are part of this dialect.
-    ops: Vec<OpId>,
+    pub ops: Vec<OpId>,
     /// Types that are part of this dialect.
-    types: Vec<TypeId>,
+    pub types: FxHashMap<TypeId, ParserFn<Ptr<TypeObj>>>,
     /// Attributes that are part of this dialect.
-    attributes: Vec<AttrId>,
+    pub attributes: Vec<AttrId>,
 }
 
 impl Printable for Dialect {
@@ -97,7 +98,7 @@ impl Dialect {
         Dialect {
             name,
             ops: vec![],
-            types: vec![],
+            types: FxHashMap::default(),
             attributes: vec![],
         }
     }
@@ -114,9 +115,9 @@ impl Dialect {
     }
 
     /// Add a [Type](crate::type::Type) to this dialect.
-    pub fn add_type(&mut self, ty: TypeId) {
+    pub fn add_type(&mut self, ty: TypeId, ty_parser: ParserFn<Ptr<TypeObj>>) {
         assert!(ty.dialect == self.name);
-        self.types.push(ty);
+        self.types.insert(ty, ty_parser);
     }
 
     /// Add an [Attribute](crate::attribute::Attribute) to this dialect.
@@ -149,19 +150,19 @@ mod test {
     use crate::{
         context::Context,
         dialects,
-        parsable::{self, easy_positioned_state_stream, Parsable},
+        parsable::{self, state_stream_from_iterator, Parsable},
         printable::Printable,
     };
 
     use super::DialectName;
 
     #[test]
-    fn parse_dialect() {
+    fn parse_dialect_name() {
         let mut ctx = Context::new();
         dialects::builtin::register(&mut ctx);
 
         let state_stream =
-            easy_positioned_state_stream("non_existant", parsable::State { ctx: &mut ctx });
+            state_stream_from_iterator("non_existant".chars(), parsable::State { ctx: &mut ctx });
 
         let res = DialectName::parser().parse(state_stream);
         let err_msg = format!("{}", res.err().unwrap());
@@ -173,7 +174,7 @@ mod test {
         expected_err_msg.assert_eq(&err_msg);
 
         let state_stream =
-            easy_positioned_state_stream("builtin", parsable::State { ctx: &mut ctx });
+            state_stream_from_iterator("builtin".chars(), parsable::State { ctx: &mut ctx });
 
         let parsed = DialectName::parser().parse(state_stream).unwrap().0;
         assert_eq!(parsed.disp(&ctx).to_string(), "builtin");
