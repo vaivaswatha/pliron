@@ -11,11 +11,10 @@
 use crate::common_traits::Verify;
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
-use crate::parsable::{parse_id, Parsable, ParserFn, StateStream};
+use crate::parsable::{parse_id, spaced, Parsable, ParserFn, StateStream};
 use crate::printable::{self, Printable};
 use crate::storage_uniquer::TypeValueHash;
 
-use combine::parser::char::spaces;
 use combine::{easy, parser, ParseResult, Parser, Positioned};
 use downcast_rs::{impl_downcast, Downcast};
 use std::hash::{Hash, Hasher};
@@ -322,9 +321,9 @@ pub fn type_parse<'a>(
     state_stream: &mut StateStream<'a>,
 ) -> ParseResult<Ptr<TypeObj>, easy::ParseError<StateStream<'a>>> {
     let position = state_stream.stream.position();
-    let type_id_parser = TypeId::parser().skip(spaces());
+    let type_id_parser = TypeId::parser();
 
-    let mut type_parser = type_id_parser.then(|type_id: TypeId| {
+    let type_parser = type_id_parser.then(|type_id: TypeId| {
         combine::parser(move |parsable_state: &mut StateStream<'a>| {
             let state = &parsable_state.state;
             let dialect = state
@@ -345,6 +344,7 @@ pub fn type_parse<'a>(
         })
     });
 
+    let mut type_parser = spaced(type_parser);
     type_parser.parse_stream(state_stream)
 }
 
@@ -393,10 +393,10 @@ mod test {
         let err_msg = format!("{}", res.err().unwrap());
 
         let expected_err_msg = expect![[r#"
-        Parse error at line: 1, column: 17
-        Unexpected `a`
-        Expected si, ui or i
-    "#]];
+            Parse error at line: 1, column: 17
+            Unexpected `a`
+            Expected whitespace, si, ui or i
+        "#]];
         expected_err_msg.assert_eq(&err_msg);
 
         let state_stream = state_stream_from_iterator(

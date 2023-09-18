@@ -3,6 +3,7 @@
 use crate::context::Context;
 use combine::{
     easy,
+    parser::char::spaces,
     stream::{
         self, buffered,
         position::{self, SourcePosition},
@@ -133,4 +134,11 @@ pub fn parse_id<Input: Stream<Token = char>>() -> impl Parser<Input, Output = St
     char::letter()
         .and(many::<String, _, _>(char::alpha_num().or(char::char('_'))))
         .map(|(c, rest)| c.to_string() + &rest)
+}
+
+/// Parse from `parser`, ignoring whitespace(s) before and after.
+pub fn spaced<Input: Stream<Token = char>, Output>(
+    parser: impl Parser<Input, Output = Output>,
+) -> impl Parser<Input, Output = Output> {
+    combine::between(spaces(), spaces(), parser)
 }

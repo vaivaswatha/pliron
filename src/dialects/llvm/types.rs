@@ -1,4 +1,4 @@
-use combine::{easy, ParseResult};
+use combine::{easy, token, ParseResult, Parser};
 
 use crate::{
     common_traits::Verify,
@@ -6,9 +6,9 @@ use crate::{
     dialect::Dialect,
     error::CompilerError,
     impl_type,
-    parsable::{Parsable, StateStream},
+    parsable::{spaced, Parsable, StateStream},
     printable::{self, Printable},
-    r#type::{Type, TypeObj},
+    r#type::{type_parser, Type, TypeObj},
     storage_uniquer::TypeValueHash,
 };
 
@@ -255,12 +255,12 @@ impl Parsable for PointerType {
     type Parsed = Ptr<TypeObj>;
 
     fn parse<'a>(
-        _state_stream: &mut StateStream<'a>,
+        state_stream: &mut StateStream<'a>,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
     where
         Self: Sized,
     {
-        todo!()
+        spaced(combine::between(token('<'), token('>'), type_parser())).parse_stream(state_stream)
     }
 }
 
@@ -277,14 +277,17 @@ pub fn register(dialect: &mut Dialect) {
 
 #[cfg(test)]
 mod tests {
+
     use crate::{
         context::Context,
         dialects::{
+            self,
             builtin::types::{IntegerType, Signedness},
             llvm::types::{PointerType, StructType},
         },
+        parsable::{self, state_stream_from_iterator},
         printable::Printable,
-        r#type::Type,
+        r#type::{type_parser, Type},
     };
 
     #[test]
@@ -368,5 +371,20 @@ mod tests {
                 .get_pointee_type()
                 == int64_ptr
         );
+    }
+
+    #[test]
+    fn test_pointer_type_parsing() {
+        let mut ctx = Context::new();
+        dialects::builtin::register(&mut ctx);
+        dialects::llvm::register(&mut ctx);
+
+        let state_stream = state_stream_from_iterator(
+            "llvm.ptr <builtin.integer si64>".chars(),
+            parsable::State { ctx: &mut ctx },
+        );
+
+        let res = type_parser().parse(state_stream).unwrap().0;
+        assert_eq!(&res.disp(&ctx).to_string(), "si64");
     }
 }

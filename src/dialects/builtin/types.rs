@@ -10,7 +10,7 @@ use crate::{
     dialect::Dialect,
     error::CompilerError,
     impl_type,
-    parsable::{Parsable, StateStream},
+    parsable::{spaced, Parsable, StateStream},
     printable::{self, ListSeparator, Printable, PrintableIter},
     r#type::{Type, TypeObj},
     storage_uniquer::TypeValueHash,
@@ -67,9 +67,10 @@ impl Parsable for IntegerType {
         ));
 
         // followed by an integer.
-        let mut parser = choicer
+        let parser = choicer
             .and(many1::<String, _, _>(digit()).map(|digits| digits.parse::<u64>().unwrap()));
 
+        let mut parser = spaced(parser);
         parser
             .parse_stream(&mut state_stream.stream)
             .map(|(signedness, width)| IntegerType::get(state_stream.state.ctx, width, signedness))
@@ -254,7 +255,7 @@ mod tests {
         let expected_err_msg = expect![[r#"
             Parse error at line: 1, column: 1
             Unexpected `a`
-            Expected si, ui or i
+            Expected whitespaces, si, ui or i
         "#]];
         expected_err_msg.assert_eq(&err_msg);
     }
