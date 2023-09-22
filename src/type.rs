@@ -178,11 +178,11 @@ impl Parsable for TypeId {
     where
         Self: Sized,
     {
-        let mut parser = DialectName::parser()
+        let parser = DialectName::parser()
             .skip(parser::char::char('.'))
             .and(TypeName::parser())
             .map(|(dialect, name)| TypeId { dialect, name });
-        parser.parse_stream(state_stream)
+        spaced(parser).parse_stream(state_stream)
     }
 }
 
@@ -316,7 +316,7 @@ macro_rules! impl_type {
     }
 }
 
-/// Parse an identified type, which is [TypeId](crate::type::TypeId) followed by its contents.
+/// Parse an identified type, which is [TypeId] followed by its contents.
 pub fn type_parse<'a>(
     state_stream: &mut StateStream<'a>,
 ) -> ParseResult<Ptr<TypeObj>, easy::ParseError<StateStream<'a>>> {
@@ -348,7 +348,7 @@ pub fn type_parse<'a>(
     type_parser.parse_stream(state_stream)
 }
 
-//// A parser combinator to parse [TypeId](crate::type::TypeId) followed by the type's contents.
+//// A parser combinator to parse [TypeId] followed by the type's contents.
 pub fn type_parser<'a>(
 ) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
     combine::parser(|parsable_state: &mut StateStream<'a>| type_parse(parsable_state).into_result())
@@ -395,7 +395,7 @@ mod test {
         let expected_err_msg = expect![[r#"
             Parse error at line: 1, column: 17
             Unexpected `a`
-            Expected whitespace, si, ui or i
+            Expected whitespaces, si, ui or i
         "#]];
         expected_err_msg.assert_eq(&err_msg);
 
