@@ -134,6 +134,7 @@ impl Printable for StructType {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
+        write!(f, "{} <", Self::get_type_id_static().disp(ctx))?;
         use std::cell::RefCell;
         // Ugly, but also the simplest way to avoid infinite recursion.
         // MLIR does the same: see LLVMTypeSyntax::printStructType.
@@ -146,7 +147,7 @@ impl Printable for StructType {
         if let Some(name) = &self.name {
             let in_printing = IN_PRINTING.with(|f| f.borrow().contains(name));
             if in_printing {
-                return write!(f, "{}", name.clone());
+                return write!(f, "{}>", name.clone());
             }
             IN_PRINTING.with(|f| f.borrow_mut().push(name.clone()));
             s = format!("{name} {{ ");
@@ -170,7 +171,7 @@ impl Printable for StructType {
             debug_assert!(IN_PRINTING.with(|f| f.borrow().last().unwrap() == name));
             IN_PRINTING.with(|f| f.borrow_mut().pop());
         }
-        write!(f, "{s}")
+        write!(f, "{s}>")
     }
 }
 
@@ -247,7 +248,12 @@ impl Printable for PointerType {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{}<{}>", self.get_type_id().disp(ctx), self.to.disp(ctx))
+        write!(
+            f,
+            "{} <{}>",
+            Self::get_type_id_static().disp(ctx),
+            self.to.disp(ctx)
+        )
     }
 }
 
@@ -313,14 +319,14 @@ mod tests {
         assert!(list_struct == list_struct_2);
         assert!(StructType::get_existing_named(&ctx, "LinkedList2").is_none());
 
-        assert!(
+        assert_eq!(
             list_struct
                 .deref(&ctx)
                 .downcast_ref::<StructType>()
                 .unwrap()
                 .disp(&ctx)
-                .to_string()
-                == "LinkedList { data: i64, next: llvm.ptr<LinkedList>, }"
+                .to_string(),
+            "llvm.struct <LinkedList { data: builtin.integer <i64>, next: llvm.ptr <llvm.struct <LinkedList>>, }>"
         );
 
         let head_fields = vec![
@@ -349,7 +355,10 @@ mod tests {
 
         let int64pointer_ptr = PointerType { to: int64_ptr };
         let int64pointer_ptr = Type::register_instance(int64pointer_ptr, &mut ctx);
-        assert!(int64pointer_ptr.disp(&ctx).to_string() == "llvm.ptr<si64>");
+        assert_eq!(
+            int64pointer_ptr.disp(&ctx).to_string(),
+            "llvm.ptr <builtin.integer <si64>>"
+        );
         assert!(int64pointer_ptr == PointerType::get(&mut ctx, int64_ptr));
 
         assert!(
@@ -380,11 +389,11 @@ mod tests {
         dialects::llvm::register(&mut ctx);
 
         let state_stream = state_stream_from_iterator(
-            "llvm.ptr <builtin.integer si64>".chars(),
+            "llvm.ptr <builtin.integer <si64>>".chars(),
             parsable::State { ctx: &mut ctx },
         );
 
         let res = type_parser().parse(state_stream).unwrap().0;
-        assert_eq!(&res.disp(&ctx).to_string(), "si64");
+        assert_eq!(&res.disp(&ctx).to_string(), "builtin.integer <si64>");
     }
 }

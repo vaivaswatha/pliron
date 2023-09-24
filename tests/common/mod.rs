@@ -53,9 +53,9 @@ pub fn const_ret_in_mod(
     expect![[r#"
         builtin.module @bar {
           block_0_0():
-            builtin.func @foo() -> (si64) {
+            builtin.func @foo: builtin.function <() -> (builtin.integer <si64>)> {
               entry():
-                c0 = builtin.constant 0x0: si64
+                c0 = builtin.constant 0x0: builtin.integer <si64>
                 llvm.return c0
             }
         }"#]]

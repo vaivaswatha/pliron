@@ -1,7 +1,7 @@
 use combine::{
-    choice, easy, many1,
+    between, choice, easy, many1,
     parser::{char::digit, char::string},
-    ParseResult, Parser,
+    token, ParseResult, Parser,
 };
 
 use crate::{
@@ -70,7 +70,7 @@ impl Parsable for IntegerType {
         let parser = choicer
             .and(many1::<String, _, _>(digit()).map(|digits| digits.parse::<u64>().unwrap()));
 
-        let mut parser = spaced(parser);
+        let mut parser = between(spaced(token('<')), spaced(token('>')), parser);
         parser
             .parse_stream(&mut state_stream.stream)
             .map(|(signedness, width)| IntegerType::get(state_stream.state.ctx, width, signedness))
@@ -80,15 +80,17 @@ impl Parsable for IntegerType {
 impl Printable for IntegerType {
     fn fmt(
         &self,
-        _ctx: &Context,
+        ctx: &Context,
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
+        write!(f, "{} <", Self::get_type_id_static().disp(ctx))?;
         match &self.signedness {
-            Signedness::Signed => write!(f, "si{}", self.width),
-            Signedness::Unsigned => write!(f, "ui{}", self.width),
-            Signedness::Signless => write!(f, "i{}", self.width),
+            Signedness::Signed => write!(f, "si{}", self.width)?,
+            Signedness::Unsigned => write!(f, "ui{}", self.width)?,
+            Signedness::Signless => write!(f, "i{}", self.width)?,
         }
+        write!(f, ">")
     }
 }
 
@@ -109,7 +111,7 @@ pub struct FunctionType {
     /// Function results / outputs.
     results: Vec<Ptr<TypeObj>>,
 }
-impl_type!(FunctionType, "Function", "builtin");
+impl_type!(FunctionType, "function", "builtin");
 
 impl FunctionType {
     /// Get or create a new Function type.
@@ -150,7 +152,8 @@ impl Printable for FunctionType {
         let sep = ListSeparator::Char(',');
         write!(
             f,
-            "({}) -> ({})",
+            "{} <({}) -> ({})>",
+            Self::get_type_id_static().disp(ctx),
             self.inputs.iter().iprint(ctx, state, sep),
             self.results.iter().iprint(ctx, state, sep)
         )
@@ -232,7 +235,7 @@ mod tests {
     fn test_integer_parsing() {
         let mut ctx = Context::new();
         let state_stream =
-            state_stream_from_iterator("si64".chars(), parsable::State { ctx: &mut ctx });
+            state_stream_from_iterator("<si64>".chars(), parsable::State { ctx: &mut ctx });
 
         let res = IntegerType::parser()
             .and(eof())
@@ -246,16 +249,16 @@ mod tests {
     #[test]
     fn test_integer_parsing_errs() {
         let mut ctx = Context::new();
-        let a = "asi64".to_string();
+        let a = "<asi64>".to_string();
         let state_stream = state_stream_from_iterator(a.chars(), parsable::State { ctx: &mut ctx });
 
         let res = IntegerType::parser().parse(state_stream);
         let err_msg = format!("{}", res.err().unwrap());
 
         let expected_err_msg = expect![[r#"
-            Parse error at line: 1, column: 1
+            Parse error at line: 1, column: 2
             Unexpected `a`
-            Expected whitespaces, si, ui or i
+            Expected whitespace, si, ui or i
         "#]];
         expected_err_msg.assert_eq(&err_msg);
     }

@@ -168,7 +168,7 @@ impl Printable for FuncOp {
     ) -> core::fmt::Result {
         write!(
             f,
-            "{} @{}{} ",
+            "{} @{}: {} ",
             self.get_opid().disp(ctx),
             self.get_symbol_name(ctx),
             self.get_type(ctx).disp(ctx),

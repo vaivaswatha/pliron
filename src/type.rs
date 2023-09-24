@@ -395,16 +395,16 @@ mod test {
         let expected_err_msg = expect![[r#"
             Parse error at line: 1, column: 17
             Unexpected `a`
-            Expected whitespaces, si, ui or i
+            Expected whitespaces or `<`
         "#]];
         expected_err_msg.assert_eq(&err_msg);
 
         let state_stream = state_stream_from_iterator(
-            "builtin.integer si32".chars(),
+            "builtin.integer <si32>".chars(),
             parsable::State { ctx: &mut ctx },
         );
 
         let parsed = type_parser().parse(state_stream).unwrap().0;
-        assert_eq!(parsed.disp(&ctx).to_string(), "si32");
+        assert_eq!(parsed.disp(&ctx).to_string(), "builtin.integer <si32>");
     }
 }

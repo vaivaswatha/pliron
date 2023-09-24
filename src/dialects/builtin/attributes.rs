@@ -327,9 +327,13 @@ mod tests {
         assert!(int64_0_ptr.is::<IntegerAttr>() && &int64_0_ptr != &int64_1_ptr);
         let int64_0_ptr2 = IntegerAttr::create(i64_ty, ApInt::from_i64(0));
         assert!(int64_0_ptr == int64_0_ptr2);
-        assert!(
-            int64_0_ptr.disp(&ctx).to_string() == "0x0: si64"
-                && int64_1_ptr.disp(&ctx).to_string() == "0xf: si64"
+        assert_eq!(
+            int64_0_ptr.disp(&ctx).to_string(),
+            "0x0: builtin.integer <si64>"
+        );
+        assert_eq!(
+            int64_1_ptr.disp(&ctx).to_string(),
+            "0xf: builtin.integer <si64>"
         );
         assert!(
             ApInt::from(int64_0_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()).is_zero()
