@@ -11,7 +11,8 @@
 use crate::common_traits::Verify;
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
-use crate::parsable::{parse_id, spaced, Parsable, ParserFn, StateStream};
+use crate::error::CompilerError;
+use crate::parsable::{identifier, spaced, to_parse_result, Parsable, ParserFn, StateStream};
 use crate::printable::{self, Printable};
 use crate::storage_uniquer::TypeValueHash;
 
@@ -155,7 +156,7 @@ impl Parsable for TypeName {
     where
         Self: Sized,
     {
-        parse_id()
+        identifier()
             .map(|name| TypeName::new(&name))
             .parse_stream(&mut state_stream.stream)
     }
@@ -332,12 +333,12 @@ pub fn type_parse<'a>(
                 .get(&type_id.dialect)
                 .expect("Dialect name parsed but dialect isn't registered");
             let Some(type_parser) = dialect.types.get(&type_id) else {
-                return ParseResult::CommitErr(easy::Errors::from_errors(
+                return to_parse_result(
+                    Err(CompilerError::BadInput {
+                        msg: format!("Unregistered type {}.", type_id.disp(state.ctx)),
+                    }),
                     position,
-                    vec![easy::Error::Message(
-                        format!("Unregistered type {}.", type_id.disp(state.ctx)).into(),
-                    )],
-                ))
+                )
                 .into_result();
             };
             type_parser(&()).parse_stream(parsable_state).into_result()
@@ -379,9 +380,10 @@ mod test {
         let err_msg = format!("{}", res.err().unwrap());
 
         let expected_err_msg = expect![[r#"
-        Parse error at line: 1, column: 1
-        Unregistered type builtin.some.
-    "#]];
+            Parse error at line: 1, column: 1
+            Compilation failed.
+            Unregistered type builtin.some.
+        "#]];
         expected_err_msg.assert_eq(&err_msg);
 
         let state_stream = state_stream_from_iterator(

@@ -1,6 +1,6 @@
 //! IR objects that can be parsed from their text representation.
 
-use crate::context::Context;
+use crate::{context::Context, error::CompilerError};
 use combine::{
     easy,
     parser::char::spaces,
@@ -129,7 +129,7 @@ pub type ParserFn<Parsed> =
     ) -> Box<dyn Parser<StateStream<'a>, Output = Parsed, PartialState = ()> + 'a>;
 
 ///  Parse an identifier.
-pub fn parse_id<Input: Stream<Token = char>>() -> impl Parser<Input, Output = String> {
+pub fn identifier<Input: Stream<Token = char>>() -> impl Parser<Input, Output = String> {
     use combine::{many, parser::char};
     char::letter()
         .and(many::<String, _, _>(char::alpha_num().or(char::char('_'))))
@@ -141,4 +141,19 @@ pub fn spaced<Input: Stream<Token = char>, Output>(
     parser: impl Parser<Input, Output = Output>,
 ) -> impl Parser<Input, Output = Output> {
     combine::between(spaces(), spaces(), parser)
+}
+
+/// Convert `Result<_, CompilerError>` into [ParseResult],
+/// Helps in returning errors when writing a parser.
+pub fn to_parse_result<'a, T>(
+    result: Result<T, CompilerError>,
+    position: SourcePosition,
+) -> ParseResult<T, easy::ParseError<StateStream<'a>>> {
+    match result {
+        Ok(t) => ParseResult::CommitOk(t),
+        Err(e) => ParseResult::CommitErr(easy::Errors::from_errors(
+            position,
+            vec![easy::Error::Message(e.to_string().into())],
+        )),
+    }
 }

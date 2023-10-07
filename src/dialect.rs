@@ -45,7 +45,7 @@ impl Parsable for DialectName {
     where
         Self: Sized,
     {
-        let id = parsable::parse_id();
+        let id = parsable::identifier();
         let mut parser = id.and_then(|dialect_name| {
             let dialect_name = DialectName::new(&dialect_name);
             if state_stream.state.ctx.dialects.contains_key(&dialect_name) {

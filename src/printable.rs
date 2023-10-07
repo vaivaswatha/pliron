@@ -165,8 +165,12 @@ impl<'a, T: Printable> Printable for &'a T {
 #[derive(Clone, Copy)]
 /// When printing lists, how must they be separated
 pub enum ListSeparator {
+    /// Newline
     Newline,
+    /// Single character
     Char(char),
+    /// Single character followed by a space
+    SpacedChar(char),
 }
 
 /// Iterate over [Item](Iterator::Item)s in an [Iterator] and print them.
@@ -191,6 +195,9 @@ where
             }
             ListSeparator::Char(c) => {
                 write!(f, "{}", c)?;
+            }
+            ListSeparator::SpacedChar(c) => {
+                write!(f, "{} ", c)?;
             }
         }
         item.fmt(ctx, state, f)?;
