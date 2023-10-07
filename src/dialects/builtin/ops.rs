@@ -67,7 +67,7 @@ impl Verify for ModuleOp {
 
 impl ModuleOp {
     /// Create a new [ModuleOp].
-    /// The underlying [Operation] is not linked to a [BasicBlock](crate::basic_block::BasicBlock).
+    /// The underlying [Operation] is not linked to a [BasicBlock].
     /// The returned module has a single [crate::region::Region] with a single (BasicBlock)[crate::basic_block::BasicBlock].
     pub fn new(ctx: &mut Context, name: &str) -> ModuleOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1);
@@ -112,7 +112,7 @@ impl FuncOp {
     pub const ATTR_KEY_FUNC_TYPE: &str = "func.type";
 
     /// Create a new [FuncOp].
-    /// The underlying [Operation] is not linked to a [BasicBlock](crate::basic_block::BasicBlock).
+    /// The underlying [Operation] is not linked to a [BasicBlock].
     /// The returned function has a single region with an empty `entry` block.
     pub fn new_unlinked(ctx: &mut Context, name: &str, ty: Ptr<TypeObj>) -> FuncOp {
         let ty_attr = TypeAttr::create(ty);
@@ -230,8 +230,7 @@ impl ConstantOp {
         }
     }
 
-    /// Create a new [ConstantOp]. The underlying [Operation] is not linked to a
-    /// [BasicBlock](crate::basic_block::BasicBlock).
+    /// Create a new [ConstantOp]. The underlying [Operation] is not linked to a [BasicBlock].
     pub fn new_unlinked(ctx: &mut Context, value: AttrObj) -> ConstantOp {
         let result_type = attr_cast::<dyn TypedAttrInterface>(&*value)
             .expect("ConstantOp const value must provide TypedAttrInterface")
