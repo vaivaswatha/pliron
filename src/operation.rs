@@ -440,10 +440,9 @@ impl<T: DefUseParticipant + DefTrait> Verify for Operand<T> {
 
 impl Verify for Operation {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        for _attr in self.attributes.values() {
-            // TODO.
-            // attr.verify(ctx)?;
-            // attr.verify_interfaces(ctx)?;
+        for attr in self.attributes.values() {
+            attr.verify(ctx)?;
+            attr.verify_interfaces(ctx)?;
         }
         for opd in &self.operands {
             opd.verify(ctx)?;

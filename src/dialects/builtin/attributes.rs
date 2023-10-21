@@ -1,6 +1,7 @@
 use apint::ApInt;
 use intertrait::cast_to;
 use sorted_vector_map::SortedVectorMap;
+use thiserror::Error;
 
 use crate::{
     attribute::{AttrObj, Attribute},
@@ -11,9 +12,10 @@ use crate::{
     impl_attr, impl_attr_interface,
     printable::{self, Printable},
     r#type::TypeObj,
+    verify_err,
 };
 
-use super::attr_interfaces::TypedAttrInterface;
+use super::{attr_interfaces::TypedAttrInterface, types::IntegerType};
 
 /// An attribute containing a string.
 /// Similar to MLIR's [StringAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#stringattr).
@@ -47,7 +49,7 @@ impl Printable for StringAttr {
 
 impl Verify for StringAttr {
     fn verify(&self, _ctx: &Context) -> Result<()> {
-        todo!()
+        Ok(())
     }
 }
 
@@ -71,9 +73,16 @@ impl Printable for IntegerAttr {
     }
 }
 
+#[derive(Error, Debug)]
+#[error("value of IntegerAttr must be of IntegerType")]
+struct IntegerAttrVerifyErr;
+
 impl Verify for IntegerAttr {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        todo!()
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        if !self.ty.deref(ctx).is::<IntegerType>() {
+            return verify_err!(IntegerAttrVerifyErr);
+        }
+        Ok(())
     }
 }
 
@@ -163,9 +172,22 @@ impl Printable for SmallDictAttr {
     }
 }
 
+#[derive(Error, Debug)]
+#[error("SmallDictAttr keys are not sorted")]
+struct SmallDictAttrVerifyErr;
 impl Verify for SmallDictAttr {
     fn verify(&self, _ctx: &Context) -> Result<()> {
-        todo!()
+        for (str1, str2) in self
+            .0
+            .iter()
+            .map(|(&key, _)| key)
+            .zip(self.0.iter().skip(1).map(|(&key, _)| key))
+        {
+            if str1 > str2 {
+                return verify_err!(SmallDictAttrVerifyErr);
+            }
+        }
+        Ok(())
     }
 }
 
