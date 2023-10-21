@@ -540,7 +540,6 @@ mod tests {
 
         let expected_err_msg = expect![[r#"
             Parse error at line: 1, column: 15
-            Compilation error: invalid input.
             struct My1 already exists and is different
         "#]];
         expected_err_msg.assert_eq(&err_msg);

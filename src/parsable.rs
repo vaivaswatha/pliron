@@ -153,7 +153,7 @@ pub fn to_parse_result<'a, T>(
         Ok(t) => ParseResult::CommitOk(t),
         Err(e) => ParseResult::CommitErr(easy::Errors::from_errors(
             position,
-            vec![easy::Error::Message(e.to_string().into())],
+            vec![easy::Error::Message(e.err.to_string().into())],
         )),
     }
 }

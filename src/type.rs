@@ -380,7 +380,6 @@ mod test {
 
         let expected_err_msg = expect![[r#"
             Parse error at line: 1, column: 1
-            Compilation error: invalid input.
             Unregistered type builtin.some
         "#]];
         expected_err_msg.assert_eq(&err_msg);
