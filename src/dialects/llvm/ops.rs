@@ -4,7 +4,7 @@ use crate::{
     declare_op,
     dialect::Dialect,
     dialects::builtin::op_interfaces::IsTerminatorInterface,
-    error::CompilerError,
+    error::Result,
     impl_op_interface,
     op::Op,
     operation::Operation,
@@ -53,7 +53,7 @@ impl Printable for ReturnOp {
 }
 
 impl Verify for ReturnOp {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         Ok(())
     }
 }

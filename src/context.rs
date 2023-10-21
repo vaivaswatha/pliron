@@ -4,6 +4,7 @@ use crate::{
     basic_block::BasicBlock,
     common_traits::Verify,
     dialect::{Dialect, DialectName},
+    error::Result,
     op::{OpCreator, OpId},
     operation::Operation,
     printable::{self, Printable},
@@ -175,7 +176,7 @@ impl<T: ArenaObj + Printable> Printable for Ptr<T> {
 }
 
 impl<T: ArenaObj + Verify> Verify for Ptr<T> {
-    fn verify(&self, ctx: &Context) -> Result<(), crate::error::CompilerError> {
+    fn verify(&self, ctx: &Context) -> Result<()> {
         self.deref(ctx).verify(ctx)
     }
 }

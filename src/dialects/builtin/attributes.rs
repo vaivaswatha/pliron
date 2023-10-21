@@ -7,7 +7,7 @@ use crate::{
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
-    error::CompilerError,
+    error::Result,
     impl_attr, impl_attr_interface,
     printable::{self, Printable},
     r#type::TypeObj,
@@ -46,7 +46,7 @@ impl Printable for StringAttr {
 }
 
 impl Verify for StringAttr {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         todo!()
     }
 }
@@ -72,7 +72,7 @@ impl Printable for IntegerAttr {
 }
 
 impl Verify for IntegerAttr {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         todo!()
     }
 }
@@ -119,7 +119,7 @@ impl Printable for FloatAttr {
 }
 
 impl Verify for FloatAttr {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         todo!()
     }
 }
@@ -164,7 +164,7 @@ impl Printable for SmallDictAttr {
 }
 
 impl Verify for SmallDictAttr {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         todo!()
     }
 }
@@ -222,7 +222,7 @@ impl Printable for VecAttr {
 }
 
 impl Verify for VecAttr {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         todo!()
     }
 }
@@ -251,7 +251,7 @@ impl Printable for UnitAttr {
 }
 
 impl Verify for UnitAttr {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         Ok(())
     }
 }
@@ -280,7 +280,7 @@ impl Printable for TypeAttr {
 }
 
 impl Verify for TypeAttr {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         Ok(())
     }
 }

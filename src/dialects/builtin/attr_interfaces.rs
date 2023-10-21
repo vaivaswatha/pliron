@@ -1,7 +1,7 @@
 use crate::{
     attribute::Attribute,
     context::{Context, Ptr},
-    error::CompilerError,
+    error::Result,
     r#type::TypeObj,
 };
 
@@ -11,7 +11,7 @@ pub trait TypedAttrInterface: Attribute {
     /// Get this attribute's type.
     fn get_type(&self) -> Ptr<TypeObj>;
 
-    fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<(), CompilerError>
+    fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {

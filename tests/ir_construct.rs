@@ -6,7 +6,7 @@ use pliron::{
     dialects::builtin::{
         attributes::IntegerAttr, op_interfaces::OneResultInterface, ops::ConstantOp,
     },
-    error::CompilerError,
+    error::Result,
     op::Op,
     operation::Operation,
     printable::Printable,
@@ -18,7 +18,7 @@ mod common;
 
 // Test erasing the entire top module.
 #[test]
-fn construct_and_erase() -> Result<(), CompilerError> {
+fn construct_and_erase() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     let module_op = const_ret_in_mod(ctx)?.0.get_operation();
     Operation::erase(module_op, ctx);
@@ -41,7 +41,7 @@ fn removed_used_op() {
 
 // Testing replacing all uses of c0 with c1.
 #[test]
-fn replace_c0_with_c1() -> Result<(), CompilerError> {
+fn replace_c0_with_c1() -> Result<()> {
     let ctx = &mut setup_context_dialects();
 
     // const_ret_in_mod builds a module with a function.
@@ -67,7 +67,7 @@ fn replace_c0_with_c1() -> Result<(), CompilerError> {
 // Replace ret_op's first operand (which is c0) with c1.
 // Erase c0. Verify.
 #[test]
-fn replace_c0_with_c1_operand() -> Result<(), CompilerError> {
+fn replace_c0_with_c1_operand() -> Result<()> {
     let ctx = &mut setup_context_dialects();
 
     // const_ret_in_mod builds a module with a function.

@@ -1,6 +1,6 @@
 //! IR objects that can be parsed from their text representation.
 
-use crate::{context::Context, error::CompilerError};
+use crate::{context::Context, error::Result};
 use combine::{
     easy,
     parser::char::spaces,
@@ -143,10 +143,10 @@ pub fn spaced<Input: Stream<Token = char>, Output>(
     combine::between(spaces(), spaces(), parser)
 }
 
-/// Convert `Result<_, CompilerError>` into [ParseResult],
+/// Convert [Result] into [ParseResult],
 /// Helps in returning errors when writing a parser.
 pub fn to_parse_result<'a, T>(
-    result: Result<T, CompilerError>,
+    result: Result<T>,
     position: SourcePosition,
 ) -> ParseResult<T, easy::ParseError<StateStream<'a>>> {
     match result {

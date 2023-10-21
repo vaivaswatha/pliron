@@ -2,14 +2,16 @@ use crate::{
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
-    error::CompilerError,
-    impl_type,
+    error::Result,
+    impl_type, input_err,
     parsable::{identifier, spaced, to_parse_result, Parsable, StateStream},
     printable::{self, Printable, PrintableIter},
     r#type::{type_parser, Type, TypeObj},
     storage_uniquer::TypeValueHash,
+    verify_err,
 };
 use combine::{between, easy, optional, sep_by, token, ParseResult, Parser};
+use thiserror::Error;
 
 use std::hash::Hash;
 
@@ -77,7 +79,7 @@ impl StructType {
         ctx: &mut Context,
         name: &str,
         fields: Option<Vec<StructField>>,
-    ) -> Result<Ptr<TypeObj>, CompilerError> {
+    ) -> Result<Ptr<TypeObj>> {
         let self_ptr = Type::register_instance(
             StructType {
                 name: Some(name.to_string()),
@@ -95,9 +97,7 @@ impl StructType {
                 self_ref.fields = fields;
                 self_ref.finalized = true;
             } else if self_ref.fields != fields {
-                return Err(CompilerError::BadInput {
-                    msg: format!("Struct {name} already exists and is different"),
-                });
+                return input_err!(StructErr::ExistingMismatch(name.into()));
             }
         }
         Ok(self_ptr)
@@ -150,12 +150,20 @@ impl StructType {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum StructErr {
+    #[error("struct {0} is not finalized")]
+    NotFinalized(String),
+    #[error("struct {0} already exists and is different")]
+    ExistingMismatch(String),
+}
+
 impl Verify for StructType {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         if !self.finalized {
-            return Err(CompilerError::VerificationError {
-                msg: "Struct not finalized".to_string(),
-            });
+            return verify_err!(StructErr::NotFinalized(
+                self.name.clone().unwrap_or("<anonymous>".into())
+            ));
         }
         Ok(())
     }
@@ -344,8 +352,8 @@ impl Parsable for PointerType {
 }
 
 impl Verify for PointerType {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
-        todo!()
+    fn verify(&self, _ctx: &Context) -> Result<()> {
+        Ok(())
     }
 }
 
@@ -365,16 +373,16 @@ mod tests {
         dialects::{
             self,
             builtin::types::{IntegerType, Signedness},
-            llvm::types::{PointerType, StructField, StructType},
+            llvm::types::{PointerType, StructErr, StructField, StructType},
         },
-        error::CompilerError,
+        error::{Error, ErrorKind, Result},
         parsable::{self, state_stream_from_iterator},
         printable::Printable,
         r#type::{type_parser, Type},
     };
 
     #[test]
-    fn test_struct() -> Result<(), CompilerError> {
+    fn test_struct() -> Result<()> {
         let mut ctx = Context::new();
         let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signless);
 
@@ -532,8 +540,8 @@ mod tests {
 
         let expected_err_msg = expect![[r#"
             Parse error at line: 1, column: 15
-            Compilation failed.
-            Struct My1 already exists and is different
+            Compilation error: invalid input.
+            struct My1 already exists and is different
         "#]];
         expected_err_msg.assert_eq(&err_msg);
 
@@ -542,9 +550,10 @@ mod tests {
             parsable::State { ctx: &mut ctx },
         );
         let res = type_parser().parse(state_stream).unwrap().0;
-        let expected_err_msg = expect![[r#"
-            Internal compiler error. Verification failed.
-            Struct not finalized"#]];
-        expected_err_msg.assert_eq(&res.verify(&ctx).unwrap_err().to_string())
+        matches!(
+            &res.verify(&ctx),
+            Err (Error { kind: ErrorKind::VerificationFailed, err })
+                if err.is::<StructErr>()
+        );
     }
 }

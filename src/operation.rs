@@ -5,6 +5,7 @@
 use std::marker::PhantomData;
 
 use rustc_hash::FxHashMap;
+use thiserror::Error;
 
 use crate::{
     attribute::AttrObj,
@@ -12,7 +13,7 @@ use crate::{
     common_traits::{Named, Verify},
     context::{private::ArenaObj, ArenaCell, Context, Ptr},
     debug_info,
-    error::CompilerError,
+    error::Result,
     linked_list::{private, LinkedList},
     op::{self, OpId, OpObj},
     printable::{self, Printable},
@@ -20,6 +21,7 @@ use crate::{
     region::Region,
     use_def_lists::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
     vec_exns::VecExtns,
+    verify_err,
 };
 
 /// Represents the result of an [Operation].
@@ -417,17 +419,19 @@ impl<T: DefUseParticipant + Named> Printable for Operand<T> {
     }
 }
 
+#[derive(Error, Debug)]
+#[error("operand is not a use of its def")]
+pub struct DefUseVerifyErr;
+
 impl<T: DefUseParticipant + DefTrait> Verify for Operand<T> {
-    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, ctx: &Context) -> Result<()> {
         if !self
             .r#use
             .get_def()
             .get_defnode_ref(ctx)
             .has_use_of(&self.into())
         {
-            Err(CompilerError::VerificationError {
-                msg: "Operand is not a use of its def".to_string(),
-            })
+            verify_err!(DefUseVerifyErr)
         } else {
             Ok(())
         }
@@ -435,7 +439,7 @@ impl<T: DefUseParticipant + DefTrait> Verify for Operand<T> {
 }
 
 impl Verify for Operation {
-    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, ctx: &Context) -> Result<()> {
         for _attr in self.attributes.values() {
             // TODO.
             // attr.verify(ctx)?;

@@ -11,7 +11,8 @@
 use crate::common_traits::Verify;
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
-use crate::error::CompilerError;
+use crate::error::Result;
+use crate::input_err;
 use crate::parsable::{identifier, spaced, to_parse_result, Parsable, ParserFn, StateStream};
 use crate::printable::{self, Printable};
 use crate::storage_uniquer::TypeValueHash;
@@ -246,7 +247,7 @@ impl Printable for TypeObj {
 }
 
 impl Verify for TypeObj {
-    fn verify(&self, ctx: &Context) -> Result<(), crate::error::CompilerError> {
+    fn verify(&self, ctx: &Context) -> Result<()> {
         self.as_ref().verify(ctx)
     }
 }
@@ -265,7 +266,7 @@ impl Verify for TypeObj {
 /// );
 /// # use pliron::{
 /// #     impl_type, printable::{self, Printable},
-/// #     context::Context, error::CompilerError, common_traits::Verify,
+/// #     context::Context, error::Result, common_traits::Verify,
 /// #     storage_uniquer::TypeValueHash, r#type::Type,
 /// # };
 /// # impl Printable for MyType {
@@ -280,7 +281,7 @@ impl Verify for TypeObj {
 /// # }
 /// #
 /// # impl Verify for MyType {
-/// #   fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+/// #   fn verify(&self, _ctx: &Context) -> Result<()> {
 /// #        todo!()
 /// #    }
 /// # }
@@ -334,9 +335,7 @@ pub fn type_parse<'a>(
                 .expect("Dialect name parsed but dialect isn't registered");
             let Some(type_parser) = dialect.types.get(&type_id) else {
                 return to_parse_result(
-                    Err(CompilerError::BadInput {
-                        msg: format!("Unregistered type {}.", type_id.disp(state.ctx)),
-                    }),
+                    input_err!("Unregistered type {}", type_id.disp(state.ctx)),
                     position,
                 )
                 .into_result();
@@ -381,8 +380,8 @@ mod test {
 
         let expected_err_msg = expect![[r#"
             Parse error at line: 1, column: 1
-            Compilation failed.
-            Unregistered type builtin.some.
+            Compilation error: invalid input.
+            Unregistered type builtin.some
         "#]];
         expected_err_msg.assert_eq(&err_msg);
 

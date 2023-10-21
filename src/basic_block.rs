@@ -7,7 +7,7 @@ use crate::{
     common_traits::{Named, Verify},
     context::{private::ArenaObj, ArenaCell, Context, Ptr},
     debug_info::get_block_arg_name,
-    error::CompilerError,
+    error::Result,
     indented_block,
     linked_list::{private, ContainsLinkedList, LinkedList},
     operation::Operation,
@@ -294,7 +294,7 @@ impl ArenaObj for BasicBlock {
 }
 
 impl Verify for BasicBlock {
-    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, ctx: &Context) -> Result<()> {
         self.iter(ctx).try_for_each(|op| op.deref(ctx).verify(ctx))
     }
 }

@@ -1,10 +1,10 @@
 //! Utility traits such as [Named], [Verify] etc.
 
-use crate::{context::Context, error::CompilerError};
+use crate::{context::Context, error::Result};
 
 /// Check and ensure correctness.
 pub trait Verify {
-    fn verify(&self, ctx: &Context) -> Result<(), CompilerError>;
+    fn verify(&self, ctx: &Context) -> Result<()>;
 }
 
 /// Anything that has a name.

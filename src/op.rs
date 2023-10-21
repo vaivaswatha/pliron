@@ -22,7 +22,7 @@
 //! [OpObj]s can be downcasted to their concrete types using
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 
-use std::ops::Deref;
+use std::{fmt::Display, ops::Deref};
 
 use downcast_rs::{impl_downcast, Downcast};
 use intertrait::{cast::CastRef, CastFrom};
@@ -31,7 +31,7 @@ use crate::{
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::{Dialect, DialectName},
-    error::CompilerError,
+    error::Result,
     operation::Operation,
     printable::{self, Printable},
 };
@@ -62,6 +62,12 @@ impl Printable for OpName {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
+        <Self as Display>::fmt(self, f)
+    }
+}
+
+impl Display for OpName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -76,11 +82,17 @@ pub struct OpId {
 impl Printable for OpId {
     fn fmt(
         &self,
-        ctx: &Context,
+        _ctx: &Context,
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{}.{}", self.dialect.disp(ctx), self.name.disp(ctx))
+        <Self as Display>::fmt(self, f)
+    }
+}
+
+impl Display for OpId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}", self.dialect, self.name)
     }
 }
 
@@ -105,7 +117,7 @@ pub trait Op: Downcast + Verify + Printable + CastFrom {
         Self: Sized;
 
     /// Verify all interfaces implemented by this op.
-    fn verify_interfaces(&self, ctx: &Context) -> Result<(), CompilerError>;
+    fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 
     /// Register Op in Context and add it to dialect.
     fn register(ctx: &mut Context, dialect: &mut Dialect)
@@ -145,7 +157,7 @@ pub fn op_impls<T: ?Sized + Op>(op: &dyn Op) -> bool {
 }
 
 /// Every op interface must have a function named `verify` with this type.
-pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<(), CompilerError>;
+pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<()>;
 
 /// Declare an [Op]
 ///
@@ -159,7 +171,7 @@ pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<(), CompilerError
 /// );
 /// # use pliron::{
 /// #     op::Op, declare_op, printable::{self, Printable},
-/// #     context::Context, error::CompilerError, common_traits::Verify
+/// #     context::Context, error::Result, common_traits::Verify
 /// # };
 /// # impl Printable for MyOp {
 /// #    fn fmt(&self, _ctx: &Context, _state: &printable::State, _f: &mut core::fmt::Formatter<'_>)
@@ -170,7 +182,7 @@ pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<(), CompilerError
 /// # }
 ///
 /// # impl Verify for MyOp {
-/// #   fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+/// #   fn verify(&self, _ctx: &Context) -> Result<()> {
 /// #        todo!()
 /// #    }
 /// # }
@@ -216,7 +228,7 @@ macro_rules! declare_op {
                 }
             }
 
-            fn verify_interfaces(&self, ctx: &Context) -> Result<(), CompilerError> {
+            fn verify_interfaces(&self, ctx: &Context) -> $crate::error::Result<()> {
                 let interface_verifiers = paste::paste!{
                     inventory::iter::<[<OpInterfaceVerifier_ $structname>]>
                 };
@@ -242,7 +254,7 @@ macro_rules! declare_op {
 /// );
 /// trait MyOpInterface: Op {
 ///     fn gubbi(&self);
-///     fn verify(op: &dyn Op, ctx: &Context) -> Result<(), CompilerError>
+///     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
 ///         where
 ///         Self: Sized,
 ///     {
@@ -257,7 +269,7 @@ macro_rules! declare_op {
 /// );
 /// # use pliron::{
 /// #     op::Op, declare_op, impl_op_interface,
-/// #     printable::{self, Printable}, context::Context, error::CompilerError,
+/// #     printable::{self, Printable}, context::Context, error::Result,
 /// #     common_traits::Verify
 /// # };
 /// # impl Printable for MyOp {
@@ -267,7 +279,7 @@ macro_rules! declare_op {
 /// # }
 ///
 /// # impl Verify for MyOp {
-/// #   fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+/// #   fn verify(&self, _ctx: &Context) -> Result<()> {
 /// #        todo!()
 /// #    }
 /// # }

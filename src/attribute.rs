@@ -33,7 +33,7 @@ use crate::{
     common_traits::Verify,
     context::Context,
     dialect::{Dialect, DialectName},
-    error::CompilerError,
+    error::Result,
     printable::{self, Printable},
 };
 
@@ -54,7 +54,7 @@ pub trait Attribute: Printable + Verify + Downcast + CastFrom + Sync {
         Self: Sized;
 
     /// Verify all interfaces implemented by this attribute.
-    fn verify_interfaces(&self, ctx: &Context) -> Result<(), CompilerError>;
+    fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 
     /// Register this attribute's [AttrId] in the dialect it belongs to.
     /// **Warning**: No check is made as to whether this attr is already registered
@@ -163,7 +163,7 @@ impl Printable for AttrId {
 }
 
 /// Every attribute interface must have a function named `verify` with this type.
-pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<(), CompilerError>;
+pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 
 /// impl [Attribute] for a rust type.
 ///
@@ -179,7 +179,7 @@ pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<(), Comp
 /// );
 /// # use pliron::{
 /// #     impl_attr, printable::{self, Printable},
-/// #     context::Context, error::CompilerError, common_traits::Verify,
+/// #     context::Context, error::Result, common_traits::Verify,
 /// #     attribute::Attribute,
 /// # };
 /// # impl Printable for MyAttr {
@@ -194,7 +194,7 @@ pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<(), Comp
 /// # }
 ///
 /// # impl Verify for MyAttr {
-/// #   fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+/// #   fn verify(&self, _ctx: &Context) -> Result<()> {
 /// #        todo!()
 /// #    }
 /// # }
@@ -234,7 +234,7 @@ macro_rules! impl_attr {
                     dialect: $crate::dialect::DialectName::new($dialect_name),
                 }
             }
-            fn verify_interfaces(&self, ctx: &Context) -> Result<(), CompilerError> {
+            fn verify_interfaces(&self, ctx: &Context) -> $crate::error::Result<()> {
                 let interface_verifiers = paste::paste!{
                     inventory::iter::<[<AttrInterfaceVerifier_ $structname>]>
                 };
@@ -262,7 +262,7 @@ macro_rules! impl_attr {
 /// );
 /// trait MyAttrInterface: Attribute {
 ///     fn monu(&self);
-///     fn verify(attr: &dyn Attribute, ctx: &Context) -> Result<(), CompilerError>
+///     fn verify(attr: &dyn Attribute, ctx: &Context) -> Result<()>
 ///         where
 ///         Self: Sized,
 ///     {
@@ -277,7 +277,7 @@ macro_rules! impl_attr {
 /// );
 /// # use pliron::{
 /// #     impl_attr, printable::{self, Printable},
-/// #     context::Context, error::CompilerError, common_traits::Verify,
+/// #     context::Context, error::Result, common_traits::Verify,
 /// #     attribute::Attribute, impl_attr_interface
 /// # };
 /// # impl Printable for MyAttr {
@@ -287,7 +287,7 @@ macro_rules! impl_attr {
 /// # }
 ///
 /// # impl Verify for MyAttr {
-/// #   fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+/// #   fn verify(&self, _ctx: &Context) -> Result<()> {
 /// #        todo!()
 /// #    }
 /// # }

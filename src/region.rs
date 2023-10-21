@@ -3,7 +3,7 @@ use crate::{
     basic_block::BasicBlock,
     common_traits::Verify,
     context::{private::ArenaObj, Context, Ptr},
-    error::CompilerError,
+    error::Result,
     indented_block,
     linked_list::{private, ContainsLinkedList},
     operation::Operation,
@@ -101,7 +101,7 @@ impl ArenaObj for Region {
 }
 
 impl Verify for Region {
-    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, ctx: &Context) -> Result<()> {
         self.iter(ctx).try_for_each(|op| op.deref(ctx).verify(ctx))
     }
 }

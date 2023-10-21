@@ -1,7 +1,9 @@
+use thiserror::Error;
+
 use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
-    error::CompilerError,
+    error::Result,
     linked_list::ContainsLinkedList,
     op::{op_cast, Op},
     operation::Operation,
@@ -9,13 +11,14 @@ use crate::{
     r#type::TypeObj,
     region::Region,
     use_def_lists::Value,
+    verify_err,
 };
 
 use super::attributes::StringAttr;
 
 /// An [Op] implementing this interface is a block terminator.
 pub trait IsTerminatorInterface: Op {
-    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<(), CompilerError>
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
@@ -42,13 +45,17 @@ pub trait RegionKindInterface: Op {
     /// must require dominance to hold.
     fn has_ssa_dominance(idx: usize) -> bool;
 
-    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<(), CompilerError>
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
         Ok(())
     }
 }
+
+#[derive(Error, Debug)]
+#[error("Op {0} must have a single region")]
+pub struct OneRegionVerifyErr(String);
 
 /// [Op]s that have exactly one region.
 pub trait OneRegionInterface: Op {
@@ -60,19 +67,21 @@ pub trait OneRegionInterface: Op {
     }
 
     /// Checks that the operation has exactly one region.
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<(), CompilerError>
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
         let self_op = op.get_operation().deref(ctx);
         if self_op.regions.len() != 1 {
-            return Err(CompilerError::VerificationError {
-                msg: format!("Op {} must have single region.", op.get_opid().disp(ctx)),
-            });
+            return verify_err!(OneRegionVerifyErr(op.get_opid().disp(ctx).to_string()));
         }
         Ok(())
     }
 }
+
+#[derive(Error, Debug)]
+#[error("Op {0} must only have regions with single block")]
+pub struct SingleBlockRegionVerifyErr(String);
 
 /// [Op]s with regions that have a single block.
 pub trait SingleBlockRegionInterface: Op {
@@ -93,19 +102,16 @@ pub trait SingleBlockRegionInterface: Op {
     }
 
     /// Checks that the operation has regions with single block.
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<(), CompilerError>
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
         let self_op = op.get_operation().deref(ctx);
         for region in &self_op.regions {
             if region.deref(ctx).iter(ctx).count() != 1 {
-                return Err(CompilerError::VerificationError {
-                    msg: format!(
-                        "SingleBlockRegion Op {} must have single region.",
-                        self_op.get_opid().disp(ctx)
-                    ),
-                });
+                return verify_err!(SingleBlockRegionVerifyErr(
+                    self_op.get_opid().disp(ctx).to_string()
+                ));
             }
         }
         Ok(())
@@ -130,13 +136,17 @@ pub trait SymbolOpInterface: Op {
             .insert(super::ATTR_KEY_SYM_NAME, name_attr);
     }
 
-    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<(), CompilerError>
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
         Ok(())
     }
 }
+
+#[derive(Error, Debug)]
+#[error("Op {0} must have single result")]
+pub struct OneResultVerifyErr(String);
 
 /// An [Op] having exactly one result.
 pub trait OneResultInterface: Op {
@@ -156,18 +166,13 @@ pub trait OneResultInterface: Op {
             .unwrap_or_else(|| panic!("{} must have exactly one result", self.get_opid().disp(ctx)))
     }
 
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<(), CompilerError>
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
         let op = &*op.get_operation().deref(ctx);
         if op.get_num_results() != 1 {
-            return Err(CompilerError::VerificationError {
-                msg: format!(
-                    "Expected exactly one result on operation {}",
-                    op.get_opid().disp(ctx)
-                ),
-            });
+            return verify_err!(OneResultVerifyErr(op.get_opid().disp(ctx).to_string()));
         }
         Ok(())
     }
@@ -178,7 +183,7 @@ pub trait CallOpInterface: Op {
     /// Returns the symbol of the callee of this call operation.
     fn get_callee_sym(&self, ctx: &Context) -> String;
 
-    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<(), CompilerError>
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
@@ -202,4 +207,22 @@ pub fn get_callees_syms(ctx: &Context, op: Ptr<Operation>) -> Vec<String> {
         }
     }
     callees
+}
+
+#[derive(Error, Debug)]
+#[error("Op {0} must not have any operand")]
+pub struct ZeroOpdVerifyErr(String);
+
+/// An [Op] having no operands.
+pub trait ZeroOpdInterface: Op {
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        let op = &*op.get_operation().deref(ctx);
+        if op.get_num_operands() != 0 {
+            return verify_err!(ZeroOpdVerifyErr(op.get_opid().disp(ctx).to_string()));
+        }
+        Ok(())
+    }
 }

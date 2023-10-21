@@ -1,3 +1,5 @@
+use thiserror::Error;
+
 use crate::{
     attribute::{self, attr_cast, AttrObj},
     basic_block::BasicBlock,
@@ -5,13 +7,14 @@ use crate::{
     context::{Context, Ptr},
     declare_op,
     dialect::Dialect,
-    error::CompilerError,
+    error::Result,
     impl_op_interface,
     linked_list::ContainsLinkedList,
     op::Op,
     operation::Operation,
     printable::{self, Printable},
     r#type::TypeObj,
+    verify_err,
 };
 
 use super::{
@@ -19,6 +22,7 @@ use super::{
     attributes::{FloatAttr, IntegerAttr, TypeAttr},
     op_interfaces::{
         OneRegionInterface, OneResultInterface, SingleBlockRegionInterface, SymbolOpInterface,
+        ZeroOpdInterface,
     },
     types::FunctionType,
 };
@@ -60,7 +64,7 @@ impl Printable for ModuleOp {
 }
 
 impl Verify for ModuleOp {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         Ok(())
     }
 }
@@ -178,19 +182,23 @@ impl Printable for FuncOp {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum FuncOpVerifyErr {
+    #[error("function does not have function type")]
+    NotFuncType,
+    #[error("incorrect number of results or operands")]
+    IncorrectNumResultsOpds,
+}
+
 impl Verify for FuncOp {
-    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, ctx: &Context) -> Result<()> {
         let ty = self.get_type(ctx);
         if !(ty.deref(ctx).is::<FunctionType>()) {
-            return Err(CompilerError::VerificationError {
-                msg: "Unexpected Func type".to_string(),
-            });
+            return verify_err!(FuncOpVerifyErr::NotFuncType);
         }
         let op = &*self.get_operation().deref(ctx);
         if op.get_num_results() != 0 || op.get_num_operands() != 0 {
-            return Err(CompilerError::VerificationError {
-                msg: "Incorrect number of results or operands".to_string(),
-            });
+            return verify_err!(FuncOpVerifyErr::IncorrectNumResultsOpds);
         }
         Ok(())
     }
@@ -260,24 +268,21 @@ impl Printable for ConstantOp {
     }
 }
 
+#[derive(Error, Debug)]
+#[error("{}: Unexpected type", ConstantOp::get_opid_static())]
+pub struct ConstantOpVerifyErr;
+
 impl Verify for ConstantOp {
-    fn verify(&self, ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, ctx: &Context) -> Result<()> {
         let value = self.get_value(ctx);
         if !(value.is::<IntegerAttr>() || value.is::<FloatAttr>()) {
-            return Err(CompilerError::VerificationError {
-                msg: "Unexpected constant type".to_string(),
-            });
-        }
-        let op = &*self.get_operation().deref(ctx);
-        if op.get_num_operands() != 0 {
-            return Err(CompilerError::VerificationError {
-                msg: "Incorrect number of results or operands".to_string(),
-            });
+            return verify_err!(ConstantOpVerifyErr);
         }
         Ok(())
     }
 }
 
+impl_op_interface! (ZeroOpdInterface for ConstantOp {});
 impl_op_interface! (OneResultInterface for ConstantOp {});
 
 pub fn register(ctx: &mut Context, dialect: &mut Dialect) {

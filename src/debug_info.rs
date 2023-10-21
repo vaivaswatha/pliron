@@ -136,7 +136,7 @@ mod tests {
                 types::{IntegerType, Signedness},
             },
         },
-        error::CompilerError,
+        error::Result,
         op::Op,
     };
     use apint::ApInt;
@@ -144,7 +144,7 @@ mod tests {
     use super::{get_operation_result_name, set_operation_result_name};
 
     #[test]
-    fn test_op_result_name() -> Result<(), CompilerError> {
+    fn test_op_result_name() -> Result<()> {
         let mut ctx = Context::new();
         dialects::builtin::register(&mut ctx);
 
@@ -158,7 +158,7 @@ mod tests {
     }
 
     #[test]
-    fn test_block_arg_name() -> Result<(), CompilerError> {
+    fn test_block_arg_name() -> Result<()> {
         let mut ctx = Context::new();
         dialects::builtin::register(&mut ctx);
 

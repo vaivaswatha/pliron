@@ -8,7 +8,7 @@ use crate::{
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
-    error::CompilerError,
+    error::Result,
     impl_type,
     parsable::{spaced, Parsable, StateStream},
     printable::{self, ListSeparator, Printable, PrintableIter},
@@ -95,7 +95,7 @@ impl Printable for IntegerType {
 }
 
 impl Verify for IntegerType {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         todo!()
     }
 }
@@ -174,7 +174,7 @@ impl Parsable for FunctionType {
 }
 
 impl Verify for FunctionType {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         todo!()
     }
 }

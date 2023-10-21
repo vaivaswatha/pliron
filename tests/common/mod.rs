@@ -14,7 +14,7 @@ use pliron::{
         },
         llvm::ops::ReturnOp,
     },
-    error::CompilerError,
+    error::Result,
     op::Op,
     printable::Printable,
 };
@@ -28,9 +28,7 @@ pub fn setup_context_dialects() -> Context {
 
 // Create a print a module "bar", with a function "foo"
 // containing a single `return 0`.
-pub fn const_ret_in_mod(
-    ctx: &mut Context,
-) -> Result<(ModuleOp, FuncOp, ConstantOp, ReturnOp), CompilerError> {
+pub fn const_ret_in_mod(ctx: &mut Context) -> Result<(ModuleOp, FuncOp, ConstantOp, ReturnOp)> {
     let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
     let module = ModuleOp::new(ctx, "bar");
     // Our function is going to have type () -> ().

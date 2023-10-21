@@ -8,12 +8,13 @@ use pliron::{
     dialect::{Dialect, DialectName},
     dialects::{
         builtin::{
-            attr_interfaces::TypedAttrInterface, attributes::StringAttr,
-            op_interfaces::OneResultInterface,
+            attr_interfaces::TypedAttrInterface,
+            attributes::StringAttr,
+            op_interfaces::{OneResultInterface, OneResultVerifyErr},
         },
         llvm::ops::ReturnOp,
     },
-    error::CompilerError,
+    error::{Error, ErrorKind, Result},
     impl_attr, impl_attr_interface, impl_op_interface,
     op::Op,
     operation::Operation,
@@ -39,7 +40,7 @@ impl Printable for ZeroResultOp {
 }
 
 impl Verify for ZeroResultOp {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         Ok(())
     }
 }
@@ -67,12 +68,16 @@ fn check_intrf_verfiy_errs() {
 
     assert!(matches!(
         module_op.get_operation().verify(ctx),
-        Err(CompilerError::VerificationError { msg })
-        if msg == "Expected exactly one result on operation test.zero_results"));
+        Err(Error {
+            kind: ErrorKind::VerificationFailed,
+            err
+        })
+        if err.is::<OneResultVerifyErr>()
+    ))
 }
 
 pub trait TestOpInterface: Op {
-    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<(), CompilerError>
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
@@ -84,7 +89,7 @@ impl_op_interface!(TestOpInterface for ReturnOp {});
 impl_op_interface!(TestOpInterface for pliron::dialects::builtin::ops::ModuleOp {});
 
 pub trait TestAttrInterface: Attribute {
-    fn verify(_op: &dyn Attribute, _ctx: &Context) -> Result<(), CompilerError>
+    fn verify(_op: &dyn Attribute, _ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
@@ -100,7 +105,7 @@ struct MyAttr {
     ty: Ptr<TypeObj>,
 }
 impl Verify for MyAttr {
-    fn verify(&self, _ctx: &Context) -> Result<(), CompilerError> {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         Ok(())
     }
 }
