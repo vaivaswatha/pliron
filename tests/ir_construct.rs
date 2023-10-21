@@ -116,3 +116,12 @@ fn replace_c0_with_c1_operand() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+/// A test to just print a constructed IR to stdout.
+fn print_simple() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    let module_op = const_ret_in_mod(ctx)?.0.get_operation();
+    println!("{}", module_op.disp(ctx));
+    Ok(())
+}

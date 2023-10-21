@@ -8,18 +8,18 @@ and written in safe Rust.
 ## Build and Test
 * Install the [rust toolchain](https://www.rust-lang.org/tools/install).
 * `cargo build` and `cargo test` should build the compiler and run the testsuite.
-* To see a simple IR constructed (by the [construct_and_erase](tests/ir_construct.rs) test),
+* To see a simple IR constructed (by the [print_simple](tests/ir_construct.rs) test),
   use the following command:
 
-      cargo test construct_and_erase -- --show-output
+      cargo test print_simple -- --show-output
 
   It should print something like:
   ```mlir
   builtin.module @bar {
     block_0_0():
-      builtin.func @foo() -> (si64,) {
+      builtin.func @foo: builtin.function <() -> (builtin.integer <si64>)> {
         entry():
-          c0 = builtin.constant 0x0: si64
+          c0 = builtin.constant 0x0: builtin.integer <si64>
           llvm.return c0
       }
   }
