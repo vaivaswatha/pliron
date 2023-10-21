@@ -1,3 +1,8 @@
+//! # pliron: Programming Languages Intermediate RepresentatiON
+//!
+//! `pliron` is an extensible compiler IR framework, inspired by MLIR
+//! and written in safe Rust.
+
 #[forbid(unsafe_code)]
 pub mod attribute;
 pub mod basic_block;

@@ -1,4 +1,4 @@
-//! [BasicBlock] is an list of [Operation]s.
+//! A [BasicBlock] is a list of [Operation]s.
 
 use rustc_hash::FxHashMap;
 
