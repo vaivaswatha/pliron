@@ -1,5 +1,6 @@
 mod common;
 
+use combine::{easy::ParseError, ParseResult};
 use pliron::{
     attribute::Attribute,
     common_traits::Verify,
@@ -16,8 +17,9 @@ use pliron::{
     },
     error::{Error, ErrorKind, Result},
     impl_attr, impl_attr_interface, impl_op_interface,
-    op::Op,
+    op::{Op, OpObj},
     operation::Operation,
+    parsable::{Parsable, StateStream},
     printable::{self, Printable},
     r#type::TypeObj,
 };
@@ -45,6 +47,15 @@ impl Verify for ZeroResultOp {
     }
 }
 
+impl Parsable for ZeroResultOp {
+    type Parsed = OpObj;
+    fn parse<'a>(
+        _state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
+        todo!()
+    }
+}
+
 impl ZeroResultOp {
     fn new(ctx: &mut Context) -> ZeroResultOp {
         *Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1)
@@ -60,7 +71,7 @@ impl ZeroResultOp {
 fn check_intrf_verfiy_errs() {
     let ctx = &mut setup_context_dialects();
     let mut dialect = Dialect::new(DialectName::new("test"));
-    ZeroResultOp::register(ctx, &mut dialect);
+    ZeroResultOp::register(ctx, &mut dialect, ZeroResultOp::parser_fn);
 
     let zero_res_op = ZeroResultOp::new(ctx).get_operation();
     let (module_op, _, _, ret_op) = const_ret_in_mod(ctx).unwrap();

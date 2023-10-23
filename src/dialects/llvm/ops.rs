@@ -1,3 +1,5 @@
+use combine::{easy::ParseError, ParseResult};
+
 use crate::{
     common_traits::Verify,
     context::Context,
@@ -6,8 +8,9 @@ use crate::{
     dialects::builtin::op_interfaces::IsTerminatorInterface,
     error::Result,
     impl_op_interface,
-    op::Op,
+    op::{Op, OpObj},
     operation::Operation,
+    parsable::{Parsable, StateStream},
     printable::{self, Printable},
     use_def_lists::Value,
 };
@@ -58,8 +61,17 @@ impl Verify for ReturnOp {
     }
 }
 
+impl Parsable for ReturnOp {
+    type Parsed = OpObj;
+    fn parse<'a>(
+        _state_stream: &mut crate::parsable::StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
+        todo!()
+    }
+}
+
 impl_op_interface!(IsTerminatorInterface for ReturnOp {});
 
 pub fn register(ctx: &mut Context, dialect: &mut Dialect) {
-    ReturnOp::register(ctx, dialect);
+    ReturnOp::register(ctx, dialect, ReturnOp::parser_fn);
 }

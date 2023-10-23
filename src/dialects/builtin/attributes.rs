@@ -1,5 +1,5 @@
 use apint::ApInt;
-use intertrait::cast_to;
+use combine::{any, between, easy, many, none_of, token, ParseResult, Parser, Positioned};
 use sorted_vector_map::SortedVectorMap;
 use thiserror::Error;
 
@@ -9,9 +9,10 @@ use crate::{
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
-    impl_attr, impl_attr_interface,
+    impl_attr, impl_attr_interface, input_err,
+    parsable::{spaced, to_parse_result, Parsable, StateStream},
     printable::{self, Printable},
-    r#type::TypeObj,
+    r#type::{type_parser, TypeObj},
     verify_err,
 };
 
@@ -21,7 +22,7 @@ use super::{attr_interfaces::TypedAttrInterface, types::IntegerType};
 /// Similar to MLIR's [StringAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#stringattr).
 #[derive(PartialEq, Eq, Clone)]
 pub struct StringAttr(String);
-impl_attr!(StringAttr, "String", "builtin");
+impl_attr!(StringAttr, "string", "builtin");
 
 impl StringAttr {
     /// Create a new [StringAttr].
@@ -43,13 +44,53 @@ impl Printable for StringAttr {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{} {:?}", Self::get_attr_id_static(), self.0)
     }
 }
 
 impl Verify for StringAttr {
     fn verify(&self, _ctx: &Context) -> Result<()> {
         Ok(())
+    }
+}
+
+impl Parsable for StringAttr {
+    type Parsed = AttrObj;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
+        // An escaped charater is one that is preceded by a backslash.
+        let escaped_char = combine::parser(move |parsable_state: &mut StateStream<'a>| {
+            // This combine::parser() is so that we can get a position before the parsing begins.
+            let position = parsable_state.position();
+            let mut escaped_char = token('\\').with(any()).then(|c: char| {
+                // This combine::parser() is so that we can return an error of the right type.
+                // I can't get the right error type with `and_then`
+                combine::parser(move |_parsable_state: &mut StateStream<'a>| {
+                    // Filter out the escaped characters that we handle.
+                    let result = match c {
+                        '\\' => Ok('\\'),
+                        '\"' => Ok('\"'),
+                        _ => input_err!("Unexpected escaped character \\{}", c),
+                    };
+                    to_parse_result(result, position).into_result()
+                })
+            });
+            escaped_char.parse_stream(parsable_state).into_result()
+        });
+
+        // We want to scan a double quote deliminted string with possibly escaped characters in between.
+        let mut quoted_string = between(
+            token('"'),
+            token('"'),
+            many(escaped_char.or(none_of("\"".chars()))),
+        )
+        .map(|str: Vec<_>| -> Box<dyn Attribute> {
+            Box::new(StringAttr(str.into_iter().collect()))
+        });
+
+        quoted_string.parse_stream(state_stream)
     }
 }
 
@@ -60,7 +101,7 @@ pub struct IntegerAttr {
     ty: Ptr<TypeObj>,
     val: ApInt,
 }
-impl_attr!(IntegerAttr, "Integer", "builtin");
+impl_attr!(IntegerAttr, "integer", "builtin");
 
 impl Printable for IntegerAttr {
     fn fmt(
@@ -99,6 +140,16 @@ impl From<IntegerAttr> for ApInt {
     }
 }
 
+impl Parsable for IntegerAttr {
+    type Parsed = AttrObj;
+
+    fn parse<'a>(
+        _state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
+        todo!()
+    }
+}
+
 impl_attr_interface!(TypedAttrInterface for IntegerAttr {
     fn get_type(&self) -> Ptr<TypeObj> {
         self.ty
@@ -114,7 +165,7 @@ pub struct APFloat();
 /// TODO: Use rustc's APFloat.
 #[derive(PartialEq, Clone)]
 pub struct FloatAttr(APFloat);
-impl_attr!(FloatAttr, "Float", "builtin");
+impl_attr!(FloatAttr, "float", "builtin");
 
 impl Printable for FloatAttr {
     fn fmt(
@@ -146,9 +197,20 @@ impl From<FloatAttr> for APFloat {
     }
 }
 
-#[cast_to]
-impl TypedAttrInterface for FloatAttr {
-    fn get_type(&self) -> Ptr<TypeObj> {
+impl_attr_interface!(
+    TypedAttrInterface for FloatAttr {
+        fn get_type(&self) -> Ptr<TypeObj> {
+            todo!()
+        }
+    }
+);
+
+impl Parsable for FloatAttr {
+    type Parsed = AttrObj;
+
+    fn parse<'a>(
+        _state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
         todo!()
     }
 }
@@ -159,7 +221,7 @@ impl TypedAttrInterface for FloatAttr {
 /// Similar to MLIR's [DictionaryAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#dictionaryattr),
 #[derive(PartialEq, Eq)]
 pub struct SmallDictAttr(SortedVectorMap<&'static str, AttrObj>);
-impl_attr!(SmallDictAttr, "SmallDict", "builtin");
+impl_attr!(SmallDictAttr, "small_dict", "builtin");
 
 impl Printable for SmallDictAttr {
     fn fmt(
@@ -188,6 +250,16 @@ impl Verify for SmallDictAttr {
             }
         }
         Ok(())
+    }
+}
+
+impl Parsable for SmallDictAttr {
+    type Parsed = AttrObj;
+
+    fn parse<'a>(
+        _state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
+        todo!()
     }
 }
 
@@ -224,7 +296,7 @@ impl SmallDictAttr {
 
 #[derive(PartialEq, Eq)]
 pub struct VecAttr(pub Vec<AttrObj>);
-impl_attr!(VecAttr, "Vec", "builtin");
+impl_attr!(VecAttr, "vec", "builtin");
 
 impl VecAttr {
     pub fn create(value: Vec<AttrObj>) -> AttrObj {
@@ -249,11 +321,21 @@ impl Verify for VecAttr {
     }
 }
 
+impl Parsable for VecAttr {
+    type Parsed = AttrObj;
+
+    fn parse<'a>(
+        _state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
+        todo!()
+    }
+}
+
 /// Represent attributes that only have meaning from their existence.
 /// See [UnitAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#unitattr) in MLIR.
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct UnitAttr();
-impl_attr!(UnitAttr, "Unit", "builtin");
+impl_attr!(UnitAttr, "unit", "builtin");
 
 impl UnitAttr {
     pub fn create() -> AttrObj {
@@ -278,11 +360,21 @@ impl Verify for UnitAttr {
     }
 }
 
+impl Parsable for UnitAttr {
+    type Parsed = AttrObj;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
+        to_parse_result(Ok(UnitAttr::create()), state_stream.position())
+    }
+}
+
 /// An attribute that does nothing but hold a Type.
 /// Same as MLIR's [TypeAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#typeattr).
 #[derive(PartialEq, Eq, Clone)]
 pub struct TypeAttr(Ptr<TypeObj>);
-impl_attr!(TypeAttr, "Type", "builtin");
+impl_attr!(TypeAttr, "type", "builtin");
 
 impl TypeAttr {
     pub fn create(ty: Ptr<TypeObj>) -> AttrObj {
@@ -297,7 +389,19 @@ impl Printable for TypeAttr {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{}<{}>", self.get_attr_id().disp(ctx), self.0.disp(ctx))
+        write!(f, "{} <{}>", self.get_attr_id().disp(ctx), self.0.disp(ctx))
+    }
+}
+
+impl Parsable for TypeAttr {
+    type Parsed = AttrObj;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
+        between(spaced(token('<')), spaced(token('>')), type_parser())
+            .map(TypeAttr::create)
+            .parse_stream(state_stream)
     }
 }
 
@@ -307,34 +411,40 @@ impl Verify for TypeAttr {
     }
 }
 
-#[cast_to]
-impl TypedAttrInterface for TypeAttr {
-    fn get_type(&self) -> Ptr<TypeObj> {
-        self.0
+impl_attr_interface!(
+    TypedAttrInterface for TypeAttr {
+        fn get_type(&self) -> Ptr<TypeObj> {
+            self.0
+        }
     }
-}
+);
 
 pub fn register(dialect: &mut Dialect) {
-    StringAttr::register_attr_in_dialect(dialect);
-    IntegerAttr::register_attr_in_dialect(dialect);
-    SmallDictAttr::register_attr_in_dialect(dialect);
-    VecAttr::register_attr_in_dialect(dialect);
-    UnitAttr::register_attr_in_dialect(dialect);
-    TypeAttr::register_attr_in_dialect(dialect);
+    StringAttr::register_attr_in_dialect(dialect, StringAttr::parser_fn);
+    IntegerAttr::register_attr_in_dialect(dialect, IntegerAttr::parser_fn);
+    SmallDictAttr::register_attr_in_dialect(dialect, SmallDictAttr::parser_fn);
+    VecAttr::register_attr_in_dialect(dialect, VecAttr::parser_fn);
+    UnitAttr::register_attr_in_dialect(dialect, UnitAttr::parser_fn);
+    TypeAttr::register_attr_in_dialect(dialect, TypeAttr::parser_fn);
 }
 
 #[cfg(test)]
 mod tests {
     use apint::ApInt;
+    use expect_test::expect;
 
     use crate::{
-        attribute::{self, attr_cast},
+        attribute::{self, attr_cast, attr_parser},
         context::Context,
-        dialects::builtin::{
-            attr_interfaces::TypedAttrInterface,
-            attributes::{IntegerAttr, StringAttr},
-            types::{IntegerType, Signedness},
+        dialects::{
+            self,
+            builtin::{
+                attr_interfaces::TypedAttrInterface,
+                attributes::{IntegerAttr, StringAttr},
+                types::{IntegerType, Signedness},
+            },
         },
+        parsable::{self, state_stream_from_iterator},
         printable::Printable,
     };
 
@@ -367,21 +477,49 @@ mod tests {
 
     #[test]
     fn test_string_attributes() {
-        let ctx = Context::new();
+        let mut ctx = Context::new();
+        dialects::builtin::register(&mut ctx);
 
         let str_0_ptr = StringAttr::create("hello".to_string());
         let str_1_ptr = StringAttr::create("world".to_string());
         assert!(str_0_ptr.is::<StringAttr>() && &str_0_ptr != &str_1_ptr);
         let str_0_ptr2 = StringAttr::create("hello".to_string());
         assert!(str_0_ptr == str_0_ptr2);
-        assert!(
-            str_0_ptr.disp(&ctx).to_string() == "hello"
-                && str_1_ptr.disp(&ctx).to_string() == "world"
+        assert_eq!(str_0_ptr.disp(&ctx).to_string(), "builtin.string \"hello\"");
+        assert_eq!(str_1_ptr.disp(&ctx).to_string(), "builtin.string \"world\"");
+        assert_eq!(
+            String::from(str_0_ptr.downcast_ref::<StringAttr>().unwrap().clone()),
+            "hello",
         );
-        assert!(
-            String::from(str_0_ptr.downcast_ref::<StringAttr>().unwrap().clone()) == "hello"
-                && String::from(str_1_ptr.downcast_ref::<StringAttr>().unwrap().clone()) == "world",
+        assert_eq!(
+            String::from(str_1_ptr.downcast_ref::<StringAttr>().unwrap().clone()),
+            "world"
         );
+
+        let attr_input = "builtin.string \"hello\"";
+        let state_stream =
+            state_stream_from_iterator(attr_input.chars(), parsable::State { ctx: &mut ctx });
+        let attr = attr_parser().parse(state_stream).unwrap().0;
+        assert_eq!(attr.disp(&ctx).to_string(), attr_input);
+
+        let attr_input = "builtin.string \"hello \\\"world\\\"\"";
+        let state_stream =
+            state_stream_from_iterator(attr_input.chars(), parsable::State { ctx: &mut ctx });
+        let attr_parsed = attr_parser().parse(state_stream).unwrap().0;
+        assert_eq!(attr_parsed.disp(&ctx).to_string(), attr_input,);
+
+        // Unsupported escaped character.
+        let state_stream = state_stream_from_iterator(
+            "builtin.string \"hello \\k \"".chars(),
+            parsable::State { ctx: &mut ctx },
+        );
+        let res = attr_parser().parse(state_stream);
+        let err_msg = format!("{}", res.err().unwrap());
+        let expected_err_msg = expect![[r#"
+            Parse error at line: 1, column: 23
+            Unexpected escaped character \k
+        "#]];
+        expected_err_msg.assert_eq(&err_msg);
     }
 
     #[test]
@@ -431,11 +569,18 @@ mod tests {
     #[test]
     fn test_type_attributes() {
         let mut ctx = Context::new();
+        dialects::builtin::register(&mut ctx);
 
         let ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
         let ty_attr = TypeAttr::create(ty);
 
         let ty_interface = attr_cast::<dyn TypedAttrInterface>(&*ty_attr).unwrap();
         assert!(ty_interface.get_type() == ty);
+
+        let ty_attr = ty_attr.disp(&ctx).to_string();
+        let state_stream =
+            state_stream_from_iterator(ty_attr.chars(), parsable::State { ctx: &mut ctx });
+        let ty_attr_parsed = attr_parser().parse(state_stream).unwrap().0;
+        assert_eq!(ty_attr_parsed.disp(&ctx).to_string(), ty_attr);
     }
 }

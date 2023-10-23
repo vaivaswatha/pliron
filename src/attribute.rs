@@ -24,8 +24,9 @@
 //!
 //! [AttrObj]s can be downcasted to their concrete types using
 /// [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
-use std::{hash::Hash, ops::Deref};
+use std::{fmt::Display, hash::Hash, ops::Deref};
 
+use combine::{easy, parser, ParseResult, Parser, Positioned};
 use downcast_rs::{impl_downcast, Downcast};
 use intertrait::{cast::CastRef, CastFrom};
 
@@ -34,6 +35,8 @@ use crate::{
     context::Context,
     dialect::{Dialect, DialectName},
     error::Result,
+    input_err,
+    parsable::{identifier, spaced, to_parse_result, Parsable, ParserFn, StateStream},
     printable::{self, Printable},
 };
 
@@ -59,11 +62,11 @@ pub trait Attribute: Printable + Verify + Downcast + CastFrom + Sync {
     /// Register this attribute's [AttrId] in the dialect it belongs to.
     /// **Warning**: No check is made as to whether this attr is already registered
     ///  in `dialect`.
-    fn register_attr_in_dialect(dialect: &mut Dialect)
+    fn register_attr_in_dialect(dialect: &mut Dialect, attr_parser: ParserFn<AttrObj>)
     where
         Self: Sized,
     {
-        dialect.add_attr(Self::get_attr_id_static());
+        dialect.add_attr(Self::get_attr_id_static(), attr_parser);
     }
 }
 impl_downcast!(Attribute);
@@ -133,7 +136,28 @@ impl Printable for AttrName {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
+        <Self as Display>::fmt(self, f)
+    }
+}
+
+impl Display for AttrName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl Parsable for AttrName {
+    type Parsed = AttrName;
+
+    fn parse<'a>(
+        state_stream: &mut crate::parsable::StateStream<'a>,
+    ) -> combine::ParseResult<Self::Parsed, combine::easy::ParseError<StateStream<'a>>>
+    where
+        Self: Sized,
+    {
+        identifier()
+            .map(|name| AttrName::new(&name))
+            .parse_stream(&mut state_stream.stream)
     }
 }
 
@@ -154,12 +178,73 @@ pub struct AttrId {
 impl Printable for AttrId {
     fn fmt(
         &self,
-        ctx: &Context,
+        _ctx: &Context,
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{}.{}", self.dialect.disp(ctx), self.name.disp(ctx))
+        <Self as Display>::fmt(self, f)
     }
+}
+
+impl Display for AttrId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}", self.dialect, self.name)
+    }
+}
+
+impl Parsable for AttrId {
+    type Parsed = AttrId;
+
+    // Parses (but does not validate) a TypeId.
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    where
+        Self: Sized,
+    {
+        let parser = DialectName::parser()
+            .skip(parser::char::char('.'))
+            .and(AttrName::parser())
+            .map(|(dialect, name)| AttrId { dialect, name });
+        spaced(parser).parse_stream(state_stream)
+    }
+}
+
+/// Parse an identified attribute, which is [AttrId] followed by its contents.
+pub fn attr_parse<'a>(
+    state_stream: &mut StateStream<'a>,
+) -> ParseResult<AttrObj, easy::ParseError<StateStream<'a>>> {
+    let position = state_stream.stream.position();
+    let attr_id_parser = AttrId::parser();
+
+    let attr_parser = attr_id_parser.then(|attr_id: AttrId| {
+        combine::parser(move |parsable_state: &mut StateStream<'a>| {
+            let state = &parsable_state.state;
+            let dialect = state
+                .ctx
+                .dialects
+                .get(&attr_id.dialect)
+                .expect("Dialect name parsed but dialect isn't registered");
+            let Some(attr_parser) = dialect.attributes.get(&attr_id) else {
+                return to_parse_result(
+                    input_err!("Unregistered attribute {}", attr_id.disp(state.ctx)),
+                    position,
+                )
+                .into_result();
+            };
+            attr_parser(&()).parse_stream(parsable_state).into_result()
+        })
+    });
+
+    let mut attr_parser = spaced(attr_parser);
+    attr_parser.parse_stream(state_stream)
+}
+
+/// A parser combinator to parse [AttrId] followed by the attribute's contents.
+pub fn attr_parser<'a>(
+) -> Box<dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a> {
+    combine::parser(|parsable_state: &mut StateStream<'a>| attr_parse(parsable_state).into_result())
+        .boxed()
 }
 
 /// Every attribute interface must have a function named `verify` with this type.

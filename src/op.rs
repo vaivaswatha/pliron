@@ -33,6 +33,7 @@ use crate::{
     dialect::{Dialect, DialectName},
     error::Result,
     operation::Operation,
+    parsable::ParserFn,
     printable::{self, Printable},
 };
 
@@ -99,7 +100,8 @@ impl Display for OpId {
 pub(crate) type OpCreator = fn(Ptr<Operation>) -> OpObj;
 
 /// A wrapper around [Operation] for Op(code) specific work.
-/// All per-instance data must be in the underyling Operation.
+/// All per-instance data must be in the underyling Operation,
+/// which means that [OpObj]s are light-weight.
 ///
 /// See [module](crate::op) documentation for more information.
 pub trait Op: Downcast + Verify + Printable + CastFrom {
@@ -120,7 +122,7 @@ pub trait Op: Downcast + Verify + Printable + CastFrom {
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 
     /// Register Op in Context and add it to dialect.
-    fn register(ctx: &mut Context, dialect: &mut Dialect)
+    fn register(ctx: &mut Context, dialect: &mut Dialect, op_parser: ParserFn<OpObj>)
     where
         Self: Sized,
     {
@@ -128,7 +130,7 @@ pub trait Op: Downcast + Verify + Printable + CastFrom {
             std::collections::hash_map::Entry::Occupied(_) => (),
             std::collections::hash_map::Entry::Vacant(v) => {
                 v.insert(Self::wrap_operation);
-                dialect.add_op(Self::get_opid_static());
+                dialect.add_op(Self::get_opid_static(), op_parser);
             }
         }
     }
@@ -136,7 +138,7 @@ pub trait Op: Downcast + Verify + Printable + CastFrom {
 impl_downcast!(Op);
 
 /// Create [OpObj] from [`Ptr<Operation>`](Operation)
-pub fn from_operation(ctx: &Context, op: Ptr<Operation>) -> OpObj {
+pub(crate) fn from_operation(ctx: &Context, op: Ptr<Operation>) -> OpObj {
     let opid = op.deref(ctx).get_opid();
     (ctx.ops
         .get(&opid)

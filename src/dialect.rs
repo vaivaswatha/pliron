@@ -6,9 +6,9 @@ use combine::{easy, ParseResult, Parser};
 use rustc_hash::FxHashMap;
 
 use crate::{
-    attribute::AttrId,
+    attribute::{AttrId, AttrObj},
     context::{Context, Ptr},
-    op::OpId,
+    op::{OpId, OpObj},
     parsable::{self, Parsable, ParserFn, StateStream},
     printable::{self, Printable},
     r#type::{TypeId, TypeObj},
@@ -80,11 +80,11 @@ pub struct Dialect {
     /// Name of this dialect.
     pub name: DialectName,
     /// Ops that are part of this dialect.
-    pub ops: Vec<OpId>,
+    pub ops: FxHashMap<OpId, ParserFn<OpObj>>,
     /// Types that are part of this dialect.
     pub types: FxHashMap<TypeId, ParserFn<Ptr<TypeObj>>>,
     /// Attributes that are part of this dialect.
-    pub attributes: Vec<AttrId>,
+    pub attributes: FxHashMap<AttrId, ParserFn<AttrObj>>,
 }
 
 impl Printable for Dialect {
@@ -103,9 +103,9 @@ impl Dialect {
     pub fn new(name: DialectName) -> Dialect {
         Dialect {
             name,
-            ops: vec![],
+            ops: FxHashMap::default(),
             types: FxHashMap::default(),
-            attributes: vec![],
+            attributes: FxHashMap::default(),
         }
     }
 
@@ -115,9 +115,9 @@ impl Dialect {
     }
 
     /// Add an [Op](crate::op::Op) to this dialect.
-    pub fn add_op(&mut self, op: OpId) {
+    pub fn add_op(&mut self, op: OpId, op_parser: ParserFn<OpObj>) {
         assert!(op.dialect == self.name);
-        self.ops.push(op);
+        self.ops.insert(op, op_parser);
     }
 
     /// Add a [Type](crate::type::Type) to this dialect.
@@ -127,9 +127,9 @@ impl Dialect {
     }
 
     /// Add an [Attribute](crate::attribute::Attribute) to this dialect.
-    pub fn add_attr(&mut self, attr: AttrId) {
+    pub fn add_attr(&mut self, attr: AttrId, attr_parser: ParserFn<AttrObj>) {
         assert!(attr.dialect == self.name);
-        self.attributes.push(attr);
+        self.attributes.insert(attr, attr_parser);
     }
 
     /// This Dialect's name.

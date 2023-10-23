@@ -1,3 +1,4 @@
+use combine::{easy::ParseError, ParseResult};
 use thiserror::Error;
 
 use crate::{
@@ -10,8 +11,9 @@ use crate::{
     error::Result,
     impl_op_interface,
     linked_list::ContainsLinkedList,
-    op::Op,
+    op::{Op, OpObj},
     operation::Operation,
+    parsable::{Parsable, StateStream},
     printable::{self, Printable},
     r#type::TypeObj,
     verify_err,
@@ -89,6 +91,15 @@ impl ModuleOp {
     /// Add an [Operation] into this module.
     pub fn add_operation(&self, ctx: &mut Context, op: Ptr<Operation>) {
         self.append_operation(ctx, op, 0)
+    }
+}
+
+impl Parsable for ModuleOp {
+    type Parsed = OpObj;
+    fn parse<'a>(
+        _state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
+        todo!()
     }
 }
 
@@ -204,6 +215,15 @@ impl Verify for FuncOp {
     }
 }
 
+impl Parsable for FuncOp {
+    type Parsed = OpObj;
+    fn parse<'a>(
+        _state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
+        todo!()
+    }
+}
+
 declare_op!(
     /// Numeric constant.
     /// See MLIR's [arith.constant](https://mlir.llvm.org/docs/Dialects/ArithOps/#arithconstant-mlirarithconstantop).
@@ -268,6 +288,16 @@ impl Printable for ConstantOp {
     }
 }
 
+impl Parsable for ConstantOp {
+    type Parsed = OpObj;
+
+    fn parse<'a>(
+        _state_stream: &mut StateStream<'a>,
+    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
+        todo!()
+    }
+}
+
 #[derive(Error, Debug)]
 #[error("{}: Unexpected type", ConstantOp::get_opid_static())]
 pub struct ConstantOpVerifyErr;
@@ -286,7 +316,7 @@ impl_op_interface! (ZeroOpdInterface for ConstantOp {});
 impl_op_interface! (OneResultInterface for ConstantOp {});
 
 pub fn register(ctx: &mut Context, dialect: &mut Dialect) {
-    ModuleOp::register(ctx, dialect);
-    FuncOp::register(ctx, dialect);
-    ConstantOp::register(ctx, dialect);
+    ModuleOp::register(ctx, dialect, ModuleOp::parser_fn);
+    FuncOp::register(ctx, dialect, FuncOp::parser_fn);
+    ConstantOp::register(ctx, dialect, ConstantOp::parser_fn);
 }
