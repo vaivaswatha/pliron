@@ -72,12 +72,7 @@ fn get_name_from_attr_map(
 //      dict\[[DEBUG_INFO_NAME]\] is a [VecAttr] with [UnitAttr] entries
 //      for unknown names and [StringAttr] for known names. The length of
 //      this array is always the same as the number of results.
-pub fn set_operation_result_name(
-    ctx: &mut Context,
-    op: Ptr<Operation>,
-    res_idx: usize,
-    name: String,
-) {
+pub fn set_operation_result_name(ctx: &Context, op: Ptr<Operation>, res_idx: usize, name: String) {
     let op = &mut *op.deref_mut(ctx);
     let num_results = op.get_num_results();
     assert!(res_idx < num_results);
@@ -86,7 +81,7 @@ pub fn set_operation_result_name(
 }
 
 /// Get name for a result in an [Operation].
-//  See [get_operation_result_name] for attribute storage convention.
+//  See [set_operation_result_name] for attribute storage convention.
 pub fn get_operation_result_name(
     ctx: &Context,
     op: Ptr<Operation>,
@@ -105,7 +100,7 @@ pub fn get_operation_result_name(
 //      dict\[[DEBUG_INFO_NAME]\] is a [VecAttr] with [UnitAttr] entries
 //      for unknown names and [StringAttr] for known names. The length of
 //      this array is always the same as the number of arguments.
-pub fn set_block_arg_name(ctx: &mut Context, block: Ptr<BasicBlock>, arg_idx: usize, name: String) {
+pub fn set_block_arg_name(ctx: &Context, block: Ptr<BasicBlock>, arg_idx: usize, name: String) {
     let block = &mut *block.deref_mut(ctx);
     let num_args = block.get_num_arguments();
     assert!(arg_idx < num_args);

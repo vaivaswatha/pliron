@@ -320,7 +320,8 @@ impl Printable for BasicBlock {
                 f,
                 "{}{}",
                 indented_nl(state),
-                self.iter(ctx).iprint(ctx, state, ListSeparator::Newline)
+                self.iter(ctx)
+                    .iprint(ctx, state, ListSeparator::CharNewline(';'))
             )?;
         });
 

@@ -199,7 +199,7 @@ impl Printable for StructType {
             "{{ {} }}",
             self.fields
                 .iter()
-                .iprint(ctx, state, printable::ListSeparator::SpacedChar(','))
+                .iprint(ctx, state, printable::ListSeparator::CharSpace(','))
         )?;
 
         // Done processing this struct. Remove it from the stack.

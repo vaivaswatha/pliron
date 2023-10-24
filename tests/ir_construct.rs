@@ -87,8 +87,8 @@ fn replace_c0_with_c1_operand() -> Result<()> {
           block_0_0():
             builtin.func @foo: builtin.function <() -> (builtin.integer <si64>)> {
               entry():
-                c0 = builtin.constant 0x0: builtin.integer <si64>
-                c1 = builtin.constant 0x1: builtin.integer <si64>
+                c0 = builtin.constant 0x0: builtin.integer <si64>;
+                c1 = builtin.constant 0x1: builtin.integer <si64>;
                 llvm.return c0
             }
         }"#]]
@@ -106,7 +106,7 @@ fn replace_c0_with_c1_operand() -> Result<()> {
           block_0_0():
             builtin.func @foo: builtin.function <() -> (builtin.integer <si64>)> {
               entry():
-                c1 = builtin.constant 0x1: builtin.integer <si64>
+                c1 = builtin.constant 0x1: builtin.integer <si64>;
                 llvm.return c1
             }
         }"#]]

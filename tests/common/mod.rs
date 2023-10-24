@@ -53,7 +53,7 @@ pub fn const_ret_in_mod(ctx: &mut Context) -> Result<(ModuleOp, FuncOp, Constant
           block_0_0():
             builtin.func @foo: builtin.function <() -> (builtin.integer <si64>)> {
               entry():
-                c0 = builtin.constant 0x0: builtin.integer <si64>
+                c0 = builtin.constant 0x0: builtin.integer <si64>;
                 llvm.return c0
             }
         }"#]]
