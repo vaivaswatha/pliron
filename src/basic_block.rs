@@ -47,12 +47,11 @@ impl BlockArgument {
 }
 
 impl Named for BlockArgument {
-    fn get_name(&self, ctx: &Context) -> String {
-        get_block_arg_name(ctx, self.get_def_block(), self.arg_idx).unwrap_or_else(|| {
-            let mut name = self.def_block.deref(ctx).get_name(ctx);
-            name.push_str(&format!("[{}]", self.arg_idx));
-            name
-        })
+    fn given_name(&self, ctx: &Context) -> Option<String> {
+        get_block_arg_name(ctx, self.get_def_block(), self.arg_idx)
+    }
+    fn id(&self, ctx: &Context) -> String {
+        format!("{}_arg{}", self.def_block.deref(ctx).id(ctx), self.arg_idx)
     }
 }
 
@@ -72,7 +71,7 @@ impl Printable for BlockArgument {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{}:{}", self.get_name(ctx), self.get_type().disp(ctx))
+        write!(f, "{}:{}", self.unique_name(ctx), self.get_type().disp(ctx))
     }
 }
 
@@ -126,11 +125,11 @@ pub struct BasicBlock {
 }
 
 impl Named for BasicBlock {
-    fn get_name(&self, _ctx: &Context) -> String {
-        self.label
-            .as_ref()
-            .cloned()
-            .unwrap_or_else(|| self.self_ptr.make_name("block"))
+    fn given_name(&self, _ctx: &Context) -> Option<String> {
+        self.label.as_ref().cloned()
+    }
+    fn id(&self, _ctx: &Context) -> String {
+        self.self_ptr.make_name("block")
     }
 }
 
@@ -309,7 +308,7 @@ impl Printable for BasicBlock {
         write!(
             f,
             "{}({}):",
-            self.get_name(ctx),
+            self.unique_name(ctx),
             self.args
                 .iter()
                 .iprint(ctx, state, ListSeparator::Char(','))

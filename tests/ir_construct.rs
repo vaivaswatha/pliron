@@ -86,10 +86,10 @@ fn replace_c0_with_c1_operand() -> Result<()> {
         builtin.module @bar {
           block_0_0():
             builtin.func @foo: builtin.function <() -> (builtin.integer <si64>)> {
-              entry():
-                c0 = builtin.constant 0x0: builtin.integer <si64>;
-                c1 = builtin.constant 0x1: builtin.integer <si64>;
-                llvm.return c0
+              entry_block_1_0():
+                c0_op_2_0_res0 = builtin.constant 0x0: builtin.integer <si64>;
+                c1_op_4_0_res0 = builtin.constant 0x1: builtin.integer <si64>;
+                llvm.return c0_op_2_0_res0
             }
         }"#]]
     .assert_eq(&printed);
@@ -105,9 +105,9 @@ fn replace_c0_with_c1_operand() -> Result<()> {
         builtin.module @bar {
           block_0_0():
             builtin.func @foo: builtin.function <() -> (builtin.integer <si64>)> {
-              entry():
-                c1 = builtin.constant 0x1: builtin.integer <si64>;
-                llvm.return c1
+              entry_block_1_0():
+                c1_op_4_0_res0 = builtin.constant 0x1: builtin.integer <si64>;
+                llvm.return c1_op_4_0_res0
             }
         }"#]]
     .assert_eq(&printed);
@@ -122,6 +122,17 @@ fn replace_c0_with_c1_operand() -> Result<()> {
 fn print_simple() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     let module_op = const_ret_in_mod(ctx)?.0.get_operation();
-    println!("{}", module_op.disp(ctx));
+    let printed = format!("{}", module_op.disp(ctx));
+    expect![[r#"
+        builtin.module @bar {
+          block_0_0():
+            builtin.func @foo: builtin.function <() -> (builtin.integer <si64>)> {
+              entry_block_1_0():
+                c0_op_2_0_res0 = builtin.constant 0x0: builtin.integer <si64>;
+                llvm.return c0_op_2_0_res0
+            }
+        }"#]]
+    .assert_eq(&printed);
+    println!("{}", printed);
     Ok(())
 }

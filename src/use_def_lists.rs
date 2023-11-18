@@ -171,18 +171,29 @@ impl Value {
 }
 
 impl Named for Value {
-    fn get_name(&self, ctx: &Context) -> String {
+    fn given_name(&self, ctx: &Context) -> Option<String> {
         match self {
             Value::OpResult { op, res_idx } => op
                 .deref(ctx)
                 .get_result_ref(*res_idx)
                 .unwrap()
-                .get_name(ctx),
+                .given_name(ctx),
             Value::BlockArgument { block, arg_idx } => block
                 .deref(ctx)
                 .get_argument_ref(*arg_idx)
                 .unwrap()
-                .get_name(ctx),
+                .given_name(ctx),
+        }
+    }
+
+    fn id(&self, ctx: &Context) -> String {
+        match self {
+            Value::OpResult { op, res_idx } => {
+                op.deref(ctx).get_result_ref(*res_idx).unwrap().id(ctx)
+            }
+            Value::BlockArgument { block, arg_idx } => {
+                block.deref(ctx).get_argument_ref(*arg_idx).unwrap().id(ctx)
+            }
         }
     }
 }
@@ -236,8 +247,11 @@ impl UseTrait for Value {
 }
 
 impl Named for Ptr<BasicBlock> {
-    fn get_name(&self, ctx: &Context) -> String {
-        self.deref(ctx).get_name(ctx)
+    fn given_name(&self, ctx: &Context) -> Option<String> {
+        self.deref(ctx).given_name(ctx)
+    }
+    fn id(&self, ctx: &Context) -> String {
+        self.deref(ctx).id(ctx)
     }
 }
 

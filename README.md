@@ -19,8 +19,8 @@ and written in safe Rust.
     block_0_0():
       builtin.func @foo: builtin.function <() -> (builtin.integer <si64>)> {
         entry():
-          c0 = builtin.constant 0x0: builtin.integer <si64>
-          llvm.return c0
+          c0_op_2_0_res0 = builtin.constant 0x0: builtin.integer <si64>;
+          llvm.return c0_op_2_0_res0
       }
   }
   ```

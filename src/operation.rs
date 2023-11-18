@@ -53,9 +53,12 @@ impl From<&OpResult> for Value {
 }
 
 impl Named for OpResult {
-    fn get_name(&self, ctx: &Context) -> String {
+    fn given_name(&self, ctx: &Context) -> Option<String> {
         debug_info::get_operation_result_name(ctx, self.def_op, self.res_idx)
-            .unwrap_or_else(|| self.def_op.make_name("op") + &format!("[{}]", self.res_idx))
+    }
+
+    fn id(&self, _ctx: &Context) -> String {
+        format!("{}_res{}", self.def_op.make_name("op"), self.res_idx)
     }
 }
 
@@ -415,7 +418,7 @@ impl<T: DefUseParticipant + Named> Printable for Operand<T> {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{}", self.r#use.get_def().get_name(ctx))
+        write!(f, "{}", self.r#use.get_def().unique_name(ctx))
     }
 }
 

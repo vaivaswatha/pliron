@@ -1,5 +1,4 @@
 use apint::ApInt;
-use expect_test::expect;
 use pliron::{
     common_traits::Verify,
     context::Context,
@@ -16,7 +15,6 @@ use pliron::{
     },
     error::Result,
     op::Op,
-    printable::Printable,
 };
 
 pub fn setup_context_dialects() -> Context {
@@ -46,18 +44,6 @@ pub fn const_ret_in_mod(ctx: &mut Context) -> Result<(ModuleOp, FuncOp, Constant
     // Return the constant.
     let ret_op = ReturnOp::new_unlinked(ctx, const_op.get_result(ctx));
     ret_op.get_operation().insert_at_back(bb, ctx);
-
-    let printed = format!("{}", module.disp(ctx));
-    expect![[r#"
-        builtin.module @bar {
-          block_0_0():
-            builtin.func @foo: builtin.function <() -> (builtin.integer <si64>)> {
-              entry():
-                c0 = builtin.constant 0x0: builtin.integer <si64>;
-                llvm.return c0
-            }
-        }"#]]
-    .assert_eq(&printed);
 
     module.get_operation().verify(ctx)?;
 

@@ -9,10 +9,20 @@ pub trait Verify {
 
 /// Anything that has a name.
 pub trait Named {
-    fn get_name(&self, ctx: &Context) -> String;
+    // A (not necessarily unique) name.
+    fn given_name(&self, ctx: &Context) -> Option<String>;
+    // A Unique (within the context) ID.
+    fn id(&self, ctx: &Context) -> String;
+    // A unique name; concatenation of name and id.
+    fn unique_name(&self, ctx: &Context) -> String {
+        match self.given_name(ctx) {
+            Some(given_name) => given_name + "_" + &self.id(ctx),
+            None => self.id(ctx),
+        }
+    }
 }
 
-/// For types that contain a reference-counted container,
+/// For types that are a reference-counted container,
 /// provides methods to [share](Self::share) (i.e., [Rc::clone](std::rc::Rc::clone))
 /// and [deep copy](Self::replicate) inner data.
 /// This just avoids ambiguity over using `Rc::clone`, which doesn't clone

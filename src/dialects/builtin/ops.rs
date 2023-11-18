@@ -281,7 +281,7 @@ impl Printable for ConstantOp {
         write!(
             f,
             "{} = {} {}",
-            self.get_result(ctx).get_name(ctx),
+            self.get_result(ctx).unique_name(ctx),
             self.get_opid().disp(ctx),
             self.get_value(ctx).disp(ctx)
         )
