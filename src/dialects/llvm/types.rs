@@ -129,7 +129,7 @@ impl StructType {
         Type::get_instance(
             StructType {
                 name: Some(name.to_string()),
-                /// Named structs are uniqued only on the name.
+                // Named structs are uniqued only on the name.
                 fields: vec![],
                 finalized: false,
             },

@@ -124,7 +124,7 @@ declare_op!(
 
 impl FuncOp {
     /// Attribute key for the constant value.
-    pub const ATTR_KEY_FUNC_TYPE: &str = "func.type";
+    pub const ATTR_KEY_FUNC_TYPE: &'static str = "func.type";
 
     /// Create a new [FuncOp].
     /// The underlying [Operation] is not linked to a [BasicBlock].
@@ -246,7 +246,7 @@ declare_op!(
 
 impl ConstantOp {
     /// Attribute key for the constant value.
-    pub const ATTR_KEY_VALUE: &str = "constant.value";
+    pub const ATTR_KEY_VALUE: &'static str = "constant.value";
     /// Get the constant value that this Op defines.
     pub fn get_value(&self, ctx: &Context) -> AttrObj {
         let op = self.get_operation().deref(ctx);
