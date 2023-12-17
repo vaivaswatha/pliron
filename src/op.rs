@@ -24,6 +24,7 @@
 
 use std::{fmt::Display, ops::Deref};
 
+use combine::{easy, parser, ParseResult, Parser};
 use downcast_rs::{impl_downcast, Downcast};
 use intertrait::{cast::CastRef, CastFrom};
 
@@ -32,8 +33,9 @@ use crate::{
     context::{Context, Ptr},
     dialect::{Dialect, DialectName},
     error::Result,
+    identifier::Identifier,
     operation::Operation,
-    parsable::ParserFn,
+    parsable::{spaced, Parsable, ParserFn, StateStream},
     printable::{self, Printable},
 };
 
@@ -67,6 +69,23 @@ impl Printable for OpName {
     }
 }
 
+impl Parsable for OpName {
+    type Arg = ();
+    type Parsed = OpName;
+
+    fn parse<'a>(
+        state_stream: &mut crate::parsable::StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> combine::ParseResult<Self::Parsed, combine::easy::ParseError<StateStream<'a>>>
+    where
+        Self: Sized,
+    {
+        Identifier::parser(())
+            .map(|name| OpName::new(&name))
+            .parse_stream(state_stream)
+    }
+}
+
 impl Display for OpName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
@@ -88,6 +107,26 @@ impl Printable for OpId {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         <Self as Display>::fmt(self, f)
+    }
+}
+
+impl Parsable for OpId {
+    type Arg = ();
+    type Parsed = OpId;
+
+    // Parses (but does not validate) a OpId.
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    where
+        Self: Sized,
+    {
+        let parser = DialectName::parser(())
+            .skip(parser::char::char('.'))
+            .and(OpName::parser(()))
+            .map(|(dialect, name)| OpId { dialect, name });
+        spaced(parser).parse_stream(state_stream)
     }
 }
 
@@ -122,8 +161,11 @@ pub trait Op: Downcast + Verify + Printable + CastFrom {
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 
     /// Register Op in Context and add it to dialect.
-    fn register(ctx: &mut Context, dialect: &mut Dialect, op_parser: ParserFn<OpObj>)
-    where
+    fn register(
+        ctx: &mut Context,
+        dialect: &mut Dialect,
+        op_parser: ParserFn<Vec<Identifier>, OpObj>,
+    ) where
         Self: Sized,
     {
         match ctx.ops.entry(Self::get_opid_static()) {

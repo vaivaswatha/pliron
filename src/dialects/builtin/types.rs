@@ -1,7 +1,7 @@
 use combine::{
     between, choice, easy, many1,
     parser::{char::digit, char::string},
-    token, ParseResult, Parser,
+    sep_by, token, ParseResult, Parser, Positioned,
 };
 
 use crate::{
@@ -10,9 +10,9 @@ use crate::{
     dialect::Dialect,
     error::Result,
     impl_type,
-    parsable::{spaced, Parsable, StateStream},
+    parsable::{spaced, to_parse_result, Parsable, StateStream},
     printable::{self, ListSeparator, Printable, PrintableIter},
-    r#type::{Type, TypeObj},
+    r#type::{type_parser, Type, TypeObj},
     storage_uniquer::TypeValueHash,
 };
 
@@ -28,7 +28,7 @@ pub struct IntegerType {
     width: u64,
     signedness: Signedness,
 }
-impl_type!(IntegerType, "integer", "builtin");
+impl_type!(IntegerType, "int", "builtin");
 
 impl IntegerType {
     /// Get or create a new integer type.
@@ -52,9 +52,11 @@ impl IntegerType {
 }
 
 impl Parsable for IntegerType {
+    type Arg = ();
     type Parsed = Ptr<TypeObj>;
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
     where
         Self: Sized,
@@ -161,15 +163,33 @@ impl Printable for FunctionType {
 }
 
 impl Parsable for FunctionType {
+    type Arg = ();
     type Parsed = Ptr<TypeObj>;
 
     fn parse<'a>(
-        _state_stream: &mut StateStream<'a>,
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
     where
         Self: Sized,
     {
-        todo!()
+        let type_list_parser = || {
+            spaced(between(
+                token('('),
+                token(')'),
+                sep_by::<Vec<_>, _, _, _>(type_parser(), token(',')),
+            ))
+        };
+        let mut parser = between(
+            token('<'),
+            token('>'),
+            type_list_parser()
+                .skip(string("->"))
+                .and(type_list_parser()),
+        );
+        parser
+            .parse_stream(state_stream)
+            .map(|(inputs, results)| Self::get(state_stream.state.ctx, inputs, results))
     }
 }
 
@@ -179,9 +199,56 @@ impl Verify for FunctionType {
     }
 }
 
+#[derive(Hash, PartialEq, Eq)]
+pub struct UnitType;
+impl_type!(UnitType, "unit", "builtin");
+
+impl UnitType {
+    /// Get or create a new unit type.
+    pub fn get(ctx: &mut Context) -> Ptr<TypeObj> {
+        Type::register_instance(UnitType, ctx)
+    }
+}
+
+impl Printable for UnitType {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "{}", Self::get_type_id_static().disp(ctx),)
+    }
+}
+
+impl Parsable for UnitType {
+    type Arg = ();
+    type Parsed = Ptr<TypeObj>;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    where
+        Self: Sized,
+    {
+        to_parse_result(
+            Ok(UnitType::get(state_stream.state.ctx)),
+            state_stream.position(),
+        )
+    }
+}
+
+impl Verify for UnitType {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
+        Ok(())
+    }
+}
+
 pub fn register(dialect: &mut Dialect) {
     IntegerType::register_type_in_dialect(dialect, IntegerType::parser_fn);
     FunctionType::register_type_in_dialect(dialect, FunctionType::parser_fn);
+    UnitType::register_type_in_dialect(dialect, UnitType::parser_fn);
 }
 
 #[cfg(test)]
@@ -235,9 +302,9 @@ mod tests {
     fn test_integer_parsing() {
         let mut ctx = Context::new();
         let state_stream =
-            state_stream_from_iterator("<si64>".chars(), parsable::State { ctx: &mut ctx });
+            state_stream_from_iterator("<si64>".chars(), parsable::State::new(&mut ctx));
 
-        let res = IntegerType::parser()
+        let res = IntegerType::parser(())
             .and(eof())
             .parse(state_stream)
             .unwrap()
@@ -250,9 +317,9 @@ mod tests {
     fn test_integer_parsing_errs() {
         let mut ctx = Context::new();
         let a = "<asi64>".to_string();
-        let state_stream = state_stream_from_iterator(a.chars(), parsable::State { ctx: &mut ctx });
+        let state_stream = state_stream_from_iterator(a.chars(), parsable::State::new(&mut ctx));
 
-        let res = IntegerType::parser().parse(state_stream);
+        let res = IntegerType::parser(()).parse(state_stream);
         let err_msg = format!("{}", res.err().unwrap());
 
         let expected_err_msg = expect![[r#"

@@ -12,8 +12,9 @@ use crate::common_traits::Verify;
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
 use crate::error::Result;
+use crate::identifier::Identifier;
 use crate::input_err;
-use crate::parsable::{identifier, spaced, to_parse_result, Parsable, ParserFn, StateStream};
+use crate::parsable::{spaced, to_parse_result, Parsable, ParserFn, StateStream};
 use crate::printable::{self, Printable};
 use crate::storage_uniquer::TypeValueHash;
 
@@ -109,7 +110,7 @@ pub trait Type: Printable + Verify + Downcast + Sync {
         Self: Sized;
 
     /// Register this Type's [TypeId] in the dialect it belongs to.
-    fn register_type_in_dialect(dialect: &mut Dialect, parser: ParserFn<Ptr<TypeObj>>)
+    fn register_type_in_dialect(dialect: &mut Dialect, parser: ParserFn<(), Ptr<TypeObj>>)
     where
         Self: Sized,
     {
@@ -120,17 +121,17 @@ impl_downcast!(Type);
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 /// A Type's name (not including it's dialect).
-pub struct TypeName(String);
+pub struct TypeName(Identifier);
 
 impl TypeName {
     /// Create a new TypeName.
     pub fn new(name: &str) -> TypeName {
-        TypeName(name.to_string())
+        TypeName(name.into())
     }
 }
 
 impl Deref for TypeName {
-    type Target = String;
+    type Target = Identifier;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -149,17 +150,19 @@ impl Printable for TypeName {
 }
 
 impl Parsable for TypeName {
+    type Arg = ();
     type Parsed = TypeName;
 
     fn parse<'a>(
         state_stream: &mut crate::parsable::StateStream<'a>,
+        _arg: Self::Arg,
     ) -> combine::ParseResult<Self::Parsed, combine::easy::ParseError<StateStream<'a>>>
     where
         Self: Sized,
     {
-        identifier()
+        Identifier::parser(())
             .map(|name| TypeName::new(&name))
-            .parse_stream(&mut state_stream.stream)
+            .parse_stream(state_stream)
     }
 }
 
@@ -171,18 +174,20 @@ pub struct TypeId {
 }
 
 impl Parsable for TypeId {
+    type Arg = ();
     type Parsed = TypeId;
 
     // Parses (but does not validate) a TypeId.
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
     where
         Self: Sized,
     {
-        let parser = DialectName::parser()
+        let parser = DialectName::parser(())
             .skip(parser::char::char('.'))
-            .and(TypeName::parser())
+            .and(TypeName::parser(()))
             .map(|(dialect, name)| TypeId { dialect, name });
         spaced(parser).parse_stream(state_stream)
     }
@@ -323,7 +328,7 @@ pub fn type_parse<'a>(
     state_stream: &mut StateStream<'a>,
 ) -> ParseResult<Ptr<TypeObj>, easy::ParseError<StateStream<'a>>> {
     let position = state_stream.stream.position();
-    let type_id_parser = TypeId::parser();
+    let type_id_parser = TypeId::parser(());
 
     let type_parser = type_id_parser.then(|type_id: TypeId| {
         combine::parser(move |parsable_state: &mut StateStream<'a>| {
@@ -340,7 +345,9 @@ pub fn type_parse<'a>(
                 )
                 .into_result();
             };
-            type_parser(&()).parse_stream(parsable_state).into_result()
+            type_parser(&(), ())
+                .parse_stream(parsable_state)
+                .into_result()
         })
     });
 
@@ -373,7 +380,7 @@ mod test {
         dialects::builtin::register(&mut ctx);
 
         let state_stream =
-            state_stream_from_iterator("builtin.some".chars(), parsable::State { ctx: &mut ctx });
+            state_stream_from_iterator("builtin.some".chars(), parsable::State::new(&mut ctx));
 
         let res = type_parser().parse(state_stream);
         let err_msg = format!("{}", res.err().unwrap());
@@ -384,27 +391,25 @@ mod test {
         "#]];
         expected_err_msg.assert_eq(&err_msg);
 
-        let state_stream = state_stream_from_iterator(
-            "builtin.integer a".chars(),
-            parsable::State { ctx: &mut ctx },
-        );
+        let state_stream =
+            state_stream_from_iterator("builtin.int a".chars(), parsable::State::new(&mut ctx));
 
         let res = type_parser().parse(state_stream);
         let err_msg = format!("{}", res.err().unwrap());
 
         let expected_err_msg = expect![[r#"
-            Parse error at line: 1, column: 17
+            Parse error at line: 1, column: 13
             Unexpected `a`
             Expected whitespaces or `<`
         "#]];
         expected_err_msg.assert_eq(&err_msg);
 
         let state_stream = state_stream_from_iterator(
-            "builtin.integer <si32>".chars(),
-            parsable::State { ctx: &mut ctx },
+            "builtin.int <si32>".chars(),
+            parsable::State::new(&mut ctx),
         );
 
         let parsed = type_parser().parse(state_stream).unwrap().0;
-        assert_eq!(parsed.disp(&ctx).to_string(), "builtin.integer <si32>");
+        assert_eq!(parsed.disp(&ctx).to_string(), "builtin.int <si32>");
     }
 }

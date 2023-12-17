@@ -4,6 +4,7 @@
 
 use std::marker::PhantomData;
 
+use combine::{attempt, token, Parser, Positioned};
 use rustc_hash::FxHashMap;
 use thiserror::Error;
 
@@ -14,8 +15,11 @@ use crate::{
     context::{private::ArenaObj, ArenaCell, Context, Ptr},
     debug_info,
     error::Result,
+    identifier::Identifier,
+    input_err,
     linked_list::{private, LinkedList},
     op::{self, OpId, OpObj},
+    parsable::{self, to_parse_result, Parsable, StateStream},
     printable::{self, Printable},
     r#type::TypeObj,
     region::Region,
@@ -258,11 +262,18 @@ impl Operation {
         self.regions.get(reg_idx).cloned()
     }
 
+    /// Add a new empty region to the operation and return its [Ptr].
+    pub fn add_region(ptr: Ptr<Self>, ctx: &mut Context) -> Ptr<Region> {
+        let region = Region::new(ctx, ptr);
+        ptr.deref_mut(ctx).regions.push(region);
+        region
+    }
+
     /// Erase `reg_idx`'th region.
     pub fn erase_region(ptr: Ptr<Self>, ctx: &mut Context, reg_idx: usize) {
         let reg = *ptr.deref(ctx).regions.get(reg_idx).unwrap();
         Region::drop_all_uses(reg, ctx);
-        ptr.deref_mut(ctx).regions.retain(|r| *r != reg);
+        ptr.deref_mut(ctx).regions.remove(reg_idx);
         ArenaObj::dealloc(reg, ctx);
     }
 
@@ -466,5 +477,51 @@ impl Printable for Operation {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         self.get_op(ctx).fmt(ctx, state, f)
+    }
+}
+
+impl Parsable for Operation {
+    type Arg = ();
+    type Parsed = Ptr<Operation>;
+
+    // Look for either of
+    // - res_1, res_2, ..., res_n = opid
+    // - opid
+    // and hand it over to the Op specific parser.
+    fn parse<'a>(
+        state_stream: &mut parsable::StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> combine::ParseResult<Self::Parsed, combine::easy::ParseError<parsable::StateStream<'a>>>
+    {
+        let position = state_stream.stream.position();
+
+        let results_opid = combine::optional(attempt(
+            combine::sep_by::<Vec<_>, _, _, _>(Identifier::parser(()), token(',')).skip(token('=')),
+        ))
+        .and(OpId::parser(()));
+
+        results_opid
+            .then(|(results, opid)| {
+                combine::parser(move |parsable_state: &mut StateStream<'a>| {
+                    let state = &parsable_state.state;
+                    let dialect = state
+                        .ctx
+                        .dialects
+                        .get(&opid.dialect)
+                        .expect("Dialect name parsed but dialect isn't registered");
+                    let Some(opid_parser) = dialect.ops.get(&opid) else {
+                        return to_parse_result(
+                            input_err!("Unregistered Op {}", opid.disp(state.ctx)),
+                            position,
+                        )
+                        .into_result();
+                    };
+                    opid_parser(&(), results.clone().unwrap_or(vec![]))
+                        .parse_stream(parsable_state)
+                        .map(|op| op.get_operation())
+                        .into_result()
+                })
+            })
+            .parse_stream(state_stream)
     }
 }

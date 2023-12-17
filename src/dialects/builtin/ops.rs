@@ -1,21 +1,25 @@
-use combine::{easy::ParseError, ParseResult};
+use combine::{easy::ParseError, token, ParseResult, Parser, Positioned};
 use thiserror::Error;
 
 use crate::{
-    attribute::{self, attr_cast, AttrObj},
+    attribute::{self, attr_cast, attr_parser, AttrObj},
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
     context::{Context, Ptr},
+    debug_info::set_operation_result_name,
     declare_op,
     dialect::Dialect,
+    dialects::builtin::op_interfaces::ZeroResultInterface,
     error::Result,
-    impl_op_interface,
+    identifier::Identifier,
+    impl_op_interface, input_err,
     linked_list::ContainsLinkedList,
     op::{Op, OpObj},
     operation::Operation,
-    parsable::{Parsable, StateStream},
+    parsable::{spaced, to_parse_result, Parsable, StateStream},
     printable::{self, Printable},
-    r#type::TypeObj,
+    r#type::{type_parser, TypeObj},
+    region::Region,
     verify_err,
 };
 
@@ -23,10 +27,10 @@ use super::{
     attr_interfaces::TypedAttrInterface,
     attributes::{FloatAttr, IntegerAttr, TypeAttr},
     op_interfaces::{
-        OneRegionInterface, OneResultInterface, SingleBlockRegionInterface, SymbolOpInterface,
-        ZeroOpdInterface,
+        self, IsolatedFromAboveInterface, OneRegionInterface, OneResultInterface,
+        OneResultVerifyErr, SingleBlockRegionInterface, SymbolOpInterface, ZeroOpdInterface,
     },
-    types::FunctionType,
+    types::{FunctionType, UnitType},
 };
 
 declare_op!(
@@ -65,6 +69,41 @@ impl Printable for ModuleOp {
     }
 }
 
+impl Parsable for ModuleOp {
+    type Arg = Vec<Identifier>;
+    type Parsed = OpObj;
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        results: Self::Arg,
+    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
+        if !results.is_empty() {
+            return to_parse_result(
+                input_err!(op_interfaces::ZeroResultVerifyErr(
+                    Self::get_opid_static().to_string()
+                )),
+                state_stream.position(),
+            );
+        }
+        let op = Operation::new(
+            state_stream.state.ctx,
+            Self::get_opid_static(),
+            vec![],
+            vec![],
+            0,
+        );
+        let mut parser = token('@')
+            .with(Identifier::parser(()))
+            .and(Region::parser(op));
+        parser
+            .parse_stream(state_stream)
+            .map(|(name, _region)| -> OpObj {
+                let op = Box::new(ModuleOp { op });
+                op.set_symbol_name(state_stream.state.ctx, &name);
+                op
+            })
+    }
+}
+
 impl Verify for ModuleOp {
     fn verify(&self, _ctx: &Context) -> Result<()> {
         Ok(())
@@ -94,18 +133,12 @@ impl ModuleOp {
     }
 }
 
-impl Parsable for ModuleOp {
-    type Parsed = OpObj;
-    fn parse<'a>(
-        _state_stream: &mut StateStream<'a>,
-    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
-        todo!()
-    }
-}
-
 impl_op_interface!(OneRegionInterface for ModuleOp {});
 impl_op_interface!(SingleBlockRegionInterface for ModuleOp {});
 impl_op_interface!(SymbolOpInterface for ModuleOp {});
+impl_op_interface!(IsolatedFromAboveInterface for ModuleOp {});
+impl_op_interface!(ZeroOpdInterface for ModuleOp {});
+impl_op_interface!(ZeroResultInterface for ModuleOp {});
 
 declare_op!(
     /// An operation with a name containing a single SSA control-flow-graph region.
@@ -135,7 +168,7 @@ impl FuncOp {
 
         // Create an empty entry block.
         let region = op.deref_mut(ctx).get_region(0).unwrap();
-        let body = BasicBlock::new(ctx, Some("entry".to_string()), vec![]);
+        let body = BasicBlock::new(ctx, Some("entry".into()), vec![]);
         body.insert_at_front(region, ctx);
         {
             let opref = &mut *op.deref_mut(ctx);
@@ -173,6 +206,7 @@ impl FuncOp {
 
 impl_op_interface!(OneRegionInterface for FuncOp {});
 impl_op_interface!(SymbolOpInterface for FuncOp {});
+impl_op_interface!(IsolatedFromAboveInterface for FuncOp {});
 
 impl Printable for FuncOp {
     fn fmt(
@@ -190,6 +224,56 @@ impl Printable for FuncOp {
         )?;
         self.get_region(ctx).fmt(ctx, state, f)?;
         Ok(())
+    }
+}
+
+impl Parsable for FuncOp {
+    type Arg = Vec<Identifier>;
+    type Parsed = OpObj;
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        results: Self::Arg,
+    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
+        if !results.is_empty() {
+            return to_parse_result(
+                input_err!(op_interfaces::ZeroResultVerifyErr(
+                    Self::get_opid_static().to_string()
+                )),
+                state_stream.position(),
+            );
+        }
+
+        let op = Operation::new(
+            state_stream.state.ctx,
+            Self::get_opid_static(),
+            vec![],
+            vec![],
+            0,
+        );
+
+        let mut parser = (
+            token('@')
+                .with(Identifier::parser(()))
+                .skip(spaced(token(':'))),
+            type_parser(),
+            Region::parser(op),
+        );
+
+        // Parse and build the function, providing name and type details.
+        parser
+            .parse_stream(state_stream)
+            .map(|(fname, fty, _region)| -> OpObj {
+                let ctx = &mut state_stream.state.ctx;
+                {
+                    let ty_attr = TypeAttr::create(fty);
+                    let opref = &mut *op.deref_mut(ctx);
+                    // Set function type attributes.
+                    opref.attributes.insert(Self::ATTR_KEY_FUNC_TYPE, ty_attr);
+                }
+                let opop = Box::new(FuncOp { op });
+                opop.set_symbol_name(ctx, &fname);
+                opop
+            })
     }
 }
 
@@ -212,15 +296,6 @@ impl Verify for FuncOp {
             return verify_err!(FuncOpVerifyErr::IncorrectNumResultsOpds);
         }
         Ok(())
-    }
-}
-
-impl Parsable for FuncOp {
-    type Parsed = OpObj;
-    fn parse<'a>(
-        _state_stream: &mut StateStream<'a>,
-    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
-        todo!()
     }
 }
 
@@ -289,12 +364,41 @@ impl Printable for ConstantOp {
 }
 
 impl Parsable for ConstantOp {
+    type Arg = Vec<Identifier>;
     type Parsed = OpObj;
 
     fn parse<'a>(
-        _state_stream: &mut StateStream<'a>,
+        state_stream: &mut StateStream<'a>,
+        results: Self::Arg,
     ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
-        todo!()
+        let position = state_stream.position();
+
+        if results.len() != 1 {
+            return to_parse_result(
+                input_err!(OneResultVerifyErr(Self::get_opid_static().to_string())),
+                position,
+            );
+        }
+
+        attr_parser()
+            .parse_stream(state_stream)
+            .and_then(|attr| -> ParseResult<OpObj, _> {
+                let op = Box::new(Self::new_unlinked(state_stream.state.ctx, attr));
+                if let Err(err) = state_stream.state.name_tracker.ssa_def(
+                    state_stream.state.ctx,
+                    &results[0],
+                    op.get_result(state_stream.state.ctx),
+                ) {
+                    return to_parse_result(Err(err), position);
+                }
+                set_operation_result_name(
+                    state_stream.state.ctx,
+                    op.get_operation(),
+                    0,
+                    results[0].to_string(),
+                );
+                to_parse_result(Ok(op), position)
+            })
     }
 }
 
@@ -315,8 +419,79 @@ impl Verify for ConstantOp {
 impl_op_interface! (ZeroOpdInterface for ConstantOp {});
 impl_op_interface! (OneResultInterface for ConstantOp {});
 
+declare_op!(
+    /// A placeholder during parsing to refer to yet undefined operations.
+    /// MLIR [uses](https://github.com/llvm/llvm-project/blob/185b81e034ba60081023b6e59504dfffb560f3e3/mlir/lib/AsmParser/Parser.cpp#L1075)
+    /// [UnrealizedConversionCastOp](https://mlir.llvm.org/docs/Dialects/Builtin/#builtinunrealized_conversion_cast-unrealizedconversioncastop)
+    /// for this purpose.
+    ForwardRefOp,
+    "forward_ref",
+    "builtin"
+);
+
+impl Printable for ForwardRefOp {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(
+            f,
+            "{} = {}",
+            self.get_result(ctx).unique_name(ctx),
+            self.get_opid().disp(ctx),
+        )
+    }
+}
+
+impl_op_interface! (OneResultInterface for ForwardRefOp {});
+impl_op_interface! (ZeroOpdInterface for ForwardRefOp {});
+
+#[derive(Error, Debug)]
+#[error("{0} is a temporary Op during parsing. It must not exit in a well-formed program.")]
+pub struct ForwardRefOpExistenceErr(String);
+
+impl Verify for ForwardRefOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        verify_err!(ForwardRefOpExistenceErr(
+            self.get_result(ctx).unique_name(ctx)
+        ))
+    }
+}
+
+impl Parsable for ForwardRefOp {
+    type Arg = Vec<Identifier>;
+    type Parsed = OpObj;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _results: Self::Arg,
+    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
+        to_parse_result(
+            input_err!(ForwardRefOpExistenceErr(
+                ForwardRefOp::get_opid_static()
+                    .disp(state_stream.state.ctx)
+                    .to_string()
+            )),
+            state_stream.stream.position(),
+        )
+    }
+}
+
+impl ForwardRefOp {
+    /// Create a new [ForwardRefOp].
+    /// The underlying [Operation] is not linked to a [BasicBlock].
+    pub fn new_unlinked(ctx: &mut Context) -> ForwardRefOp {
+        let ty = UnitType::get(ctx);
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![ty], vec![], 0);
+        ForwardRefOp { op }
+    }
+}
+
 pub fn register(ctx: &mut Context, dialect: &mut Dialect) {
     ModuleOp::register(ctx, dialect, ModuleOp::parser_fn);
     FuncOp::register(ctx, dialect, FuncOp::parser_fn);
     ConstantOp::register(ctx, dialect, ConstantOp::parser_fn);
+    ForwardRefOp::register(ctx, dialect, ForwardRefOp::parser_fn);
 }

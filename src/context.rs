@@ -135,7 +135,7 @@ impl<'a, T: ArenaObj> Ptr<T> {
     }
 
     /// Create a unique (to the arena) name based on the arena index.
-    pub fn make_name(&self, name_base: &str) -> String {
+    pub(crate) fn make_name(&self, name_base: &str) -> String {
         let idx = self.idx.into_raw_parts();
         name_base.to_string() + "_" + &idx.0.to_string() + "_" + &idx.1.to_string()
     }

@@ -16,6 +16,7 @@ use pliron::{
         llvm::ops::ReturnOp,
     },
     error::{Error, ErrorKind, Result},
+    identifier::Identifier,
     impl_attr, impl_attr_interface, impl_op_interface,
     op::{Op, OpObj},
     operation::Operation,
@@ -48,9 +49,11 @@ impl Verify for ZeroResultOp {
 }
 
 impl Parsable for ZeroResultOp {
+    type Arg = Vec<Identifier>;
     type Parsed = OpObj;
     fn parse<'a>(
         _state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
     ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
         todo!()
     }

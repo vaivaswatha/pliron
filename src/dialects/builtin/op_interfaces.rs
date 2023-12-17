@@ -73,7 +73,7 @@ pub trait OneRegionInterface: Op {
     {
         let self_op = op.get_operation().deref(ctx);
         if self_op.regions.len() != 1 {
-            return verify_err!(OneRegionVerifyErr(op.get_opid().disp(ctx).to_string()));
+            return verify_err!(OneRegionVerifyErr(op.get_opid().to_string()));
         }
         Ok(())
     }
@@ -109,9 +109,7 @@ pub trait SingleBlockRegionInterface: Op {
         let self_op = op.get_operation().deref(ctx);
         for region in &self_op.regions {
             if region.deref(ctx).iter(ctx).count() != 1 {
-                return verify_err!(SingleBlockRegionVerifyErr(
-                    self_op.get_opid().disp(ctx).to_string()
-                ));
+                return verify_err!(SingleBlockRegionVerifyErr(self_op.get_opid().to_string()));
             }
         }
         Ok(())
@@ -146,7 +144,7 @@ pub trait SymbolOpInterface: Op {
 
 #[derive(Error, Debug)]
 #[error("Op {0} must have single result")]
-pub struct OneResultVerifyErr(String);
+pub struct OneResultVerifyErr(pub String);
 
 /// An [Op] having exactly one result.
 pub trait OneResultInterface: Op {
@@ -172,7 +170,25 @@ pub trait OneResultInterface: Op {
     {
         let op = &*op.get_operation().deref(ctx);
         if op.get_num_results() != 1 {
-            return verify_err!(OneResultVerifyErr(op.get_opid().disp(ctx).to_string()));
+            return verify_err!(OneResultVerifyErr(op.get_opid().to_string()));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("Op {0} must not produce result(s)")]
+pub struct ZeroResultVerifyErr(pub String);
+
+/// An [Op] having no results.
+pub trait ZeroResultInterface: Op {
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        let op = &*op.get_operation().deref(ctx);
+        if op.get_num_results() != 0 {
+            return verify_err!(ZeroResultVerifyErr(op.get_opid().to_string()));
         }
         Ok(())
     }
@@ -221,8 +237,25 @@ pub trait ZeroOpdInterface: Op {
     {
         let op = &*op.get_operation().deref(ctx);
         if op.get_num_operands() != 0 {
-            return verify_err!(ZeroOpdVerifyErr(op.get_opid().disp(ctx).to_string()));
+            return verify_err!(ZeroOpdVerifyErr(op.get_opid().to_string()));
         }
+        Ok(())
+    }
+}
+
+/// An [Op] whose regions's SSA names are isolated from above.
+/// This is similar to (but not the same as) MLIR's
+/// [IsolatedFromAbove](https://mlir.llvm.org/docs/Traits/#isolatedfromabove) trait.
+/// Definition: all regions that are reachable / traversible in any
+/// direction in the region hierarchy without passing an `IsolatedFromAbove`
+/// barrier, share the same SSA name space.
+/// i.e., a region that is not `IsolatedFromAbove` cannot have any SSA name
+/// in common with that of any of its ancestors or siblings or cousins etc.
+pub trait IsolatedFromAboveInterface: Op {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
         Ok(())
     }
 }

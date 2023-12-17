@@ -1,16 +1,17 @@
-use combine::{easy::ParseError, ParseResult};
+use combine::{easy::ParseError, ParseResult, Positioned};
 
 use crate::{
     common_traits::Verify,
     context::Context,
     declare_op,
     dialect::Dialect,
-    dialects::builtin::op_interfaces::IsTerminatorInterface,
+    dialects::builtin::op_interfaces::{IsTerminatorInterface, ZeroResultVerifyErr},
     error::Result,
-    impl_op_interface,
+    identifier::Identifier,
+    impl_op_interface, input_err,
     op::{Op, OpObj},
     operation::Operation,
-    parsable::{Parsable, StateStream},
+    parsable::{to_parse_result, Parsable, StateStream},
     printable::{self, Printable},
     use_def_lists::Value,
 };
@@ -62,11 +63,29 @@ impl Verify for ReturnOp {
 }
 
 impl Parsable for ReturnOp {
+    type Arg = Vec<Identifier>;
     type Parsed = OpObj;
     fn parse<'a>(
-        _state_stream: &mut crate::parsable::StateStream<'a>,
+        state_stream: &mut crate::parsable::StateStream<'a>,
+        results: Self::Arg,
     ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
-        todo!()
+        let position = state_stream.position();
+        if !results.is_empty() {
+            return to_parse_result(
+                input_err!(ZeroResultVerifyErr(Self::get_opid_static().to_string())),
+                position,
+            );
+        }
+
+        Identifier::parser(())
+            .parse_stream(state_stream)
+            .map(|opd| -> OpObj {
+                let opd = state_stream
+                    .state
+                    .name_tracker
+                    .ssa_use(state_stream.state.ctx, &opd);
+                Box::new(Self::new_unlinked(state_stream.state.ctx, opd))
+            })
     }
 }
 

@@ -1,18 +1,21 @@
 //! A [BasicBlock] is a list of [Operation]s.
 
+use combine::{between, parser::Parser, sep_by, token, Positioned};
 use rustc_hash::FxHashMap;
 
 use crate::{
     attribute::AttrObj,
     common_traits::{Named, Verify},
     context::{private::ArenaObj, ArenaCell, Context, Ptr},
-    debug_info::get_block_arg_name,
+    debug_info::{get_block_arg_name, set_block_arg_name},
     error::Result,
+    identifier::Identifier,
     indented_block,
     linked_list::{private, ContainsLinkedList, LinkedList},
     operation::Operation,
+    parsable::{self, to_parse_result, Parsable},
     printable::{self, indented_nl, ListSeparator, Printable, PrintableIter},
-    r#type::TypeObj,
+    r#type::{type_parser, TypeObj},
     region::Region,
     use_def_lists::{DefNode, Value},
 };
@@ -76,57 +79,40 @@ impl Printable for BlockArgument {
 }
 
 /// [Operation]s contained in this [BasicBlock]
+#[derive(Default)]
 pub struct OpsInBlock {
     first: Option<Ptr<Operation>>,
     last: Option<Ptr<Operation>>,
 }
 
-impl OpsInBlock {
-    fn new_empty() -> OpsInBlock {
-        OpsInBlock {
-            first: None,
-            last: None,
-        }
-    }
-}
-
 /// Links a [BasicBlock] with other blocks and the container [Region].
-pub struct RegionLinks {
+#[derive(Default)]
+struct RegionLinks {
     /// Parent region of this block.
-    pub parent_region: Option<Ptr<Region>>,
+    parent_region: Option<Ptr<Region>>,
     /// The next block in the region's list of block.
-    pub next_block: Option<Ptr<BasicBlock>>,
+    next_block: Option<Ptr<BasicBlock>>,
     /// The previous block in the region's list of blocks.
-    pub prev_block: Option<Ptr<BasicBlock>>,
-}
-
-impl RegionLinks {
-    pub fn new_unlinked() -> RegionLinks {
-        RegionLinks {
-            parent_region: None,
-            next_block: None,
-            prev_block: None,
-        }
-    }
+    prev_block: Option<Ptr<BasicBlock>>,
 }
 
 /// A basic block contains a list of [Operation]s. It may have [arguments](BlockArgument).
 pub struct BasicBlock {
     pub(crate) self_ptr: Ptr<BasicBlock>,
-    pub(crate) label: Option<String>,
+    pub(crate) label: Option<Identifier>,
     pub(crate) ops_list: OpsInBlock,
     pub(crate) args: Vec<BlockArgument>,
     pub(crate) preds: DefNode<Ptr<BasicBlock>>,
     /// Links to the parent [Region] and
     /// previous and next [BasicBlock]s in the block.
-    pub region_links: RegionLinks,
+    region_links: RegionLinks,
     /// A dictionary of attributes.
     pub attributes: FxHashMap<&'static str, AttrObj>,
 }
 
 impl Named for BasicBlock {
     fn given_name(&self, _ctx: &Context) -> Option<String> {
-        self.label.as_ref().cloned()
+        self.label.as_ref().map(|id| id.clone().into())
     }
     fn id(&self, _ctx: &Context) -> String {
         self.self_ptr.make_name("block")
@@ -137,16 +123,16 @@ impl BasicBlock {
     /// Create a new Basic Block.
     pub fn new(
         ctx: &mut Context,
-        label: Option<String>,
+        label: Option<Identifier>,
         arg_types: Vec<Ptr<TypeObj>>,
     ) -> Ptr<BasicBlock> {
         let f = |self_ptr: Ptr<BasicBlock>| BasicBlock {
             self_ptr,
             label,
             args: vec![],
-            ops_list: OpsInBlock::new_empty(),
+            ops_list: OpsInBlock::default(),
             preds: DefNode::new(),
-            region_links: RegionLinks::new_unlinked(),
+            region_links: RegionLinks::default(),
             attributes: FxHashMap::default(),
         };
         let newblock = Self::alloc(ctx, f);
@@ -210,7 +196,7 @@ impl BasicBlock {
         Self::drop_all_uses(ptr, ctx);
         assert!(
             !ptr.deref(ctx).has_pred(),
-            "BasicBlock with predecessor(s) being erase"
+            "BasicBlock with predecessor(s) being erased"
         );
 
         if ptr.deref(ctx).iter(ctx).any(|op| op.deref(ctx).has_use()) {
@@ -325,5 +311,63 @@ impl Printable for BasicBlock {
         });
 
         Ok(())
+    }
+}
+
+impl Parsable for BasicBlock {
+    type Arg = ();
+    type Parsed = Ptr<BasicBlock>;
+
+    ///  A basic block is
+    ///  label(arg_1:type_1, ..., arg_n:type_n):
+    ///    op_1;
+    ///    ... ;
+    ///    op_n
+    fn parse<'a>(
+        state_stream: &mut parsable::StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> combine::ParseResult<Self::Parsed, combine::easy::ParseError<parsable::StateStream<'a>>>
+    {
+        let position = state_stream.position();
+        let arg = (Identifier::parser(()).skip(token(':')), type_parser());
+        let args = between(
+            token('('),
+            token(')'),
+            sep_by::<Vec<_>, _, _, _>(arg, token(',')),
+        )
+        .skip(token(':'));
+        let ops = sep_by::<Vec<_>, _, _, _>(Operation::parser(()), token(';'));
+
+        let label = Identifier::parser(());
+        let parsed = (label, args, ops).parse_stream(state_stream);
+        // We've parsed the components. Now construct the result.
+        parsed.and_then(|(label, args, ops)| {
+            let (arg_names, arg_types): (Vec<_>, Vec<_>) = args.into_iter().unzip();
+            let block = BasicBlock::new(state_stream.state.ctx, Some(label.clone()), arg_types);
+            for (arg_idx, name) in arg_names.iter().enumerate() {
+                let def: Value = (&block.deref(state_stream.state.ctx).args[arg_idx]).into();
+                if let Err(err) =
+                    state_stream
+                        .state
+                        .name_tracker
+                        .ssa_def(state_stream.state.ctx, name, def)
+                {
+                    return to_parse_result(Err(err), position);
+                }
+                set_block_arg_name(state_stream.state.ctx, block, arg_idx, name.to_string());
+            }
+            for op in ops {
+                op.insert_at_back(block, state_stream.state.ctx);
+            }
+            if let Err(err) =
+                state_stream
+                    .state
+                    .name_tracker
+                    .block_def(state_stream.state.ctx, &label, block)
+            {
+                return to_parse_result(Err(err), position);
+            }
+            to_parse_result(Ok(block), position)
+        })
     }
 }

@@ -12,6 +12,7 @@ pub mod debug_info;
 pub mod dialect;
 pub mod dialects;
 pub mod error;
+pub mod identifier;
 pub mod linked_list;
 pub mod op;
 pub mod operation;

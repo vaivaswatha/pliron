@@ -1,5 +1,9 @@
 use apint::ApInt;
-use combine::{any, between, easy, many, none_of, token, ParseResult, Parser, Positioned};
+use combine::{
+    any, between, easy, many, many1, none_of,
+    parser::char::{hex_digit, string},
+    token, ParseResult, Parser, Positioned,
+};
 use sorted_vector_map::SortedVectorMap;
 use thiserror::Error;
 
@@ -55,10 +59,12 @@ impl Verify for StringAttr {
 }
 
 impl Parsable for StringAttr {
+    type Arg = ();
     type Parsed = AttrObj;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
         // An escaped charater is one that is preceded by a backslash.
         let escaped_char = combine::parser(move |parsable_state: &mut StateStream<'a>| {
@@ -110,7 +116,13 @@ impl Printable for IntegerAttr {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "0x{:x}: {}", self.val, self.ty.disp(ctx))
+        write!(
+            f,
+            "{} <0x{:x}: {}>",
+            Self::get_attr_id_static(),
+            self.val,
+            self.ty.disp(ctx)
+        )
     }
 }
 
@@ -141,12 +153,28 @@ impl From<IntegerAttr> for ApInt {
 }
 
 impl Parsable for IntegerAttr {
+    type Arg = ();
     type Parsed = AttrObj;
 
     fn parse<'a>(
-        _state_stream: &mut StateStream<'a>,
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
-        todo!()
+        between(
+            token('<'),
+            token('>'),
+            string("0x")
+                .with(many1::<Vec<_>, _, _>(hex_digit()))
+                .skip(token(':'))
+                .and(type_parser()),
+        )
+        .parse_stream(state_stream)
+        .map(|(digits, ty)| {
+            IntegerAttr::create(
+                ty,
+                ApInt::from_str_radix(16, digits.iter().collect::<String>()).unwrap(),
+            )
+        })
     }
 }
 
@@ -206,10 +234,12 @@ impl_attr_interface!(
 );
 
 impl Parsable for FloatAttr {
+    type Arg = ();
     type Parsed = AttrObj;
 
     fn parse<'a>(
         _state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
         todo!()
     }
@@ -254,10 +284,12 @@ impl Verify for SmallDictAttr {
 }
 
 impl Parsable for SmallDictAttr {
+    type Arg = ();
     type Parsed = AttrObj;
 
     fn parse<'a>(
         _state_stream: &mut StateStream<'a>,
+        _argg: Self::Arg,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
         todo!()
     }
@@ -322,10 +354,12 @@ impl Verify for VecAttr {
 }
 
 impl Parsable for VecAttr {
+    type Arg = ();
     type Parsed = AttrObj;
 
     fn parse<'a>(
         _state_stream: &mut StateStream<'a>,
+        _argg: Self::Arg,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
         todo!()
     }
@@ -361,10 +395,12 @@ impl Verify for UnitAttr {
 }
 
 impl Parsable for UnitAttr {
+    type Arg = ();
     type Parsed = AttrObj;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
+        _argg: Self::Arg,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
         to_parse_result(Ok(UnitAttr::create()), state_stream.position())
     }
@@ -394,10 +430,12 @@ impl Printable for TypeAttr {
 }
 
 impl Parsable for TypeAttr {
+    type Arg = ();
     type Parsed = AttrObj;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
         between(spaced(token('<')), spaced(token('>')), type_parser())
             .map(TypeAttr::create)
@@ -461,11 +499,11 @@ mod tests {
         assert!(int64_0_ptr == int64_0_ptr2);
         assert_eq!(
             int64_0_ptr.disp(&ctx).to_string(),
-            "0x0: builtin.integer <si64>"
+            "builtin.integer <0x0: builtin.int <si64>>"
         );
         assert_eq!(
             int64_1_ptr.disp(&ctx).to_string(),
-            "0xf: builtin.integer <si64>"
+            "builtin.integer <0xf: builtin.int <si64>>"
         );
         assert!(
             ApInt::from(int64_0_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()).is_zero()
@@ -498,20 +536,20 @@ mod tests {
 
         let attr_input = "builtin.string \"hello\"";
         let state_stream =
-            state_stream_from_iterator(attr_input.chars(), parsable::State { ctx: &mut ctx });
+            state_stream_from_iterator(attr_input.chars(), parsable::State::new(&mut ctx));
         let attr = attr_parser().parse(state_stream).unwrap().0;
         assert_eq!(attr.disp(&ctx).to_string(), attr_input);
 
         let attr_input = "builtin.string \"hello \\\"world\\\"\"";
         let state_stream =
-            state_stream_from_iterator(attr_input.chars(), parsable::State { ctx: &mut ctx });
+            state_stream_from_iterator(attr_input.chars(), parsable::State::new(&mut ctx));
         let attr_parsed = attr_parser().parse(state_stream).unwrap().0;
         assert_eq!(attr_parsed.disp(&ctx).to_string(), attr_input,);
 
         // Unsupported escaped character.
         let state_stream = state_stream_from_iterator(
             "builtin.string \"hello \\k \"".chars(),
-            parsable::State { ctx: &mut ctx },
+            parsable::State::new(&mut ctx),
         );
         let res = attr_parser().parse(state_stream);
         let err_msg = format!("{}", res.err().unwrap());
@@ -579,7 +617,7 @@ mod tests {
 
         let ty_attr = ty_attr.disp(&ctx).to_string();
         let state_stream =
-            state_stream_from_iterator(ty_attr.chars(), parsable::State { ctx: &mut ctx });
+            state_stream_from_iterator(ty_attr.chars(), parsable::State::new(&mut ctx));
         let ty_attr_parsed = attr_parser().parse(state_stream).unwrap().0;
         assert_eq!(ty_attr_parsed.disp(&ctx).to_string(), ty_attr);
     }

@@ -1,4 +1,6 @@
 //! Regions are containers for [BasicBlock]s within an [Operation].
+use combine::{attempt, easy, token, ParseResult, Parser, Positioned};
+
 use crate::{
     basic_block::BasicBlock,
     common_traits::Verify,
@@ -7,22 +9,15 @@ use crate::{
     indented_block,
     linked_list::{private, ContainsLinkedList},
     operation::Operation,
+    parsable::{self, spaced, to_parse_result, Parsable},
     printable::{self, fmt_indented_newline, fmt_iter, ListSeparator, Printable},
 };
 
 /// [BasicBlock]s contained in this [Region].
-pub struct BlocksInRegion {
+#[derive(Default)]
+struct BlocksInRegion {
     first: Option<Ptr<BasicBlock>>,
     last: Option<Ptr<BasicBlock>>,
-}
-
-impl BlocksInRegion {
-    fn new_empty() -> BlocksInRegion {
-        BlocksInRegion {
-            first: None,
-            last: None,
-        }
-    }
 }
 
 /// A region is an ordered list of basic blocks contained in an Operation.
@@ -32,16 +27,16 @@ impl BlocksInRegion {
 /// See [MLIR Region description](https://mlir.llvm.org/docs/LangRef/#regions).
 pub struct Region {
     pub(crate) self_ptr: Ptr<Region>,
-    pub(crate) blocks_list: BlocksInRegion,
     pub(crate) parent_op: Ptr<Operation>,
+    blocks: BlocksInRegion,
 }
 
 impl Region {
     /// Create a new Region.
-    pub fn new(ctx: &mut Context, parent_op: Ptr<Operation>) -> Ptr<Region> {
+    pub(crate) fn new(ctx: &mut Context, parent_op: Ptr<Operation>) -> Ptr<Region> {
         let f = |self_ptr: Ptr<Region>| Region {
             self_ptr,
-            blocks_list: BlocksInRegion::new_empty(),
+            blocks: BlocksInRegion::default(),
             parent_op,
         };
         Self::alloc(ctx, f)
@@ -63,19 +58,19 @@ impl Region {
 
 impl private::ContainsLinkedList<BasicBlock> for Region {
     fn set_head(&mut self, head: Option<Ptr<BasicBlock>>) {
-        self.blocks_list.first = head;
+        self.blocks.first = head;
     }
     fn set_tail(&mut self, tail: Option<Ptr<BasicBlock>>) {
-        self.blocks_list.last = tail;
+        self.blocks.last = tail;
     }
 }
 
 impl ContainsLinkedList<BasicBlock> for Region {
     fn get_head(&self) -> Option<Ptr<BasicBlock>> {
-        self.blocks_list.first
+        self.blocks.first
     }
     fn get_tail(&self) -> Option<Ptr<BasicBlock>> {
-        self.blocks_list.last
+        self.blocks.last
     }
 }
 
@@ -123,5 +118,50 @@ impl Printable for Region {
         fmt_indented_newline(state, f)?;
         write!(f, "}}")?;
         Ok(())
+    }
+}
+
+/// Parse a [Region].
+impl Parsable for Region {
+    type Arg = Ptr<Operation>;
+    type Parsed = Ptr<Region>;
+
+    /// A region is a sequence of [BasicBlock]s between '{' and '}'.
+    /// Creating a region requires a [Ptr] to the parent [Operation].
+    fn parse<'a>(
+        state_stream: &mut parsable::StateStream<'a>,
+        parent_op: Self::Arg,
+    ) -> ParseResult<Self::Parsed, easy::ParseError<parsable::StateStream<'a>>> {
+        let position = state_stream.position();
+        state_stream
+            .state
+            .name_tracker
+            .enter_region(state_stream.state.ctx, parent_op);
+
+        let block_list_parser = combine::many::<Vec<_>, _, _>(attempt(BasicBlock::parser(())));
+        let braces_bounded_region_parser =
+            combine::between(token('{'), token('}'), spaced(block_list_parser));
+
+        let mut region_parser = braces_bounded_region_parser.then(|blocks| {
+            combine::parser(move |state_stream: &mut parsable::StateStream| {
+                let region = Operation::add_region(parent_op, state_stream.state.ctx);
+                for block in blocks.iter() {
+                    block.insert_at_back(region, state_stream.state.ctx);
+                }
+                to_parse_result(Ok(region), position).into_result()
+            })
+        });
+
+        let result = region_parser.parse_stream(state_stream);
+
+        if let Err(err) = state_stream
+            .state
+            .name_tracker
+            .exit_region(state_stream.state.ctx, parent_op)
+        {
+            return to_parse_result(Err(err), position);
+        }
+
+        result
     }
 }

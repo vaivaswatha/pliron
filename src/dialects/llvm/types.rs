@@ -3,8 +3,9 @@ use crate::{
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
+    identifier::Identifier,
     impl_type, input_err,
-    parsable::{identifier, spaced, to_parse_result, Parsable, StateStream},
+    parsable::{spaced, to_parse_result, Parsable, StateStream},
     printable::{self, Printable, PrintableIter},
     r#type::{type_parser, Type, TypeObj},
     storage_uniquer::TypeValueHash,
@@ -18,7 +19,7 @@ use std::hash::Hash;
 /// A field in a [StructType].
 #[derive(Clone, PartialEq, Eq)]
 pub struct StructField {
-    pub field_name: String,
+    pub field_name: Identifier,
     pub field_type: Ptr<TypeObj>,
 }
 
@@ -39,13 +40,19 @@ impl Printable for StructField {
 }
 
 impl Parsable for StructField {
+    type Arg = ();
     type Parsed = StructField;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
         // Parse a single type annotated field.
-        (spaced(identifier()), token(':'), spaced(type_parser()))
+        (
+            spaced(Identifier::parser(())),
+            token(':'),
+            spaced(type_parser()),
+        )
             .parse_stream(state_stream)
             .map(|(field_name, _, field_type)| StructField {
                 field_name,
@@ -244,10 +251,12 @@ impl PartialEq for StructType {
 }
 
 impl Parsable for StructType {
+    type Arg = ();
     type Parsed = Ptr<TypeObj>;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
     where
         Self: Sized,
@@ -255,7 +264,7 @@ impl Parsable for StructType {
         let body_parser = || {
             combine::parser(|parsable_state: &mut StateStream<'a>| {
                 // Parse multiple type annotated fields separated by ','.
-                let fields_parser = sep_by::<Vec<_>, _, _, _>(StructField::parser(), token(','));
+                let fields_parser = sep_by::<Vec<_>, _, _, _>(StructField::parser(()), token(','));
 
                 // The body is multiple type annotated fields surrounded by '{' and '}'.
                 let mut body = between(spaced(token('{')), spaced(token('}')), fields_parser);
@@ -265,10 +274,10 @@ impl Parsable for StructType {
             })
         };
 
-        let named = spaced(identifier())
+        let named = spaced(Identifier::parser(()))
             .and(optional(body_parser()))
             .map(|(name, body_opt)| (Some(name), body_opt));
-        let anonymous = body_parser().map(|body| (None::<String>, Some(body)));
+        let anonymous = body_parser().map(|body| (None::<Identifier>, Some(body)));
 
         // A struct type is named or anonymous.
         let mut struct_parser = between(
@@ -337,10 +346,12 @@ impl Printable for PointerType {
 }
 
 impl Parsable for PointerType {
+    type Arg = ();
     type Parsed = Ptr<TypeObj>;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
     where
         Self: Sized,
@@ -392,11 +403,11 @@ mod tests {
         let list_struct_ptr = PointerType::get(&mut ctx, list_struct);
         let fields = vec![
             StructField {
-                field_name: "data".to_string(),
+                field_name: "data".into(),
                 field_type: int64_ptr,
             },
             StructField {
-                field_name: "next".to_string(),
+                field_name: "next".into(),
                 field_type: list_struct_ptr,
             },
         ];
@@ -415,16 +426,16 @@ mod tests {
                 .unwrap()
                 .disp(&ctx)
                 .to_string(),
-            "llvm.struct <LinkedList { data: builtin.integer <i64>, next: llvm.ptr <llvm.struct <LinkedList>> }>"
+            "llvm.struct <LinkedList { data: builtin.int <i64>, next: llvm.ptr <llvm.struct <LinkedList>> }>"
         );
 
         let head_fields = vec![
             StructField {
-                field_name: "len".to_string(),
+                field_name: "len".into(),
                 field_type: int64_ptr,
             },
             StructField {
-                field_name: "first".to_string(),
+                field_name: "first".into(),
                 field_type: list_struct_ptr,
             },
         ];
@@ -435,12 +446,12 @@ mod tests {
             &ctx,
             vec![
                 StructField {
-                    field_name: "len".to_string(),
+                    field_name: "len".into(),
                     field_type: int64_ptr
                 },
                 // The actual field is a LinkedList here, rather than a pointer type to it.
                 StructField {
-                    field_name: "first".to_string(),
+                    field_name: "first".into(),
                     field_type: list_struct
                 },
             ]
@@ -460,7 +471,7 @@ mod tests {
         let int64pointer_ptr = Type::register_instance(int64pointer_ptr, &mut ctx);
         assert_eq!(
             int64pointer_ptr.disp(&ctx).to_string(),
-            "llvm.ptr <builtin.integer <si64>>"
+            "llvm.ptr <builtin.int <si64>>"
         );
         assert!(int64pointer_ptr == PointerType::get(&mut ctx, int64_ptr));
 
@@ -492,14 +503,14 @@ mod tests {
         dialects::llvm::register(&mut ctx);
 
         let state_stream = state_stream_from_iterator(
-            "llvm.ptr <builtin.integer <si64>>".chars(),
-            parsable::State { ctx: &mut ctx },
+            "llvm.ptr <builtin.int <si64>>".chars(),
+            parsable::State::new(&mut ctx),
         );
 
         let res = type_parser().parse(state_stream).unwrap().0;
         assert_eq!(
             &res.disp(&ctx).to_string(),
-            "llvm.ptr <builtin.integer <si64>>"
+            "llvm.ptr <builtin.int <si64>>"
         );
     }
 
@@ -510,12 +521,12 @@ mod tests {
         dialects::llvm::register(&mut ctx);
 
         let state_stream = state_stream_from_iterator(
-            "llvm.struct <LinkedList { data: builtin.integer <i64>, next: llvm.ptr <llvm.struct <LinkedList>> }>".chars(),
-            parsable::State { ctx: &mut ctx },
+            "llvm.struct <LinkedList { data: builtin.int <i64>, next: llvm.ptr <llvm.struct <LinkedList>> }>".chars(),
+            parsable::State::new(&mut ctx),
         );
 
         let res = type_parser().parse(state_stream).unwrap().0;
-        assert_eq!(&res.disp(&ctx).to_string(), "llvm.struct <LinkedList { data: builtin.integer <i64>, next: llvm.ptr <llvm.struct <LinkedList>> }>");
+        assert_eq!(&res.disp(&ctx).to_string(), "llvm.struct <LinkedList { data: builtin.int <i64>, next: llvm.ptr <llvm.struct <LinkedList>> }>");
     }
 
     #[test]
@@ -525,14 +536,14 @@ mod tests {
         dialects::llvm::register(&mut ctx);
 
         let state_stream = state_stream_from_iterator(
-            "llvm.struct < My1 { f1: builtin.integer<i8> } >".chars(),
-            parsable::State { ctx: &mut ctx },
+            "llvm.struct < My1 { f1: builtin.int<i8> } >".chars(),
+            parsable::State::new(&mut ctx),
         );
         let _ = type_parser().parse(state_stream).unwrap().0;
 
         let state_stream = state_stream_from_iterator(
-            "llvm.struct < My1 { f1: builtin.integer<i16> } >".chars(),
-            parsable::State { ctx: &mut ctx },
+            "llvm.struct < My1 { f1: builtin.int<i16> } >".chars(),
+            parsable::State::new(&mut ctx),
         );
 
         let res = type_parser().parse(state_stream);
@@ -546,7 +557,7 @@ mod tests {
 
         let state_stream = state_stream_from_iterator(
             "llvm.struct < My2 >".chars(),
-            parsable::State { ctx: &mut ctx },
+            parsable::State::new(&mut ctx),
         );
         let res = type_parser().parse(state_stream).unwrap().0;
         matches!(
