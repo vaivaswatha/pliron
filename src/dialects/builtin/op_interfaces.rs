@@ -215,7 +215,7 @@ pub fn get_callees_syms(ctx: &Context, op: Ptr<Operation>) -> Vec<String> {
         for block in region.deref(ctx).iter(ctx) {
             for op in block.deref(ctx).iter(ctx) {
                 if let Some(call_op) =
-                    op_cast::<dyn CallOpInterface>(op.deref(ctx).get_op(ctx).as_ref())
+                    op_cast::<dyn CallOpInterface>(Operation::get_op(op, ctx).as_ref())
                 {
                     callees.push(call_op.get_callee_sym(ctx));
                 }

@@ -253,8 +253,8 @@ impl Operation {
     }
 
     /// Create an OpObj corresponding to self.
-    pub fn get_op(&self, ctx: &Context) -> OpObj {
-        op::from_operation(ctx, self.self_ptr)
+    pub fn get_op(ptr: Ptr<Self>, ctx: &Context) -> OpObj {
+        op::from_operation(ctx, ptr)
     }
 
     /// Get a [Ptr] to the `reg_idx`th region.
@@ -464,8 +464,8 @@ impl Verify for Operation {
         for region in &self.regions {
             region.verify(ctx)?;
         }
-        self.get_op(ctx).verify(ctx)?;
-        self.get_op(ctx).verify_interfaces(ctx)
+        Self::get_op(self.self_ptr, ctx).verify(ctx)?;
+        Self::get_op(self.self_ptr, ctx).verify_interfaces(ctx)
     }
 }
 
@@ -476,7 +476,7 @@ impl Printable for Operation {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        self.get_op(ctx).fmt(ctx, state, f)
+        Self::get_op(self.self_ptr, ctx).fmt(ctx, state, f)
     }
 }
 

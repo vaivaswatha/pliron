@@ -61,11 +61,8 @@ impl Parsable for ZeroResultOp {
 
 impl ZeroResultOp {
     fn new(ctx: &mut Context) -> ZeroResultOp {
-        *Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1)
-            .deref(ctx)
-            .get_op(ctx)
-            .downcast_ref()
-            .unwrap()
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1);
+        *Operation::get_op(op, ctx).downcast_ref().unwrap()
     }
 }
 
