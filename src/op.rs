@@ -35,7 +35,7 @@ use crate::{
     error::Result,
     identifier::Identifier,
     operation::Operation,
-    parsable::{spaced, Parsable, ParserFn, StateStream},
+    parsable::{Parsable, ParserFn, StateStream},
     printable::{self, Printable},
 };
 
@@ -122,11 +122,11 @@ impl Parsable for OpId {
     where
         Self: Sized,
     {
-        let parser = DialectName::parser(())
+        let mut parser = DialectName::parser(())
             .skip(parser::char::char('.'))
             .and(OpName::parser(()))
             .map(|(dialect, name)| OpId { dialect, name });
-        spaced(parser).parse_stream(state_stream)
+        parser.parse_stream(state_stream)
     }
 }
 

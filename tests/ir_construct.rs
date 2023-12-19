@@ -9,11 +9,12 @@ use pliron::{
     error::Result,
     op::Op,
     operation::Operation,
-    parsable::{self, state_stream_from_iterator, Parsable},
+    parsable::{self, spaced, state_stream_from_iterator, Parsable},
     printable::Printable,
 };
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
+use combine::parser::Parser;
 
 mod common;
 
@@ -85,9 +86,9 @@ fn replace_c0_with_c1_operand() -> Result<()> {
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
         builtin.module @bar {
-          block_0_0():
+          ^block_0_0():
             builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
-              entry_block_1_0():
+              ^entry_block_1_0():
                 c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int <si64>>;
                 c1_op_4_0_res0 = builtin.constant builtin.integer <0x1: builtin.int <si64>>;
                 llvm.return c0_op_2_0_res0
@@ -104,9 +105,9 @@ fn replace_c0_with_c1_operand() -> Result<()> {
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
         builtin.module @bar {
-          block_0_0():
+          ^block_0_0():
             builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
-              entry_block_1_0():
+              ^entry_block_1_0():
                 c1_op_4_0_res0 = builtin.constant builtin.integer <0x1: builtin.int <si64>>;
                 llvm.return c1_op_4_0_res0
             }
@@ -126,9 +127,9 @@ fn print_simple() -> Result<()> {
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
         builtin.module @bar {
-          block_0_0():
+          ^block_0_0():
             builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
-              entry_block_1_0():
+              ^entry_block_1_0():
                 c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int <si64>>;
                 llvm.return c0_op_2_0_res0
             }
@@ -142,18 +143,19 @@ fn print_simple() -> Result<()> {
 fn parse_simple() -> Result<()> {
     let input = r#"
         builtin.module @bar {
-        block_0_0():
+        ^block_0_0():
             builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
-            entry_block_1_0():
+            ^entry_block_1_0():
                 c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int <si64>>;
                 llvm.return c0_op_2_0_res0
+            ^exit():
             }
         }"#;
 
     let ctx = &mut setup_context_dialects();
     let op = {
         let state_stream = state_stream_from_iterator(input.chars(), parsable::State::new(ctx));
-        Operation::parser(()).parse(state_stream).unwrap().0
+        spaced(Operation::parser(())).parse(state_stream).unwrap().0
     };
     println!("{}", op.disp(ctx));
     Ok(())

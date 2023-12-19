@@ -72,7 +72,7 @@ impl Parsable for IntegerType {
         let parser = choicer
             .and(many1::<String, _, _>(digit()).map(|digits| digits.parse::<u64>().unwrap()));
 
-        let mut parser = between(spaced(token('<')), spaced(token('>')), parser);
+        let mut parser = between(token('<'), token('>'), spaced(parser));
         parser
             .parse_stream(&mut state_stream.stream)
             .map(|(signedness, width)| IntegerType::get(state_stream.state.ctx, width, signedness))
@@ -177,16 +177,16 @@ impl Parsable for FunctionType {
             spaced(between(
                 token('('),
                 token(')'),
-                sep_by::<Vec<_>, _, _, _>(type_parser(), token(',')),
+                sep_by::<Vec<_>, _, _, _>(spaced(type_parser()), token(',')),
             ))
         };
-        let mut parser = between(
+        let mut parser = spaced(between(
             token('<'),
             token('>'),
             type_list_parser()
-                .skip(string("->"))
+                .skip(spaced(string("->")))
                 .and(type_list_parser()),
-        );
+        ));
         parser
             .parse_stream(state_stream)
             .map(|(inputs, results)| Self::get(state_stream.state.ctx, inputs, results))
@@ -325,7 +325,7 @@ mod tests {
         let expected_err_msg = expect![[r#"
             Parse error at line: 1, column: 2
             Unexpected `a`
-            Expected whitespace, si, ui or i
+            Expected whitespaces, si, ui or i
         "#]];
         expected_err_msg.assert_eq(&err_msg);
     }

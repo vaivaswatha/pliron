@@ -91,9 +91,8 @@ impl Parsable for ModuleOp {
             vec![],
             0,
         );
-        let mut parser = token('@')
-            .with(Identifier::parser(()))
-            .and(Region::parser(op));
+        let mut parser =
+            spaced(token('@').with(Identifier::parser(()))).and(spaced(Region::parser(op)));
         parser
             .parse_stream(state_stream)
             .map(|(name, _region)| -> OpObj {
@@ -252,11 +251,9 @@ impl Parsable for FuncOp {
         );
 
         let mut parser = (
-            token('@')
-                .with(Identifier::parser(()))
-                .skip(spaced(token(':'))),
-            type_parser(),
-            Region::parser(op),
+            spaced(token('@').with(Identifier::parser(()))).skip(spaced(token(':'))),
+            spaced(type_parser()),
+            spaced(Region::parser(op)),
         );
 
         // Parse and build the function, providing name and type details.

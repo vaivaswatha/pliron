@@ -138,9 +138,10 @@ impl Parsable for Region {
             .name_tracker
             .enter_region(state_stream.state.ctx, parent_op);
 
-        let block_list_parser = combine::many::<Vec<_>, _, _>(attempt(BasicBlock::parser(())));
+        let block_list_parser =
+            combine::many::<Vec<_>, _, _>(attempt(spaced(BasicBlock::parser(()))));
         let braces_bounded_region_parser =
-            combine::between(token('{'), token('}'), spaced(block_list_parser));
+            combine::between(token('{'), token('}'), block_list_parser);
 
         let mut region_parser = braces_bounded_region_parser.then(|blocks| {
             combine::parser(move |state_stream: &mut parsable::StateStream| {

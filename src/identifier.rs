@@ -9,7 +9,7 @@ use crate::{
     common_traits::Verify,
     context::Context,
     error,
-    parsable::{self, spaced, Parsable},
+    parsable::{self, Parsable},
     printable::{self, Printable},
     verify_err,
 };
@@ -90,8 +90,6 @@ impl Parsable for Identifier {
             .and(many::<String, _, _>(char::alpha_num().or(char::char('_'))))
             .map(|(c, rest)| c.to_string() + &rest);
 
-        spaced(parser)
-            .map(|str| str.into())
-            .parse_stream(state_stream)
+        parser.map(|str| str.into()).parse_stream(state_stream)
     }
 }

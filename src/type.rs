@@ -185,11 +185,11 @@ impl Parsable for TypeId {
     where
         Self: Sized,
     {
-        let parser = DialectName::parser(())
+        let mut parser = DialectName::parser(())
             .skip(parser::char::char('.'))
             .and(TypeName::parser(()))
             .map(|(dialect, name)| TypeId { dialect, name });
-        spaced(parser).parse_stream(state_stream)
+        parser.parse_stream(state_stream)
     }
 }
 
@@ -328,9 +328,9 @@ pub fn type_parse<'a>(
     state_stream: &mut StateStream<'a>,
 ) -> ParseResult<Ptr<TypeObj>, easy::ParseError<StateStream<'a>>> {
     let position = state_stream.stream.position();
-    let type_id_parser = TypeId::parser(());
+    let type_id_parser = spaced(TypeId::parser(()));
 
-    let type_parser = type_id_parser.then(|type_id: TypeId| {
+    let mut type_parser = type_id_parser.then(|type_id: TypeId| {
         combine::parser(move |parsable_state: &mut StateStream<'a>| {
             let state = &parsable_state.state;
             let dialect = state
@@ -345,13 +345,12 @@ pub fn type_parse<'a>(
                 )
                 .into_result();
             };
-            type_parser(&(), ())
+            spaced(type_parser(&(), ()))
                 .parse_stream(parsable_state)
                 .into_result()
         })
     });
 
-    let mut type_parser = spaced(type_parser);
     type_parser.parse_stream(state_stream)
 }
 
@@ -400,7 +399,7 @@ mod test {
         let expected_err_msg = expect![[r#"
             Parse error at line: 1, column: 13
             Unexpected `a`
-            Expected whitespaces or `<`
+            Expected `<` or whitespaces
         "#]];
         expected_err_msg.assert_eq(&err_msg);
 

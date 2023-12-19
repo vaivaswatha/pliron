@@ -262,33 +262,25 @@ impl Parsable for StructType {
         Self: Sized,
     {
         let body_parser = || {
-            combine::parser(|parsable_state: &mut StateStream<'a>| {
-                // Parse multiple type annotated fields separated by ','.
-                let fields_parser = sep_by::<Vec<_>, _, _, _>(StructField::parser(()), token(','));
-
-                // The body is multiple type annotated fields surrounded by '{' and '}'.
-                let mut body = between(spaced(token('{')), spaced(token('}')), fields_parser);
-
-                // Finally parse the whole thing.
-                body.parse_stream(parsable_state).into_result()
-            })
+            // Parse multiple type annotated fields separated by ','.
+            let fields_parser =
+                sep_by::<Vec<_>, _, _, _>(spaced(StructField::parser(())), token(','));
+            // The body is multiple type annotated fields surrounded by '{' and '}'.
+            between(token('{'), token('}'), fields_parser)
         };
 
-        let named = spaced(Identifier::parser(()))
-            .and(optional(body_parser()))
-            .map(|(name, body_opt)| (Some(name), body_opt));
-        let anonymous = body_parser().map(|body| (None::<Identifier>, Some(body)));
+        let named = spaced((combine::position(), Identifier::parser(())))
+            .and(optional(spaced(body_parser())))
+            .map(|((position, name), body_opt)| (position, Some(name), body_opt));
+        let anonymous = spaced((combine::position(), body_parser()))
+            .map(|(position, body)| (position, None::<Identifier>, Some(body)));
 
         // A struct type is named or anonymous.
-        let mut struct_parser = between(
-            spaced(token('<')),
-            spaced(token('>')),
-            (combine::position(), named.or(anonymous)),
-        );
+        let mut struct_parser = between(token('<'), token('>'), named.or(anonymous));
 
         struct_parser
             .parse_stream(state_stream)
-            .and_then(|(position, (name_opt, body_opt))| {
+            .and_then(|(position, name_opt, body_opt)| {
                 let ctx = &mut state_stream.state.ctx;
                 if let Some(name) = name_opt {
                     to_parse_result(StructType::get_named(ctx, &name, body_opt), position)
@@ -356,7 +348,7 @@ impl Parsable for PointerType {
     where
         Self: Sized,
     {
-        spaced(combine::between(token('<'), token('>'), type_parser()))
+        combine::between(token('<'), token('>'), spaced(type_parser()))
             .parse_stream(state_stream)
             .map(|pointee_ty| PointerType::get(state_stream.state.ctx, pointee_ty))
     }
@@ -508,10 +500,7 @@ mod tests {
         );
 
         let res = type_parser().parse(state_stream).unwrap().0;
-        assert_eq!(
-            &res.disp(&ctx).to_string(),
-            "llvm.ptr <builtin.int <si64>>"
-        );
+        assert_eq!(&res.disp(&ctx).to_string(), "llvm.ptr <builtin.int <si64>>");
     }
 
     #[test]

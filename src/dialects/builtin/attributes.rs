@@ -164,17 +164,12 @@ impl Parsable for IntegerAttr {
             token('<'),
             token('>'),
             string("0x")
-                .with(many1::<Vec<_>, _, _>(hex_digit()))
+                .with(many1::<String, _, _>(hex_digit()))
                 .skip(token(':'))
                 .and(type_parser()),
         )
         .parse_stream(state_stream)
-        .map(|(digits, ty)| {
-            IntegerAttr::create(
-                ty,
-                ApInt::from_str_radix(16, digits.iter().collect::<String>()).unwrap(),
-            )
-        })
+        .map(|(digits, ty)| IntegerAttr::create(ty, ApInt::from_str_radix(16, digits).unwrap()))
     }
 }
 
@@ -437,7 +432,7 @@ impl Parsable for TypeAttr {
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
-        between(spaced(token('<')), spaced(token('>')), type_parser())
+        between(token('<'), token('>'), spaced(type_parser()))
             .map(TypeAttr::create)
             .parse_stream(state_stream)
     }

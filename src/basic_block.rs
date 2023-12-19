@@ -1,6 +1,6 @@
 //! A [BasicBlock] is a list of [Operation]s.
 
-use combine::{between, parser::Parser, sep_by, token, Positioned};
+use combine::{attempt, between, parser::Parser, sep_by, token, Positioned};
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
     indented_block,
     linked_list::{private, ContainsLinkedList, LinkedList},
     operation::Operation,
-    parsable::{self, to_parse_result, Parsable},
+    parsable::{self, spaced, to_parse_result, Parsable},
     printable::{self, indented_nl, ListSeparator, Printable, PrintableIter},
     r#type::{type_parser, TypeObj},
     region::Region,
@@ -293,7 +293,7 @@ impl Printable for BasicBlock {
     ) -> core::fmt::Result {
         write!(
             f,
-            "{}({}):",
+            "^{}({}):",
             self.unique_name(ctx),
             self.args
                 .iter()
@@ -329,16 +329,19 @@ impl Parsable for BasicBlock {
     ) -> combine::ParseResult<Self::Parsed, combine::easy::ParseError<parsable::StateStream<'a>>>
     {
         let position = state_stream.position();
-        let arg = (Identifier::parser(()).skip(token(':')), type_parser());
-        let args = between(
+        let arg = (
+            spaced(Identifier::parser(())).skip(token(':')),
+            spaced(type_parser()),
+        );
+        let args = spaced(between(
             token('('),
             token(')'),
             sep_by::<Vec<_>, _, _, _>(arg, token(',')),
-        )
+        ))
         .skip(token(':'));
-        let ops = sep_by::<Vec<_>, _, _, _>(Operation::parser(()), token(';'));
+        let ops = sep_by::<Vec<_>, _, _, _>(attempt(spaced(Operation::parser(()))), token(';'));
 
-        let label = Identifier::parser(());
+        let label = spaced(token('^').with(Identifier::parser(())));
         let parsed = (label, args, ops).parse_stream(state_stream);
         // We've parsed the components. Now construct the result.
         parsed.and_then(|(label, args, ops)| {

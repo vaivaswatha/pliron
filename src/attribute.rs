@@ -207,11 +207,11 @@ impl Parsable for AttrId {
     where
         Self: Sized,
     {
-        let parser = DialectName::parser(())
+        let mut parser = DialectName::parser(())
             .skip(parser::char::char('.'))
             .and(AttrName::parser(()))
             .map(|(dialect, name)| AttrId { dialect, name });
-        spaced(parser).parse_stream(state_stream)
+        parser.parse_stream(state_stream)
     }
 }
 
@@ -220,9 +220,9 @@ pub fn attr_parse<'a>(
     state_stream: &mut StateStream<'a>,
 ) -> ParseResult<AttrObj, easy::ParseError<StateStream<'a>>> {
     let position = state_stream.stream.position();
-    let attr_id_parser = AttrId::parser(());
+    let attr_id_parser = spaced(AttrId::parser(()));
 
-    let attr_parser = attr_id_parser.then(|attr_id: AttrId| {
+    let mut attr_parser = attr_id_parser.then(|attr_id: AttrId| {
         combine::parser(move |parsable_state: &mut StateStream<'a>| {
             let state = &parsable_state.state;
             let dialect = state
@@ -237,13 +237,12 @@ pub fn attr_parse<'a>(
                 )
                 .into_result();
             };
-            attr_parser(&(), ())
+            spaced(attr_parser(&(), ()))
                 .parse_stream(parsable_state)
                 .into_result()
         })
     });
 
-    let mut attr_parser = spaced(attr_parser);
     attr_parser.parse_stream(state_stream)
 }
 

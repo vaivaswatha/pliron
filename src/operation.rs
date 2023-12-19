@@ -19,7 +19,7 @@ use crate::{
     input_err,
     linked_list::{private, LinkedList},
     op::{self, OpId, OpObj},
-    parsable::{self, to_parse_result, Parsable, StateStream},
+    parsable::{self, spaced, to_parse_result, Parsable, StateStream},
     printable::{self, Printable},
     r#type::TypeObj,
     region::Region,
@@ -496,9 +496,10 @@ impl Parsable for Operation {
         let position = state_stream.stream.position();
 
         let results_opid = combine::optional(attempt(
-            combine::sep_by::<Vec<_>, _, _, _>(Identifier::parser(()), token(',')).skip(token('=')),
+            combine::sep_by::<Vec<_>, _, _, _>(spaced(Identifier::parser(())), token(','))
+                .skip(spaced(token('='))),
         ))
-        .and(OpId::parser(()));
+        .and(spaced(OpId::parser(())));
 
         results_opid
             .then(|(results, opid)| {
