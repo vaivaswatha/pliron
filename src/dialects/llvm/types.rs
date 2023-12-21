@@ -11,7 +11,7 @@ use crate::{
     storage_uniquer::TypeValueHash,
     verify_err,
 };
-use combine::{between, easy, optional, sep_by, token, ParseResult, Parser};
+use combine::{between, easy, optional, parser::char::spaces, sep_by, token, ParseResult, Parser};
 use thiserror::Error;
 
 use std::hash::Hash;
@@ -263,8 +263,10 @@ impl Parsable for StructType {
     {
         let body_parser = || {
             // Parse multiple type annotated fields separated by ','.
-            let fields_parser =
-                sep_by::<Vec<_>, _, _, _>(spaced(StructField::parser(())), token(','));
+            let fields_parser = spaces().with(sep_by::<Vec<_>, _, _, _>(
+                StructField::parser(()).skip(spaces()),
+                token(',').skip(spaces()),
+            ));
             // The body is multiple type annotated fields surrounded by '{' and '}'.
             between(token('{'), token('}'), fields_parser)
         };

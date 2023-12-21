@@ -4,7 +4,7 @@
 
 use std::marker::PhantomData;
 
-use combine::{attempt, token, Parser, Positioned};
+use combine::{attempt, parser::char::spaces, token, Parser, Positioned};
 use rustc_hash::FxHashMap;
 use thiserror::Error;
 
@@ -496,7 +496,11 @@ impl Parsable for Operation {
         let position = state_stream.stream.position();
 
         let results_opid = combine::optional(attempt(
-            combine::sep_by::<Vec<_>, _, _, _>(spaced(Identifier::parser(())), token(','))
+            spaces()
+                .with(combine::sep_by::<Vec<_>, _, _, _>(
+                    Identifier::parser(()).skip(spaces()),
+                    token(',').skip(spaces()),
+                ))
                 .skip(spaced(token('='))),
         ))
         .and(spaced(OpId::parser(())));

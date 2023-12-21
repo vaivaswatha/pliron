@@ -1,6 +1,9 @@
 use combine::{
     between, choice, easy, many1,
-    parser::{char::digit, char::string},
+    parser::{
+        char::digit,
+        char::{spaces, string},
+    },
     sep_by, token, ParseResult, Parser, Positioned,
 };
 
@@ -177,7 +180,10 @@ impl Parsable for FunctionType {
             spaced(between(
                 token('('),
                 token(')'),
-                sep_by::<Vec<_>, _, _, _>(spaced(type_parser()), token(',')),
+                spaces().with(sep_by::<Vec<_>, _, _, _>(
+                    type_parser().skip(spaces()),
+                    token(',').skip(spaces()),
+                )),
             ))
         };
         let mut parser = spaced(between(
@@ -259,7 +265,10 @@ mod tests {
     use super::FunctionType;
     use crate::{
         context::Context,
-        dialects::builtin::types::{IntegerType, Signedness},
+        dialects::{
+            self,
+            builtin::types::{IntegerType, Signedness},
+        },
         parsable::{self, state_stream_from_iterator, Parsable},
     };
     #[test]
@@ -328,5 +337,26 @@ mod tests {
             Expected whitespaces, si, ui or i
         "#]];
         expected_err_msg.assert_eq(&err_msg);
+    }
+
+    #[test]
+    fn test_fntype_parsing() {
+        let mut ctx = Context::new();
+        dialects::builtin::register(&mut ctx);
+
+        let si32 = IntegerType::get(&mut ctx, 32, Signedness::Signed);
+
+        let state_stream = state_stream_from_iterator(
+            "<() -> (builtin.int <si32>)>".chars(),
+            parsable::State::new(&mut ctx),
+        );
+
+        let res = FunctionType::parser(())
+            .and(eof())
+            .parse(state_stream)
+            .unwrap()
+            .0
+             .0;
+        assert!(res == FunctionType::get_existing(&ctx, vec![], vec![si32]).unwrap())
     }
 }

@@ -168,6 +168,21 @@ pub type ParserFn<Arg, Parsed> =
     ) -> Box<dyn Parser<StateStream<'a>, Output = Parsed, PartialState = ()> + 'a>;
 
 /// Parse from `parser`, ignoring whitespace(s) before and after.
+/// > **Warning**: Do not use this inside inside repeating combiners, such as [combine::many].
+///     After successfully parsing one instance, if spaces are consumed to parse
+///     the next one, but the next one doesn't exist, it is treated as a failure
+///     that consumed some input. This messes things up. So spaces must be consumed
+///     after a successfull parse, and not prior to an upcoming one.
+///     A possibly right way to, for example, parse a comma separated list of [Identifier]s:
+///
+///```
+///     # use combine::{parser::char::spaces, Parser};
+///     # use pliron::parsable::Parsable;
+///     let ids = spaces().with
+///               (combine::sep_by::<Vec<_>, _, _, _>
+///                 (pliron::identifier::Identifier::parser(()).skip(spaces()),
+///                 combine::token(',').skip(spaces())));
+///```
 pub fn spaced<Input: Stream<Token = char>, Output>(
     parser: impl Parser<Input, Output = Output>,
 ) -> impl Parser<Input, Output = Output> {
@@ -212,7 +227,7 @@ pub struct NameTracker {
 }
 
 #[derive(Error, Debug)]
-#[error("Identifier {0} has not been resolved")]
+#[error("Identifier {0} was not resolved to any definition")]
 pub struct UnresolvedReference(Identifier);
 
 #[derive(Error, Debug)]
@@ -348,7 +363,7 @@ impl NameTracker {
             for (id, op) in ssa_scope {
                 if matches!(op, Value::OpResult { op, .. } if Operation::get_op(op, ctx).is::<ForwardRefOp>())
                 {
-                    return input_err!(MultipleDefinitions(id.clone()));
+                    return input_err!(UnresolvedReference(id.clone()));
                 }
             }
         }
@@ -361,7 +376,7 @@ impl NameTracker {
         // Check if there are any unresolved forward label references.
         for (id, op) in label_scope {
             if matches!(op, LabelRef::ForwardRef(_)) {
-                return input_err!(MultipleDefinitions(id.clone()));
+                return input_err!(UnresolvedReference(id.clone()));
             }
         }
 

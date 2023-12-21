@@ -1,5 +1,5 @@
 use apint::ApInt;
-use expect_test::expect;
+use expect_test::{expect, Expect};
 use pliron::{
     common_traits::Verify,
     debug_info::set_operation_result_name,
@@ -148,7 +148,7 @@ fn parse_simple() -> Result<()> {
             ^entry_block_1_0():
                 c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int <si64>>;
                 llvm.return c0_op_2_0_res0
-            ^exit():
+            ^exit(a : builtin.int <si32>):
             }
         }"#;
 
@@ -159,4 +159,110 @@ fn parse_simple() -> Result<()> {
     };
     println!("{}", op.disp(ctx));
     Ok(())
+}
+
+fn expect_parse_error(input: &str, expected_err: Expect) {
+    let ctx = &mut setup_context_dialects();
+    let state_stream = state_stream_from_iterator(input.chars(), parsable::State::new(ctx));
+    let actual_err = spaced(Operation::parser(()))
+        .parse(state_stream)
+        .err()
+        .unwrap();
+
+    expected_err.assert_eq(&actual_err.to_string());
+}
+
+#[test]
+fn parse_err_multiple_def() {
+    let input_multiple_ssa_defs = r#"
+        builtin.module @bar {
+        ^block_0_0():
+            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            ^entry_block_1_0():
+                c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int <si64>>;
+                c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int <si64>>;
+                llvm.return c0_op_2_0_res0
+            ^exit():
+            }
+        }"#;
+
+    // The position below isn't correct. TODO!.
+    let expected_err = expect![[r#"
+        Parse error at line: 7, column: 51
+        Identifier c0_op_2_0_res0 defined more than once in the scope
+    "#]];
+    expect_parse_error(input_multiple_ssa_defs, expected_err);
+
+    let input_multiple_label_defs = r#"
+        builtin.module @bar {
+        ^block_0_0():
+            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            ^entry_block_1_0():
+                c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int <si64>>;
+                llvm.return c0_op_2_0_res0
+            ^entry_block_1_0():
+            }
+        }"#;
+
+    let expected_err = expect![[r#"
+        Parse error at line: 8, column: 13
+        Identifier entry_block_1_0 defined more than once in the scope
+    "#]];
+    expect_parse_error(input_multiple_label_defs, expected_err);
+}
+
+#[test]
+fn parse_err_unresolved_def() {
+    let input_multiple_defs = r#"
+        builtin.module @bar {
+        ^block_0_0():
+            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            ^entry_block_1_0():
+                llvm.return c0_op_2_0_res0
+            }
+        }"#;
+
+    let expected_err = expect![[r#"
+        Parse error at line: 4, column: 78
+        Identifier c0_op_2_0_res0 was not resolved to any definition
+    "#]];
+    expect_parse_error(input_multiple_defs, expected_err);
+}
+
+#[test]
+fn parse_err_block_label_colon() {
+    let input_label_colon_missing = r#"
+        builtin.module @bar {
+        ^block_0_0():
+            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            ^entry_block_1_0():
+                c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int <si64>>;
+                llvm.return c0_op_2_0_res0
+            ^exit()
+            }
+        }"#;
+
+    let expected_err = expect![[r#"
+        Parse error at line: 9, column: 13
+        Unexpected `}`
+        Expected whitespace or `:`
+    "#]];
+
+    expect_parse_error(input_label_colon_missing, expected_err);
+}
+
+#[test]
+fn parse_err_block_args() {
+    let input_label_colon_missing = r#"
+        builtin.module @bar {
+        ^block_0_0(a : builtin.int <si32>, b):
+        }"#;
+
+    let expected_err = expect![[r#"
+        Parse error at line: 3, column: 45
+        Unexpected `)`
+        Expected whitespaces or `:`
+    "#]];
+
+    expect_parse_error(input_label_colon_missing, expected_err);
 }

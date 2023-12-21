@@ -1,5 +1,5 @@
 //! Regions are containers for [BasicBlock]s within an [Operation].
-use combine::{attempt, easy, token, ParseResult, Parser, Positioned};
+use combine::{easy, parser::char::spaces, token, ParseResult, Parser, Positioned};
 
 use crate::{
     basic_block::BasicBlock,
@@ -9,7 +9,7 @@ use crate::{
     indented_block,
     linked_list::{private, ContainsLinkedList},
     operation::Operation,
-    parsable::{self, spaced, to_parse_result, Parsable},
+    parsable::{self, to_parse_result, Parsable},
     printable::{self, fmt_indented_newline, fmt_iter, ListSeparator, Printable},
 };
 
@@ -138,8 +138,9 @@ impl Parsable for Region {
             .name_tracker
             .enter_region(state_stream.state.ctx, parent_op);
 
-        let block_list_parser =
-            combine::many::<Vec<_>, _, _>(attempt(spaced(BasicBlock::parser(()))));
+        let block_list_parser = spaces().with(combine::many::<Vec<_>, _, _>(
+            BasicBlock::parser(()).skip(spaces()),
+        ));
         let braces_bounded_region_parser =
             combine::between(token('{'), token('}'), block_list_parser);
 

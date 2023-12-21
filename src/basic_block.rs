@@ -1,6 +1,10 @@
 //! A [BasicBlock] is a list of [Operation]s.
 
-use combine::{attempt, between, parser::Parser, sep_by, token, Positioned};
+use combine::{
+    between,
+    parser::{char::spaces, Parser},
+    sep_by, token, Positioned,
+};
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -330,16 +334,19 @@ impl Parsable for BasicBlock {
     {
         let position = state_stream.position();
         let arg = (
-            spaced(Identifier::parser(())).skip(token(':')),
-            spaced(type_parser()),
+            Identifier::parser(()).skip(spaced(token(':'))),
+            type_parser().skip(spaces()),
         );
         let args = spaced(between(
             token('('),
             token(')'),
-            sep_by::<Vec<_>, _, _, _>(arg, token(',')),
+            spaces().with(sep_by::<Vec<_>, _, _, _>(arg, token(',').skip(spaces()))),
         ))
         .skip(token(':'));
-        let ops = sep_by::<Vec<_>, _, _, _>(attempt(spaced(Operation::parser(()))), token(';'));
+        let ops = spaces().with(sep_by::<Vec<_>, _, _, _>(
+            Operation::parser(()).skip(spaces()),
+            token(';').skip(spaces()),
+        ));
 
         let label = spaced(token('^').with(Identifier::parser(())));
         let parsed = (label, args, ops).parse_stream(state_stream);
