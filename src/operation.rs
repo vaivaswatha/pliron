@@ -522,7 +522,7 @@ impl Parsable for Operation {
                     opid_parser(&(), results.clone().unwrap_or(vec![]))
                         .parse_stream(parsable_state)
                         .map(|op| op.get_operation())
-                        .into_result()
+                        .into()
                 })
             })
             .parse_stream(state_stream)

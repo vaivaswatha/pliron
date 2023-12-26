@@ -205,12 +205,12 @@ impl<'a, T> IntoStdParseResult2<'a, T> for Result<T> {
         pos: SourcePosition,
     ) -> StdParseResult2<T, <StateStream<'a> as StreamOnce>::Error> {
         match self {
-            Ok(t) => ParseResult::CommitOk(t).into_result(),
+            Ok(t) => ParseResult::CommitOk(t).into(),
             Err(e) => ParseResult::CommitErr(easy::Errors::from_errors(
                 pos,
                 vec![easy::Error::Message(e.err.to_string().into())],
             ))
-            .into_result(),
+            .into(),
         }
     }
 }

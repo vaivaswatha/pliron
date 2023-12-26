@@ -354,7 +354,7 @@ pub fn type_parse<'a>(
 /// A parser combinator to parse [TypeId] followed by the type's contents.
 pub fn type_parser<'a>(
 ) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
-    combine::parser(|parsable_state: &mut StateStream<'a>| type_parse(parsable_state).into_result())
+    combine::parser(|parsable_state: &mut StateStream<'a>| type_parse(parsable_state).into())
         .boxed()
 }
 

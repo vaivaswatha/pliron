@@ -85,7 +85,7 @@ impl Parsable for StringAttr {
                     result.into_pres2(position)
                 })
             });
-            escaped_char.parse_stream(parsable_state).into_result()
+            escaped_char.parse_stream(parsable_state).into()
         });
 
         // We want to scan a double quote deliminted string with possibly escaped characters in between.
