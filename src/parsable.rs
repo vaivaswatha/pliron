@@ -18,13 +18,14 @@ use crate::{
 };
 use combine::{
     easy,
+    error::StdParseResult2,
     parser::char::spaces,
     stream::{
         self, buffered,
         position::{self, SourcePosition},
         IteratorStream,
     },
-    ParseResult, Parser, Stream,
+    ParseResult, Parser, Stream, StreamOnce,
 };
 use rustc_hash::FxHashMap;
 use thiserror::Error;
@@ -80,8 +81,8 @@ pub type StateStream<'a> = stream::state::Stream<
 /// Example:
 /// ```
 /// use combine::{
-///     Parser, Stream, easy, stream::position,
-///     parser::char::digit, many1, ParseResult
+///     Parser, Stream, StreamOnce, easy, stream::position,
+///     parser::char::digit, many1, error::StdParseResult2
 /// };
 /// use pliron::{context::Context, parsable::
 ///     { state_stream_from_iterator, StateStream, Parsable, State}
@@ -94,13 +95,13 @@ pub type StateStream<'a> = stream::state::Stream<
 ///     fn parse<'a>(
 ///         state_stream: &mut StateStream<'a>,
 ///         arg: Self::Arg,
-///     ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
+///     ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
 ///         many1::<String, _, _>(digit())
 ///         .map(|digits| {
 ///             let _ : &mut Context = state_stream.state.ctx;
 ///             Number { n: digits.parse::<u64>().unwrap() }
 ///         })
-///         .parse_stream(&mut state_stream.stream)
+///         .parse_stream(&mut state_stream.stream).into()
 ///     }
 /// }
 /// let mut ctx = Context::new();
@@ -115,19 +116,19 @@ pub trait Parsable {
     type Parsed;
 
     /// Define a parser using existing combinators and call
-    /// [Parser::parse_stream] to get the final [ParseResult].
+    /// `into` on [Parser::parse_stream] to get the final [StdParseResult2].
     /// Use [state_stream.state](StateStream::state) as necessary.
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         arg: Self::Arg,
-    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>;
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>;
 
     /// Get a parser combinator that can work on [StateStream] as its input.
     fn parser<'a>(
         arg: Self::Arg,
     ) -> Box<dyn Parser<StateStream<'a>, Output = Self::Parsed, PartialState = ()> + 'a> {
         combine::parser(move |parsable_state: &mut StateStream<'a>| {
-            Self::parse(parsable_state, arg.clone()).into_result()
+            Self::parse(parsable_state, arg.clone())
         })
         .boxed()
     }
@@ -189,18 +190,28 @@ pub fn spaced<Input: Stream<Token = char>, Output>(
     combine::between(spaces(), spaces(), parser)
 }
 
-/// Convert [Result] into [ParseResult],
-/// Helps in returning errors when writing a parser.
-pub fn to_parse_result<'a, T>(
-    result: Result<T>,
-    position: SourcePosition,
-) -> ParseResult<T, easy::ParseError<StateStream<'a>>> {
-    match result {
-        Ok(t) => ParseResult::CommitOk(t),
-        Err(e) => ParseResult::CommitErr(easy::Errors::from_errors(
-            position,
-            vec![easy::Error::Message(e.err.to_string().into())],
-        )),
+/// Convert [Result] into [StdParseResult2].
+/// Enables using `?` on [Result] during parsing.
+pub trait IntoStdParseResult2<'a, T> {
+    fn into_pres2(
+        self,
+        pos: SourcePosition,
+    ) -> StdParseResult2<T, <StateStream<'a> as StreamOnce>::Error>;
+}
+
+impl<'a, T> IntoStdParseResult2<'a, T> for Result<T> {
+    fn into_pres2(
+        self,
+        pos: SourcePosition,
+    ) -> StdParseResult2<T, <StateStream<'a> as StreamOnce>::Error> {
+        match self {
+            Ok(t) => ParseResult::CommitOk(t).into_result(),
+            Err(e) => ParseResult::CommitErr(easy::Errors::from_errors(
+                pos,
+                vec![easy::Error::Message(e.err.to_string().into())],
+            ))
+            .into_result(),
+        }
     }
 }
 

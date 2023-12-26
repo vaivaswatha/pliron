@@ -14,11 +14,12 @@ use crate::dialect::{Dialect, DialectName};
 use crate::error::Result;
 use crate::identifier::Identifier;
 use crate::input_err;
-use crate::parsable::{spaced, to_parse_result, Parsable, ParserFn, StateStream};
+use crate::parsable::{spaced, IntoStdParseResult2, Parsable, ParserFn, StateStream};
 use crate::printable::{self, Printable};
 use crate::storage_uniquer::TypeValueHash;
 
-use combine::{easy, parser, ParseResult, Parser, Positioned};
+use combine::error::StdParseResult2;
+use combine::{easy, parser, ParseResult, Parser, Positioned, StreamOnce};
 use downcast_rs::{impl_downcast, Downcast};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
@@ -156,13 +157,14 @@ impl Parsable for TypeName {
     fn parse<'a>(
         state_stream: &mut crate::parsable::StateStream<'a>,
         _arg: Self::Arg,
-    ) -> combine::ParseResult<Self::Parsed, combine::easy::ParseError<StateStream<'a>>>
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
     where
         Self: Sized,
     {
         Identifier::parser(())
             .map(|name| TypeName::new(&name))
             .parse_stream(state_stream)
+            .into()
     }
 }
 
@@ -181,7 +183,7 @@ impl Parsable for TypeId {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
     where
         Self: Sized,
     {
@@ -189,7 +191,7 @@ impl Parsable for TypeId {
             .skip(parser::char::char('.'))
             .and(TypeName::parser(()))
             .map(|(dialect, name)| TypeId { dialect, name });
-        parser.parse_stream(state_stream)
+        parser.parse_stream(state_stream).into()
     }
 }
 
@@ -339,15 +341,10 @@ pub fn type_parse<'a>(
                 .get(&type_id.dialect)
                 .expect("Dialect name parsed but dialect isn't registered");
             let Some(type_parser) = dialect.types.get(&type_id) else {
-                return to_parse_result(
-                    input_err!("Unregistered type {}", type_id.disp(state.ctx)),
-                    position,
-                )
-                .into_result();
+                return input_err!("Unregistered type {}", type_id.disp(state.ctx))
+                    .into_pres2(position);
             };
-            spaced(type_parser(&(), ()))
-                .parse_stream(parsable_state)
-                .into_result()
+            type_parser(&(), ()).parse_stream(parsable_state).into()
         })
     });
 
@@ -399,7 +396,7 @@ mod test {
         let expected_err_msg = expect![[r#"
             Parse error at line: 1, column: 13
             Unexpected `a`
-            Expected `<` or whitespaces
+            Expected `<`
         "#]];
         expected_err_msg.assert_eq(&err_msg);
 

@@ -5,13 +5,16 @@ use crate::{
     error::Result,
     identifier::Identifier,
     impl_type, input_err,
-    parsable::{spaced, to_parse_result, Parsable, StateStream},
+    parsable::{spaced, IntoStdParseResult2, Parsable, StateStream},
     printable::{self, Printable, PrintableIter},
     r#type::{type_parser, Type, TypeObj},
     storage_uniquer::TypeValueHash,
     verify_err,
 };
-use combine::{between, easy, optional, parser::char::spaces, sep_by, token, ParseResult, Parser};
+use combine::{
+    between, error::StdParseResult2, optional, parser::char::spaces, sep_by, token, Parser,
+    StreamOnce,
+};
 use thiserror::Error;
 
 use std::hash::Hash;
@@ -46,7 +49,7 @@ impl Parsable for StructField {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>> {
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
         // Parse a single type annotated field.
         (
             spaced(Identifier::parser(())),
@@ -58,6 +61,7 @@ impl Parsable for StructField {
                 field_name,
                 field_type,
             })
+            .into()
     }
 }
 
@@ -257,7 +261,7 @@ impl Parsable for StructType {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
     where
         Self: Sized,
     {
@@ -280,22 +284,18 @@ impl Parsable for StructType {
         // A struct type is named or anonymous.
         let mut struct_parser = between(token('<'), token('>'), named.or(anonymous));
 
-        struct_parser
-            .parse_stream(state_stream)
-            .and_then(|(position, name_opt, body_opt)| {
-                let ctx = &mut state_stream.state.ctx;
-                if let Some(name) = name_opt {
-                    to_parse_result(StructType::get_named(ctx, &name, body_opt), position)
-                } else {
-                    to_parse_result(
-                        Ok(StructType::get_unnamed(
-                            ctx,
-                            body_opt.expect("Without a name, a struct type must have a body."),
-                        )),
-                        position,
-                    )
-                }
-            })
+        let (position, name_opt, body_opt) =
+            struct_parser.parse_stream(state_stream).into_result()?.0;
+        let ctx = &mut state_stream.state.ctx;
+        if let Some(name) = name_opt {
+            StructType::get_named(ctx, &name, body_opt).into_pres2(position)
+        } else {
+            Ok(StructType::get_unnamed(
+                ctx,
+                body_opt.expect("Without a name, a struct type must have a body."),
+            ))
+            .into_pres2(position)
+        }
     }
 }
 
@@ -346,13 +346,14 @@ impl Parsable for PointerType {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
     where
         Self: Sized,
     {
         combine::between(token('<'), token('>'), spaced(type_parser()))
             .parse_stream(state_stream)
             .map(|pointee_ty| PointerType::get(state_stream.state.ctx, pointee_ty))
+            .into()
     }
 }
 

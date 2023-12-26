@@ -26,7 +26,7 @@
 /// [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 use std::{fmt::Display, hash::Hash, ops::Deref};
 
-use combine::{easy, parser, ParseResult, Parser, Positioned};
+use combine::{easy, error::StdParseResult2, parser, ParseResult, Parser, Positioned, StreamOnce};
 use downcast_rs::{impl_downcast, Downcast};
 use intertrait::{cast::CastRef, CastFrom};
 
@@ -37,7 +37,7 @@ use crate::{
     error::Result,
     identifier::Identifier,
     input_err,
-    parsable::{spaced, to_parse_result, Parsable, ParserFn, StateStream},
+    parsable::{spaced, IntoStdParseResult2, Parsable, ParserFn, StateStream},
     printable::{self, Printable},
 };
 
@@ -154,13 +154,14 @@ impl Parsable for AttrName {
     fn parse<'a>(
         state_stream: &mut crate::parsable::StateStream<'a>,
         _arg: Self::Arg,
-    ) -> combine::ParseResult<Self::Parsed, combine::easy::ParseError<StateStream<'a>>>
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
     where
         Self: Sized,
     {
         Identifier::parser(())
             .map(|name| AttrName::new(&name))
             .parse_stream(state_stream)
+            .into()
     }
 }
 
@@ -203,7 +204,7 @@ impl Parsable for AttrId {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
     where
         Self: Sized,
     {
@@ -211,7 +212,7 @@ impl Parsable for AttrId {
             .skip(parser::char::char('.'))
             .and(AttrName::parser(()))
             .map(|(dialect, name)| AttrId { dialect, name });
-        parser.parse_stream(state_stream)
+        parser.parse_stream(state_stream).into()
     }
 }
 
@@ -231,13 +232,10 @@ pub fn attr_parse<'a>(
                 .get(&attr_id.dialect)
                 .expect("Dialect name parsed but dialect isn't registered");
             let Some(attr_parser) = dialect.attributes.get(&attr_id) else {
-                return to_parse_result(
-                    input_err!("Unregistered attribute {}", attr_id.disp(state.ctx)),
-                    position,
-                )
-                .into_result();
+                return input_err!("Unregistered attribute {}", attr_id.disp(state.ctx))
+                    .into_pres2(position);
             };
-            spaced(attr_parser(&(), ()))
+            attr_parser(&(), ())
                 .parse_stream(parsable_state)
                 .into_result()
         })

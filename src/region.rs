@@ -1,5 +1,7 @@
 //! Regions are containers for [BasicBlock]s within an [Operation].
-use combine::{easy, parser::char::spaces, token, ParseResult, Parser, Positioned};
+use combine::{
+    error::StdParseResult2, parser::char::spaces, token, Parser, Positioned, StreamOnce,
+};
 
 use crate::{
     basic_block::BasicBlock,
@@ -9,7 +11,7 @@ use crate::{
     indented_block,
     linked_list::{private, ContainsLinkedList},
     operation::Operation,
-    parsable::{self, to_parse_result, Parsable},
+    parsable::{self, IntoStdParseResult2, Parsable, StateStream},
     printable::{self, fmt_indented_newline, fmt_iter, ListSeparator, Printable},
 };
 
@@ -131,7 +133,7 @@ impl Parsable for Region {
     fn parse<'a>(
         state_stream: &mut parsable::StateStream<'a>,
         parent_op: Self::Arg,
-    ) -> ParseResult<Self::Parsed, easy::ParseError<parsable::StateStream<'a>>> {
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
         let position = state_stream.position();
         state_stream
             .state
@@ -150,20 +152,18 @@ impl Parsable for Region {
                 for block in blocks.iter() {
                     block.insert_at_back(region, state_stream.state.ctx);
                 }
-                to_parse_result(Ok(region), position).into_result()
+                Ok(region).into_pres2(position)
             })
         });
 
         let result = region_parser.parse_stream(state_stream);
 
-        if let Err(err) = state_stream
+        state_stream
             .state
             .name_tracker
             .exit_region(state_stream.state.ctx, parent_op)
-        {
-            return to_parse_result(Err(err), position);
-        }
+            .into_pres2(position)?;
 
-        result
+        result.into()
     }
 }

@@ -1,4 +1,4 @@
-use combine::{easy::ParseError, ParseResult, Positioned};
+use combine::{error::StdParseResult2, Positioned, StreamOnce};
 
 use crate::{
     common_traits::Verify,
@@ -11,7 +11,7 @@ use crate::{
     impl_op_interface, input_err,
     op::{Op, OpObj},
     operation::Operation,
-    parsable::{to_parse_result, Parsable, StateStream},
+    parsable::{IntoStdParseResult2, Parsable, StateStream},
     printable::{self, Printable},
     use_def_lists::Value,
 };
@@ -68,13 +68,11 @@ impl Parsable for ReturnOp {
     fn parse<'a>(
         state_stream: &mut crate::parsable::StateStream<'a>,
         results: Self::Arg,
-    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
         let position = state_stream.position();
         if !results.is_empty() {
-            return to_parse_result(
-                input_err!(ZeroResultVerifyErr(Self::get_opid_static().to_string())),
-                position,
-            );
+            return input_err!(ZeroResultVerifyErr(Self::get_opid_static().to_string()))
+                .into_pres2(position);
         }
 
         Identifier::parser(())
@@ -86,6 +84,7 @@ impl Parsable for ReturnOp {
                     .ssa_use(state_stream.state.ctx, &opd);
                 Box::new(Self::new_unlinked(state_stream.state.ctx, opd))
             })
+            .into()
     }
 }
 

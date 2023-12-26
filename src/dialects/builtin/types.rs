@@ -1,10 +1,12 @@
 use combine::{
-    between, choice, easy, many1,
+    between, choice,
+    error::StdParseResult2,
+    many1,
     parser::{
         char::digit,
         char::{spaces, string},
     },
-    sep_by, token, ParseResult, Parser, Positioned,
+    sep_by, token, Parser, Positioned, StreamOnce,
 };
 
 use crate::{
@@ -13,7 +15,7 @@ use crate::{
     dialect::Dialect,
     error::Result,
     impl_type,
-    parsable::{spaced, to_parse_result, Parsable, StateStream},
+    parsable::{spaced, IntoStdParseResult2, Parsable, StateStream},
     printable::{self, ListSeparator, Printable, PrintableIter},
     r#type::{type_parser, Type, TypeObj},
     storage_uniquer::TypeValueHash,
@@ -60,7 +62,7 @@ impl Parsable for IntegerType {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
     where
         Self: Sized,
     {
@@ -79,6 +81,7 @@ impl Parsable for IntegerType {
         parser
             .parse_stream(&mut state_stream.stream)
             .map(|(signedness, width)| IntegerType::get(state_stream.state.ctx, width, signedness))
+            .into()
     }
 }
 
@@ -172,7 +175,7 @@ impl Parsable for FunctionType {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
     where
         Self: Sized,
     {
@@ -196,6 +199,7 @@ impl Parsable for FunctionType {
         parser
             .parse_stream(state_stream)
             .map(|(inputs, results)| Self::get(state_stream.state.ctx, inputs, results))
+            .into()
     }
 }
 
@@ -234,14 +238,11 @@ impl Parsable for UnitType {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
     where
         Self: Sized,
     {
-        to_parse_result(
-            Ok(UnitType::get(state_stream.state.ctx)),
-            state_stream.position(),
-        )
+        Ok(UnitType::get(state_stream.state.ctx)).into_pres2(state_stream.position())
     }
 }
 

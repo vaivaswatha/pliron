@@ -2,8 +2,9 @@
 
 use combine::{
     between,
+    error::StdParseResult2,
     parser::{char::spaces, Parser},
-    sep_by, token, Positioned,
+    sep_by, token, Positioned, StreamOnce,
 };
 use rustc_hash::FxHashMap;
 
@@ -17,7 +18,7 @@ use crate::{
     indented_block,
     linked_list::{private, ContainsLinkedList, LinkedList},
     operation::Operation,
-    parsable::{self, spaced, to_parse_result, Parsable},
+    parsable::{self, spaced, IntoStdParseResult2, Parsable, StateStream},
     printable::{self, indented_nl, ListSeparator, Printable, PrintableIter},
     r#type::{type_parser, TypeObj},
     region::Region,
@@ -330,8 +331,7 @@ impl Parsable for BasicBlock {
     fn parse<'a>(
         state_stream: &mut parsable::StateStream<'a>,
         _arg: Self::Arg,
-    ) -> combine::ParseResult<Self::Parsed, combine::easy::ParseError<parsable::StateStream<'a>>>
-    {
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
         let position = state_stream.position();
         let arg = (
             Identifier::parser(()).skip(spaced(token(':'))),
@@ -349,35 +349,31 @@ impl Parsable for BasicBlock {
         ));
 
         let label = spaced(token('^').with(Identifier::parser(())));
-        let parsed = (label, args, ops).parse_stream(state_stream);
+        let (label, args, ops) = (label, args, ops)
+            .parse_stream(state_stream)
+            .into_result()?
+            .0;
+
         // We've parsed the components. Now construct the result.
-        parsed.and_then(|(label, args, ops)| {
-            let (arg_names, arg_types): (Vec<_>, Vec<_>) = args.into_iter().unzip();
-            let block = BasicBlock::new(state_stream.state.ctx, Some(label.clone()), arg_types);
-            for (arg_idx, name) in arg_names.iter().enumerate() {
-                let def: Value = (&block.deref(state_stream.state.ctx).args[arg_idx]).into();
-                if let Err(err) =
-                    state_stream
-                        .state
-                        .name_tracker
-                        .ssa_def(state_stream.state.ctx, name, def)
-                {
-                    return to_parse_result(Err(err), position);
-                }
-                set_block_arg_name(state_stream.state.ctx, block, arg_idx, name.to_string());
-            }
-            for op in ops {
-                op.insert_at_back(block, state_stream.state.ctx);
-            }
-            if let Err(err) =
-                state_stream
-                    .state
-                    .name_tracker
-                    .block_def(state_stream.state.ctx, &label, block)
-            {
-                return to_parse_result(Err(err), position);
-            }
-            to_parse_result(Ok(block), position)
-        })
+        let (arg_names, arg_types): (Vec<_>, Vec<_>) = args.into_iter().unzip();
+        let block = BasicBlock::new(state_stream.state.ctx, Some(label.clone()), arg_types);
+        for (arg_idx, name) in arg_names.iter().enumerate() {
+            let def: Value = (&block.deref(state_stream.state.ctx).args[arg_idx]).into();
+            state_stream
+                .state
+                .name_tracker
+                .ssa_def(state_stream.state.ctx, name, def)
+                .into_pres2(position)?;
+            set_block_arg_name(state_stream.state.ctx, block, arg_idx, name.to_string());
+        }
+        for op in ops {
+            op.insert_at_back(block, state_stream.state.ctx);
+        }
+        state_stream
+            .state
+            .name_tracker
+            .block_def(state_stream.state.ctx, &label, block)
+            .into_pres2(position)?;
+        Ok(block).into_pres2(position)
     }
 }

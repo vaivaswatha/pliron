@@ -1,4 +1,4 @@
-use combine::{easy::ParseError, token, ParseResult, Parser, Positioned};
+use combine::{error::StdParseResult2, token, Parser, Positioned, StreamOnce};
 use thiserror::Error;
 
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
     linked_list::ContainsLinkedList,
     op::{Op, OpObj},
     operation::Operation,
-    parsable::{spaced, to_parse_result, Parsable, StateStream},
+    parsable::{spaced, IntoStdParseResult2, Parsable, StateStream},
     printable::{self, Printable},
     r#type::{type_parser, TypeObj},
     region::Region,
@@ -75,14 +75,12 @@ impl Parsable for ModuleOp {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         results: Self::Arg,
-    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
         if !results.is_empty() {
-            return to_parse_result(
-                input_err!(op_interfaces::ZeroResultVerifyErr(
-                    Self::get_opid_static().to_string()
-                )),
-                state_stream.position(),
-            );
+            return input_err!(op_interfaces::ZeroResultVerifyErr(
+                Self::get_opid_static().to_string()
+            ))
+            .into_pres2(state_stream.position());
         }
         let op = Operation::new(
             state_stream.state.ctx,
@@ -100,6 +98,7 @@ impl Parsable for ModuleOp {
                 op.set_symbol_name(state_stream.state.ctx, &name);
                 op
             })
+            .into()
     }
 }
 
@@ -232,14 +231,12 @@ impl Parsable for FuncOp {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         results: Self::Arg,
-    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
         if !results.is_empty() {
-            return to_parse_result(
-                input_err!(op_interfaces::ZeroResultVerifyErr(
-                    Self::get_opid_static().to_string()
-                )),
-                state_stream.position(),
-            );
+            return input_err!(op_interfaces::ZeroResultVerifyErr(
+                Self::get_opid_static().to_string()
+            ))
+            .into_pres2(state_stream.position());
         }
 
         let op = Operation::new(
@@ -271,6 +268,7 @@ impl Parsable for FuncOp {
                 opop.set_symbol_name(ctx, &fname);
                 opop
             })
+            .into()
     }
 }
 
@@ -367,35 +365,34 @@ impl Parsable for ConstantOp {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         results: Self::Arg,
-    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
         let position = state_stream.position();
 
         if results.len() != 1 {
-            return to_parse_result(
-                input_err!(OneResultVerifyErr(Self::get_opid_static().to_string())),
-                position,
-            );
+            return input_err!(OneResultVerifyErr(Self::get_opid_static().to_string()))
+                .into_pres2(position);
         }
 
-        attr_parser()
-            .parse_stream(state_stream)
-            .and_then(|attr| -> ParseResult<OpObj, _> {
-                let op = Box::new(Self::new_unlinked(state_stream.state.ctx, attr));
-                if let Err(err) = state_stream.state.name_tracker.ssa_def(
-                    state_stream.state.ctx,
-                    &results[0],
-                    op.get_result(state_stream.state.ctx),
-                ) {
-                    return to_parse_result(Err(err), position);
-                }
-                set_operation_result_name(
-                    state_stream.state.ctx,
-                    op.get_operation(),
-                    0,
-                    results[0].to_string(),
-                );
-                to_parse_result(Ok(op), position)
-            })
+        let attr = attr_parser().parse_stream(state_stream).into_result()?.0;
+
+        let op = Box::new(Self::new_unlinked(state_stream.state.ctx, attr));
+        state_stream
+            .state
+            .name_tracker
+            .ssa_def(
+                state_stream.state.ctx,
+                &results[0],
+                op.get_result(state_stream.state.ctx),
+            )
+            .into_pres2(position)?;
+
+        set_operation_result_name(
+            state_stream.state.ctx,
+            op.get_operation(),
+            0,
+            results[0].to_string(),
+        );
+        Ok(op as OpObj).into_pres2(position)
     }
 }
 
@@ -464,15 +461,13 @@ impl Parsable for ForwardRefOp {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _results: Self::Arg,
-    ) -> ParseResult<Self::Parsed, ParseError<StateStream<'a>>> {
-        to_parse_result(
-            input_err!(ForwardRefOpExistenceErr(
-                ForwardRefOp::get_opid_static()
-                    .disp(state_stream.state.ctx)
-                    .to_string()
-            )),
-            state_stream.stream.position(),
-        )
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+        input_err!(ForwardRefOpExistenceErr(
+            ForwardRefOp::get_opid_static()
+                .disp(state_stream.state.ctx)
+                .to_string()
+        ))
+        .into_pres2(state_stream.stream.position())
     }
 }
 

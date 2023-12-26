@@ -24,7 +24,7 @@
 
 use std::{fmt::Display, ops::Deref};
 
-use combine::{easy, parser, ParseResult, Parser};
+use combine::{error::StdParseResult2, parser, Parser, StreamOnce};
 use downcast_rs::{impl_downcast, Downcast};
 use intertrait::{cast::CastRef, CastFrom};
 
@@ -76,13 +76,14 @@ impl Parsable for OpName {
     fn parse<'a>(
         state_stream: &mut crate::parsable::StateStream<'a>,
         _arg: Self::Arg,
-    ) -> combine::ParseResult<Self::Parsed, combine::easy::ParseError<StateStream<'a>>>
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
     where
         Self: Sized,
     {
         Identifier::parser(())
             .map(|name| OpName::new(&name))
             .parse_stream(state_stream)
+            .into()
     }
 }
 
@@ -118,7 +119,7 @@ impl Parsable for OpId {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> ParseResult<Self::Parsed, easy::ParseError<StateStream<'a>>>
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
     where
         Self: Sized,
     {
@@ -126,7 +127,7 @@ impl Parsable for OpId {
             .skip(parser::char::char('.'))
             .and(OpName::parser(()))
             .map(|(dialect, name)| OpId { dialect, name });
-        parser.parse_stream(state_stream)
+        parser.parse_stream(state_stream).into()
     }
 }
 

@@ -2,14 +2,14 @@
 
 use std::{fmt::Display, ops::Deref};
 
-use combine::{token, Parser};
+use combine::{error::StdParseResult2, token, Parser, StreamOnce};
 use thiserror::Error;
 
 use crate::{
     common_traits::Verify,
     context::Context,
     error,
-    parsable::{self, Parsable},
+    parsable::{self, Parsable, StateStream},
     printable::{self, Printable},
     verify_err,
 };
@@ -83,13 +83,15 @@ impl Parsable for Identifier {
     fn parse<'a>(
         state_stream: &mut parsable::StateStream<'a>,
         _arg: Self::Arg,
-    ) -> combine::ParseResult<Self::Parsed, combine::easy::ParseError<parsable::StateStream<'a>>>
-    {
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
         use combine::{many, parser::char};
         let parser = (char::letter().or(token('_')))
             .and(many::<String, _, _>(char::alpha_num().or(char::char('_'))))
             .map(|(c, rest)| c.to_string() + &rest);
 
-        parser.map(|str| str.into()).parse_stream(state_stream)
+        parser
+            .map(|str| str.into())
+            .parse_stream(state_stream)
+            .into()
     }
 }

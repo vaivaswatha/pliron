@@ -4,7 +4,9 @@
 
 use std::marker::PhantomData;
 
-use combine::{attempt, parser::char::spaces, token, Parser, Positioned};
+use combine::{
+    attempt, error::StdParseResult2, parser::char::spaces, token, Parser, Positioned, StreamOnce,
+};
 use rustc_hash::FxHashMap;
 use thiserror::Error;
 
@@ -19,7 +21,7 @@ use crate::{
     input_err,
     linked_list::{private, LinkedList},
     op::{self, OpId, OpObj},
-    parsable::{self, spaced, to_parse_result, Parsable, StateStream},
+    parsable::{self, spaced, IntoStdParseResult2, Parsable, StateStream},
     printable::{self, Printable},
     r#type::TypeObj,
     region::Region,
@@ -491,8 +493,7 @@ impl Parsable for Operation {
     fn parse<'a>(
         state_stream: &mut parsable::StateStream<'a>,
         _arg: Self::Arg,
-    ) -> combine::ParseResult<Self::Parsed, combine::easy::ParseError<parsable::StateStream<'a>>>
-    {
+    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
         let position = state_stream.stream.position();
 
         let results_opid = combine::optional(attempt(
@@ -515,11 +516,8 @@ impl Parsable for Operation {
                         .get(&opid.dialect)
                         .expect("Dialect name parsed but dialect isn't registered");
                     let Some(opid_parser) = dialect.ops.get(&opid) else {
-                        return to_parse_result(
-                            input_err!("Unregistered Op {}", opid.disp(state.ctx)),
-                            position,
-                        )
-                        .into_result();
+                        return input_err!("Unregistered Op {}", opid.disp(state.ctx))
+                            .into_pres2(position);
                     };
                     opid_parser(&(), results.clone().unwrap_or(vec![]))
                         .parse_stream(parsable_state)
@@ -528,5 +526,6 @@ impl Parsable for Operation {
                 })
             })
             .parse_stream(state_stream)
+            .into()
     }
 }
