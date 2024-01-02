@@ -11,6 +11,7 @@ use crate::{
     r#type::TypeObj,
     region::Region,
     storage_uniquer::UniqueStore,
+    uniqued_any::UniquedAny,
 };
 use rustc_hash::FxHashMap;
 use std::{
@@ -38,6 +39,8 @@ pub struct Context {
     pub ops: FxHashMap<OpId, OpCreator>,
     /// Storage for uniqued [TypeObj]s.
     pub type_store: UniqueStore<TypeObj>,
+    /// Storage for other uniqued objects.
+    pub(crate) uniqued_any_store: UniqueStore<UniquedAny>,
 
     #[cfg(test)]
     pub(crate) linked_list_store: crate::linked_list::tests::LinkedListTestArena,

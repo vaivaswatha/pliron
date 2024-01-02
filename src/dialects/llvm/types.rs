@@ -382,6 +382,7 @@ mod tests {
             llvm::types::{PointerType, StructErr, StructField, StructType},
         },
         error::{Error, ErrorKind, Result},
+        location,
         parsable::{self, state_stream_from_iterator},
         printable::Printable,
         r#type::{type_parser, Type},
@@ -499,7 +500,7 @@ mod tests {
 
         let state_stream = state_stream_from_iterator(
             "llvm.ptr <builtin.int <si64>>".chars(),
-            parsable::State::new(&mut ctx),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
         let res = type_parser().parse(state_stream).unwrap().0;
@@ -514,7 +515,7 @@ mod tests {
 
         let state_stream = state_stream_from_iterator(
             "llvm.struct <LinkedList { data: builtin.int <i64>, next: llvm.ptr <llvm.struct <LinkedList>> }>".chars(),
-            parsable::State::new(&mut ctx),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
         let res = type_parser().parse(state_stream).unwrap().0;
@@ -529,13 +530,13 @@ mod tests {
 
         let state_stream = state_stream_from_iterator(
             "llvm.struct < My1 { f1: builtin.int<i8> } >".chars(),
-            parsable::State::new(&mut ctx),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
         );
         let _ = type_parser().parse(state_stream).unwrap().0;
 
         let state_stream = state_stream_from_iterator(
             "llvm.struct < My1 { f1: builtin.int<i16> } >".chars(),
-            parsable::State::new(&mut ctx),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
         let res = type_parser().parse(state_stream);
@@ -549,7 +550,7 @@ mod tests {
 
         let state_stream = state_stream_from_iterator(
             "llvm.struct < My2 >".chars(),
-            parsable::State::new(&mut ctx),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
         );
         let res = type_parser().parse(state_stream).unwrap().0;
         matches!(

@@ -7,6 +7,7 @@ use pliron::{
         attributes::IntegerAttr, op_interfaces::OneResultInterface, ops::ConstantOp,
     },
     error::Result,
+    location,
     op::Op,
     operation::Operation,
     parsable::{self, spaced, state_stream_from_iterator, Parsable},
@@ -154,7 +155,10 @@ fn parse_simple() -> Result<()> {
 
     let ctx = &mut setup_context_dialects();
     let op = {
-        let state_stream = state_stream_from_iterator(input.chars(), parsable::State::new(ctx));
+        let state_stream = state_stream_from_iterator(
+            input.chars(),
+            parsable::State::new(ctx, location::Source::InMemory),
+        );
         spaced(Operation::parser(())).parse(state_stream).unwrap().0
     };
     println!("{}", op.disp(ctx));
@@ -163,7 +167,10 @@ fn parse_simple() -> Result<()> {
 
 fn expect_parse_error(input: &str, expected_err: Expect) {
     let ctx = &mut setup_context_dialects();
-    let state_stream = state_stream_from_iterator(input.chars(), parsable::State::new(ctx));
+    let state_stream = state_stream_from_iterator(
+        input.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
     let actual_err = spaced(Operation::parser(()))
         .parse(state_stream)
         .err()

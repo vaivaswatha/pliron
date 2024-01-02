@@ -3,8 +3,9 @@
 //! See [MLIR Attributes](https://mlir.llvm.org/docs/LangRef/#attributes).
 //! Unlike in MLIR, we do not unique attributes, and hence they are mutable.
 //! These are similar in concept to [Properties](https://discourse.llvm.org/t/rfc-introducing-mlir-operation-properties/67846).
-//! Attribute objects are heavy, boxed, and not wrapped with [Ptr](crate::context::Ptr).
-//! They may or may not be clonable. See [clone].
+//! Attribute objects are boxed and not wrapped with [Ptr](crate::context::Ptr).
+//! They are heavy (i.e., not just a pointer, handle or reference),
+//! making clones potentially expensive.
 //!
 //! The [impl_attr](crate::impl_attr) macro can be used to implement [Attribute] for a rust type.
 //!
@@ -26,8 +27,9 @@
 /// [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 use std::{fmt::Display, hash::Hash, ops::Deref};
 
-use combine::{easy, error::StdParseResult2, parser, ParseResult, Parser, Positioned, StreamOnce};
+use combine::{error::StdParseResult2, parser, Parser, Positioned, StreamOnce};
 use downcast_rs::{impl_downcast, Downcast};
+use dyn_clone::DynClone;
 use intertrait::{cast::CastRef, CastFrom};
 
 use crate::{
@@ -44,7 +46,7 @@ use crate::{
 /// Basic functionality that every attribute in the IR must implement.
 ///
 /// See [module](crate::attribute) documentation for more information.
-pub trait Attribute: Printable + Verify + Downcast + CastFrom + Sync {
+pub trait Attribute: Printable + Verify + Downcast + CastFrom + Sync + DynClone {
     /// Is self equal to an other Attribute?
     fn eq_attr(&self, other: &dyn Attribute) -> bool;
 
@@ -71,6 +73,7 @@ pub trait Attribute: Printable + Verify + Downcast + CastFrom + Sync {
     }
 }
 impl_downcast!(Attribute);
+dyn_clone::clone_trait_object!(Attribute);
 
 /// [Attribute] objects are boxed and stored in the IR.
 pub type AttrObj = Box<dyn Attribute>;
@@ -82,21 +85,6 @@ impl PartialEq for AttrObj {
 }
 
 impl Eq for AttrObj {}
-
-/// Clone clonable attributes.
-/// ```
-///     # use pliron::{attribute, dialects::builtin::
-///     #    {types::{IntegerType, Signedness}, attributes::IntegerAttr}, context::Context};
-///     # use apint::ApInt;
-///     # let mut ctx = Context::new();
-///     let i64_ty = IntegerType::get(&mut ctx, 32, Signedness::Signed);
-///     let int64 = IntegerAttr::create(i64_ty, ApInt::from_i64(0));
-///     let int64_clone = attribute::clone::<IntegerAttr>(&int64);
-///     assert!(int64 == int64_clone);
-/// ```
-pub fn clone<T: Clone + Attribute>(source: &AttrObj) -> AttrObj {
-    Box::new(source.downcast_ref::<T>().unwrap().clone())
-}
 
 impl Printable for AttrObj {
     fn fmt(
@@ -219,7 +207,7 @@ impl Parsable for AttrId {
 /// Parse an identified attribute, which is [AttrId] followed by its contents.
 pub fn attr_parse<'a>(
     state_stream: &mut StateStream<'a>,
-) -> ParseResult<AttrObj, easy::ParseError<StateStream<'a>>> {
+) -> StdParseResult2<AttrObj, <StateStream<'a> as StreamOnce>::Error> {
     let position = state_stream.stream.position();
     let attr_id_parser = spaced(AttrId::parser(()));
 
@@ -241,14 +229,13 @@ pub fn attr_parse<'a>(
         })
     });
 
-    attr_parser.parse_stream(state_stream)
+    attr_parser.parse_stream(state_stream).into_result()
 }
 
 /// A parser combinator to parse [AttrId] followed by the attribute's contents.
 pub fn attr_parser<'a>(
 ) -> Box<dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a> {
-    combine::parser(|parsable_state: &mut StateStream<'a>| attr_parse(parsable_state).into_result())
-        .boxed()
+    combine::parser(|parsable_state: &mut StateStream<'a>| attr_parse(parsable_state)).boxed()
 }
 
 /// Every attribute interface must have a function named `verify` with this type.
@@ -258,7 +245,7 @@ pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 ///
 /// Usage:
 /// ```
-/// #[derive(PartialEq, Eq)]
+/// #[derive(PartialEq, Eq, Clone)]
 /// struct MyAttr { }
 /// impl_attr!(
 ///     /// MyAttr is mine
@@ -341,7 +328,7 @@ macro_rules! impl_attr {
 ///
 /// Usage:
 /// ```
-/// #[derive(PartialEq, Eq)]
+/// #[derive(PartialEq, Eq, Clone)]
 /// struct MyAttr { }
 /// impl_attr!(
 ///     /// MyAttr is mine

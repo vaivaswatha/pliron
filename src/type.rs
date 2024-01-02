@@ -19,7 +19,7 @@ use crate::printable::{self, Printable};
 use crate::storage_uniquer::TypeValueHash;
 
 use combine::error::StdParseResult2;
-use combine::{easy, parser, ParseResult, Parser, Positioned, StreamOnce};
+use combine::{parser, Parser, Positioned, StreamOnce};
 use downcast_rs::{impl_downcast, Downcast};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
@@ -328,7 +328,7 @@ macro_rules! impl_type {
 /// Parse an identified type, which is [TypeId] followed by its contents.
 pub fn type_parse<'a>(
     state_stream: &mut StateStream<'a>,
-) -> ParseResult<Ptr<TypeObj>, easy::ParseError<StateStream<'a>>> {
+) -> StdParseResult2<Ptr<TypeObj>, <StateStream<'a> as StreamOnce>::Error> {
     let position = state_stream.stream.position();
     let type_id_parser = spaced(TypeId::parser(()));
 
@@ -348,14 +348,13 @@ pub fn type_parse<'a>(
         })
     });
 
-    type_parser.parse_stream(state_stream)
+    type_parser.parse_stream(state_stream).into_result()
 }
 
 /// A parser combinator to parse [TypeId] followed by the type's contents.
 pub fn type_parser<'a>(
 ) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
-    combine::parser(|parsable_state: &mut StateStream<'a>| type_parse(parsable_state).into())
-        .boxed()
+    combine::parser(|parsable_state: &mut StateStream<'a>| type_parse(parsable_state)).boxed()
 }
 
 #[cfg(test)]
@@ -364,7 +363,7 @@ mod test {
 
     use crate::{
         context::Context,
-        dialects,
+        dialects, location,
         parsable::{self, state_stream_from_iterator},
         printable::Printable,
         r#type::type_parser,
@@ -375,8 +374,10 @@ mod test {
         let mut ctx = Context::new();
         dialects::builtin::register(&mut ctx);
 
-        let state_stream =
-            state_stream_from_iterator("builtin.some".chars(), parsable::State::new(&mut ctx));
+        let state_stream = state_stream_from_iterator(
+            "builtin.some".chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
 
         let res = type_parser().parse(state_stream);
         let err_msg = format!("{}", res.err().unwrap());
@@ -387,8 +388,10 @@ mod test {
         "#]];
         expected_err_msg.assert_eq(&err_msg);
 
-        let state_stream =
-            state_stream_from_iterator("builtin.int a".chars(), parsable::State::new(&mut ctx));
+        let state_stream = state_stream_from_iterator(
+            "builtin.int a".chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
 
         let res = type_parser().parse(state_stream);
         let err_msg = format!("{}", res.err().unwrap());
@@ -402,7 +405,7 @@ mod test {
 
         let state_stream = state_stream_from_iterator(
             "builtin.int <si32>".chars(),
-            parsable::State::new(&mut ctx),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
         let parsed = type_parser().parse(state_stream).unwrap().0;

@@ -12,6 +12,7 @@ use crate::{
     error::Result,
     identifier::Identifier,
     input_err,
+    location::{self, Located},
     op::op_impls,
     operation::Operation,
     use_def_lists::Value,
@@ -25,7 +26,7 @@ use combine::{
         position::{self, SourcePosition},
         IteratorStream,
     },
-    ParseResult, Parser, Stream, StreamOnce,
+    ParseResult, Parser, Positioned, Stream, StreamOnce,
 };
 use rustc_hash::FxHashMap;
 use thiserror::Error;
@@ -36,13 +37,16 @@ use thiserror::Error;
 pub struct State<'a> {
     pub ctx: &'a mut Context,
     pub name_tracker: NameTracker,
+    pub src: location::Source,
 }
 
 impl<'a> State<'a> {
-    pub fn new(ctx: &'a mut Context) -> State {
+    /// Create a new [State] with an empty [NameTracker].
+    pub fn new(ctx: &'a mut Context, src: location::Source) -> State {
         State {
             ctx,
             name_tracker: NameTracker::default(),
+            src,
         }
     }
 }
@@ -70,6 +74,15 @@ pub type StateStream<'a> = stream::state::Stream<
     State<'a>,
 >;
 
+impl<'a> Located for StateStream<'a> {
+    fn location(&self) -> location::Location {
+        location::Location::SrcPos {
+            src: self.state.src,
+            pos: self.position(),
+        }
+    }
+}
+
 /// Any object that can be parsed from its [Printable](crate::printable::Printable) text.
 ///
 /// Implement [parse](Parsable::parse) and call [parser](Parsable::parser)
@@ -85,7 +98,8 @@ pub type StateStream<'a> = stream::state::Stream<
 ///     parser::char::digit, many1, error::StdParseResult2
 /// };
 /// use pliron::{context::Context, parsable::
-///     { state_stream_from_iterator, StateStream, Parsable, State}
+///     { state_stream_from_iterator, StateStream, Parsable, State},
+///     location::Source,
 /// };
 /// #[derive(PartialEq, Eq)]
 /// struct Number { n: u64 }
@@ -105,7 +119,7 @@ pub type StateStream<'a> = stream::state::Stream<
 ///     }
 /// }
 /// let mut ctx = Context::new();
-/// let state_stream = state_stream_from_iterator("100".chars(), State::new(&mut ctx));
+/// let state_stream = state_stream_from_iterator("100".chars(), State::new(&mut ctx, Source::InMemory));
 /// assert!(Number::parser(()).parse(state_stream).unwrap().0 == Number { n: 100 });
 ///
 /// ```
@@ -215,7 +229,7 @@ impl<'a, T> IntoStdParseResult2<'a, T> for Result<T> {
     }
 }
 
-/// Serves a similar purpose to what [ForwardRefOp] servies for SSA names.
+/// Serves a similar purpose to what [ForwardRefOp] serves for SSA names.
 enum LabelRef {
     ForwardRef(Ptr<BasicBlock>),
     Defined(Ptr<BasicBlock>),

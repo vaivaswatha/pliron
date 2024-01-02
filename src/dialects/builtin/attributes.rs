@@ -247,7 +247,7 @@ impl Parsable for FloatAttr {
 /// Implemented as a key-sorted list of key value pairs.
 /// Efficient only for small number of keys.
 /// Similar to MLIR's [DictionaryAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#dictionaryattr),
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct SmallDictAttr(SortedVectorMap<&'static str, AttrObj>);
 impl_attr!(SmallDictAttr, "small_dict", "builtin");
 
@@ -324,7 +324,7 @@ impl SmallDictAttr {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct VecAttr(pub Vec<AttrObj>);
 impl_attr!(VecAttr, "vec", "builtin");
 
@@ -471,7 +471,7 @@ mod tests {
     use expect_test::expect;
 
     use crate::{
-        attribute::{self, attr_cast, attr_parser},
+        attribute::{attr_cast, attr_parser},
         context::Context,
         dialects::{
             self,
@@ -481,6 +481,7 @@ mod tests {
                 types::{IntegerType, Signedness},
             },
         },
+        location,
         parsable::{self, state_stream_from_iterator},
         printable::Printable,
     };
@@ -534,21 +535,25 @@ mod tests {
         );
 
         let attr_input = "builtin.string \"hello\"";
-        let state_stream =
-            state_stream_from_iterator(attr_input.chars(), parsable::State::new(&mut ctx));
+        let state_stream = state_stream_from_iterator(
+            attr_input.chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
         let attr = attr_parser().parse(state_stream).unwrap().0;
         assert_eq!(attr.disp(&ctx).to_string(), attr_input);
 
         let attr_input = "builtin.string \"hello \\\"world\\\"\"";
-        let state_stream =
-            state_stream_from_iterator(attr_input.chars(), parsable::State::new(&mut ctx));
+        let state_stream = state_stream_from_iterator(
+            attr_input.chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
         let attr_parsed = attr_parser().parse(state_stream).unwrap().0;
         assert_eq!(attr_parsed.disp(&ctx).to_string(), attr_input,);
 
         // Unsupported escaped character.
         let state_stream = state_stream_from_iterator(
             "builtin.string \"hello \\k \"".chars(),
-            parsable::State::new(&mut ctx),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
         );
         let res = attr_parser().parse(state_stream);
         let err_msg = format!("{}", res.err().unwrap());
@@ -565,14 +570,14 @@ mod tests {
         let world_attr = StringAttr::create("world".to_string());
 
         let mut dict1 = SmallDictAttr::create(vec![
-            ("hello", attribute::clone::<StringAttr>(&hello_attr)),
-            ("world", attribute::clone::<StringAttr>(&world_attr)),
+            ("hello", hello_attr.clone()),
+            ("world", world_attr.clone()),
         ]);
         let mut dict2 =
             SmallDictAttr::create(vec![("hello", StringAttr::create("hello".to_string()))]);
         let dict1_rev = SmallDictAttr::create(vec![
-            ("world", attribute::clone::<StringAttr>(&world_attr)),
-            ("hello", attribute::clone::<StringAttr>(&hello_attr)),
+            ("world", world_attr.clone()),
+            ("hello", hello_attr.clone()),
         ]);
         assert!(&dict1 != &dict2);
         assert!(dict1 == dict1_rev);
@@ -595,10 +600,7 @@ mod tests {
         let hello_attr = StringAttr::create("hello".to_string());
         let world_attr = StringAttr::create("world".to_string());
 
-        let vec_attr = VecAttr::create(vec![
-            attribute::clone::<StringAttr>(&hello_attr),
-            attribute::clone::<StringAttr>(&world_attr),
-        ]);
+        let vec_attr = VecAttr::create(vec![hello_attr.clone(), world_attr.clone()]);
         let vec = vec_attr.downcast_ref::<VecAttr>().unwrap();
         assert!(vec.0.len() == 2 && vec.0[0] == hello_attr && vec.0[1] == world_attr);
     }
@@ -615,8 +617,10 @@ mod tests {
         assert!(ty_interface.get_type() == ty);
 
         let ty_attr = ty_attr.disp(&ctx).to_string();
-        let state_stream =
-            state_stream_from_iterator(ty_attr.chars(), parsable::State::new(&mut ctx));
+        let state_stream = state_stream_from_iterator(
+            ty_attr.chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
         let ty_attr_parsed = attr_parser().parse(state_stream).unwrap().0;
         assert_eq!(ty_attr_parsed.disp(&ctx).to_string(), ty_attr);
     }

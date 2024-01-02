@@ -2,7 +2,7 @@ use combine::{error::StdParseResult2, token, Parser, Positioned, StreamOnce};
 use thiserror::Error;
 
 use crate::{
-    attribute::{self, attr_cast, attr_parser, AttrObj},
+    attribute::{attr_cast, attr_parser, AttrObj},
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
     context::{Context, Ptr},
@@ -320,12 +320,7 @@ impl ConstantOp {
     /// Get the constant value that this Op defines.
     pub fn get_value(&self, ctx: &Context) -> AttrObj {
         let op = self.get_operation().deref(ctx);
-        let value = op.attributes.get(Self::ATTR_KEY_VALUE).unwrap();
-        if value.is::<IntegerAttr>() {
-            attribute::clone::<IntegerAttr>(value)
-        } else {
-            attribute::clone::<FloatAttr>(value)
-        }
+        op.attributes.get(Self::ATTR_KEY_VALUE).unwrap().clone()
     }
 
     /// Create a new [ConstantOp]. The underlying [Operation] is not linked to a [BasicBlock].

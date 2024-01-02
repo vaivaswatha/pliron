@@ -270,6 +270,7 @@ mod tests {
             self,
             builtin::types::{IntegerType, Signedness},
         },
+        location,
         parsable::{self, state_stream_from_iterator, Parsable},
     };
     #[test]
@@ -311,8 +312,10 @@ mod tests {
     #[test]
     fn test_integer_parsing() {
         let mut ctx = Context::new();
-        let state_stream =
-            state_stream_from_iterator("<si64>".chars(), parsable::State::new(&mut ctx));
+        let state_stream = state_stream_from_iterator(
+            "<si64>".chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
 
         let res = IntegerType::parser(())
             .and(eof())
@@ -327,7 +330,10 @@ mod tests {
     fn test_integer_parsing_errs() {
         let mut ctx = Context::new();
         let a = "<asi64>".to_string();
-        let state_stream = state_stream_from_iterator(a.chars(), parsable::State::new(&mut ctx));
+        let state_stream = state_stream_from_iterator(
+            a.chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
 
         let res = IntegerType::parser(()).parse(state_stream);
         let err_msg = format!("{}", res.err().unwrap());
@@ -349,7 +355,7 @@ mod tests {
 
         let state_stream = state_stream_from_iterator(
             "<() -> (builtin.int <si32>)>".chars(),
-            parsable::State::new(&mut ctx),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
         let res = FunctionType::parser(())

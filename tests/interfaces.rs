@@ -111,7 +111,7 @@ pub trait TestAttrInterface: Attribute {
 impl_op_interface!(TestAttrInterface for StringAttr {});
 impl_op_interface!(TestAttrInterface for pliron::dialects::builtin::attributes::IntegerAttr {});
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 struct MyAttr {
     ty: Ptr<TypeObj>,
 }

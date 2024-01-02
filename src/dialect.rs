@@ -160,7 +160,7 @@ mod test {
 
     use crate::{
         context::Context,
-        dialects,
+        dialects, location,
         parsable::{self, state_stream_from_iterator, Parsable},
         printable::Printable,
     };
@@ -172,8 +172,10 @@ mod test {
         let mut ctx = Context::new();
         dialects::builtin::register(&mut ctx);
 
-        let state_stream =
-            state_stream_from_iterator("non_existant".chars(), parsable::State::new(&mut ctx));
+        let state_stream = state_stream_from_iterator(
+            "non_existant".chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
 
         let res = DialectName::parser(()).parse(state_stream);
         let err_msg = format!("{}", res.err().unwrap());
@@ -184,8 +186,10 @@ mod test {
         "#]];
         expected_err_msg.assert_eq(&err_msg);
 
-        let state_stream =
-            state_stream_from_iterator("builtin".chars(), parsable::State::new(&mut ctx));
+        let state_stream = state_stream_from_iterator(
+            "builtin".chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
 
         let parsed = DialectName::parser(()).parse(state_stream).unwrap().0;
         assert_eq!(parsed.disp(&ctx).to_string(), "builtin");
