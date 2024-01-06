@@ -94,17 +94,6 @@ impl PartialEq for AttrObj {
 
 impl Eq for AttrObj {}
 
-impl Printable for AttrObj {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        Printable::fmt(self.as_ref(), ctx, state, f)
-    }
-}
-
 /// Cast reference to an [Attribute] object to an interface reference.
 pub fn attr_cast<T: ?Sized + Attribute>(attr: &dyn Attribute) -> Option<&T> {
     attr.cast::<T>()

@@ -429,7 +429,7 @@ impl NameTracker {
         // Check if there are any unresolved forward label references.
         for (id, op) in label_scope {
             if matches!(op, LabelRef::ForwardRef(_)) {
-                input_err!(loc.clone(), UnresolvedReference(id.clone()))?
+                return input_err!(loc.clone(), UnresolvedReference(id.clone()))?;
             }
         }
 

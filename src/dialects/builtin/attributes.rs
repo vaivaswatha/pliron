@@ -17,7 +17,7 @@ use crate::{
     location::Located,
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{type_parser, TypeObj},
+    r#type::{type_parser, TypeObj, Typed},
     verify_err_noloc,
 };
 
@@ -176,6 +176,12 @@ impl Parsable for IntegerAttr {
     }
 }
 
+impl Typed for IntegerAttr {
+    fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
+        self.ty
+    }
+}
+
 impl_attr_interface!(TypedAttrInterface for IntegerAttr {
     fn get_type(&self) -> Ptr<TypeObj> {
         self.ty
@@ -220,6 +226,12 @@ impl FloatAttr {
 impl From<FloatAttr> for APFloat {
     fn from(value: FloatAttr) -> Self {
         value.0
+    }
+}
+
+impl Typed for FloatAttr {
+    fn get_type(&self, _cfg: &Context) -> Ptr<TypeObj> {
+        TypedAttrInterface::get_type(self)
     }
 }
 
@@ -445,6 +457,12 @@ impl Parsable for TypeAttr {
 impl Verify for TypeAttr {
     fn verify(&self, _ctx: &Context) -> Result<()> {
         Ok(())
+    }
+}
+
+impl Typed for TypeAttr {
+    fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
+        self.0
     }
 }
 

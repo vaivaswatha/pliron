@@ -18,7 +18,7 @@ use crate::{
     operation::{process_parsed_ssa_defs, Operation},
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{type_parser, TypeObj},
+    r#type::{type_parser, TypeObj, Typed},
     region::Region,
     verify_err,
 };
@@ -199,6 +199,12 @@ impl FuncOp {
             .deref(ctx)
             .iter(ctx)
             .flat_map(|bb| bb.deref(ctx).iter(ctx))
+    }
+}
+
+impl Typed for FuncOp {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        self.get_type(ctx)
     }
 }
 

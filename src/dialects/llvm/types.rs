@@ -1,4 +1,5 @@
 use crate::{
+    asmfmt::printers::list_with_sep,
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
@@ -7,7 +8,7 @@ use crate::{
     impl_type, input_err_noloc,
     location::{Located, Location},
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
-    printable::{self, Printable, PrintableIter},
+    printable::{self, ListSeparator, Printable},
     r#type::{type_parser, Type, TypeObj},
     verify_err_noloc,
 };
@@ -206,9 +207,7 @@ impl Printable for StructType {
         write!(
             f,
             "{{ {} }}",
-            self.fields
-                .iter()
-                .iprint(ctx, state, printable::ListSeparator::CharSpace(','))
+            list_with_sep(&self.fields, ListSeparator::CharSpace(',')).print(ctx, state)
         )?;
 
         // Done processing this struct. Remove it from the stack.

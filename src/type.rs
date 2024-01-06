@@ -280,17 +280,6 @@ impl ArenaObj for TypeObj {
     }
 }
 
-impl Printable for TypeObj {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        Printable::fmt(self.as_ref(), ctx, state, f)
-    }
-}
-
 impl Verify for TypeObj {
     fn verify(&self, ctx: &Context) -> Result<()> {
         self.as_ref().verify(ctx)

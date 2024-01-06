@@ -28,5 +28,9 @@ combine = "4.6.6"
 regex = "1.10.2"
 dyn-clone = "1.0.16"
 
+pliron-derive = { path = "derive" }
+
+
 [dev-dependencies]
 expect-test = "1.4.0"
+

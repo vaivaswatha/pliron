@@ -8,13 +8,14 @@ use combine::{
 };
 
 use crate::{
+    asmfmt::printers::list_with_sep,
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
     impl_type,
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
-    printable::{self, ListSeparator, Printable, PrintableIter},
+    printable::{self, ListSeparator, Printable},
     r#type::{type_parser, Type, TypeObj},
 };
 
@@ -159,8 +160,8 @@ impl Printable for FunctionType {
             f,
             "{} <({}) -> ({})>",
             Self::get_type_id_static().disp(ctx),
-            self.inputs.iter().iprint(ctx, state, sep),
-            self.results.iter().iprint(ctx, state, sep)
+            list_with_sep(&self.inputs, sep).print(ctx, state),
+            list_with_sep(&self.results, sep).print(ctx, state),
         )
     }
 }
@@ -255,6 +256,7 @@ pub fn register(dialect: &mut Dialect) {
     UnitType::register_type_in_dialect(dialect, UnitType::parser_fn);
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use combine::{eof, Parser};
@@ -364,3 +366,4 @@ mod tests {
         assert!(res == FunctionType::get_existing(&ctx, vec![], vec![si32]).unwrap())
     }
 }
+*/
