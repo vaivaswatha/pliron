@@ -222,7 +222,7 @@ impl<'a, T> IntoStdParseResult2<'a, T> for Result<T> {
             Ok(t) => ParseResult::CommitOk(t).into(),
             Err(e) => ParseResult::CommitErr(easy::Errors::from_errors(
                 pos,
-                vec![easy::Error::Message(e.err.to_string().into())],
+                vec![easy::Error::Other(e.err)],
             ))
             .into(),
         }

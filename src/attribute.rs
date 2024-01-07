@@ -25,7 +25,11 @@
 //!
 //! [AttrObj]s can be downcasted to their concrete types using
 /// [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
-use std::{fmt::Display, hash::Hash, ops::Deref};
+use std::{
+    fmt::{Debug, Display},
+    hash::Hash,
+    ops::Deref,
+};
 
 use combine::{error::StdParseResult2, parser, Parser, Positioned, StreamOnce};
 use downcast_rs::{impl_downcast, Downcast};
@@ -46,7 +50,7 @@ use crate::{
 /// Basic functionality that every attribute in the IR must implement.
 ///
 /// See [module](crate::attribute) documentation for more information.
-pub trait Attribute: Printable + Verify + Downcast + CastFrom + Sync + DynClone {
+pub trait Attribute: Printable + Verify + Downcast + CastFrom + Sync + DynClone + Debug {
     /// Is self equal to an other Attribute?
     fn eq_attr(&self, other: &dyn Attribute) -> bool;
 
@@ -93,7 +97,7 @@ impl Printable for AttrObj {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        self.as_ref().fmt(ctx, state, f)
+        Printable::fmt(self.as_ref(), ctx, state, f)
     }
 }
 
@@ -245,7 +249,7 @@ pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 ///
 /// Usage:
 /// ```
-/// #[derive(PartialEq, Eq, Clone)]
+/// #[derive(PartialEq, Eq, Clone, Debug)]
 /// struct MyAttr { }
 /// impl_attr!(
 ///     /// MyAttr is mine
@@ -328,7 +332,7 @@ macro_rules! impl_attr {
 ///
 /// Usage:
 /// ```
-/// #[derive(PartialEq, Eq, Clone)]
+/// #[derive(PartialEq, Eq, Clone, Debug)]
 /// struct MyAttr { }
 /// impl_attr!(
 ///     /// MyAttr is mine

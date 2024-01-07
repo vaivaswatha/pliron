@@ -26,7 +26,7 @@ use super::{attr_interfaces::TypedAttrInterface, types::IntegerType};
 
 /// An attribute containing a string.
 /// Similar to MLIR's [StringAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#stringattr).
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct StringAttr(String);
 impl_attr!(StringAttr, "string", "builtin");
 
@@ -104,7 +104,7 @@ impl Parsable for StringAttr {
 
 /// An attribute containing an integer.
 /// Similar to MLIR's [IntegerAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#integerattr).
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct IntegerAttr {
     ty: Ptr<TypeObj>,
     val: ApInt,
@@ -183,13 +183,13 @@ impl_attr_interface!(TypedAttrInterface for IntegerAttr {
 });
 
 /// A dummy implementation until we have a good one.
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct APFloat();
 
 /// An attribute containing an floating point value.
 /// Similar to MLIR's [FloatAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#floatattr).
 /// TODO: Use rustc's APFloat.
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct FloatAttr(APFloat);
 impl_attr!(FloatAttr, "float", "builtin");
 
@@ -247,7 +247,7 @@ impl Parsable for FloatAttr {
 /// Implemented as a key-sorted list of key value pairs.
 /// Efficient only for small number of keys.
 /// Similar to MLIR's [DictionaryAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#dictionaryattr),
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct SmallDictAttr(SortedVectorMap<&'static str, AttrObj>);
 impl_attr!(SmallDictAttr, "small_dict", "builtin");
 
@@ -324,7 +324,7 @@ impl SmallDictAttr {
     }
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct VecAttr(pub Vec<AttrObj>);
 impl_attr!(VecAttr, "vec", "builtin");
 
@@ -365,7 +365,7 @@ impl Parsable for VecAttr {
 
 /// Represent attributes that only have meaning from their existence.
 /// See [UnitAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#unitattr) in MLIR.
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct UnitAttr();
 impl_attr!(UnitAttr, "unit", "builtin");
 
@@ -406,7 +406,7 @@ impl Parsable for UnitAttr {
 
 /// An attribute that does nothing but hold a Type.
 /// Same as MLIR's [TypeAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#typeattr).
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct TypeAttr(Ptr<TypeObj>);
 impl_attr!(TypeAttr, "type", "builtin");
 

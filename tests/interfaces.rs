@@ -81,7 +81,8 @@ fn check_intrf_verfiy_errs() {
         module_op.get_operation().verify(ctx),
         Err(Error {
             kind: ErrorKind::VerificationFailed,
-            err
+            err,
+            loc: _,
         })
         if err.is::<OneResultVerifyErr>()
     ))
@@ -111,7 +112,7 @@ pub trait TestAttrInterface: Attribute {
 impl_op_interface!(TestAttrInterface for StringAttr {});
 impl_op_interface!(TestAttrInterface for pliron::dialects::builtin::attributes::IntegerAttr {});
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 struct MyAttr {
     ty: Ptr<TypeObj>,
 }

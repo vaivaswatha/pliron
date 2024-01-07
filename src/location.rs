@@ -1,6 +1,6 @@
 //! Source location for different IR entities
 
-use std::path::PathBuf;
+use std::{fmt::Debug, path::PathBuf};
 
 use combine::stream::position::SourcePosition;
 
@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// Where is the source program?
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Source {
     /// Program being read from a file.
     File(UniquedKey<PathBuf>),
@@ -41,7 +41,7 @@ impl Printable for Source {
 /// This captures more or less the functionality of MLIR's
 /// [BuiltinLocationAttributes](https://mlir.llvm.org/docs/Dialects/Builtin/#location-attributes).
 /// For simplicity, unlike in MLIR, [Location] is not extensible.
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Location {
     /// A [Source] along with a [position](SourcePosition) within it.
     /// This is same as MLIR's [FileLineColLoc](https://mlir.llvm.org/docs/Dialects/Builtin/#filelinecolloc).

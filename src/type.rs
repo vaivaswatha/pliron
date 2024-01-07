@@ -21,6 +21,7 @@ use crate::storage_uniquer::TypeValueHash;
 use combine::error::StdParseResult2;
 use combine::{parser, Parser, Positioned, StreamOnce};
 use downcast_rs::{impl_downcast, Downcast};
+use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -47,7 +48,7 @@ use std::ops::Deref;
 ///   1. It manually implements Hash, ignoring these mutable fields.
 ///   2. A proper distinguisher content (such as a string), that is part
 ///      of the hash, is used so that uniquing still works.
-pub trait Type: Printable + Verify + Downcast + Sync {
+pub trait Type: Printable + Verify + Downcast + Sync + Debug {
     /// Compute and get the hash for this instance of Self.
     /// Hash collisions can be a possibility.
     fn hash_type(&self) -> TypeValueHash;
@@ -249,7 +250,7 @@ impl Printable for TypeObj {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        self.as_ref().fmt(ctx, state, f)
+        Printable::fmt(self.as_ref(), ctx, state, f)
     }
 }
 
@@ -263,7 +264,7 @@ impl Verify for TypeObj {
 ///
 /// Usage:
 /// ```
-/// #[derive(PartialEq, Eq, Hash)]
+/// #[derive(PartialEq, Eq, Hash, Debug)]
 /// struct MyType { }
 /// impl_type!(
 ///     /// MyType is mine

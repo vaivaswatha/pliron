@@ -2,6 +2,8 @@
 
 use thiserror::Error;
 
+use crate::location::Location;
+
 /// The kinds of errors we have during compilation.
 #[derive(Debug, Error)]
 pub enum ErrorKind {
@@ -16,7 +18,8 @@ pub enum ErrorKind {
 #[error("Compilation error: {kind}.\n{err}")]
 pub struct Error {
     pub kind: ErrorKind,
-    pub err: Box<dyn std::error::Error>,
+    pub err: Box<dyn std::error::Error + Send + Sync>,
+    pub loc: Location,
 }
 
 /// Type alias for [std::result::Result] with the error type set to [struct@Error]
@@ -40,6 +43,7 @@ macro_rules! create_err {
         Err($crate::error::Error {
             kind: $kind,
             err: Box::new($err),
+            loc: $crate::location::Location::Unknown,
         })
     };
 }
@@ -59,7 +63,8 @@ macro_rules! create_err {
 ///         verify_err!(SampleErr),
 ///         Result::<()>::Err(Error {
 ///            kind: ErrorKind::VerificationFailed,
-///            err
+///            err,
+///            loc: _,
 ///         }) if err.is::<SampleErr>()
 /// ));
 ///
@@ -91,7 +96,8 @@ macro_rules! verify_err {
 ///         input_err!(SampleErr),
 ///         Result::<()>::Err(Error {
 ///            kind: ErrorKind::InvalidInput,
-///            err
+///            err,
+///            loc: _,
 ///         }) if err.is::<SampleErr>()
 /// ));
 ///

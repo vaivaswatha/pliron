@@ -11,7 +11,7 @@ use crate::{
 pub(crate) struct UniquedAny(Box<dyn Any>);
 
 /// A handle to the stored unique copy of an object.
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub struct UniquedKey<T> {
     index: ArenaIndex,
     _dummy: PhantomData<T>,

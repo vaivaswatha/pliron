@@ -21,14 +21,14 @@ use crate::{
     storage_uniquer::TypeValueHash,
 };
 
-#[derive(Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Signedness {
     Signed,
     Unsigned,
     Signless,
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 pub struct IntegerType {
     width: u64,
     signedness: Signedness,
@@ -112,7 +112,7 @@ impl Verify for IntegerType {
 ///
 /// See MLIR's [FunctionType](https://mlir.llvm.org/docs/Dialects/Builtin/#functiontype).
 ///
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FunctionType {
     /// Function arguments / inputs.
     inputs: Vec<Ptr<TypeObj>>,
@@ -209,7 +209,7 @@ impl Verify for FunctionType {
     }
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 pub struct UnitType;
 impl_type!(UnitType, "unit", "builtin");
 

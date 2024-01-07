@@ -20,7 +20,7 @@ use thiserror::Error;
 use std::hash::Hash;
 
 /// A field in a [StructType].
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct StructField {
     pub field_name: Identifier,
     pub field_type: Ptr<TypeObj>,
@@ -73,6 +73,7 @@ impl Parsable for StructField {
 ///      Call "set_fields" after creation to set recursive types.
 ///   3. LLVM calls anonymous structs as literal structs and
 ///      named structs as identified structs.
+#[derive(Debug)]
 pub struct StructType {
     name: Option<String>,
     fields: Vec<StructField>,
@@ -301,7 +302,7 @@ impl Parsable for StructType {
 
 impl Eq for StructType {}
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 pub struct PointerType {
     to: Ptr<TypeObj>,
 }
@@ -555,7 +556,7 @@ mod tests {
         let res = type_parser().parse(state_stream).unwrap().0;
         matches!(
             &res.verify(&ctx),
-            Err (Error { kind: ErrorKind::VerificationFailed, err })
+            Err (Error { kind: ErrorKind::VerificationFailed, err, loc: _ })
                 if err.is::<StructErr>()
         );
     }
