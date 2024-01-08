@@ -31,7 +31,7 @@ use std::{
     ops::Deref,
 };
 
-use combine::{error::StdParseResult2, parser, Parser, StreamOnce};
+use combine::{parser, Parser};
 use downcast_rs::{impl_downcast, Downcast};
 use dyn_clone::DynClone;
 use intertrait::{cast::CastRef, CastFrom};
@@ -44,7 +44,7 @@ use crate::{
     identifier::Identifier,
     input_err,
     location::Located,
-    parsable::{spaced, Parsable, ParserFn, StateStream},
+    parsable::{spaced, Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
 };
 
@@ -147,7 +147,7 @@ impl Parsable for AttrName {
     fn parse<'a>(
         state_stream: &mut crate::parsable::StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
+    ) -> ParseResult<'a, Self::Parsed>
     where
         Self: Sized,
     {
@@ -197,7 +197,7 @@ impl Parsable for AttrId {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
+    ) -> ParseResult<'a, Self::Parsed>
     where
         Self: Sized,
     {
@@ -210,9 +210,7 @@ impl Parsable for AttrId {
 }
 
 /// Parse an identified attribute, which is [AttrId] followed by its contents.
-pub fn attr_parse<'a>(
-    state_stream: &mut StateStream<'a>,
-) -> StdParseResult2<AttrObj, <StateStream<'a> as StreamOnce>::Error> {
+pub fn attr_parse<'a>(state_stream: &mut StateStream<'a>) -> ParseResult<'a, AttrObj> {
     let loc = state_stream.loc();
     let attr_id_parser = spaced(AttrId::parser(()));
 

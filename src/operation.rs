@@ -4,9 +4,7 @@
 
 use std::marker::PhantomData;
 
-use combine::{
-    attempt, error::StdParseResult2, parser::char::spaces, position, token, Parser, StreamOnce,
-};
+use combine::{attempt, parser::char::spaces, position, token, Parser};
 use rustc_hash::FxHashMap;
 use thiserror::Error;
 
@@ -22,7 +20,7 @@ use crate::{
     linked_list::{private, LinkedList},
     location::{Located, Location},
     op::{self, OpId, OpObj},
-    parsable::{self, spaced, Parsable, StateStream},
+    parsable::{self, spaced, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::TypeObj,
     region::Region,
@@ -508,7 +506,7 @@ impl Parsable for Operation {
     fn parse<'a>(
         state_stream: &mut parsable::StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         let loc = state_stream.loc();
         let src = loc
             .source()

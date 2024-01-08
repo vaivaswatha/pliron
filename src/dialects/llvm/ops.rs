@@ -1,5 +1,3 @@
-use combine::{error::StdParseResult2, StreamOnce};
-
 use crate::{
     common_traits::Verify,
     context::Context,
@@ -12,7 +10,7 @@ use crate::{
     location::{Located, Location},
     op::{Op, OpObj},
     operation::Operation,
-    parsable::{Parsable, StateStream},
+    parsable::{Parsable, ParseResult},
     printable::{self, Printable},
     use_def_lists::Value,
 };
@@ -69,7 +67,7 @@ impl Parsable for ReturnOp {
     fn parse<'a>(
         state_stream: &mut crate::parsable::StateStream<'a>,
         results: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         if !results.is_empty() {
             input_err!(
                 state_stream.loc(),

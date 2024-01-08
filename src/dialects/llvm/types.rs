@@ -6,16 +6,13 @@ use crate::{
     identifier::Identifier,
     impl_type, input_err_noloc,
     location::{Located, Location},
-    parsable::{spaced, IntoStdParseResult2, Parsable, StateStream},
+    parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable, PrintableIter},
     r#type::{type_parser, Type, TypeObj},
     storage_uniquer::TypeValueHash,
     verify_err_noloc,
 };
-use combine::{
-    between, error::StdParseResult2, optional, parser::char::spaces, sep_by, token, Parser,
-    StreamOnce,
-};
+use combine::{between, optional, parser::char::spaces, sep_by, token, Parser};
 use thiserror::Error;
 
 use std::hash::Hash;
@@ -50,7 +47,7 @@ impl Parsable for StructField {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         // Parse a single type annotated field.
         (
             spaced(Identifier::parser(())),
@@ -263,7 +260,7 @@ impl Parsable for StructType {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
+    ) -> ParseResult<'a, Self::Parsed>
     where
         Self: Sized,
     {
@@ -299,13 +296,13 @@ impl Parsable for StructType {
                     err.set_loc(loc);
                     err
                 })
-                .into_pres2()
+                .into_parse_result()
         } else {
             Ok(StructType::get_unnamed(
                 ctx,
                 body_opt.expect("Without a name, a struct type must have a body."),
             ))
-            .into_pres2()
+            .into_parse_result()
         }
     }
 }
@@ -357,7 +354,7 @@ impl Parsable for PointerType {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
+    ) -> ParseResult<'a, Self::Parsed>
     where
         Self: Sized,
     {

@@ -2,9 +2,8 @@
 
 use combine::{
     between,
-    error::StdParseResult2,
     parser::{char::spaces, Parser},
-    position, sep_by, token, StreamOnce,
+    position, sep_by, token,
 };
 use rustc_hash::FxHashMap;
 
@@ -19,7 +18,7 @@ use crate::{
     linked_list::{private, ContainsLinkedList, LinkedList},
     location::{Located, Location},
     operation::Operation,
-    parsable::{self, spaced, IntoStdParseResult2, Parsable, StateStream},
+    parsable::{self, spaced, IntoParseResult, Parsable, ParseResult},
     printable::{self, indented_nl, ListSeparator, Printable, PrintableIter},
     r#type::{type_parser, TypeObj},
     region::Region,
@@ -332,7 +331,7 @@ impl Parsable for BasicBlock {
     fn parse<'a>(
         state_stream: &mut parsable::StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         let loc = state_stream.loc();
         let src = loc
             .source()
@@ -379,6 +378,6 @@ impl Parsable for BasicBlock {
             .state
             .name_tracker
             .block_def(state_stream.state.ctx, &(label, loc), block)?;
-        Ok(block).into_pres2()
+        Ok(block).into_parse_result()
     }
 }

@@ -1,10 +1,8 @@
 use apint::ApInt;
 use combine::{
-    any, between,
-    error::StdParseResult2,
-    many, many1, none_of,
+    any, between, many, many1, none_of,
     parser::char::{hex_digit, string},
-    token, Parser, StreamOnce,
+    token, Parser,
 };
 use sorted_vector_map::SortedVectorMap;
 use thiserror::Error;
@@ -17,7 +15,7 @@ use crate::{
     error::Result,
     impl_attr, impl_attr_interface, input_err,
     location::Located,
-    parsable::{spaced, IntoStdParseResult2, Parsable, StateStream},
+    parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::{type_parser, TypeObj},
     verify_err_noloc,
@@ -68,7 +66,7 @@ impl Parsable for StringAttr {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         // An escaped charater is one that is preceded by a backslash.
         let escaped_char = combine::parser(move |parsable_state: &mut StateStream<'a>| {
             // This combine::parser() is so that we can get a position before the parsing begins.
@@ -84,7 +82,7 @@ impl Parsable for StringAttr {
                         '\"' => Ok('\"'),
                         _ => input_err!(loc.clone(), "Unexpected escaped character \\{}", c),
                     };
-                    result.into_pres2()
+                    result.into_parse_result()
                 })
             });
             escaped_char.parse_stream(parsable_state).into()
@@ -163,7 +161,7 @@ impl Parsable for IntegerAttr {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         between(
             token('<'),
             token('>'),
@@ -240,7 +238,7 @@ impl Parsable for FloatAttr {
     fn parse<'a>(
         _state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         todo!()
     }
 }
@@ -290,7 +288,7 @@ impl Parsable for SmallDictAttr {
     fn parse<'a>(
         _state_stream: &mut StateStream<'a>,
         _argg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         todo!()
     }
 }
@@ -360,7 +358,7 @@ impl Parsable for VecAttr {
     fn parse<'a>(
         _state_stream: &mut StateStream<'a>,
         _argg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         todo!()
     }
 }
@@ -401,8 +399,8 @@ impl Parsable for UnitAttr {
     fn parse<'a>(
         _state_stream: &mut StateStream<'a>,
         _argg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
-        Ok(UnitAttr::create()).into_pres2()
+    ) -> ParseResult<'a, Self::Parsed> {
+        Ok(UnitAttr::create()).into_parse_result()
     }
 }
 
@@ -436,7 +434,7 @@ impl Parsable for TypeAttr {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         between(token('<'), token('>'), spaced(type_parser()))
             .map(TypeAttr::create)
             .parse_stream(state_stream)

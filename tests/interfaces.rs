@@ -1,6 +1,5 @@
 mod common;
 
-use combine::{error::StdParseResult2, StreamOnce};
 use pliron::{
     attribute::Attribute,
     common_traits::Verify,
@@ -21,7 +20,7 @@ use pliron::{
     location::Location,
     op::{Op, OpObj},
     operation::Operation,
-    parsable::{Parsable, StateStream},
+    parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::TypeObj,
 };
@@ -55,7 +54,7 @@ impl Parsable for ZeroResultOp {
     fn parse<'a>(
         _state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         todo!()
     }
 }

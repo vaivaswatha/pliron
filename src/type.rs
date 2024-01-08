@@ -15,7 +15,7 @@ use crate::error::Result;
 use crate::identifier::Identifier;
 use crate::input_err;
 use crate::location::Located;
-use crate::parsable::{spaced, Parsable, ParserFn, StateStream};
+use crate::parsable::{spaced, Parsable, ParseResult, ParserFn, StateStream};
 use crate::printable::{self, Printable};
 use crate::storage_uniquer::TypeValueHash;
 
@@ -159,7 +159,7 @@ impl Parsable for TypeName {
     fn parse<'a>(
         state_stream: &mut crate::parsable::StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
+    ) -> ParseResult<'a, Self::Parsed>
     where
         Self: Sized,
     {
@@ -185,7 +185,7 @@ impl Parsable for TypeId {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
+    ) -> ParseResult<'a, Self::Parsed>
     where
         Self: Sized,
     {

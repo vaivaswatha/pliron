@@ -2,7 +2,7 @@
 //! and [Attribute](crate::attribute::Attribute)s.
 use std::{fmt::Display, ops::Deref};
 
-use combine::{error::StdParseResult2, Parser, StreamOnce};
+use combine::Parser;
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
     input_err,
     location::{Located, Location},
     op::{OpId, OpObj},
-    parsable::{IntoStdParseResult2, Parsable, ParserFn, StateStream},
+    parsable::{IntoParseResult, Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
     r#type::{TypeId, TypeObj},
 };
@@ -52,7 +52,7 @@ impl Parsable for DialectName {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
+    ) -> ParseResult<'a, Self::Parsed>
     where
         Self: Sized,
     {
@@ -63,7 +63,7 @@ impl Parsable for DialectName {
             combine::parser(move |state_stream: &mut StateStream<'a>| {
                 let dialect_name = DialectName::new(&dialect_name);
                 if state_stream.state.ctx.dialects.contains_key(&dialect_name) {
-                    Ok(dialect_name).into_pres2()
+                    Ok(dialect_name).into_parse_result()
                 } else {
                     input_err!(loc.clone(), "Unregistered dialect {}", *dialect_name)?
                 }

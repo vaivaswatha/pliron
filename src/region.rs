@@ -1,5 +1,5 @@
 //! Regions are containers for [BasicBlock]s within an [Operation].
-use combine::{error::StdParseResult2, parser::char::spaces, token, Parser, StreamOnce};
+use combine::{parser::char::spaces, token, Parser};
 
 use crate::{
     basic_block::BasicBlock,
@@ -10,7 +10,7 @@ use crate::{
     linked_list::{private, ContainsLinkedList},
     location::Located,
     operation::Operation,
-    parsable::{self, IntoStdParseResult2, Parsable, StateStream},
+    parsable::{self, IntoParseResult, Parsable, ParseResult},
     printable::{self, fmt_indented_newline, fmt_iter, ListSeparator, Printable},
 };
 
@@ -132,7 +132,7 @@ impl Parsable for Region {
     fn parse<'a>(
         state_stream: &mut parsable::StateStream<'a>,
         parent_op: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         let loc = state_stream.loc();
         state_stream
             .state
@@ -151,7 +151,7 @@ impl Parsable for Region {
                 for block in blocks.iter() {
                     block.insert_at_back(region, state_stream.state.ctx);
                 }
-                Ok(region).into_pres2()
+                Ok(region).into_parse_result()
             })
         });
 

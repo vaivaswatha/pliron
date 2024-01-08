@@ -1,12 +1,10 @@
 use combine::{
-    between, choice,
-    error::StdParseResult2,
-    many1,
+    between, choice, many1,
     parser::{
         char::digit,
         char::{spaces, string},
     },
-    sep_by, token, Parser, StreamOnce,
+    sep_by, token, Parser,
 };
 
 use crate::{
@@ -15,7 +13,7 @@ use crate::{
     dialect::Dialect,
     error::Result,
     impl_type,
-    parsable::{spaced, IntoStdParseResult2, Parsable, StateStream},
+    parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, ListSeparator, Printable, PrintableIter},
     r#type::{type_parser, Type, TypeObj},
     storage_uniquer::TypeValueHash,
@@ -62,7 +60,7 @@ impl Parsable for IntegerType {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
+    ) -> ParseResult<'a, Self::Parsed>
     where
         Self: Sized,
     {
@@ -175,7 +173,7 @@ impl Parsable for FunctionType {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
+    ) -> ParseResult<'a, Self::Parsed>
     where
         Self: Sized,
     {
@@ -238,11 +236,11 @@ impl Parsable for UnitType {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
+    ) -> ParseResult<'a, Self::Parsed>
     where
         Self: Sized,
     {
-        Ok(UnitType::get(state_stream.state.ctx)).into_pres2()
+        Ok(UnitType::get(state_stream.state.ctx)).into_parse_result()
     }
 }
 

@@ -1,4 +1,4 @@
-use combine::{error::StdParseResult2, token, Parser, StreamOnce};
+use combine::{token, Parser};
 use thiserror::Error;
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
     location::{Located, Location},
     op::{Op, OpObj},
     operation::Operation,
-    parsable::{spaced, IntoStdParseResult2, Parsable, StateStream},
+    parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::{type_parser, TypeObj},
     region::Region,
@@ -76,7 +76,7 @@ impl Parsable for ModuleOp {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         results: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         if !results.is_empty() {
             input_err!(
                 state_stream.loc(),
@@ -232,7 +232,7 @@ impl Parsable for FuncOp {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         results: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         if !results.is_empty() {
             input_err!(
                 state_stream.loc(),
@@ -362,7 +362,7 @@ impl Parsable for ConstantOp {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         results: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         let loc = state_stream.loc();
 
         if results.len() != 1 {
@@ -384,7 +384,7 @@ impl Parsable for ConstantOp {
             0,
             results[0].0.to_string(),
         );
-        Ok(op as OpObj).into_pres2()
+        Ok(op as OpObj).into_parse_result()
     }
 }
 
@@ -455,7 +455,7 @@ impl Parsable for ForwardRefOp {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _results: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
+    ) -> ParseResult<'a, Self::Parsed> {
         input_err!(
             state_stream.loc(),
             ForwardRefOpExistenceErr(

@@ -22,7 +22,7 @@
 //! [OpObj]s can be downcasted to their concrete types using
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 
-use combine::{error::StdParseResult2, parser, Parser, StreamOnce};
+use combine::{parser, Parser};
 use downcast_rs::{impl_downcast, Downcast};
 use intertrait::{cast::CastRef, CastFrom};
 use std::{fmt::Display, ops::Deref};
@@ -35,7 +35,7 @@ use crate::{
     identifier::Identifier,
     location::Location,
     operation::Operation,
-    parsable::{Parsable, ParserFn, StateStream},
+    parsable::{Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
 };
 
@@ -76,7 +76,7 @@ impl Parsable for OpName {
     fn parse<'a>(
         state_stream: &mut crate::parsable::StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
+    ) -> ParseResult<'a, Self::Parsed>
     where
         Self: Sized,
     {
@@ -119,7 +119,7 @@ impl Parsable for OpId {
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
-    ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error>
+    ) -> ParseResult<'a, Self::Parsed>
     where
         Self: Sized,
     {
