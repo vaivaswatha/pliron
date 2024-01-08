@@ -2,7 +2,7 @@
 //! and [Attribute](crate::attribute::Attribute)s.
 use std::{fmt::Display, ops::Deref};
 
-use combine::{error::StdParseResult2, Parser, Positioned, StreamOnce};
+use combine::{error::StdParseResult2, Parser, StreamOnce};
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -10,6 +10,7 @@ use crate::{
     context::{Context, Ptr},
     identifier::Identifier,
     input_err,
+    location::{Located, Location},
     op::{OpId, OpObj},
     parsable::{IntoStdParseResult2, Parsable, ParserFn, StateStream},
     printable::{self, Printable},
@@ -55,15 +56,16 @@ impl Parsable for DialectName {
     where
         Self: Sized,
     {
-        let position = state_stream.position();
+        let loc = state_stream.loc();
         let id = Identifier::parser(());
-        let mut parser = id.then(|dialect_name| {
+        let mut parser = id.then(move |dialect_name| {
+            let loc = loc.clone();
             combine::parser(move |state_stream: &mut StateStream<'a>| {
                 let dialect_name = DialectName::new(&dialect_name);
                 if state_stream.state.ctx.dialects.contains_key(&dialect_name) {
-                    Ok(dialect_name).into_pres2(position)
+                    Ok(dialect_name).into_pres2()
                 } else {
-                    input_err!("Unregistered dialect {}", *dialect_name).into_pres2(position)
+                    input_err!(loc.clone(), "Unregistered dialect {}", *dialect_name)?
                 }
             })
         });
@@ -85,7 +87,7 @@ pub struct Dialect {
     /// Name of this dialect.
     pub name: DialectName,
     /// Ops that are part of this dialect.
-    pub ops: FxHashMap<OpId, ParserFn<Vec<Identifier>, OpObj>>,
+    pub ops: FxHashMap<OpId, ParserFn<Vec<(Identifier, Location)>, OpObj>>,
     /// Types that are part of this dialect.
     pub types: FxHashMap<TypeId, ParserFn<(), Ptr<TypeObj>>>,
     /// Attributes that are part of this dialect.
@@ -120,7 +122,7 @@ impl Dialect {
     }
 
     /// Add an [Op](crate::op::Op) to this dialect.
-    pub fn add_op(&mut self, op: OpId, op_parser: ParserFn<Vec<Identifier>, OpObj>) {
+    pub fn add_op(&mut self, op: OpId, op_parser: ParserFn<Vec<(Identifier, Location)>, OpObj>) {
         assert!(op.dialect == self.name);
         self.ops.insert(op, op_parser);
     }

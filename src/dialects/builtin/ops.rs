@@ -1,4 +1,4 @@
-use combine::{error::StdParseResult2, token, Parser, Positioned, StreamOnce};
+use combine::{error::StdParseResult2, token, Parser, StreamOnce};
 use thiserror::Error;
 
 use crate::{
@@ -14,6 +14,7 @@ use crate::{
     identifier::Identifier,
     impl_op_interface, input_err,
     linked_list::ContainsLinkedList,
+    location::{Located, Location},
     op::{Op, OpObj},
     operation::Operation,
     parsable::{spaced, IntoStdParseResult2, Parsable, StateStream},
@@ -70,17 +71,17 @@ impl Printable for ModuleOp {
 }
 
 impl Parsable for ModuleOp {
-    type Arg = Vec<Identifier>;
+    type Arg = Vec<(Identifier, Location)>;
     type Parsed = OpObj;
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         results: Self::Arg,
     ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
         if !results.is_empty() {
-            return input_err!(op_interfaces::ZeroResultVerifyErr(
-                Self::get_opid_static().to_string()
-            ))
-            .into_pres2(state_stream.position());
+            input_err!(
+                state_stream.loc(),
+                op_interfaces::ZeroResultVerifyErr(Self::get_opid_static().to_string())
+            )?
         }
         let op = Operation::new(
             state_stream.state.ctx,
@@ -226,17 +227,17 @@ impl Printable for FuncOp {
 }
 
 impl Parsable for FuncOp {
-    type Arg = Vec<Identifier>;
+    type Arg = Vec<(Identifier, Location)>;
     type Parsed = OpObj;
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         results: Self::Arg,
     ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
         if !results.is_empty() {
-            return input_err!(op_interfaces::ZeroResultVerifyErr(
-                Self::get_opid_static().to_string()
-            ))
-            .into_pres2(state_stream.position());
+            input_err!(
+                state_stream.loc(),
+                op_interfaces::ZeroResultVerifyErr(Self::get_opid_static().to_string())
+            )?
         }
 
         let op = Operation::new(
@@ -282,13 +283,14 @@ pub enum FuncOpVerifyErr {
 
 impl Verify for FuncOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
+        let op = &*self.get_operation().deref(ctx);
         let ty = self.get_type(ctx);
         if !(ty.deref(ctx).is::<FunctionType>()) {
-            return verify_err!(FuncOpVerifyErr::NotFuncType);
+            return verify_err!(op.loc(), FuncOpVerifyErr::NotFuncType);
         }
-        let op = &*self.get_operation().deref(ctx);
+
         if op.get_num_results() != 0 || op.get_num_operands() != 0 {
-            return verify_err!(FuncOpVerifyErr::IncorrectNumResultsOpds);
+            return verify_err!(op.loc(), FuncOpVerifyErr::IncorrectNumResultsOpds);
         }
         Ok(())
     }
@@ -354,40 +356,35 @@ impl Printable for ConstantOp {
 }
 
 impl Parsable for ConstantOp {
-    type Arg = Vec<Identifier>;
+    type Arg = Vec<(Identifier, Location)>;
     type Parsed = OpObj;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         results: Self::Arg,
     ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
-        let position = state_stream.position();
+        let loc = state_stream.loc();
 
         if results.len() != 1 {
-            return input_err!(OneResultVerifyErr(Self::get_opid_static().to_string()))
-                .into_pres2(position);
+            input_err!(loc, OneResultVerifyErr(Self::get_opid_static().to_string()))?
         }
 
         let attr = attr_parser().parse_stream(state_stream).into_result()?.0;
 
         let op = Box::new(Self::new_unlinked(state_stream.state.ctx, attr));
-        state_stream
-            .state
-            .name_tracker
-            .ssa_def(
-                state_stream.state.ctx,
-                &results[0],
-                op.get_result(state_stream.state.ctx),
-            )
-            .into_pres2(position)?;
+        state_stream.state.name_tracker.ssa_def(
+            state_stream.state.ctx,
+            &results[0],
+            op.get_result(state_stream.state.ctx),
+        )?;
 
         set_operation_result_name(
             state_stream.state.ctx,
             op.get_operation(),
             0,
-            results[0].to_string(),
+            results[0].0.to_string(),
         );
-        Ok(op as OpObj).into_pres2(position)
+        Ok(op as OpObj).into_pres2()
     }
 }
 
@@ -397,9 +394,10 @@ pub struct ConstantOpVerifyErr;
 
 impl Verify for ConstantOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
+        let loc = self.get_operation().deref(ctx).loc();
         let value = self.get_value(ctx);
         if !(value.is::<IntegerAttr>() || value.is::<FloatAttr>()) {
-            return verify_err!(ConstantOpVerifyErr);
+            return verify_err!(loc, ConstantOpVerifyErr);
         }
         Ok(())
     }
@@ -443,26 +441,29 @@ pub struct ForwardRefOpExistenceErr(String);
 
 impl Verify for ForwardRefOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        verify_err!(ForwardRefOpExistenceErr(
-            self.get_result(ctx).unique_name(ctx)
-        ))
+        verify_err!(
+            self.get_operation().deref(ctx).loc(),
+            ForwardRefOpExistenceErr(self.get_result(ctx).unique_name(ctx))
+        )
     }
 }
 
 impl Parsable for ForwardRefOp {
-    type Arg = Vec<Identifier>;
+    type Arg = Vec<(Identifier, Location)>;
     type Parsed = OpObj;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _results: Self::Arg,
     ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
-        input_err!(ForwardRefOpExistenceErr(
-            ForwardRefOp::get_opid_static()
-                .disp(state_stream.state.ctx)
-                .to_string()
-        ))
-        .into_pres2(state_stream.stream.position())
+        input_err!(
+            state_stream.loc(),
+            ForwardRefOpExistenceErr(
+                ForwardRefOp::get_opid_static()
+                    .disp(state_stream.state.ctx)
+                    .to_string()
+            )
+        )?
     }
 }
 

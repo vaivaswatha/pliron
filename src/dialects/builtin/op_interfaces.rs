@@ -5,6 +5,7 @@ use crate::{
     context::{Context, Ptr},
     error::Result,
     linked_list::ContainsLinkedList,
+    location::Located,
     op::{op_cast, Op},
     operation::Operation,
     printable::Printable,
@@ -73,7 +74,7 @@ pub trait OneRegionInterface: Op {
     {
         let self_op = op.get_operation().deref(ctx);
         if self_op.regions.len() != 1 {
-            return verify_err!(OneRegionVerifyErr(op.get_opid().to_string()));
+            return verify_err!(self_op.loc(), OneRegionVerifyErr(op.get_opid().to_string()));
         }
         Ok(())
     }
@@ -109,7 +110,10 @@ pub trait SingleBlockRegionInterface: Op {
         let self_op = op.get_operation().deref(ctx);
         for region in &self_op.regions {
             if region.deref(ctx).iter(ctx).count() != 1 {
-                return verify_err!(SingleBlockRegionVerifyErr(self_op.get_opid().to_string()));
+                return verify_err!(
+                    self_op.loc(),
+                    SingleBlockRegionVerifyErr(self_op.get_opid().to_string())
+                );
             }
         }
         Ok(())
@@ -170,7 +174,7 @@ pub trait OneResultInterface: Op {
     {
         let op = &*op.get_operation().deref(ctx);
         if op.get_num_results() != 1 {
-            return verify_err!(OneResultVerifyErr(op.get_opid().to_string()));
+            return verify_err!(op.loc(), OneResultVerifyErr(op.get_opid().to_string()));
         }
         Ok(())
     }
@@ -188,7 +192,7 @@ pub trait ZeroResultInterface: Op {
     {
         let op = &*op.get_operation().deref(ctx);
         if op.get_num_results() != 0 {
-            return verify_err!(ZeroResultVerifyErr(op.get_opid().to_string()));
+            return verify_err!(op.loc(), ZeroResultVerifyErr(op.get_opid().to_string()));
         }
         Ok(())
     }
@@ -237,7 +241,7 @@ pub trait ZeroOpdInterface: Op {
     {
         let op = &*op.get_operation().deref(ctx);
         if op.get_num_operands() != 0 {
-            return verify_err!(ZeroOpdVerifyErr(op.get_opid().to_string()));
+            return verify_err!(op.loc(), ZeroOpdVerifyErr(op.get_opid().to_string()));
         }
         Ok(())
     }

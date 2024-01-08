@@ -6,7 +6,7 @@ use combine::{
         char::digit,
         char::{spaces, string},
     },
-    sep_by, token, Parser, Positioned, StreamOnce,
+    sep_by, token, Parser, StreamOnce,
 };
 
 use crate::{
@@ -242,7 +242,7 @@ impl Parsable for UnitType {
     where
         Self: Sized,
     {
-        Ok(UnitType::get(state_stream.state.ctx)).into_pres2(state_stream.position())
+        Ok(UnitType::get(state_stream.state.ctx)).into_pres2()
     }
 }
 

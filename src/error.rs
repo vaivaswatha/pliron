@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-use crate::location::Location;
+use crate::location::{Located, Location};
 
 /// The kinds of errors we have during compilation.
 #[derive(Debug, Error)]
@@ -22,6 +22,16 @@ pub struct Error {
     pub loc: Location,
 }
 
+impl Located for Error {
+    fn loc(&self) -> Location {
+        self.loc.clone()
+    }
+
+    fn set_loc(&mut self, loc: Location) {
+        self.loc = loc;
+    }
+}
+
 /// Type alias for [std::result::Result] with the error type set to [struct@Error]
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -33,17 +43,17 @@ pub struct StringError(pub String);
 /// Specify [ErrorKind] and create an error from any [std::error::Error] object.
 /// The macro also accepts [format!] like arguments to create one-off errors.
 /// It may be shorter to just use [verify_err!](crate::verify_err) or
-/// [input_err!](crate::verify_err) instead.
+/// [input_err!](crate::input_err) instead.
 #[macro_export]
 macro_rules! create_err {
-    ($kind: expr, $str: literal $($t:tt)*) => {
-        $crate::create_err!($kind, $crate::error::StringError(format!($str $($t)*)))
+    ($loc: expr, $kind: expr, $str: literal $($t:tt)*) => {
+        $crate::create_err!($loc, $kind, $crate::error::StringError(format!($str $($t)*)))
     };
-    ($kind: expr, $err: expr) => {
+    ($loc: expr, $kind: expr, $err: expr) => {
         Err($crate::error::Error {
             kind: $kind,
             err: Box::new($err),
-            loc: $crate::location::Location::Unknown,
+            loc: $loc,
         })
     };
 }
@@ -52,7 +62,7 @@ macro_rules! create_err {
 /// The macro also accepts [format!] like arguments to create one-off errors.
 /// ```rust
 /// use thiserror::Error;
-/// use pliron::{verify_err, error::{Result, ErrorKind, Error}};
+/// use pliron::{verify_err, error::{Result, ErrorKind, Error}, location::Location};
 ///
 /// #[derive(Error, Debug)]
 /// #[error("sample error")]
@@ -60,7 +70,7 @@ macro_rules! create_err {
 ///
 /// assert!(
 ///     matches!(
-///         verify_err!(SampleErr),
+///         verify_err!(Location::Unknown, SampleErr),
 ///         Result::<()>::Err(Error {
 ///            kind: ErrorKind::VerificationFailed,
 ///            err,
@@ -68,7 +78,7 @@ macro_rules! create_err {
 ///         }) if err.is::<SampleErr>()
 /// ));
 ///
-/// let res_msg: Result<()> = verify_err!("Some formatted {}", 0);
+/// let res_msg: Result<()> = verify_err!(Location::Unknown, "Some formatted {}", 0);
 /// assert_eq!(
 ///     res_msg.unwrap_err().err.to_string(),
 ///     "Some formatted 0"
@@ -76,8 +86,8 @@ macro_rules! create_err {
 /// ```
 #[macro_export]
 macro_rules! verify_err {
-    ($($t:tt)*) => {
-        $crate::create_err!($crate::error::ErrorKind::VerificationFailed, $($t)*)
+    ($loc: expr, $($t:tt)*) => {
+        $crate::create_err!($loc, $crate::error::ErrorKind::VerificationFailed, $($t)*)
     }
 }
 
@@ -85,7 +95,7 @@ macro_rules! verify_err {
 /// The macro also accepts [format!] like arguments to create one-off errors.
 /// ```rust
 /// use thiserror::Error;
-/// use pliron::{input_err, error::{Result, ErrorKind, Error}};
+/// use pliron::{input_err, error::{Result, ErrorKind, Error}, location::Location};
 ///
 /// #[derive(Error, Debug)]
 /// #[error("sample error")]
@@ -93,7 +103,7 @@ macro_rules! verify_err {
 ///
 /// assert!(
 ///     matches!(
-///         input_err!(SampleErr),
+///         input_err!(Location::Unknown, SampleErr),
 ///         Result::<()>::Err(Error {
 ///            kind: ErrorKind::InvalidInput,
 ///            err,
@@ -101,7 +111,7 @@ macro_rules! verify_err {
 ///         }) if err.is::<SampleErr>()
 /// ));
 ///
-/// let res_msg: Result<()> = input_err!("Some formatted {}", 0);
+/// let res_msg: Result<()> = input_err!(Location::Unknown, "Some formatted {}", 0);
 /// assert_eq!(
 ///     res_msg.unwrap_err().err.to_string(),
 ///     "Some formatted 0"
@@ -109,7 +119,23 @@ macro_rules! verify_err {
 /// ```
 #[macro_export]
 macro_rules! input_err {
+    ($loc: expr, $($t:tt)*) => {
+        $crate::create_err!($loc, $crate::error::ErrorKind::InvalidInput, $($t)*)
+    }
+}
+
+/// Same as [verify_err] but when no location is known.
+#[macro_export]
+macro_rules! verify_err_noloc {
     ($($t:tt)*) => {
-        $crate::create_err!($crate::error::ErrorKind::InvalidInput, $($t)*)
+        $crate::create_err!($crate::location::Location::Unknown, $crate::error::ErrorKind::VerificationFailed, $($t)*)
+    }
+}
+
+/// Same as [input_err] but when no location is known.
+#[macro_export]
+macro_rules! input_err_noloc {
+    ($($t:tt)*) => {
+        $crate::create_err!($crate::location::Location::Unknown, $crate::error::ErrorKind::InvalidInput, $($t)*)
     }
 }

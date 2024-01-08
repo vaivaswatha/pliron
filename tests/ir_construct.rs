@@ -193,9 +193,8 @@ fn parse_err_multiple_def() {
             }
         }"#;
 
-    // The position below isn't correct. TODO!.
     let expected_err = expect![[r#"
-        Parse error at line: 7, column: 51
+        Parse error at line: 7, column: 17
         Identifier c0_op_2_0_res0 defined more than once in the scope
     "#]];
     expect_parse_error(input_multiple_ssa_defs, expected_err);
@@ -231,7 +230,7 @@ fn parse_err_unresolved_def() {
 
     let expected_err = expect![[r#"
         Parse error at line: 4, column: 78
-        Identifier c0_op_2_0_res0 was not resolved to any definition
+        Identifier c0_op_2_0_res0 was not resolved to any definition in the scope
     "#]];
     expect_parse_error(input_multiple_defs, expected_err);
 }

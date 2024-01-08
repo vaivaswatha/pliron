@@ -3,6 +3,7 @@
 use std::{fmt::Debug, path::PathBuf};
 
 use combine::stream::position::SourcePosition;
+use rustc_hash::FxHashSet;
 
 use crate::{
     attribute::AttrObj,
@@ -12,7 +13,7 @@ use crate::{
 };
 
 /// Where is the source program?
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
 pub enum Source {
     /// Program being read from a file.
     File(UniquedKey<PathBuf>),
@@ -69,6 +70,48 @@ pub enum Location {
     Unknown,
 }
 
+impl Location {
+    /// If the location is from exactly one source, get that source.
+    pub fn source(&self) -> Option<Source> {
+        let sources = self.sources();
+        if sources.len() == 1 {
+            sources.first().cloned()
+        } else {
+            None
+        }
+    }
+
+    /// Get all sources that this location is associated with.
+    pub fn sources(&self) -> Vec<Source> {
+        let mut res = FxHashSet::default();
+        fn sources(loc: &Location, res: &mut FxHashSet<Source>) {
+            match loc {
+                Location::SrcPos { src, pos: _ } => {
+                    res.insert(*src);
+                }
+                Location::Fused {
+                    metadata: _,
+                    locations,
+                } => {
+                    for loc in locations {
+                        sources(loc, res);
+                    }
+                }
+                Location::Named { name: _, child_loc } => {
+                    sources(child_loc, res);
+                }
+                Location::CallSite { callee, caller } => {
+                    sources(callee, res);
+                    sources(caller, res);
+                }
+                Location::Unknown => (),
+            }
+        }
+        sources(self, &mut res);
+        res.into_iter().collect()
+    }
+}
+
 impl Printable for Location {
     fn fmt(
         &self,
@@ -109,5 +152,6 @@ impl Printable for Location {
 
 /// Any object that has an associated location.
 pub trait Located {
-    fn location(&self) -> Location;
+    fn loc(&self) -> Location;
+    fn set_loc(&mut self, loc: Location);
 }

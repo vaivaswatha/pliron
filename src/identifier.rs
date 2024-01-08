@@ -11,7 +11,7 @@ use crate::{
     error,
     parsable::{self, Parsable, StateStream},
     printable::{self, Printable},
-    verify_err,
+    verify_err_noloc,
 };
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
@@ -70,7 +70,7 @@ impl Verify for Identifier {
     fn verify(&self, _ctx: &Context) -> error::Result<()> {
         let re = regex::Regex::new(r"[a-zA-Z_][a-zA-Z0-9_]*").unwrap();
         if !(re.is_match(&self.0)) {
-            return verify_err!(MalformedIdentifierErr(self.0.clone()));
+            return verify_err_noloc!(MalformedIdentifierErr(self.0.clone()));
         }
         Ok(())
     }

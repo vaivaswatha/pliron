@@ -24,6 +24,13 @@ impl<T> Clone for UniquedKey<T> {
 }
 impl<T> Copy for UniquedKey<T> {}
 
+impl<T: 'static> Hash for UniquedKey<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.index.hash(state);
+        std::any::TypeId::of::<T>().hash(state);
+    }
+}
+
 /// Save a unique copy of an object and get a handle to the saved copy.
 pub fn save<T: Any + Hash + Eq>(ctx: &mut Context, t: T) -> UniquedKey<T> {
     let hash = TypeValueHash::new(&t);

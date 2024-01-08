@@ -1,4 +1,4 @@
-use combine::{error::StdParseResult2, Positioned, StreamOnce};
+use combine::{error::StdParseResult2, StreamOnce};
 
 use crate::{
     common_traits::Verify,
@@ -9,9 +9,10 @@ use crate::{
     error::Result,
     identifier::Identifier,
     impl_op_interface, input_err,
+    location::{Located, Location},
     op::{Op, OpObj},
     operation::Operation,
-    parsable::{IntoStdParseResult2, Parsable, StateStream},
+    parsable::{Parsable, StateStream},
     printable::{self, Printable},
     use_def_lists::Value,
 };
@@ -63,16 +64,17 @@ impl Verify for ReturnOp {
 }
 
 impl Parsable for ReturnOp {
-    type Arg = Vec<Identifier>;
+    type Arg = Vec<(Identifier, Location)>;
     type Parsed = OpObj;
     fn parse<'a>(
         state_stream: &mut crate::parsable::StateStream<'a>,
         results: Self::Arg,
     ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
-        let position = state_stream.position();
         if !results.is_empty() {
-            return input_err!(ZeroResultVerifyErr(Self::get_opid_static().to_string()))
-                .into_pres2(position);
+            input_err!(
+                state_stream.loc(),
+                ZeroResultVerifyErr(Self::get_opid_static().to_string())
+            )?
         }
 
         Identifier::parser(())

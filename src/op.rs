@@ -22,11 +22,10 @@
 //! [OpObj]s can be downcasted to their concrete types using
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 
-use std::{fmt::Display, ops::Deref};
-
 use combine::{error::StdParseResult2, parser, Parser, StreamOnce};
 use downcast_rs::{impl_downcast, Downcast};
 use intertrait::{cast::CastRef, CastFrom};
+use std::{fmt::Display, ops::Deref};
 
 use crate::{
     common_traits::Verify,
@@ -34,6 +33,7 @@ use crate::{
     dialect::{Dialect, DialectName},
     error::Result,
     identifier::Identifier,
+    location::Location,
     operation::Operation,
     parsable::{Parsable, ParserFn, StateStream},
     printable::{self, Printable},
@@ -165,7 +165,7 @@ pub trait Op: Downcast + Verify + Printable + CastFrom {
     fn register(
         ctx: &mut Context,
         dialect: &mut Dialect,
-        op_parser: ParserFn<Vec<Identifier>, OpObj>,
+        op_parser: ParserFn<Vec<(Identifier, Location)>, OpObj>,
     ) where
         Self: Sized,
     {

@@ -18,6 +18,7 @@ use pliron::{
     error::{Error, ErrorKind, Result},
     identifier::Identifier,
     impl_attr, impl_attr_interface, impl_op_interface,
+    location::Location,
     op::{Op, OpObj},
     operation::Operation,
     parsable::{Parsable, StateStream},
@@ -49,7 +50,7 @@ impl Verify for ZeroResultOp {
 }
 
 impl Parsable for ZeroResultOp {
-    type Arg = Vec<Identifier>;
+    type Arg = Vec<(Identifier, Location)>;
     type Parsed = OpObj;
     fn parse<'a>(
         _state_stream: &mut StateStream<'a>,

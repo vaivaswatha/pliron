@@ -5,7 +5,7 @@
 use std::marker::PhantomData;
 
 use combine::{
-    attempt, error::StdParseResult2, parser::char::spaces, token, Parser, Positioned, StreamOnce,
+    attempt, error::StdParseResult2, parser::char::spaces, position, token, Parser, StreamOnce,
 };
 use rustc_hash::FxHashMap;
 use thiserror::Error;
@@ -20,8 +20,9 @@ use crate::{
     identifier::Identifier,
     input_err,
     linked_list::{private, LinkedList},
+    location::{Located, Location},
     op::{self, OpId, OpObj},
-    parsable::{self, spaced, IntoStdParseResult2, Parsable, StateStream},
+    parsable::{self, spaced, Parsable, StateStream},
     printable::{self, Printable},
     r#type::TypeObj,
     region::Region,
@@ -107,6 +108,8 @@ pub struct Operation {
     pub attributes: FxHashMap<&'static str, AttrObj>,
     /// Regions contained inside this operation.
     pub(crate) regions: Vec<Ptr<Region>>,
+    /// Source location of this operation.
+    loc: Location,
 }
 
 impl PartialEq for Operation {
@@ -158,6 +161,7 @@ impl Operation {
             block_links: BlockLinks::new_unlinked(),
             attributes: FxHashMap::default(),
             regions: vec![],
+            loc: Location::Unknown,
         };
 
         // Create the new Operation.
@@ -447,7 +451,8 @@ impl<T: DefUseParticipant + DefTrait> Verify for Operand<T> {
             .get_defnode_ref(ctx)
             .has_use_of(&self.into())
         {
-            verify_err!(DefUseVerifyErr)
+            let loc = self.user_op.deref(ctx).loc();
+            verify_err!(loc, DefUseVerifyErr)
         } else {
             Ok(())
         }
@@ -482,6 +487,16 @@ impl Printable for Operation {
     }
 }
 
+impl Located for Operation {
+    fn loc(&self) -> Location {
+        self.loc.clone()
+    }
+
+    fn set_loc(&mut self, loc: Location) {
+        self.loc = loc;
+    }
+}
+
 impl Parsable for Operation {
     type Arg = ();
     type Parsed = Ptr<Operation>;
@@ -494,12 +509,15 @@ impl Parsable for Operation {
         state_stream: &mut parsable::StateStream<'a>,
         _arg: Self::Arg,
     ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
-        let position = state_stream.stream.position();
+        let loc = state_stream.loc();
+        let src = loc
+            .source()
+            .expect("Location from Parsable must be Location::SrcPos");
 
         let results_opid = combine::optional(attempt(
             spaces()
                 .with(combine::sep_by::<Vec<_>, _, _, _>(
-                    Identifier::parser(()).skip(spaces()),
+                    (position(), Identifier::parser(())).skip(spaces()),
                     token(',').skip(spaces()),
                 ))
                 .skip(spaced(token('='))),
@@ -507,7 +525,13 @@ impl Parsable for Operation {
         .and(spaced(OpId::parser(())));
 
         results_opid
-            .then(|(results, opid)| {
+            .then(|(results_opt, opid)| {
+                let loc = loc.clone();
+                let results: Vec<_> = results_opt
+                    .unwrap_or(vec![])
+                    .iter()
+                    .map(|(pos, id)| (id.clone(), (Location::SrcPos { src, pos: *pos })))
+                    .collect();
                 combine::parser(move |parsable_state: &mut StateStream<'a>| {
                     let state = &parsable_state.state;
                     let dialect = state
@@ -516,16 +540,19 @@ impl Parsable for Operation {
                         .get(&opid.dialect)
                         .expect("Dialect name parsed but dialect isn't registered");
                     let Some(opid_parser) = dialect.ops.get(&opid) else {
-                        return input_err!("Unregistered Op {}", opid.disp(state.ctx))
-                            .into_pres2(position);
+                        input_err!(loc.clone(), "Unregistered Op {}", opid.disp(state.ctx))?
                     };
-                    opid_parser(&(), results.clone().unwrap_or(vec![]))
+                    opid_parser(&(), results.clone())
                         .parse_stream(parsable_state)
                         .map(|op| op.get_operation())
                         .into()
                 })
             })
             .parse_stream(state_stream)
+            .map(|op| {
+                op.deref_mut(state_stream.state.ctx).set_loc(loc);
+                op
+            })
             .into()
     }
 }

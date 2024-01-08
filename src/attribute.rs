@@ -31,7 +31,7 @@ use std::{
     ops::Deref,
 };
 
-use combine::{error::StdParseResult2, parser, Parser, Positioned, StreamOnce};
+use combine::{error::StdParseResult2, parser, Parser, StreamOnce};
 use downcast_rs::{impl_downcast, Downcast};
 use dyn_clone::DynClone;
 use intertrait::{cast::CastRef, CastFrom};
@@ -43,7 +43,8 @@ use crate::{
     error::Result,
     identifier::Identifier,
     input_err,
-    parsable::{spaced, IntoStdParseResult2, Parsable, ParserFn, StateStream},
+    location::Located,
+    parsable::{spaced, Parsable, ParserFn, StateStream},
     printable::{self, Printable},
 };
 
@@ -212,10 +213,11 @@ impl Parsable for AttrId {
 pub fn attr_parse<'a>(
     state_stream: &mut StateStream<'a>,
 ) -> StdParseResult2<AttrObj, <StateStream<'a> as StreamOnce>::Error> {
-    let position = state_stream.stream.position();
+    let loc = state_stream.loc();
     let attr_id_parser = spaced(AttrId::parser(()));
 
-    let mut attr_parser = attr_id_parser.then(|attr_id: AttrId| {
+    let mut attr_parser = attr_id_parser.then(move |attr_id: AttrId| {
+        let loc = loc.clone();
         combine::parser(move |parsable_state: &mut StateStream<'a>| {
             let state = &parsable_state.state;
             let dialect = state
@@ -224,8 +226,11 @@ pub fn attr_parse<'a>(
                 .get(&attr_id.dialect)
                 .expect("Dialect name parsed but dialect isn't registered");
             let Some(attr_parser) = dialect.attributes.get(&attr_id) else {
-                return input_err!("Unregistered attribute {}", attr_id.disp(state.ctx))
-                    .into_pres2(position);
+                input_err!(
+                    loc.clone(),
+                    "Unregistered attribute {}",
+                    attr_id.disp(state.ctx)
+                )?
             };
             attr_parser(&(), ())
                 .parse_stream(parsable_state)

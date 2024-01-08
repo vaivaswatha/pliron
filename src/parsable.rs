@@ -9,17 +9,17 @@ use crate::{
         op_interfaces::{IsolatedFromAboveInterface, OneResultInterface},
         ops::ForwardRefOp,
     },
-    error::Result,
+    error::{self, Result},
     identifier::Identifier,
     input_err,
-    location::{self, Located},
+    location::{self, Located, Location},
     op::op_impls,
     operation::Operation,
     use_def_lists::Value,
 };
 use combine::{
-    easy,
-    error::StdParseResult2,
+    easy::{self, Errors, ParseError},
+    error::{StdParseResult2, Tracked},
     parser::char::spaces,
     stream::{
         self, buffered,
@@ -75,11 +75,15 @@ pub type StateStream<'a> = stream::state::Stream<
 >;
 
 impl<'a> Located for StateStream<'a> {
-    fn location(&self) -> location::Location {
+    fn loc(&self) -> location::Location {
         location::Location::SrcPos {
             src: self.state.src,
             pos: self.position(),
         }
+    }
+
+    fn set_loc(&mut self, _loc: Location) {
+        panic!("Cannot set location of parser");
     }
 }
 
@@ -207,25 +211,37 @@ pub fn spaced<Input: Stream<Token = char>, Output>(
 /// Convert [Result] into [StdParseResult2].
 /// Enables using `?` on [Result] during parsing.
 pub trait IntoStdParseResult2<'a, T> {
-    fn into_pres2(
-        self,
-        pos: SourcePosition,
-    ) -> StdParseResult2<T, <StateStream<'a> as StreamOnce>::Error>;
+    fn into_pres2(self) -> StdParseResult2<T, <StateStream<'a> as StreamOnce>::Error>;
 }
 
 impl<'a, T> IntoStdParseResult2<'a, T> for Result<T> {
-    fn into_pres2(
-        self,
-        pos: SourcePosition,
-    ) -> StdParseResult2<T, <StateStream<'a> as StreamOnce>::Error> {
+    fn into_pres2(self) -> StdParseResult2<T, <StateStream<'a> as StreamOnce>::Error> {
         match self {
-            Ok(t) => ParseResult::CommitOk(t).into(),
-            Err(e) => ParseResult::CommitErr(easy::Errors::from_errors(
-                pos,
-                vec![easy::Error::Other(e.err)],
-            ))
-            .into(),
+            Ok(t) => ParseResult::CommitOk(t),
+            Err(e) => ParseResult::CommitErr(e.into()),
         }
+        .into()
+    }
+}
+
+impl<'a> From<error::Error> for ParseError<StateStream<'a>> {
+    fn from(value: error::Error) -> Self {
+        let position = if let Location::SrcPos { pos, .. } = value.loc {
+            pos
+        } else {
+            SourcePosition::default()
+        };
+        easy::Errors::from_errors(position, vec![easy::Error::Other(value.err)])
+    }
+}
+
+impl<'a> From<error::Error>
+    for combine::error::Commit<Tracked<Errors<char, char, SourcePosition>>>
+{
+    fn from(value: error::Error) -> Self {
+        let res: StdParseResult2<(), ParseError<StateStream<'a>>> =
+            ParseResult::CommitErr(value.into()).into();
+        res.err().unwrap()
     }
 }
 
@@ -252,7 +268,7 @@ pub struct NameTracker {
 }
 
 #[derive(Error, Debug)]
-#[error("Identifier {0} was not resolved to any definition")]
+#[error("Identifier {0} was not resolved to any definition in the scope")]
 pub struct UnresolvedReference(Identifier);
 
 #[derive(Error, Debug)]
@@ -281,13 +297,18 @@ impl NameTracker {
 
     /// Register an SSA definition. If `id` is already associated with a
     /// [forward reference][ForwardRefOp], update and replace all uses with `def`.
-    pub fn ssa_def(&mut self, ctx: &mut Context, id: &Identifier, def: Value) -> Result<()> {
+    pub fn ssa_def(
+        &mut self,
+        ctx: &mut Context,
+        id: &(Identifier, Location),
+        def: Value,
+    ) -> Result<()> {
         let scope = self
             .ssa_name_scope
             .last_mut()
             .expect("NameTracker doesn't have an active scope.");
 
-        match scope.entry(id.clone()) {
+        match scope.entry(id.0.clone()) {
             Entry::Occupied(mut occ) => match occ.get_mut() {
                 Value::OpResult { op, res_idx: _ } => {
                     let fref_opt = Operation::get_op(*op, ctx)
@@ -300,12 +321,12 @@ impl NameTracker {
                         occ.insert(def);
                     } else {
                         // There's another def and it isn't a forward ref.
-                        return input_err!(MultipleDefinitions(id.clone()));
+                        input_err!(id.1.clone(), MultipleDefinitions(id.0.clone()))?
                     }
                 }
                 Value::BlockArgument { .. } => {
                     // There's another def and it isn't a forward ref.
-                    return input_err!(MultipleDefinitions(id.clone()));
+                    input_err!(id.1.clone(), MultipleDefinitions(id.0.clone()))?
                 }
             },
             Entry::Vacant(vac) => {
@@ -339,14 +360,14 @@ impl NameTracker {
     pub fn block_def(
         &mut self,
         ctx: &mut Context,
-        id: &Identifier,
+        id: &(Identifier, Location),
         block: Ptr<BasicBlock>,
     ) -> Result<()> {
         let scope = self
             .block_label_scope
             .last_mut()
             .expect("NameTracker doesn't have an active scope.");
-        match scope.entry(id.clone()) {
+        match scope.entry(id.0.clone()) {
             Entry::Occupied(mut occ) => match occ.get_mut() {
                 LabelRef::ForwardRef(fref) => {
                     fref.retarget_some_preds_to(ctx, |_, _| true, block);
@@ -354,7 +375,7 @@ impl NameTracker {
                     occ.insert(LabelRef::Defined(block));
                 }
                 LabelRef::Defined(_) => {
-                    return input_err!(MultipleDefinitions(id.clone()));
+                    input_err!(id.1.clone(), MultipleDefinitions(id.0.clone()))?
                 }
             },
             Entry::Vacant(vac) => {
@@ -378,7 +399,12 @@ impl NameTracker {
     /// Exit a region.
     /// - If the parent op is [IsolatedFromAboveInterface], then the top SSA name scope is popped.
     /// - The top block label scope is popped.
-    pub fn exit_region(&mut self, ctx: &Context, parent_op: Ptr<Operation>) -> Result<()> {
+    pub fn exit_region(
+        &mut self,
+        ctx: &Context,
+        parent_op: Ptr<Operation>,
+        loc: Location,
+    ) -> Result<()> {
         if op_impls::<dyn IsolatedFromAboveInterface>(&*Operation::get_op(parent_op, ctx)) {
             // Check if there are any [ForwardRefOp].
             let ssa_scope = self
@@ -388,7 +414,7 @@ impl NameTracker {
             for (id, op) in ssa_scope {
                 if matches!(op, Value::OpResult { op, .. } if Operation::get_op(op, ctx).is::<ForwardRefOp>())
                 {
-                    return input_err!(UnresolvedReference(id.clone()));
+                    input_err!(loc.clone(), UnresolvedReference(id.clone()))?
                 }
             }
         }
@@ -401,7 +427,7 @@ impl NameTracker {
         // Check if there are any unresolved forward label references.
         for (id, op) in label_scope {
             if matches!(op, LabelRef::ForwardRef(_)) {
-                return input_err!(UnresolvedReference(id.clone()));
+                input_err!(loc.clone(), UnresolvedReference(id.clone()))?
             }
         }
 

@@ -4,12 +4,13 @@ use crate::{
     dialect::Dialect,
     error::Result,
     identifier::Identifier,
-    impl_type, input_err,
+    impl_type, input_err_noloc,
+    location::{Located, Location},
     parsable::{spaced, IntoStdParseResult2, Parsable, StateStream},
     printable::{self, Printable, PrintableIter},
     r#type::{type_parser, Type, TypeObj},
     storage_uniquer::TypeValueHash,
-    verify_err,
+    verify_err_noloc,
 };
 use combine::{
     between, error::StdParseResult2, optional, parser::char::spaces, sep_by, token, Parser,
@@ -109,7 +110,7 @@ impl StructType {
                 self_ref.fields = fields;
                 self_ref.finalized = true;
             } else if self_ref.fields != fields {
-                return input_err!(StructErr::ExistingMismatch(name.into()));
+                input_err_noloc!(StructErr::ExistingMismatch(name.into()))?
             }
         }
         Ok(self_ptr)
@@ -173,7 +174,7 @@ pub enum StructErr {
 impl Verify for StructType {
     fn verify(&self, _ctx: &Context) -> Result<()> {
         if !self.finalized {
-            return verify_err!(StructErr::NotFinalized(
+            return verify_err_noloc!(StructErr::NotFinalized(
                 self.name.clone().unwrap_or("<anonymous>".into())
             ));
         }
@@ -285,17 +286,26 @@ impl Parsable for StructType {
         // A struct type is named or anonymous.
         let mut struct_parser = between(token('<'), token('>'), named.or(anonymous));
 
-        let (position, name_opt, body_opt) =
-            struct_parser.parse_stream(state_stream).into_result()?.0;
+        let src = state_stream
+            .loc()
+            .source()
+            .expect("Expect Location::SrcPos for parser locations");
+        let (pos, name_opt, body_opt) = struct_parser.parse_stream(state_stream).into_result()?.0;
         let ctx = &mut state_stream.state.ctx;
         if let Some(name) = name_opt {
-            StructType::get_named(ctx, &name, body_opt).into_pres2(position)
+            let loc = Location::SrcPos { src, pos };
+            StructType::get_named(ctx, &name, body_opt)
+                .map_err(|mut err| {
+                    err.set_loc(loc);
+                    err
+                })
+                .into_pres2()
         } else {
             Ok(StructType::get_unnamed(
                 ctx,
                 body_opt.expect("Without a name, a struct type must have a body."),
             ))
-            .into_pres2(position)
+            .into_pres2()
         }
     }
 }

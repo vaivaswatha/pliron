@@ -4,7 +4,7 @@ use combine::{
     error::StdParseResult2,
     many, many1, none_of,
     parser::char::{hex_digit, string},
-    token, Parser, Positioned, StreamOnce,
+    token, Parser, StreamOnce,
 };
 use sorted_vector_map::SortedVectorMap;
 use thiserror::Error;
@@ -16,10 +16,11 @@ use crate::{
     dialect::Dialect,
     error::Result,
     impl_attr, impl_attr_interface, input_err,
+    location::Located,
     parsable::{spaced, IntoStdParseResult2, Parsable, StateStream},
     printable::{self, Printable},
     r#type::{type_parser, TypeObj},
-    verify_err,
+    verify_err_noloc,
 };
 
 use super::{attr_interfaces::TypedAttrInterface, types::IntegerType};
@@ -71,8 +72,9 @@ impl Parsable for StringAttr {
         // An escaped charater is one that is preceded by a backslash.
         let escaped_char = combine::parser(move |parsable_state: &mut StateStream<'a>| {
             // This combine::parser() is so that we can get a position before the parsing begins.
-            let position = parsable_state.position();
-            let mut escaped_char = token('\\').with(any()).then(|c: char| {
+            let loc = parsable_state.loc();
+            let mut escaped_char = token('\\').with(any()).then(move |c: char| {
+                let loc = loc.clone();
                 // This combine::parser() is so that we can return an error of the right type.
                 // I can't get the right error type with `and_then`
                 combine::parser(move |_parsable_state: &mut StateStream<'a>| {
@@ -80,9 +82,9 @@ impl Parsable for StringAttr {
                     let result = match c {
                         '\\' => Ok('\\'),
                         '\"' => Ok('\"'),
-                        _ => input_err!("Unexpected escaped character \\{}", c),
+                        _ => input_err!(loc.clone(), "Unexpected escaped character \\{}", c),
                     };
-                    result.into_pres2(position)
+                    result.into_pres2()
                 })
             });
             escaped_char.parse_stream(parsable_state).into()
@@ -135,7 +137,7 @@ struct IntegerAttrVerifyErr;
 impl Verify for IntegerAttr {
     fn verify(&self, ctx: &Context) -> Result<()> {
         if !self.ty.deref(ctx).is::<IntegerType>() {
-            return verify_err!(IntegerAttrVerifyErr);
+            return verify_err_noloc!(IntegerAttrVerifyErr);
         }
         Ok(())
     }
@@ -274,7 +276,7 @@ impl Verify for SmallDictAttr {
             .zip(self.0.iter().skip(1).map(|(&key, _)| key))
         {
             if str1 > str2 {
-                return verify_err!(SmallDictAttrVerifyErr);
+                return verify_err_noloc!(SmallDictAttrVerifyErr);
             }
         }
         Ok(())
@@ -397,10 +399,10 @@ impl Parsable for UnitAttr {
     type Parsed = AttrObj;
 
     fn parse<'a>(
-        state_stream: &mut StateStream<'a>,
+        _state_stream: &mut StateStream<'a>,
         _argg: Self::Arg,
     ) -> StdParseResult2<Self::Parsed, <StateStream<'a> as StreamOnce>::Error> {
-        Ok(UnitAttr::create()).into_pres2(state_stream.position())
+        Ok(UnitAttr::create()).into_pres2()
     }
 }
 
