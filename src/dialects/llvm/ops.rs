@@ -9,11 +9,13 @@ use crate::{
     impl_op_interface, input_err,
     location::{Located, Location},
     op::{Op, OpObj},
-    operation::Operation,
+    operation::{ssa_opd_parser, Operation},
     parsable::{Parsable, ParseResult},
     printable::{self, Printable},
     use_def_lists::Value,
 };
+
+use combine::parser::Parser;
 
 declare_op!(
     /// Equivalent to LLVM's return opcode.
@@ -75,15 +77,9 @@ impl Parsable for ReturnOp {
             )?
         }
 
-        Identifier::parser(())
+        ssa_opd_parser()
             .parse_stream(state_stream)
-            .map(|opd| -> OpObj {
-                let opd = state_stream
-                    .state
-                    .name_tracker
-                    .ssa_use(state_stream.state.ctx, &opd);
-                Box::new(Self::new_unlinked(state_stream.state.ctx, opd))
-            })
+            .map(|opd| -> OpObj { Box::new(Self::new_unlinked(state_stream.state.ctx, opd)) })
             .into()
     }
 }

@@ -36,12 +36,12 @@ use thiserror::Error;
 /// a mutable reference (wrapped with [StateStream]) to this state.
 pub struct State<'a> {
     pub ctx: &'a mut Context,
-    pub name_tracker: NameTracker,
+    pub(crate) name_tracker: NameTracker,
     pub src: location::Source,
 }
 
 impl<'a> State<'a> {
-    /// Create a new [State] with an empty [NameTracker].
+    /// Create a new empty [State].
     pub fn new(ctx: &'a mut Context, src: location::Source) -> State {
         State {
             ctx,
@@ -264,7 +264,7 @@ impl LabelRef {
 
 /// Utility for parsing SSA names and block labels.
 #[derive(Default)]
-pub struct NameTracker {
+pub(crate) struct NameTracker {
     ssa_name_scope: Vec<FxHashMap<Identifier, Value>>,
     block_label_scope: Vec<FxHashMap<Identifier, LabelRef>>,
 }
@@ -281,7 +281,7 @@ impl NameTracker {
     /// An SSA use is seen. Get its [definition value][Value]
     /// or return a [forward reference][ForwardRefOp] that will
     /// be updated when the actual definition is seen.
-    pub fn ssa_use(&mut self, ctx: &mut Context, id: &Identifier) -> Value {
+    pub(crate) fn ssa_use(&mut self, ctx: &mut Context, id: &Identifier) -> Value {
         let scope = self
             .ssa_name_scope
             .last_mut()
@@ -299,7 +299,7 @@ impl NameTracker {
 
     /// Register an SSA definition. If `id` is already associated with a
     /// [forward reference][ForwardRefOp], update and replace all uses with `def`.
-    pub fn ssa_def(
+    pub(crate) fn ssa_def(
         &mut self,
         ctx: &mut Context,
         id: &(Identifier, Location),
@@ -341,7 +341,7 @@ impl NameTracker {
     /// A [BasicBlock] use is seen. Get the actual block it refers to.
     /// If the block wasn't seen yet, create one now. When exiting the scope,
     /// if the block ends up not being seen, an undefined reference error is returned.
-    pub fn block_use(&mut self, ctx: &mut Context, id: &Identifier) -> Ptr<BasicBlock> {
+    pub(crate) fn block_use(&mut self, ctx: &mut Context, id: &Identifier) -> Ptr<BasicBlock> {
         let scope = self
             .block_label_scope
             .last_mut()
@@ -359,7 +359,7 @@ impl NameTracker {
 
     /// A [BasicBlock] def is seen. If refs was seen earlier,
     /// they are all updated now to refer to the provided block instead.
-    pub fn block_def(
+    pub(crate) fn block_def(
         &mut self,
         ctx: &mut Context,
         id: &(Identifier, Location),
@@ -391,7 +391,7 @@ impl NameTracker {
     /// - If the parent op is [IsolatedFromAboveInterface],
     ///   then a new independent SSA name scope is created.
     /// - A new independent block label scope is always created.
-    pub fn enter_region(&mut self, ctx: &Context, parent_op: Ptr<Operation>) {
+    pub(crate) fn enter_region(&mut self, ctx: &Context, parent_op: Ptr<Operation>) {
         if op_impls::<dyn IsolatedFromAboveInterface>(&*Operation::get_op(parent_op, ctx)) {
             self.ssa_name_scope.push(FxHashMap::default());
         }
@@ -401,7 +401,7 @@ impl NameTracker {
     /// Exit a region.
     /// - If the parent op is [IsolatedFromAboveInterface], then the top SSA name scope is popped.
     /// - The top block label scope is popped.
-    pub fn exit_region(
+    pub(crate) fn exit_region(
         &mut self,
         ctx: &Context,
         parent_op: Ptr<Operation>,

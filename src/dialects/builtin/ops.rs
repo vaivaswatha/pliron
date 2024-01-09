@@ -6,7 +6,6 @@ use crate::{
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
     context::{Context, Ptr},
-    debug_info::set_operation_result_name,
     declare_op,
     dialect::Dialect,
     dialects::builtin::op_interfaces::ZeroResultInterface,
@@ -16,7 +15,7 @@ use crate::{
     linked_list::ContainsLinkedList,
     location::{Located, Location},
     op::{Op, OpObj},
-    operation::Operation,
+    operation::{process_parsed_ssa_defs, Operation},
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::{type_parser, TypeObj},
@@ -372,18 +371,8 @@ impl Parsable for ConstantOp {
         let attr = attr_parser().parse_stream(state_stream).into_result()?.0;
 
         let op = Box::new(Self::new_unlinked(state_stream.state.ctx, attr));
-        state_stream.state.name_tracker.ssa_def(
-            state_stream.state.ctx,
-            &results[0],
-            op.get_result(state_stream.state.ctx),
-        )?;
+        process_parsed_ssa_defs(state_stream, &results, op.get_operation())?;
 
-        set_operation_result_name(
-            state_stream.state.ctx,
-            op.get_operation(),
-            0,
-            results[0].0.to_string(),
-        );
         Ok(op as OpObj).into_parse_result()
     }
 }
