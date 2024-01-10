@@ -8,6 +8,7 @@ use sorted_vector_map::SortedVectorMap;
 use thiserror::Error;
 
 use crate::{
+    asmfmt::printers::{attr_header, concat, quoted},
     attribute::{AttrObj, Attribute},
     common_traits::Verify,
     context::{Context, Ptr},
@@ -45,11 +46,11 @@ impl From<StringAttr> for String {
 impl Printable for StringAttr {
     fn fmt(
         &self,
-        _ctx: &Context,
-        _state: &printable::State,
+        ctx: &Context,
+        state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{} {:?}", Self::get_attr_id_static(), self.0)
+        concat((attr_header(self), " ", quoted(&self.0))).fmt(ctx, state, f)
     }
 }
 
@@ -118,13 +119,15 @@ impl Printable for IntegerAttr {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(
-            f,
-            "{} <0x{:x}: {}>",
-            Self::get_attr_id_static(),
-            self.val,
-            self.ty.disp(ctx)
-        )
+        concat((
+            attr_header(self),
+            " <",
+            format!("0x{:x}", self.val),
+            ": ",
+            &self.ty,
+            ">",
+        ))
+        .fmt(ctx, _state, f)
     }
 }
 
@@ -391,10 +394,10 @@ impl Printable for UnitAttr {
     fn fmt(
         &self,
         ctx: &Context,
-        _state: &printable::State,
+        state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{}", self.get_attr_id().disp(ctx))
+        attr_header(self).fmt(ctx, state, f)
     }
 }
 
@@ -432,10 +435,10 @@ impl Printable for TypeAttr {
     fn fmt(
         &self,
         ctx: &Context,
-        _state: &printable::State,
+        state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{} <{}>", self.get_attr_id().disp(ctx), self.0.disp(ctx))
+        concat((attr_header(self), " <", self.0, ">")).fmt(ctx, state, f)
     }
 }
 

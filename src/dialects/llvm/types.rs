@@ -1,5 +1,5 @@
 use crate::{
-    asmfmt::printers::list_with_sep,
+    asmfmt::printers::{concat, enclosed, list_with_sep, type_header},
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
@@ -31,12 +31,7 @@ impl Printable for StructField {
         state: &printable::State,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        write!(
-            f,
-            "{}: {}",
-            self.field_name,
-            self.field_type.print(ctx, state)
-        )
+        concat((&self.field_name, ": ", self.field_type)).fmt(ctx, state, f)
     }
 }
 
@@ -204,11 +199,12 @@ impl Printable for StructType {
             write!(f, "{name} ")?;
         }
 
-        write!(
-            f,
-            "{{ {} }}",
-            list_with_sep(&self.fields, ListSeparator::CharSpace(',')).print(ctx, state)
-        )?;
+        enclosed(
+            "{ ",
+            " }",
+            list_with_sep(&self.fields, ListSeparator::CharSpace(',')),
+        )
+        .fmt(ctx, state, f)?;
 
         // Done processing this struct. Remove it from the stack.
         if let Some(name) = &self.name {
@@ -333,15 +329,10 @@ impl Printable for PointerType {
     fn fmt(
         &self,
         ctx: &Context,
-        _state: &printable::State,
+        state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(
-            f,
-            "{} <{}>",
-            Self::get_type_id_static().disp(ctx),
-            self.to.disp(ctx)
-        )
+        concat((type_header(self), " <", self.to, ">")).fmt(ctx, state, f)
     }
 }
 

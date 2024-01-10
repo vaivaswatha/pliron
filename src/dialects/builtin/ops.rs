@@ -2,6 +2,7 @@ use combine::{token, Parser};
 use thiserror::Error;
 
 use crate::{
+    asmfmt::printers::{attr, concat, region, results, symb_op_header, typed},
     attribute::{attr_cast, attr_parser, AttrObj},
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
@@ -58,13 +59,7 @@ impl Printable for ModuleOp {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(
-            f,
-            "{} @{} ",
-            self.get_opid().disp(ctx),
-            self.get_symbol_name(ctx),
-        )?;
-        self.get_region(ctx).fmt(ctx, state, f)?;
+        concat((symb_op_header(self), " ", region(self))).fmt(ctx, state, f)?;
         Ok(())
     }
 }
@@ -219,15 +214,14 @@ impl Printable for FuncOp {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(
-            f,
-            "{} @{}: {} ",
-            self.get_opid().disp(ctx),
-            self.get_symbol_name(ctx),
-            self.get_type(ctx).disp(ctx),
-        )?;
-        self.get_region(ctx).fmt(ctx, state, f)?;
-        Ok(())
+        concat((
+            symb_op_header(self),
+            ": ",
+            self.get_type(ctx),
+            " ",
+            region(self),
+        ))
+        .fmt(ctx, state, f)
     }
 }
 
@@ -347,16 +341,13 @@ impl Printable for ConstantOp {
     fn fmt(
         &self,
         ctx: &Context,
-        _state: &printable::State,
+        state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(
-            f,
-            "{} = {} {}",
-            self.get_result(ctx).unique_name(ctx),
-            self.get_opid().disp(ctx),
-            self.get_value(ctx).disp(ctx)
-        )
+        let op = self.get_operation().deref(ctx);
+        concat((results(&op), " = ", &op.opid, " ")).fmt(ctx, state, f)?;
+        attr(&op, Self::ATTR_KEY_VALUE).fmt(ctx, state, f)?;
+        Ok(())
     }
 }
 
@@ -415,15 +406,12 @@ impl Printable for ForwardRefOp {
     fn fmt(
         &self,
         ctx: &Context,
-        _state: &printable::State,
+        state: &printable::State,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        write!(
-            f,
-            "{} = {}",
-            self.get_result(ctx).unique_name(ctx),
-            self.get_opid().disp(ctx),
-        )
+        let op = self.get_operation().deref(ctx);
+        concat((results(&op), " = ", &op.opid)).fmt(ctx, state, f)?;
+        Ok(())
     }
 }
 

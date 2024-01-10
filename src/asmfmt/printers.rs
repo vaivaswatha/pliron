@@ -3,7 +3,8 @@ use std::fmt;
 use crate::{
     attribute::Attribute,
     common_traits::Named,
-    context::Context,
+    context::{private::ArenaObj, Context, Ptr},
+    dialects::builtin::op_interfaces::{OneRegionInterface, SymbolOpInterface},
     op::Op,
     operation::Operation,
     printable::{fmt_iter, ListSeparator, Printable, State},
@@ -80,7 +81,7 @@ macro_rules! results_directive {
 pub(crate) use results_directive;
 
 /// Print the results of an Operation.
-fn results(op: &Operation) -> impl Printable + '_ {
+pub fn results(op: &Operation) -> impl Printable + '_ {
     PrinterFn(
         move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
             let sep = ListSeparator::Char(',');
@@ -100,9 +101,12 @@ macro_rules! operands_directive {
 pub(crate) use operands_directive;
 
 /// Print the operations of an Operation.
-fn operands(op: &Operation) -> impl Printable + '_ {
-    let sep = ListSeparator::Char(',');
-    concat(("(", list_with_sep(&op.operands, sep), ")"))
+pub fn operands(op: &Operation) -> impl Printable + '_ {
+    enclosed(
+        "(",
+        ")",
+        list_with_sep(&op.operands, ListSeparator::Char(',')),
+    )
 }
 
 #[macro_export]
@@ -115,9 +119,12 @@ macro_rules! successors_directive {
 pub(crate) use successors_directive;
 
 /// Print the successors of an Operation.
-fn successors(op: &Operation) -> impl Printable + '_ {
-    let sep = ListSeparator::Char(',');
-    concat(("[", list_with_sep(&op.successors, sep), "]"))
+pub fn successors(op: &Operation) -> impl Printable + '_ {
+    enclosed(
+        "[",
+        "]",
+        list_with_sep(&op.successors, ListSeparator::Char(',')),
+    )
 }
 
 #[macro_export]
@@ -130,9 +137,28 @@ macro_rules! regions_directive {
 pub(crate) use regions_directive;
 
 /// Print the regions of an Operation.
-fn regions(op: &Operation) -> impl Printable + '_ {
-    let sep = ListSeparator::Char(',');
-    concat(("{", list_with_sep(&op.regions, sep), "}"))
+pub fn regions(op: &Operation) -> impl Printable + '_ {
+    enclosed(
+        "{",
+        "}",
+        list_with_sep(&op.regions, ListSeparator::Char(',')),
+    )
+}
+
+pub fn region<T: Op + OneRegionInterface>(op: &T) -> impl Printable + '_ {
+    PrinterFn(
+        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
+            op.get_region(ctx).fmt(ctx, state, f)
+        },
+    )
+}
+
+pub fn symb_op_header<T: Op + SymbolOpInterface>(op: &T) -> impl Printable + '_ {
+    PrinterFn(
+        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
+            concat((op.get_opid(), " @", op.get_symbol_name(ctx))).fmt(ctx, state, f)
+        },
+    )
 }
 
 #[macro_export]
@@ -145,7 +171,7 @@ macro_rules! attr_dict_directive {
 pub(crate) use attr_dict_directive;
 
 /// Print the attributes of an Op.
-fn attr_dict(op: &Operation) -> impl Printable + '_ {
+pub fn attr_dict(op: &Operation) -> impl Printable + '_ {
     PrinterFn(
         move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
             write!(f, "{{")?;
@@ -155,6 +181,15 @@ fn attr_dict(op: &Operation) -> impl Printable + '_ {
                 .map(|(k, v)| concat((quoted(k), literal(" = "), v)));
             iter_with_sep(attrs, ListSeparator::Char(',')).fmt(ctx, state, f)?;
             write!(f, "}}")
+        },
+    )
+}
+
+pub fn attr<'op>(op: &'op Operation, name: &'static str) -> impl Printable + 'op {
+    PrinterFn(
+        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
+            let attr = op.attributes.get(name).unwrap();
+            attr.fmt(ctx, state, f)
         },
     )
 }
@@ -169,7 +204,7 @@ macro_rules! quoted_directive {
 pub(crate) use quoted_directive;
 
 /// Print a string as a quoted string.
-fn quoted(s: &str) -> impl Printable + '_ {
+pub fn quoted(s: &str) -> impl Printable + '_ {
     PrinterFn(
         move |_ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>| write!(f, "{:?}", s),
     )
@@ -324,6 +359,10 @@ pub fn concat<List: PrinterList>(items: List) -> impl Printable {
     )
 }
 
+pub fn enclosed<P: Printable>(left: &'static str, right: &'static str, p: P) -> impl Printable {
+    concat((literal(left), p, literal(right)))
+}
+
 // locally typed alias for to capture and print a comma separated list of attributes via tuples.
 pub trait PrinterList {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result;
@@ -433,9 +472,22 @@ pub trait TypedPrinter {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
 
+impl TypedPrinter for dyn Type {
+    fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Printable::fmt(self, ctx, state, f)
+    }
+}
+
 impl<T: TypedPrinter> TypedPrinter for &T {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         (*self).fmt(ctx, state, f)
+    }
+}
+
+impl<T: Typed + ArenaObj> TypedPrinter for Ptr<T> {
+    fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let t = self.deref(ctx).get_type(ctx);
+        Printable::fmt(&t, ctx, state, f)
     }
 }
 

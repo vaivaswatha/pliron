@@ -1,4 +1,5 @@
 use crate::{
+    asmfmt::printers::{concat, operands},
     common_traits::Verify,
     context::Context,
     declare_op,
@@ -41,19 +42,16 @@ impl Printable for ReturnOp {
     fn fmt(
         &self,
         ctx: &Context,
-        _state: &printable::State,
+        state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(
-            f,
-            "{} {}",
-            self.get_opid().disp(ctx),
-            self.get_operation()
-                .deref(ctx)
-                .get_operand_ref(0)
-                .unwrap()
-                .disp(ctx)
-        )
+        concat((
+            self.get_opid(),
+            " ",
+            self.get_operation().deref(ctx).get_operand_ref(0).unwrap(),
+        ))
+        .fmt(ctx, state, f)?;
+        Ok(())
     }
 }
 

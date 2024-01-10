@@ -8,7 +8,7 @@ use combine::{
 };
 
 use crate::{
-    asmfmt::printers::list_with_sep,
+    asmfmt::printers::{concat, functional_type, list_with_sep, literal, type_header, typed},
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
@@ -87,10 +87,11 @@ impl Printable for IntegerType {
     fn fmt(
         &self,
         ctx: &Context,
-        _state: &printable::State,
+        state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{} <", Self::get_type_id_static().disp(ctx))?;
+        type_header(self).fmt(ctx, state, f)?;
+        write!(f, " <",)?;
         match &self.signedness {
             Signedness::Signed => write!(f, "si{}", self.width)?,
             Signedness::Unsigned => write!(f, "ui{}", self.width)?,
@@ -155,14 +156,12 @@ impl Printable for FunctionType {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        let sep = ListSeparator::Char(',');
-        write!(
-            f,
-            "{} <({}) -> ({})>",
-            Self::get_type_id_static().disp(ctx),
-            list_with_sep(&self.inputs, sep).print(ctx, state),
-            list_with_sep(&self.results, sep).print(ctx, state),
-        )
+        concat((
+            type_header(self),
+            " ",
+            functional_type(typed(&self.inputs), typed(&self.results)),
+        ))
+        .fmt(ctx, state, f)
     }
 }
 
@@ -225,7 +224,7 @@ impl Printable for UnitType {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{}", Self::get_type_id_static().disp(ctx),)
+        type_header(self).fmt(ctx, _state, f)
     }
 }
 
@@ -256,7 +255,6 @@ pub fn register(dialect: &mut Dialect) {
     UnitType::register_type_in_dialect(dialect, UnitType::parser_fn);
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use combine::{eof, Parser};
@@ -366,4 +364,3 @@ mod tests {
         assert!(res == FunctionType::get_existing(&ctx, vec![], vec![si32]).unwrap())
     }
 }
-*/
