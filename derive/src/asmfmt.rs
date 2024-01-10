@@ -556,7 +556,7 @@ pub(crate) fn try_format_from_struct(
 
 pub(crate) fn generic_op_format() -> Format {
     Format {
-        elems: vec![Directive::new("generic_op_format").into()],
+        elems: vec![Directive::new("operation_generic_format").into()],
     }
 }
 

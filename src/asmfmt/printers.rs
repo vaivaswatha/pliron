@@ -1,17 +1,16 @@
 use std::fmt;
 
 use crate::{
-    attribute::{Attribute, AttributeDict},
-    basic_block::BasicBlock,
-    context::{Context, Ptr},
+    attribute::Attribute,
+    common_traits::Named,
+    context::Context,
     op::Op,
-    operation::Operand,
+    operation::Operation,
     printable::{fmt_iter, ListSeparator, Printable, State},
     r#type::{Type, Typed},
-    region::Region,
-    use_def_lists::Value,
 };
 
+/// Wrap a function to implement the Printable trait
 struct PrinterFn<F>(F);
 
 impl<F> Printable for PrinterFn<F>
@@ -23,6 +22,7 @@ where
     }
 }
 
+/// Print the [TypeId] of the type.
 pub fn type_header<T: Type>(ty: &T) -> impl Printable + '_ {
     PrinterFn(
         move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
@@ -31,6 +31,7 @@ pub fn type_header<T: Type>(ty: &T) -> impl Printable + '_ {
     )
 }
 
+/// Print the [AttrId] of the attribute.
 pub fn attr_header<T: Attribute>(attr: &T) -> impl Printable + '_ {
     PrinterFn(
         move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
@@ -39,20 +40,24 @@ pub fn attr_header<T: Attribute>(attr: &T) -> impl Printable + '_ {
     )
 }
 
+/// Print a value that implements Display.
 pub fn disp(disp: impl fmt::Display) -> impl Printable {
     PrinterFn(
         move |_ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>| write!(f, "{}", disp),
     )
 }
 
+/// Print a plain string as is.
 pub fn literal(lit: &str) -> impl Printable + '_ {
     disp(lit)
 }
 
+/// Print a list of items separated by [sep].
 pub fn list_with_sep<T: Printable>(items: &[T], sep: ListSeparator) -> impl Printable + '_ {
     iter_with_sep(items.iter(), sep)
 }
 
+/// Print an iterator of items separated by [sep].
 pub fn iter_with_sep<I>(iter: I, sep: ListSeparator) -> impl Printable
 where
     I: Iterator + Clone,
@@ -65,59 +70,93 @@ where
     )
 }
 
-fn operands(ops: &[Operand<Value>]) -> impl Printable + '_ {
-    let sep = ListSeparator::Char(',');
-    concat(("(", list_with_sep(ops, sep), ")"))
+#[macro_export]
+macro_rules! results_directive {
+    ($op:ident) => {
+        results(*$op)
+    };
+}
+#[allow(unused_imports)]
+pub(crate) use results_directive;
+
+/// Print the results of an Operation.
+fn results(op: &Operation) -> impl Printable + '_ {
+    PrinterFn(
+        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
+            let sep = ListSeparator::Char(',');
+            let results = op.results.iter().map(|r| r.unique_name(ctx));
+            iter_with_sep(results, sep).fmt(ctx, state, f)
+        },
+    )
 }
 
-fn successors(succs: &[Operand<Ptr<BasicBlock>>]) -> impl Printable + '_ {
+#[macro_export]
+macro_rules! operands_directive {
+    ($op:ident) => {
+        operands(*$op)
+    };
+}
+#[allow(unused_imports)]
+pub(crate) use operands_directive;
+
+/// Print the operations of an Operation.
+fn operands(op: &Operation) -> impl Printable + '_ {
     let sep = ListSeparator::Char(',');
-    concat(("[", list_with_sep(succs, sep), "]"))
+    concat(("(", list_with_sep(&op.operands, sep), ")"))
 }
 
-fn regions(rs: &[Ptr<Region>]) -> impl Printable + '_ {
+#[macro_export]
+macro_rules! successors_directive {
+    ($op:ident) => {
+        successors(*$op)
+    };
+}
+#[allow(unused_imports)]
+pub(crate) use successors_directive;
+
+/// Print the successors of an Operation.
+fn successors(op: &Operation) -> impl Printable + '_ {
     let sep = ListSeparator::Char(',');
-    concat(("{", list_with_sep(rs, sep), "}"))
+    concat(("[", list_with_sep(&op.successors, sep), "]"))
+}
+
+#[macro_export]
+macro_rules! regions_directive {
+    ($op:ident) => {
+        regions(*$op)
+    };
+}
+#[allow(unused_imports)]
+pub(crate) use regions_directive;
+
+/// Print the regions of an Operation.
+fn regions(op: &Operation) -> impl Printable + '_ {
+    let sep = ListSeparator::Char(',');
+    concat(("{", list_with_sep(&op.regions, sep), "}"))
 }
 
 #[macro_export]
 macro_rules! attr_dict_directive {
     ($op:ident) => {
-        attr_dict_op(*$op)
+        attr_dict(*$op)
     };
 }
 #[allow(unused_imports)]
 pub(crate) use attr_dict_directive;
 
-fn attr_dict_op<T: Op + Copy>(op: T) -> impl Printable {
+/// Print the attributes of an Op.
+fn attr_dict(op: &Operation) -> impl Printable + '_ {
     PrinterFn(
         move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
-            let op = op.get_operation().deref(ctx);
-            fmt_attr_dict(&op.attributes, ctx, state, f)
+            write!(f, "{{")?;
+            let attrs = op
+                .attributes
+                .iter()
+                .map(|(k, v)| concat((quoted(k), literal(" = "), v)));
+            iter_with_sep(attrs, ListSeparator::Char(',')).fmt(ctx, state, f)?;
+            write!(f, "}}")
         },
     )
-}
-
-fn attr_dict(attrs: &AttributeDict) -> impl Printable + '_ {
-    PrinterFn(
-        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
-            fmt_attr_dict(attrs, ctx, state, f)
-        },
-    )
-}
-
-fn fmt_attr_dict(
-    attrs: &AttributeDict,
-    ctx: &Context,
-    state: &State,
-    f: &mut fmt::Formatter<'_>,
-) -> fmt::Result {
-    write!(f, "{{")?;
-    let attrs = attrs
-        .iter()
-        .map(|(k, v)| concat((quoted(k), literal(" = "), v)));
-    iter_with_sep(attrs, ListSeparator::Char(',')).fmt(ctx, state, f)?;
-    write!(f, "}}")
 }
 
 #[macro_export]
@@ -129,6 +168,7 @@ macro_rules! quoted_directive {
 #[allow(unused_imports)]
 pub(crate) use quoted_directive;
 
+/// Print a string as a quoted string.
 fn quoted(s: &str) -> impl Printable + '_ {
     PrinterFn(
         move |_ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>| write!(f, "{:?}", s),
@@ -144,20 +184,25 @@ macro_rules! format_directive {
 #[allow(unused_imports)]
 pub(crate) use format_directive;
 
+/// Print a value using the given Rust format string.
+///
+/// Warning: formatted values are not parsable. A custom parser might need to be implemented when
+/// using `formatted` in the printer.
 pub fn formatted(s: String) -> impl Printable {
     PrinterFn(move |_ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>| write!(f, "{}", s))
 }
 
 #[allow(unused_macros)]
-macro_rules! function_type_directive {
+macro_rules! functional_type_directive {
     ($ty:expr, $inputs:expr, $results:expr) => {
-        function_type(print_var!(&$inputs), print_var!(&$results))
+        functional_type(print_var!(&$inputs), print_var!(&$results))
     };
 }
 #[allow(unused_imports)]
-pub(crate) use function_type_directive;
+pub(crate) use functional_type_directive;
 
-pub fn function_type<'a>(
+/// Print a function type with inputs and results like `<(i32, i32) -> (i64)>`
+pub fn functional_type<'a>(
     inputs: impl Printable + 'a,
     results: impl Printable + 'a,
 ) -> impl Printable + 'a {
@@ -343,7 +388,6 @@ macro_rules! printer_list_tuple_trait_impl(
 // Implement body part of PrinterList trait iterating over all elements self (the tuple input).
 macro_rules! printer_list_tuple_trait_cont(
   ($idx:tt, $self:expr, $ctx:expr, $state:expr, $f:expr, $head:ident $($id:ident)+) => (
-    write!($f, ", ")?;
     $self.$idx.fmt($ctx, $state, $f)?;
     succ!($idx, printer_list_tuple_trait_cont!($self, $ctx, $state, $f, $($id)+))
   );
@@ -363,44 +407,39 @@ macro_rules! get_attr {
 pub(crate) use get_attr;
 
 #[macro_export]
-macro_rules! generic_op_format_directive {
+macro_rules! operation_generic_format_directive {
     ($self:ident) => {
-        generic_op_format(*$self)
+        operation_generic_format(*$self)
     };
 }
 #[allow(unused_imports)]
-pub(crate) use generic_op_format_directive;
-
-pub fn generic_op_format<T: Op + Copy>(op: T) -> impl Printable {
-    PrinterFn(
-        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
-            fmt_generic_op_format(op, ctx, state, f)
-        },
-    )
-}
+pub(crate) use operation_generic_format_directive;
 
 #[macro_export]
-macro_rules! type_directive {
+macro_rules! typed_directive {
     ($self:ident) => {
         typed(*$self)
     };
 }
+#[allow(unused_imports)]
+pub(crate) use typed_directive;
 
-pub fn typed(ty: impl TypedListPrinter) -> impl Printable {
+pub fn typed(ty: impl TypedPrinter) -> impl Printable {
     PrinterFn(move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| ty.fmt(ctx, state, f))
 }
 
-pub trait TypedListPrinter {
+/// Used to print the type of an IR object.
+pub trait TypedPrinter {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
 
-impl<T: TypedListPrinter> TypedListPrinter for &T {
+impl<T: TypedPrinter> TypedPrinter for &T {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         (*self).fmt(ctx, state, f)
     }
 }
 
-impl<T: Typed> TypedListPrinter for &Vec<T> {
+impl<T: Typed> TypedPrinter for &Vec<T> {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sep = ListSeparator::Char(',');
         let elems = self.iter().map(|ty| ty.get_type(ctx));
@@ -408,7 +447,7 @@ impl<T: Typed> TypedListPrinter for &Vec<T> {
     }
 }
 
-impl<T: Typed> TypedListPrinter for &[T] {
+impl<T: Typed> TypedPrinter for &[T] {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sep = ListSeparator::Char(',');
         let elems = self.iter().map(|ty| ty.get_type(ctx));
@@ -416,50 +455,53 @@ impl<T: Typed> TypedListPrinter for &[T] {
     }
 }
 
-// https://mlir.llvm.org/docs/LangRef/#operations
-pub fn fmt_generic_op_format<T: Op>(
-    op: T,
-    ctx: &Context,
-    state: &State,
-    f: &mut fmt::Formatter<'_>,
-) -> fmt::Result {
-    let op_id = op.get_opid();
-    let op = op.get_operation().deref(ctx);
+/// Print an Op using the generic Operation format.
+///
+/// See: https://mlir.llvm.org/docs/LangRef/#operations
+pub fn operation_generic_format<T: Op>(op: T) -> impl Printable {
+    PrinterFn(
+        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
+            let op_id = op.get_opid();
+            let operation = op.get_operation().deref(ctx);
 
-    write!(f, "\"{}\"", op_id)?;
+            if !operation.results.is_empty() {
+            } else {
+                results(&operation).fmt(ctx, state, f)?;
+                write!(f, " = ")?;
+            }
 
-    operands(&op.operands).fmt(ctx, state, f)?;
+            write!(f, "\"{}\"", op_id)?;
 
-    if !op.successors.is_empty() {
-        write!(f, " ")?;
-        successors(&op.successors).fmt(ctx, state, f)?;
-    }
+            operands(&operation).fmt(ctx, state, f)?;
+            if !operation.successors.is_empty() {
+                write!(f, " ")?;
+                successors(&operation).fmt(ctx, state, f)?;
+            }
 
-    // MLIR would expect `dictionary properties` next.
-    // We do not distinguish between attributes and properties. In fact our attributes
-    // rather act as properties in MLIR. We will still print our attributes as MLIR attributes for
-    // now.
+            // MLIR would expect `dictionary properties` next.
+            // We do not distinguish between attributes and properties. In fact our attributes
+            // rather act as properties in MLIR. We will still print our attributes as MLIR attributes for
+            // now.
 
-    if !op.regions.is_empty() {
-        write!(f, " ")?;
-        regions(&op.regions).fmt(ctx, state, f)?;
-    }
+            if !operation.regions.is_empty() {
+                write!(f, " ")?;
+                regions(&operation).fmt(ctx, state, f)?;
+            }
 
-    if !op.attributes.is_empty() {
-        write!(f, " ")?;
-        fmt_attr_dict(&op.attributes, ctx, state, f)?;
-    }
+            if !operation.attributes.is_empty() {
+                write!(f, " ")?;
+                attr_dict(&operation).fmt(ctx, state, f)?;
+            }
 
-    write!(f, " : ")?;
+            write!(f, " : ")?;
 
-    // todo: function type
-    // function_type(todo!(), todo!()).fmt(ctx, state, f)?;
+            let ty_operands = typed(&operation.operands);
+            let ty_results = typed(&operation.results);
+            functional_type(ty_operands, ty_results).fmt(ctx, state, f)?;
 
-    let ty_operands = typed(&op.operands);
-    let ty_results = typed(&op.results);
-    function_type(ty_operands, ty_results).fmt(ctx, state, f)?;
-
-    Ok(())
+            Ok(())
+        },
+    )
 }
 
 #[cfg(test)]
@@ -468,7 +510,12 @@ mod tests {
 
     use crate::{
         asmfmt::parsers::AsmParser,
-        location,
+        attribute::attr_cast,
+        dialects::builtin::attr_interfaces::TypedAttrInterface,
+        identifier::Identifier,
+        impl_attr_interface,
+        location::{self, Location},
+        op::OpObj,
         parsable::{self, state_stream_from_iterator},
     };
     use apint::ApInt;
@@ -496,6 +543,7 @@ mod tests {
         IntegerAttr::register_attr_in_dialect(&mut dialect, IntegerAttr::parser_fn);
         UnitAttr::register_attr_in_dialect(&mut dialect, UnitAttr::parser_fn);
         VecAttr::register_attr_in_dialect(&mut dialect, VecAttr::parser_fn);
+        ConstantOp::register(ctx, &mut dialect, ConstantOp::parser_fn);
         dialect.register(ctx);
     }
 
@@ -561,7 +609,7 @@ mod tests {
 
     #[derive(Hash, PartialEq, Debug, Eq, Type, Printable, NotParsableType)]
     #[type_name = "testing.function"]
-    #[asm_format = "function_type($inputs, $results)"]
+    #[asm_format = "functional_type($inputs, $results)"]
     pub struct FunctionType {
         inputs: Vec<Ptr<TypeObj>>,
         results: Vec<Ptr<TypeObj>>,
@@ -589,17 +637,27 @@ mod tests {
     }
 
     #[derive(PartialEq, Eq, Debug, Clone, Attribute, Printable, NotParsableAttribute)]
-    #[attr_name = "testing.integer"]
+    #[attr_name = "testing.int"]
     #[asm_format = "` <` format(`0x{:x}`, $val) `: ` $ty `>`"]
     pub struct IntegerAttr {
         ty: Ptr<TypeObj>,
         val: ApInt,
+    }
+    impl IntegerAttr {
+        pub fn create(ty: Ptr<TypeObj>, val: ApInt) -> AttrObj {
+            Box::new(IntegerAttr { ty, val })
+        }
     }
     impl Verify for IntegerAttr {
         fn verify(&self, _ctx: &Context) -> Result<()> {
             Ok(())
         }
     }
+    impl_attr_interface!(TypedAttrInterface for IntegerAttr {
+        fn get_type(&self) -> Ptr<TypeObj> {
+            self.ty
+        }
+    });
 
     #[derive(PartialEq, Eq, Debug, Clone, Attribute, Printable, NotParsableAttribute)]
     #[attr_name = "testing.string"]
@@ -639,12 +697,45 @@ mod tests {
     }
 
     #[declare_op]
-    #[op_name = "testing.op"]
+    #[op_name = "testing.const"]
     #[derive(Printable)]
-    struct MyOp;
-    impl Verify for MyOp {
+    struct ConstantOp;
+    impl ConstantOp {
+        /// Attribute key for the constant value.
+        pub const ATTR_KEY_VALUE: &'static str = "constant.value";
+
+        /// Get the constant value that this Op defines.
+        pub fn get_value(&self, ctx: &Context) -> AttrObj {
+            let op = self.get_operation().deref(ctx);
+            op.attributes.get(Self::ATTR_KEY_VALUE).unwrap().clone()
+        }
+
+        /// Create a new [ConstantOp]. The underlying [Operation] is not linked to a [BasicBlock].
+        pub fn new_unlinked(ctx: &mut Context, value: AttrObj) -> Self {
+            let result_type = attr_cast::<dyn TypedAttrInterface>(&*value)
+                .expect("ConstantOp const value must provide TypedAttrInterface")
+                .get_type();
+            let op = Operation::new(ctx, Self::get_opid_static(), vec![result_type], vec![], 0);
+            op.deref_mut(ctx)
+                .attributes
+                .insert(Self::ATTR_KEY_VALUE, value);
+            Self { op }
+        }
+    }
+    impl Verify for ConstantOp {
         fn verify(&self, _ctx: &Context) -> Result<()> {
             Ok(())
+        }
+    }
+    impl Parsable for ConstantOp {
+        type Arg = Vec<(Identifier, Location)>;
+        type Parsed = OpObj;
+
+        fn parse<'a>(
+            state_stream: &mut StateStream<'a>,
+            arg: Self::Arg,
+        ) -> ParseResult<'a, Self::Parsed> {
+            todo!()
         }
     }
 
@@ -742,7 +833,7 @@ mod tests {
         let got = attr.disp(&ctx).to_string();
         assert_eq!(
             got,
-            "testing.integer <0x2a: testing.integer<sign=true, width=32, align=8>>"
+            "testing.int <0x2a: testing.integer<sign=true, width=32, align=8>>"
         );
     }
 
@@ -754,5 +845,22 @@ mod tests {
         let vec_attr = VecAttr(vec![UnitAttr::create(), UnitAttr::create()]);
         let got = vec_attr.disp(&ctx).to_string();
         assert_eq!(got, "testing.vec <testing.unit,testing.unit>");
+    }
+
+    #[test]
+    fn print_const_op() {
+        let mut ctx = Context::new();
+        register_dialect(&mut ctx);
+
+        let i32_ty = IntegerType::get(&mut ctx, 32, true, 4);
+        let const_value = ApInt::from(42);
+
+        let const_op = ConstantOp::new_unlinked(&mut ctx, IntegerAttr::create(i32_ty, const_value));
+
+        let got = const_op.disp(&ctx).to_string();
+        assert_eq!(
+            got,
+            r#""testing.const"() {"constant.value" = testing.int <0x2a: testing.integer<sign=true, width=32, align=4>>} : <() -> (testing.integer<sign=true, width=32, align=4>)>"#
+        );
     }
 }
