@@ -99,7 +99,7 @@ fn opt_string_pair_from_syn(attr: &syn::Attribute) -> syn::Result<(Option<String
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct AsmFormat(Format);
+pub(crate) struct AsmFormat(pub Format);
 
 impl Attribute for AsmFormat {
     const ATTR_NAME: &'static str = "asm_format";

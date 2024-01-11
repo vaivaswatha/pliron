@@ -109,6 +109,9 @@ impl<'a> ParserBuilder<'a> {
                 todo!()
             }
             Elem::Directive(ref d) => self.build_directive(d, toplevel),
+            Elem::Optional(ref _opt) => {
+                todo!()
+            }
         }
     }
 

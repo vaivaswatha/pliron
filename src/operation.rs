@@ -8,6 +8,7 @@ use combine::{attempt, parser::char::spaces, position, token, Parser};
 use thiserror::Error;
 
 use crate::{
+    asmfmt::printers,
     attribute::AttributeDict,
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
@@ -20,7 +21,7 @@ use crate::{
     location::{Located, Location},
     op::{self, OpId, OpObj},
     parsable::{self, spaced, Parsable, ParseResult, StateStream},
-    printable::{self, Printable},
+    printable::{self, ListSeparator, Printable},
     r#type::{TypeObj, Typed},
     region::Region,
     use_def_lists::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
@@ -59,6 +60,20 @@ impl From<&OpResult> for Value {
             op: value.def_op,
             res_idx: value.res_idx,
         }
+    }
+}
+
+impl Printable for Vec<OpResult> {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let sep = ListSeparator::Char(',');
+        let results = self.iter().map(|r| r.unique_name(ctx));
+        printers::iter_with_sep(results, sep).fmt(ctx, state, f)?;
+        Ok(())
     }
 }
 
@@ -492,6 +507,10 @@ impl Printable for Operation {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
+        if !self.results.is_empty() {
+            self.results.fmt(ctx, state, f)?;
+            write!(f, " = ")?;
+        }
         Self::get_op(self.self_ptr, ctx).fmt(ctx, state, f)
     }
 }

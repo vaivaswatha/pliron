@@ -2,7 +2,7 @@ use combine::{token, Parser};
 use thiserror::Error;
 
 use crate::{
-    asmfmt::printers::{attr, concat, region, results, symb_op_header, typed},
+    asmfmt::printers::{attr, concat, region, symb_op_header, typed},
     attribute::{attr_cast, attr_parser, AttrObj},
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
@@ -345,8 +345,7 @@ impl Printable for ConstantOp {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         let op = self.get_operation().deref(ctx);
-        concat((results(&op), " = ", &op.opid, " ")).fmt(ctx, state, f)?;
-        attr(&op, Self::ATTR_KEY_VALUE).fmt(ctx, state, f)?;
+        concat((self.get_opid(), " ", attr(&op, Self::ATTR_KEY_VALUE))).fmt(ctx, state, f)?;
         Ok(())
     }
 }
@@ -409,8 +408,7 @@ impl Printable for ForwardRefOp {
         state: &printable::State,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        let op = self.get_operation().deref(ctx);
-        concat((results(&op), " = ", &op.opid)).fmt(ctx, state, f)?;
+        self.get_opid().fmt(ctx, state, f)?;
         Ok(())
     }
 }

@@ -69,14 +69,13 @@ impl<'a> Struct<'a> {
             ));
         };
 
-        let format = match format {
-            Some(format) => format,
+        let mut format = match format {
+            Some(f) => f,
             None => {
                 let mut format = match kind {
                     IRKind::Op => generic_op_format(),
                     IRKind::Type | IRKind::Attribute => try_format_from_struct(input, data)?,
                 };
-
                 if !format.is_empty() && kind != IRKind::Op {
                     format.enclose(Elem::Lit("<".into()), Elem::Lit(">".into()));
                     match kind {
@@ -90,6 +89,13 @@ impl<'a> Struct<'a> {
                 format.into()
             }
         };
+
+        if kind == IRKind::Op {
+            format.format_mut().prepend(Optional::new(
+                Elem::new_directive("results"),
+                Format::from(vec![Elem::new_directive("results"), Elem::new_lit(" = ")]),
+            ));
+        }
 
         let fields = data
             .fields
@@ -125,17 +131,23 @@ impl Format {
         self.elems.is_empty()
     }
 
-    pub fn prepend(&mut self, elem: Elem) {
-        self.elems.insert(0, elem);
+    pub fn prepend(&mut self, elem: impl Into<Elem>) {
+        self.elems.insert(0, elem.into());
     }
 
-    pub fn append(&mut self, elem: Elem) {
-        self.elems.push(elem);
+    pub fn append(&mut self, elem: impl Into<Elem>) {
+        self.elems.push(elem.into());
     }
 
-    pub fn enclose(&mut self, open: Elem, close: Elem) {
+    pub fn enclose(&mut self, open: impl Into<Elem>, close: impl Into<Elem>) {
         self.prepend(open);
         self.append(close);
+    }
+}
+
+impl From<Vec<Elem>> for Format {
+    fn from(elems: Vec<Elem>) -> Self {
+        Self { elems }
     }
 }
 
@@ -153,6 +165,8 @@ pub(crate) enum Elem {
     // Directives are builtin identifiers. Some directives may have optional arguments enclosed
     // in parens. For example `attr-dict` or `directive($arg1, other-directive)`.
     Directive(Directive),
+
+    Optional(Optional),
 }
 
 impl Elem {
@@ -344,6 +358,37 @@ impl Directive {
 impl From<Directive> for Elem {
     fn from(directive: Directive) -> Self {
         Self::Directive(directive)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Optional {
+    pub check: Box<Elem>,
+    pub then_format: Format,
+    pub else_format: Option<Format>,
+}
+
+impl From<Optional> for Elem {
+    fn from(optional: Optional) -> Self {
+        Self::Optional(optional)
+    }
+}
+
+impl Optional {
+    pub fn new(check: Elem, then_format: Format) -> Self {
+        Self {
+            check: Box::new(check),
+            then_format,
+            else_format: None,
+        }
+    }
+
+    pub fn new_with_else(check: Elem, then_format: Format, else_format: Format) -> Self {
+        Self {
+            check: Box::new(check),
+            then_format,
+            else_format: Some(else_format),
+        }
     }
 }
 

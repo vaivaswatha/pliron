@@ -102,6 +102,7 @@ fn impl_struct(input: Struct) -> TokenStream {
     let attributes = input.attrs.other;
     quote! {
         #[derive(Clone, Copy)]
+        #[derive(::pliron_derive::DeriveAttribDummy)]
         #(#attributes)*
         #kind
         pub struct #name { op: ::pliron::context::Ptr<::pliron::operation::Operation> }

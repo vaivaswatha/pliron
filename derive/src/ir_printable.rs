@@ -5,7 +5,7 @@ use quote::{format_ident, quote};
 use syn::{DeriveInput, Result};
 
 use crate::{
-    asmfmt::{Directive, Elem, Input, Lit, Struct, UnnamedVar, Var},
+    asmfmt::{Directive, Elem, Format, Input, Lit, Optional, Struct, UnnamedVar, Var},
     attr::{AsmFormat, IRKind},
 };
 
@@ -56,8 +56,12 @@ impl<'a> PrinterBuilder<'a> {
     }
 
     fn build(&self, attr: &AsmFormat) -> TokenStream {
-        let elems = attr.format().elems.iter();
-        elems.map(|e| self.build_elem(e, true)).collect()
+        self.build_format(attr.format(), true)
+    }
+
+    fn build_format(&self, format: &Format, toplevel: bool) -> TokenStream {
+        let elems = format.elems.iter();
+        elems.map(|e| self.build_elem(e, toplevel)).collect()
     }
 
     fn build_elem(&self, elem: &Elem, toplevel: bool) -> TokenStream {
@@ -73,6 +77,7 @@ impl<'a> PrinterBuilder<'a> {
                 self.build_field_use(syn::Index::from(*index), toplevel)
             }
             Elem::Directive(ref d) => self.build_directive(d, toplevel),
+            Elem::Optional(ref opt) => self.build_optional(opt, toplevel),
         }
     }
 
@@ -117,11 +122,34 @@ impl<'a> PrinterBuilder<'a> {
         let directive = format_ident!("{}_directive", d.name);
         let args = d.args.iter().map(|a| self.build_elem(a, false));
         let mut printer = quote! {
-            ::pliron::asmfmt::printers::#directive!(self #(, #args)*)
+            ::pliron::asmfmt::printers::#directive!(ctx, self #(, #args)*)
         };
         if toplevel {
             printer = quote! { #printer.fmt(ctx, state, fmt)?; };
         }
         printer
+    }
+
+    fn build_optional(&self, d: &Optional, toplevel: bool) -> TokenStream {
+        let check = Directive::new_with_args("check", vec![d.check.as_ref().clone()]);
+
+        let check = self.build_directive(&check, false);
+        let then_block = self.build_format(&d.then_format, toplevel);
+        if let Some(else_format) = &d.else_format {
+            let else_block = self.build_format(else_format, toplevel);
+            quote! {
+                if #check {
+                    #then_block
+                } else {
+                    #else_block
+                }
+            }
+        } else {
+            quote! {
+                if #check {
+                    #then_block
+                }
+            }
+        }
     }
 }

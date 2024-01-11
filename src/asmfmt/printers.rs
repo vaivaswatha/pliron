@@ -73,27 +73,16 @@ where
 
 #[macro_export]
 macro_rules! results_directive {
-    ($op:ident) => {
-        results(*$op)
+    ($ctx:ident, $op:ident) => {
+        &($op.get_operation().deref($ctx).results)
     };
 }
 #[allow(unused_imports)]
 pub(crate) use results_directive;
 
-/// Print the results of an Operation.
-pub fn results(op: &Operation) -> impl Printable + '_ {
-    PrinterFn(
-        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
-            let sep = ListSeparator::Char(',');
-            let results = op.results.iter().map(|r| r.unique_name(ctx));
-            iter_with_sep(results, sep).fmt(ctx, state, f)
-        },
-    )
-}
-
 #[macro_export]
 macro_rules! operands_directive {
-    ($op:ident) => {
+    ($ctx:ident, $op:ident) => {
         operands(*$op)
     };
 }
@@ -111,7 +100,7 @@ pub fn operands(op: &Operation) -> impl Printable + '_ {
 
 #[macro_export]
 macro_rules! successors_directive {
-    ($op:ident) => {
+    ($ctx:ident, $op:ident) => {
         successors(*$op)
     };
 }
@@ -129,7 +118,7 @@ pub fn successors(op: &Operation) -> impl Printable + '_ {
 
 #[macro_export]
 macro_rules! regions_directive {
-    ($op:ident) => {
+    ($ctx:ident, $op:ident) => {
         regions(*$op)
     };
 }
@@ -163,7 +152,7 @@ pub fn symb_op_header<T: Op + SymbolOpInterface>(op: &T) -> impl Printable + '_ 
 
 #[macro_export]
 macro_rules! attr_dict_directive {
-    ($op:ident) => {
+    ($ctx:ident, $op:ident) => {
         attr_dict(*$op)
     };
 }
@@ -196,7 +185,7 @@ pub fn attr<'op>(op: &'op Operation, name: &'static str) -> impl Printable + 'op
 
 #[macro_export]
 macro_rules! quoted_directive {
-    ($self:ident, $ty:expr) => {
+    ($ctx:ident, $self:ident, $ty:expr) => {
         quoted(&($ty))
     };
 }
@@ -212,7 +201,7 @@ pub fn quoted(s: &str) -> impl Printable + '_ {
 
 #[allow(unused_macros)]
 macro_rules! format_directive {
-    ($self:ident, $fmt:expr, $($args:expr),*) => {
+    ($ctx:ident, $self:ident, $fmt:expr, $($args:expr),*) => {
         formatted(format!($fmt, $($args),*))
     };
 }
@@ -229,7 +218,7 @@ pub fn formatted(s: String) -> impl Printable {
 
 #[allow(unused_macros)]
 macro_rules! functional_type_directive {
-    ($ty:expr, $inputs:expr, $results:expr) => {
+    ($ctx:ident, $ty:expr, $inputs:expr, $results:expr) => {
         functional_type(print_var!(&$inputs), print_var!(&$results))
     };
 }
@@ -447,7 +436,7 @@ pub(crate) use get_attr;
 
 #[macro_export]
 macro_rules! operation_generic_format_directive {
-    ($self:ident) => {
+    ($ctx:ident, $self:ident) => {
         operation_generic_format(*$self)
     };
 }
@@ -507,6 +496,62 @@ impl<T: Typed> TypedPrinter for &[T] {
     }
 }
 
+#[macro_export]
+macro_rules! check_directive {
+    ($ctx:ident, $self:ident, $ty:expr) => {
+        check($ctx, $ty)
+    };
+}
+#[allow(unused_imports)]
+pub(crate) use check_directive;
+
+pub fn check(ctx: &Context, v: impl PrinterCheck) -> bool {
+    v.check(ctx)
+}
+
+pub trait PrinterCheck {
+    fn check(&self, ctx: &Context) -> bool;
+}
+
+impl PrinterCheck for bool {
+    fn check(&self, _ctx: &Context) -> bool {
+        *self
+    }
+}
+
+impl<T: PrinterCheck> PrinterCheck for &T {
+    fn check(&self, ctx: &Context) -> bool {
+        (*self).check(ctx)
+    }
+}
+
+impl<T: PrinterCheck> PrinterCheck for Box<T> {
+    fn check(&self, ctx: &Context) -> bool {
+        (**self).check(ctx)
+    }
+}
+
+impl<T: PrinterCheck> PrinterCheck for Option<T> {
+    fn check(&self, ctx: &Context) -> bool {
+        match self {
+            Some(v) => v.check(ctx),
+            None => false,
+        }
+    }
+}
+
+impl<T> PrinterCheck for Vec<T> {
+    fn check(&self, _ctx: &Context) -> bool {
+        !self.is_empty()
+    }
+}
+
+impl<T: PrinterCheck + ArenaObj> PrinterCheck for Ptr<T> {
+    fn check(&self, ctx: &Context) -> bool {
+        self.deref(ctx).check(ctx)
+    }
+}
+
 /// Print an Op using the generic Operation format.
 ///
 /// See: https://mlir.llvm.org/docs/LangRef/#operations
@@ -515,12 +560,6 @@ pub fn operation_generic_format<T: Op>(op: T) -> impl Printable {
         move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
             let op_id = op.get_opid();
             let operation = op.get_operation().deref(ctx);
-
-            if !operation.results.is_empty() {
-            } else {
-                results(&operation).fmt(ctx, state, f)?;
-                write!(f, " = ")?;
-            }
 
             write!(f, "\"{}\"", op_id)?;
 
@@ -912,7 +951,7 @@ mod tests {
         let got = const_op.disp(&ctx).to_string();
         assert_eq!(
             got,
-            r#""testing.const"() {"constant.value" = testing.int <0x2a: testing.integer<sign=true, width=32, align=4>>} : <() -> (testing.integer<sign=true, width=32, align=4>)>"#
+            r#"op_0_0_res0 = "testing.const"() {"constant.value" = testing.int <0x2a: testing.integer<sign=true, width=32, align=4>>} : <() -> (testing.integer<sign=true, width=32, align=4>)>"#
         );
     }
 }
