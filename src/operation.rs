@@ -54,6 +54,17 @@ impl Typed for OpResult {
     }
 }
 
+impl Printable for OpResult {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(f, "{}", self.unique_name(ctx))
+    }
+}
+
 impl From<&OpResult> for Value {
     fn from(value: &OpResult) -> Self {
         Value::OpResult {
@@ -507,10 +518,6 @@ impl Printable for Operation {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        if !self.results.is_empty() {
-            self.results.fmt(ctx, state, f)?;
-            write!(f, " = ")?;
-        }
         Self::get_op(self.self_ptr, ctx).fmt(ctx, state, f)
     }
 }

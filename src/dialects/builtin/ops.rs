@@ -345,7 +345,14 @@ impl Printable for ConstantOp {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         let op = self.get_operation().deref(ctx);
-        concat((self.get_opid(), " ", attr(&op, Self::ATTR_KEY_VALUE))).fmt(ctx, state, f)?;
+        concat((
+            self.get_result(ctx),
+            " = ",
+            self.get_opid(),
+            " ",
+            attr(&op, Self::ATTR_KEY_VALUE),
+        ))
+        .fmt(ctx, state, f)?;
         Ok(())
     }
 }
