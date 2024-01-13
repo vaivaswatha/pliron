@@ -204,7 +204,7 @@ pub enum ListSeparator {
 }
 
 impl Printable for ListSeparator {
-    fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, _ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ListSeparator::None => Ok(()),
             ListSeparator::Newline => fmt_indented_newline(state, f),

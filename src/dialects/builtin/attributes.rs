@@ -8,7 +8,7 @@ use sorted_vector_map::SortedVectorMap;
 use thiserror::Error;
 
 use crate::{
-    asmfmt::printers::{attr_header, concat, quoted},
+    asmfmt::printers::{concat, qualifier, quoted},
     attribute::{AttrObj, Attribute},
     common_traits::Verify,
     context::{Context, Ptr},
@@ -50,7 +50,7 @@ impl Printable for StringAttr {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        concat((attr_header(self), " ", quoted(&self.0))).fmt(ctx, state, f)
+        concat((qualifier(self), " ", quoted(&self.0))).fmt(ctx, state, f)
     }
 }
 
@@ -120,7 +120,7 @@ impl Printable for IntegerAttr {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         concat((
-            attr_header(self),
+            qualifier(self),
             " <",
             format!("0x{:x}", self.val),
             ": ",
@@ -397,7 +397,7 @@ impl Printable for UnitAttr {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        attr_header(self).fmt(ctx, state, f)
+        qualifier(self).fmt(ctx, state, f)
     }
 }
 
@@ -438,7 +438,7 @@ impl Printable for TypeAttr {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        concat((attr_header(self), " <", self.0, ">")).fmt(ctx, state, f)
+        concat((qualifier(self), " <", self.0, ">")).fmt(ctx, state, f)
     }
 }
 

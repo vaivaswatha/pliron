@@ -1,5 +1,5 @@
 use crate::{
-    asmfmt::printers::{concat, enclosed, list_with_sep, type_header},
+    asmfmt::printers::{concat, enclosed, list_with_sep, qualifier},
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
@@ -332,7 +332,7 @@ impl Printable for PointerType {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        concat((type_header(self), " <", self.to, ">")).fmt(ctx, state, f)
+        concat((qualifier(self), " <", self.to, ">")).fmt(ctx, state, f)
     }
 }
 

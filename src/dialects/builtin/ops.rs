@@ -2,7 +2,7 @@ use combine::{token, Parser};
 use thiserror::Error;
 
 use crate::{
-    asmfmt::printers::{attr, concat, region, symb_op_header, typed},
+    asmfmt::printers::{attr, concat, region, symb_op_header},
     attribute::{attr_cast, attr_parser, AttrObj},
     basic_block::BasicBlock,
     common_traits::{Named, Verify},

@@ -1,5 +1,3 @@
-use std::collections::{BTreeSet, HashSet};
-
 use proc_macro2::TokenStream;
 use quote::format_ident;
 use syn::Data;
@@ -156,14 +154,6 @@ pub(crate) struct Format {
 }
 
 impl Format {
-    pub fn new() -> Self {
-        Self { elems: vec![] }
-    }
-
-    pub fn len(&self) -> usize {
-        self.elems.len()
-    }
-
     pub fn is_empty(&self) -> bool {
         self.elems.is_empty()
     }
@@ -239,6 +229,7 @@ impl Elem {
         Self::Directive(Directive::new_at(pos, name))
     }
 
+    #[allow(dead_code)]
     pub fn new_directive_with_args(name: impl Into<String>, args: Vec<Elem>) -> Self {
         Self::Directive(Directive::new_with_args(name, args))
     }
@@ -420,6 +411,7 @@ impl Optional {
         }
     }
 
+    #[allow(dead_code)]
     pub fn new_with_else(check: Elem, then_format: Format, else_format: Format) -> Self {
         Self {
             check: Box::new(check),
@@ -458,13 +450,6 @@ pub(super) struct ContextError {
 }
 
 impl ContextError {
-    fn new() -> Self {
-        Self {
-            max_pos: 0,
-            context: Vec::new(),
-        }
-    }
-
     fn new_at(pos: usize) -> Self {
         Self {
             max_pos: pos,

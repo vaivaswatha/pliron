@@ -1,7 +1,7 @@
-use std::collections::{BTreeSet, HashSet};
+use std::collections::BTreeSet;
 
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote, ToTokens};
+use quote::{format_ident, quote};
 use syn::{DeriveInput, Result};
 
 use crate::{
@@ -40,7 +40,17 @@ fn impl_struct(input: Struct) -> Result<TokenStream> {
     })
 }
 
-trait PrinterBuilder {
+struct OpPrinterBuilder {
+    fields: BTreeSet<FieldIdent>,
+}
+
+impl OpPrinterBuilder {
+    fn new(fields: &[FieldIdent]) -> Self {
+        Self {
+            fields: BTreeSet::from_iter(fields.iter().cloned()),
+        }
+    }
+
     fn build(&self, attr: &AsmFormat) -> TokenStream {
         self.build_format(attr.format(), true)
     }
@@ -57,127 +67,6 @@ trait PrinterBuilder {
             Elem::UnnamedVar(UnnamedVar { index, .. }) => self.build_unnamed_var(*index, toplevel),
             Elem::Directive(ref d) => self.build_directive(d, toplevel),
             Elem::Optional(ref opt) => self.build_optional(opt, toplevel),
-        }
-    }
-
-    fn build_lit(&self, lit: &str, toplevel: bool) -> TokenStream;
-
-    fn build_var(&self, name: &str, toplevel: bool) -> TokenStream;
-
-    fn build_unnamed_var(&self, index: usize, toplevel: bool) -> TokenStream;
-
-    fn build_directive(&self, d: &Directive, toplevel: bool) -> TokenStream;
-
-    fn build_optional(&self, d: &Optional, toplevel: bool) -> TokenStream {
-        let check = Directive::new_with_args("check", vec![d.check.as_ref().clone()]);
-
-        let check = self.build_directive(&check, false);
-        let then_block = self.build_format(&d.then_format, toplevel);
-        if let Some(else_format) = &d.else_format {
-            let else_block = self.build_format(else_format, toplevel);
-            quote! {
-                if #check {
-                    #then_block
-                } else {
-                    #else_block
-                }
-            }
-        } else {
-            quote! {
-                if #check {
-                    #then_block
-                }
-            }
-        }
-    }
-}
-
-struct AttrTypePrinterBuilder<'a> {
-    fields: &'a HashSet<String>,
-    fields_args: TokenStream,
-}
-
-impl<'a> AttrTypePrinterBuilder<'a> {
-    fn new(fields: &'a HashSet<String>) -> Self {
-        let fields_args = fields.iter().map(|f| format_ident!("{}", f));
-        Self {
-            fields,
-            fields_args: quote! { (#(#fields_args)*) },
-        }
-    }
-}
-
-impl<'a> PrinterBuilder for AttrTypePrinterBuilder<'a> {
-    fn build_lit(&self, lit: &str, toplevel: bool) -> TokenStream {
-        if toplevel {
-            quote! {
-                #lit.fmt(ctx, state, fmt)?;
-            }
-        } else {
-            quote! {
-                #lit
-            }
-        }
-    }
-
-    fn build_var(&self, name: &str, toplevel: bool) -> TokenStream {
-        let ident = format_ident!("{}", name);
-        if toplevel {
-            quote! {
-                ::pliron::asmfmt::printers::print_var!(&self.#ident).fmt(ctx, state, fmt)?;
-            }
-        } else {
-            quote! {
-                #ident
-            }
-        }
-    }
-
-    fn build_unnamed_var(&self, index: usize, toplevel: bool) -> TokenStream {
-        let ident = syn::Index::from(index);
-        if toplevel {
-            quote! {
-                ::pliron::asmfmt::printers::print_var!(&self.#ident).fmt(ctx, state, fmt)?;
-            }
-        } else {
-            quote! {
-                #ident
-            }
-        }
-    }
-
-    fn build_directive(&self, d: &Directive, toplevel: bool) -> TokenStream {
-        // build directive call:
-        //   at_<name>_directive(<mode> $self, (<printer args>), (<directive args>), <field names>)
-        //   <mode>: one of `toplevel` or `call`
-        //   <printer args>: comma separated list of arguments when calling `fmt` on the printer
-        //   <directive args>: comma separated list of arguments given to the directive
-        //   <fields names>: list of field names of the current struct
-
-        let mode = if toplevel {
-            quote! { toplevel }
-        } else {
-            quote! { call }
-        };
-        let printer_args = quote! { (ctx, state, fmt) };
-        let field_names = &self.fields_args;
-        let args = d.args.iter().map(|a| self.build_elem(a, false));
-        let directive = format_ident!("at_{}_directive", d.name);
-        quote! {
-            ::pliron::asmfmt::printers::#directive!(#mode self, #printer_args, (#(#args),*), #field_names);
-
-        }
-    }
-}
-
-struct OpPrinterBuilder {
-    fields: BTreeSet<FieldIdent>,
-}
-
-impl OpPrinterBuilder {
-    fn new(fields: &[FieldIdent]) -> Self {
-        Self {
-            fields: BTreeSet::from_iter(fields.iter().cloned()),
         }
     }
 
@@ -205,9 +94,7 @@ impl OpPrinterBuilder {
         }
         printer
     }
-}
 
-impl PrinterBuilder for OpPrinterBuilder {
     fn build_lit(&self, lit: &str, toplevel: bool) -> TokenStream {
         if toplevel {
             quote! {
@@ -242,6 +129,29 @@ impl PrinterBuilder for OpPrinterBuilder {
             printer = quote! { #printer.fmt(ctx, state, fmt)?; };
         }
         printer
+    }
+
+    fn build_optional(&self, d: &Optional, toplevel: bool) -> TokenStream {
+        let check = Directive::new_with_args("check", vec![d.check.as_ref().clone()]);
+
+        let check = self.build_directive(&check, false);
+        let then_block = self.build_format(&d.then_format, toplevel);
+        if let Some(else_format) = &d.else_format {
+            let else_block = self.build_format(else_format, toplevel);
+            quote! {
+                if #check {
+                    #then_block
+                } else {
+                    #else_block
+                }
+            }
+        } else {
+            quote! {
+                if #check {
+                    #then_block
+                }
+            }
+        }
     }
 }
 
@@ -405,7 +315,6 @@ impl<'a> AttribTypePrinterBuilder2<'a> {
     }
 
     fn args_to_token_streams(&self, args: &[ATValue]) -> TokenStream {
-        let mut i = 0;
         let mut streams = vec![];
         for arg in args {
             match arg {

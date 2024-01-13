@@ -8,14 +8,14 @@ use combine::{
 };
 
 use crate::{
-    asmfmt::printers::{concat, functional_type, list_with_sep, literal, type_header, typed},
+    asmfmt::printers::{concat, functional_type, qualifier, typed},
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
     impl_type,
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
-    printable::{self, ListSeparator, Printable},
+    printable::{self, Printable},
     r#type::{type_parser, Type, TypeObj},
 };
 
@@ -90,7 +90,7 @@ impl Printable for IntegerType {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        type_header(self).fmt(ctx, state, f)?;
+        qualifier(self).fmt(ctx, state, f)?;
         write!(f, " <",)?;
         match &self.signedness {
             Signedness::Signed => write!(f, "si{}", self.width)?,
@@ -157,7 +157,7 @@ impl Printable for FunctionType {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         concat((
-            type_header(self),
+            qualifier(self),
             " ",
             functional_type(typed(&self.inputs), typed(&self.results)),
         ))
@@ -221,10 +221,10 @@ impl Printable for UnitType {
     fn fmt(
         &self,
         ctx: &Context,
-        _state: &printable::State,
+        state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        type_header(self).fmt(ctx, _state, f)
+        qualifier(self).fmt(ctx, state, f)
     }
 }
 

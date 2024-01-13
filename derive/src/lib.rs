@@ -74,6 +74,6 @@ pub(crate) fn to_compile_error(error: syn::Error) -> proc_macro2::TokenStream {
 }
 
 #[proc_macro_derive(DeriveAttribDummy, attributes(dialect, ir_kind))]
-pub fn derive_attrib_dummy(input: TokenStream) -> TokenStream {
+pub fn derive_attrib_dummy(_input: TokenStream) -> TokenStream {
     TokenStream::new()
 }

@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashSet};
+use std::collections::BTreeSet;
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -109,7 +109,7 @@ impl ParserBuilder {
                 self.build_attribute_use(name, toplevel)
             }
             Elem::UnnamedVar(UnnamedVar { index, .. }) => {
-                todo!()
+                self.build_field_use(FieldIdent::Unnamed(*index), toplevel)
             }
             Elem::Directive(ref d) => self.build_directive(d, toplevel),
             Elem::Optional(ref _opt) => {
@@ -133,11 +133,11 @@ impl ParserBuilder {
         }
     }
 
-    fn build_attribute_use(&self, attr: &str, _toplevel: bool) -> TokenStream {
+    fn build_attribute_use(&self, _attr: &str, _toplevel: bool) -> TokenStream {
         todo!()
     }
 
-    fn build_directive(&self, directive: &Directive, _toplevel: bool) -> TokenStream {
+    fn build_directive(&self, _directive: &Directive, _toplevel: bool) -> TokenStream {
         todo!()
     }
 }

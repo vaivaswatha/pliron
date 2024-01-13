@@ -127,10 +127,6 @@ impl TryFrom<String> for AsmFormat {
 }
 
 impl AsmFormat {
-    pub fn new() -> Self {
-        Self(Format::default())
-    }
-
     pub fn format(&self) -> &Format {
         &self.0
     }

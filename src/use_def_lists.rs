@@ -205,7 +205,7 @@ impl Printable for Value {
     fn fmt(
         &self,
         ctx: &Context,
-        state: &crate::printable::State,
+        _state: &crate::printable::State,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
         write!(f, "{}", self.unique_name(ctx))

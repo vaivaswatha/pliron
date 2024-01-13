@@ -1,7 +1,6 @@
 use std::fmt;
 
 use crate::{
-    attribute::Attribute,
     common_traits::Qualified,
     context::{private::ArenaObj, Context, Ptr},
     dialects::builtin::op_interfaces::{OneRegionInterface, SymbolOpInterface},
@@ -21,24 +20,6 @@ where
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         (self.0)(ctx, state, f)
     }
-}
-
-/// Print the [TypeId] of the type.
-pub fn type_header<T: Type>(ty: &T) -> impl Printable + '_ {
-    PrinterFn(
-        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
-            ty.get_type_id().fmt(ctx, state, f)
-        },
-    )
-}
-
-/// Print the [AttrId] of the attribute.
-pub fn attr_header<T: Attribute>(attr: &T) -> impl Printable + '_ {
-    PrinterFn(
-        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
-            attr.get_attr_id().fmt(ctx, state, f)
-        },
-    )
 }
 
 pub fn qualifier<T>(v: &T) -> impl Printable + '_
@@ -712,11 +693,14 @@ pub(crate) use op_check_directive;
 
 #[cfg(test)]
 mod tests {
+    #![allow(unused)]
+    #![allow(dead_code)]
+
     use super::*;
 
     use crate::{
         asmfmt::parsers::AsmParser,
-        attribute::attr_cast,
+        attribute::{attr_cast, Attribute},
         dialects::builtin::attr_interfaces::TypedAttrInterface,
         identifier::Identifier,
         impl_attr_interface,
@@ -737,7 +721,7 @@ mod tests {
         context::Ptr,
         error::Result,
         parsable::{Parsable, ParseResult, StateStream},
-        r#type::{TypeId, TypeObj},
+        r#type::TypeObj,
     };
 
     fn register_dialect(ctx: &mut Context) {
@@ -760,7 +744,7 @@ mod tests {
     pub struct SimpleType {}
     impl SimpleType {
         /// Get or create a new simple type.
-        pub fn get(ctx: &mut Context, _id: TypeId) -> Ptr<TypeObj> {
+        pub fn get(ctx: &mut Context) -> Ptr<TypeObj> {
             Type::register_instance(SimpleType {}, ctx)
         }
     }
@@ -963,8 +947,8 @@ mod tests {
         type Parsed = OpObj;
 
         fn parse<'a>(
-            state_stream: &mut StateStream<'a>,
-            arg: Self::Arg,
+            _state_stream: &mut StateStream<'a>,
+            _arg: Self::Arg,
         ) -> ParseResult<'a, Self::Parsed> {
             todo!()
         }
@@ -975,7 +959,7 @@ mod tests {
         let mut ctx = Context::new();
         register_dialect(&mut ctx);
 
-        let got = SimpleType {}.disp(&ctx).to_string();
+        let got = SimpleType::get(&mut ctx).disp(&ctx).to_string();
         assert_eq!(got, "()");
     }
 

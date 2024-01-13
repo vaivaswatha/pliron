@@ -1,5 +1,5 @@
 use crate::{
-    asmfmt::printers::{concat, operands},
+    asmfmt::printers::concat,
     common_traits::Verify,
     context::Context,
     declare_op,
