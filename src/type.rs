@@ -349,6 +349,14 @@ macro_rules! impl_type {
                 }
             }
         }
+
+        impl $crate::common_traits::Qualified for $structname {
+            type Qualifier = $crate::r#type::TypeId;
+
+            fn get_qualifier(&self, _ctx: &$crate::context::Context) -> Self::Qualifier {
+                Self::get_type_id_static()
+            }
+        }
     }
 }
 
