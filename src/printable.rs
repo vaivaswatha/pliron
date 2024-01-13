@@ -191,6 +191,8 @@ impl<T: Printable + ?Sized> Printable for Box<T> {
 #[derive(Clone, Copy)]
 /// When printing lists, how must they be separated
 pub enum ListSeparator {
+    /// No separator
+    None,
     /// Newline
     Newline,
     /// Character followed by a newline.
@@ -199,6 +201,21 @@ pub enum ListSeparator {
     Char(char),
     /// Single character followed by a space
     CharSpace(char),
+}
+
+impl Printable for ListSeparator {
+    fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ListSeparator::None => Ok(()),
+            ListSeparator::Newline => fmt_indented_newline(state, f),
+            ListSeparator::CharNewline(c) => {
+                write!(f, "{}", c)?;
+                fmt_indented_newline(state, f)
+            }
+            ListSeparator::Char(c) => write!(f, "{}", c),
+            ListSeparator::CharSpace(c) => write!(f, "{} ", c),
+        }
+    }
 }
 
 /// Iterate over [Item](Iterator::Item)s in an [Iterator] and print them.
@@ -217,21 +234,7 @@ where
         first.fmt(ctx, state, f)?;
     }
     for item in iter {
-        match sep {
-            ListSeparator::Newline => {
-                fmt_indented_newline(state, f)?;
-            }
-            ListSeparator::CharNewline(c) => {
-                write!(f, "{}", c)?;
-                fmt_indented_newline(state, f)?;
-            }
-            ListSeparator::Char(c) => {
-                write!(f, "{}", c)?;
-            }
-            ListSeparator::CharSpace(c) => {
-                write!(f, "{} ", c)?;
-            }
-        }
+        sep.fmt(ctx, state, f)?;
         item.fmt(ctx, state, f)?;
     }
     Ok(())

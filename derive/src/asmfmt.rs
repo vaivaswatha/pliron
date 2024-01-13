@@ -1,5 +1,7 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
+use proc_macro2::TokenStream;
+use quote::format_ident;
 use syn::Data;
 use syn::{self, DataStruct, DeriveInput};
 use winnow::{
@@ -37,7 +39,46 @@ pub(crate) struct Struct<'a> {
     pub ident: &'a syn::Ident,
     pub kind: IRKind,
     pub format: AsmFormat,
-    pub fields: HashSet<String>,
+    pub fields: Vec<FieldIdent>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum FieldIdent {
+    Named(String),
+    Unnamed(usize),
+}
+
+impl From<&str> for FieldIdent {
+    fn from(s: &str) -> Self {
+        Self::Named(s.to_string())
+    }
+}
+
+impl From<String> for FieldIdent {
+    fn from(s: String) -> Self {
+        Self::Named(s)
+    }
+}
+
+impl From<usize> for FieldIdent {
+    fn from(i: usize) -> Self {
+        Self::Unnamed(i)
+    }
+}
+
+impl quote::ToTokens for FieldIdent {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            Self::Named(name) => {
+                let ident = format_ident!("{}", name);
+                ident.to_tokens(tokens);
+            }
+            Self::Unnamed(index) => {
+                let ident = syn::Index::from(*index);
+                ident.to_tokens(tokens);
+            }
+        }
+    }
 }
 
 impl<'a> Struct<'a> {
@@ -78,13 +119,6 @@ impl<'a> Struct<'a> {
                 };
                 if !format.is_empty() && kind != IRKind::Op {
                     format.enclose(Elem::Lit("<".into()), Elem::Lit(">".into()));
-                    match kind {
-                        IRKind::Op => unreachable!(),
-                        IRKind::Type => {}
-                        IRKind::Attribute => {
-                            format.prepend(Elem::Lit(" ".into()));
-                        }
-                    }
                 }
                 format.into()
             }
@@ -100,8 +134,11 @@ impl<'a> Struct<'a> {
         let fields = data
             .fields
             .iter()
-            .flat_map(|f| &f.ident)
-            .map(|i| i.to_string())
+            .enumerate()
+            .map(|(i, f)| match f.ident {
+                Some(ref ident) => FieldIdent::Named(ident.to_string()),
+                None => FieldIdent::Unnamed(i),
+            })
             .collect();
 
         Ok(Self {

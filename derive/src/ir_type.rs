@@ -112,6 +112,14 @@ fn impl_struct(input: Struct) -> TokenStream {
                 }
             }
         }
+
+        impl ::pliron::common_traits::Qualified for #name {
+            type Qualifier = ::pliron::r#type::TypeId;
+
+            fn get_qualifier(&self, _ctx: &::pliron::context::Context) -> Self::Qualifier {
+                self.get_type_id()
+            }
+        }
     }
 }
 

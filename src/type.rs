@@ -8,7 +8,7 @@
 //!
 //! The [impl_type](crate::impl_type) macro can be used to implement [Type] for a rust type.
 
-use crate::common_traits::Verify;
+use crate::common_traits::{Qualified, Verify};
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
 use crate::error::Result;

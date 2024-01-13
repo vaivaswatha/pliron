@@ -1,11 +1,11 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{DeriveInput, Result};
 
 use crate::{
-    asmfmt::{Directive, Elem, Input, Lit, Struct, UnnamedVar, Var},
+    asmfmt::{Directive, Elem, FieldIdent, Input, Lit, Struct, UnnamedVar, Var},
     attr::AsmFormat,
 };
 
@@ -57,7 +57,7 @@ fn impl_struct(input: Struct) -> TokenStream {
 
     let builder = ParserBuilder::new(&input.fields);
     let body = builder.build(&input.format);
-    let fields = input.fields.iter().map(|f| format_ident!("{}", f));
+    let fields = &input.fields;
     let init_self = quote! {
         Self {
             #(#fields),*
@@ -82,13 +82,15 @@ fn impl_struct(input: Struct) -> TokenStream {
     }
 }
 
-struct ParserBuilder<'a> {
-    fields: &'a HashSet<String>,
+struct ParserBuilder {
+    fields: BTreeSet<FieldIdent>,
 }
 
-impl<'a> ParserBuilder<'a> {
-    fn new(fields: &'a HashSet<String>) -> Self {
-        Self { fields }
+impl ParserBuilder {
+    fn new(fields: &[FieldIdent]) -> Self {
+        Self {
+            fields: BTreeSet::from_iter(fields.iter().cloned()),
+        }
     }
 
     fn build(&self, attr: &AsmFormat) -> TokenStream {
@@ -100,7 +102,8 @@ impl<'a> ParserBuilder<'a> {
         match elem {
             Elem::Lit(Lit { lit, .. }) => self.build_lit(lit, toplevel),
             Elem::Var(Var { name, .. }) => {
-                if self.fields.contains(name) {
+                let ident = FieldIdent::Named(name.clone());
+                if self.fields.contains(&ident) {
                     return self.build_field_use(format_ident!("{}", name), toplevel);
                 }
                 self.build_attribute_use(name, toplevel)
