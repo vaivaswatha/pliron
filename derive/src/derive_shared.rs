@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::DeriveInput;
+use syn::{DataStruct, DeriveInput};
 
 pub(crate) fn derive_qualified(
     type_name: &syn::Ident,
@@ -18,11 +18,7 @@ pub(crate) fn derive_qualified(
     }
 }
 
-pub(crate) fn build_struct_body(def: &DeriveInput) -> proc_macro2::TokenStream {
-    let syn::Data::Struct(ds) = &def.data else {
-        unreachable!("input must be a struct");
-    };
-
+pub(crate) fn build_struct_body(ds: &DataStruct) -> proc_macro2::TokenStream {
     match ds.fields {
         syn::Fields::Named(_) => {
             let it = ds.fields.iter();

@@ -1,20 +1,32 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
-use syn::{Data, DataStruct, DeriveInput, Result};
+use syn::{
+    parse::{Parse, ParseStream},
+    Data, DeriveInput, Result,
+};
 
 use crate::{
     attr::{require_once, Attribute, DialectName, IRKind, OpName},
     derive_shared::impl_verifiers_register,
 };
 
-enum Input<'a> {
-    Struct(Struct<'a>),
+enum DefOpInput {
+    Struct(Struct),
 }
 
-impl<'a> Input<'a> {
-    fn from_syn(input: &'a DeriveInput) -> Result<Self> {
-        match &input.data {
-            Data::Struct(data) => Struct::from_syn(input, data).map(Input::Struct),
+impl Parse for DefOpInput {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let input = DeriveInput::parse(input)?;
+        Self::try_from(input)
+    }
+}
+
+impl TryFrom<DeriveInput> for DefOpInput {
+    type Error = syn::Error;
+
+    fn try_from(input: DeriveInput) -> Result<Self> {
+        match input.data {
+            Data::Struct(_) => Struct::try_from(input).map(DefOpInput::Struct),
             Data::Enum(_) => Err(syn::Error::new_spanned(
                 input,
                 "Type can only be derived for structs",
@@ -27,16 +39,24 @@ impl<'a> Input<'a> {
     }
 }
 
-struct Struct<'a> {
+struct Struct {
     attrs: Attrs,
-    ident: &'a syn::Ident,
+    ident: syn::Ident,
 }
 
-impl<'a> Struct<'a> {
-    fn from_syn(input: &'a DeriveInput, _data: &'a DataStruct) -> Result<Self> {
-        Ok(Self {
-            ident: &input.ident,
+impl TryFrom<DeriveInput> for Struct {
+    type Error = syn::Error;
+
+    fn try_from(input: DeriveInput) -> Result<Self> {
+        let syn::Data::Struct(data) = input.data else {
+            return Err(syn::Error::new_spanned(
+                input,
+                "Type can only be derived for structs",
+            ));
+        };
+        Ok(Struct {
             attrs: Attrs::from_syn(input.ident.span(), &input.attrs)?,
+            ident: input.ident,
         })
     }
 }
@@ -161,9 +181,8 @@ fn impl_struct(input: Struct) -> TokenStream {
     }
 }
 
-pub(crate) fn def_op(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
-    let input = Input::from_syn(&input)?;
-    match input {
-        Input::Struct(input) => Ok(impl_struct(input)),
+pub(crate) fn def_op(input: impl Into<TokenStream>) -> Result<TokenStream> {
+    match syn::parse2::<DefOpInput>(input.into())? {
+        DefOpInput::Struct(input) => Ok(impl_struct(input)),
     }
 }

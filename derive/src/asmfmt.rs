@@ -1,5 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::format_ident;
+use syn::parse::{Parse, ParseStream};
 use syn::Data;
 use syn::{self, DataStruct, DeriveInput};
 use winnow::{
@@ -11,16 +12,25 @@ use winnow::{
     Located, Parser,
 };
 
-use crate::attr::{require_once, AsmFormat, Attribute, AttributeName, IRKind, TypeName};
+use crate::attr::{require_once, AsmFormat, Attribute, IRKind};
 
-pub(crate) enum Input<'a> {
-    Struct(Struct<'a>),
+pub(crate) enum AsmFmtInput {
+    Struct(Struct),
 }
 
-impl<'a> Input<'a> {
-    pub fn from_syn(input: &'a DeriveInput) -> syn::Result<Self> {
+impl Parse for AsmFmtInput {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let input = DeriveInput::parse(input)?;
+        Self::try_from(input)
+    }
+}
+
+impl TryFrom<DeriveInput> for AsmFmtInput {
+    type Error = syn::Error;
+
+    fn try_from(input: DeriveInput) -> syn::Result<Self> {
         match &input.data {
-            Data::Struct(data) => Struct::from_syn(input, data).map(Input::Struct),
+            Data::Struct(data) => Struct::from_syn(&input, data).map(AsmFmtInput::Struct),
             Data::Enum(_) => Err(syn::Error::new_spanned(
                 input,
                 "Type can only be derived for structs",
@@ -33,8 +43,8 @@ impl<'a> Input<'a> {
     }
 }
 
-pub(crate) struct Struct<'a> {
-    pub ident: &'a syn::Ident,
+pub(crate) struct Struct {
+    pub ident: syn::Ident,
     pub kind: IRKind,
     pub format: AsmFormat,
     pub fields: Vec<FieldIdent>,
@@ -79,18 +89,12 @@ impl quote::ToTokens for FieldIdent {
     }
 }
 
-impl<'a> Struct<'a> {
-    fn from_syn(input: &'a DeriveInput, data: &'a DataStruct) -> syn::Result<Self> {
+impl Struct {
+    fn from_syn(input: &DeriveInput, data: &DataStruct) -> syn::Result<Self> {
         let mut kind = None;
         let mut format = None;
 
         for attr in &input.attrs {
-            if attr.path().is_ident(TypeName::ATTR_NAME) {
-                kind = Some(IRKind::Type);
-            }
-            if attr.path().is_ident(AttributeName::ATTR_NAME) {
-                kind = Some(IRKind::Attribute);
-            }
             if attr.path().is_ident(AsmFormat::ATTR_NAME) {
                 require_once(AsmFormat::ATTR_NAME, &format, attr)?;
                 format = Some(AsmFormat::from_syn(attr)?);
@@ -140,7 +144,7 @@ impl<'a> Struct<'a> {
             .collect();
 
         Ok(Self {
-            ident: &input.ident,
+            ident: input.ident.clone(),
             fields,
             kind,
             format,

@@ -1,20 +1,32 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
-use syn::{Data, DataStruct, DeriveInput, Result};
+use syn::{
+    parse::{Parse, ParseStream},
+    Data, DeriveInput, Result,
+};
 
 use crate::{
     attr::{require_once, Attribute, AttributeName, DialectName, IRKind},
     derive_shared::{build_struct_body, derive_qualified, impl_verifiers_register},
 };
 
-enum Input<'a> {
-    Struct(Struct<'a>),
+enum DefAttributeInput {
+    Struct(Struct),
 }
 
-impl<'a> Input<'a> {
-    fn from_syn(input: &'a DeriveInput) -> Result<Self> {
-        match &input.data {
-            Data::Struct(data) => Struct::from_syn(input, data).map(Input::Struct),
+impl Parse for DefAttributeInput {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let input = DeriveInput::parse(input)?;
+        Self::try_from(input)
+    }
+}
+
+impl TryFrom<DeriveInput> for DefAttributeInput {
+    type Error = syn::Error;
+
+    fn try_from(input: DeriveInput) -> Result<Self> {
+        match input.data {
+            Data::Struct(_) => Struct::try_from(input).map(DefAttributeInput::Struct),
             Data::Enum(_) => Err(syn::Error::new_spanned(
                 input,
                 "Type can only be derived for structs",
@@ -27,16 +39,31 @@ impl<'a> Input<'a> {
     }
 }
 
-struct Struct<'a> {
+struct Struct {
+    vis: syn::Visibility,
+    ident: syn::Ident,
+    generics: syn::Generics,
+    data: syn::DataStruct,
     attrs: Attrs,
-    ident: &'a syn::Ident,
 }
 
-impl<'a> Struct<'a> {
-    fn from_syn(input: &'a DeriveInput, _data: &'a DataStruct) -> Result<Self> {
-        Ok(Self {
-            ident: &input.ident,
-            attrs: Attrs::from_syn(input.ident.span(), &input.attrs)?,
+impl TryFrom<DeriveInput> for Struct {
+    type Error = syn::Error;
+
+    fn try_from(input: DeriveInput) -> Result<Self> {
+        let syn::Data::Struct(data) = input.data else {
+            return Err(syn::Error::new_spanned(
+                input,
+                "Type can only be derived for structs",
+            ));
+        };
+        let attrs = Attrs::from_syn(input.ident.span(), &input.attrs)?;
+        Ok(Struct {
+            vis: input.vis,
+            generics: input.generics,
+            data,
+            ident: input.ident,
+            attrs,
         })
     }
 }
@@ -91,15 +118,15 @@ fn err_struct_attrib_required(span: Span, attr: &str) -> syn::Error {
     )
 }
 
-fn impl_struct(def: &DeriveInput, input: Struct) -> TokenStream {
+fn impl_struct(input: Struct) -> TokenStream {
     let name = &input.ident;
 
     let def_struct = {
         let attributes = input.attrs.attributes;
         let kind = IRKind::Attribute;
-        let vis = &def.vis;
-        let generics = &def.generics;
-        let struct_body = build_struct_body(def);
+        let vis = &input.vis;
+        let generics = &input.generics;
+        let struct_body = build_struct_body(&input.data);
 
         quote! {
             #[derive(::pliron_derive::DeriveAttribDummy)]
@@ -165,9 +192,8 @@ fn impl_struct(def: &DeriveInput, input: Struct) -> TokenStream {
     }
 }
 
-pub(crate) fn def_attribute(input: DeriveInput) -> syn::Result<TokenStream> {
-    let create_input = Input::from_syn(&input)?;
-    match create_input {
-        Input::Struct(strct) => Ok(impl_struct(&input, strct)),
+pub(crate) fn def_attribute(input: impl Into<TokenStream>) -> syn::Result<TokenStream> {
+    match syn::parse2::<DefAttributeInput>(input.into())? {
+        DefAttributeInput::Struct(strct) => Ok(impl_struct(strct)),
     }
 }

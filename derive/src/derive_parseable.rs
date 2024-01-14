@@ -5,11 +5,12 @@ use quote::{format_ident, quote};
 use syn::{DeriveInput, Result};
 
 use crate::{
-    asmfmt::{Directive, Elem, FieldIdent, Input, Lit, Struct, UnnamedVar, Var},
+    asmfmt::{AsmFmtInput, Directive, Elem, FieldIdent, Lit, Struct, UnnamedVar, Var},
     attr::AsmFormat,
 };
 
-pub(crate) fn derive_not_parsable_type(input: DeriveInput) -> Result<TokenStream> {
+pub(crate) fn derive_not_parsable_type(input: impl Into<TokenStream>) -> Result<TokenStream> {
+    let input = syn::parse2::<DeriveInput>(input.into())?;
     let name = input.ident;
     Ok(quote! {
         impl ::pliron::parsable::Parsable for #name {
@@ -27,7 +28,8 @@ pub(crate) fn derive_not_parsable_type(input: DeriveInput) -> Result<TokenStream
     })
 }
 
-pub(crate) fn derive_not_parsable_attribute(input: DeriveInput) -> Result<TokenStream> {
+pub(crate) fn derive_not_parsable_attribute(input: impl Into<TokenStream>) -> Result<TokenStream> {
+    let input = syn::parse2::<DeriveInput>(input.into())?;
     let name = input.ident;
     Ok(quote! {
         impl ::pliron::parsable::Parsable for #name {
@@ -45,10 +47,10 @@ pub(crate) fn derive_not_parsable_attribute(input: DeriveInput) -> Result<TokenS
     })
 }
 
-pub(crate) fn derive(input: DeriveInput) -> syn::Result<TokenStream> {
-    let input = Input::from_syn(&input)?;
+pub(crate) fn derive(input: impl Into<TokenStream>) -> syn::Result<TokenStream> {
+    let input = syn::parse2::<AsmFmtInput>(input.into())?;
     match input {
-        Input::Struct(input) => Ok(impl_struct(input)),
+        AsmFmtInput::Struct(input) => Ok(impl_struct(input)),
     }
 }
 

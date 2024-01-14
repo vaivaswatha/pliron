@@ -5,14 +5,15 @@ use quote::{format_ident, quote};
 use syn::{DeriveInput, Result};
 
 use crate::{
-    asmfmt::{Directive, Elem, FieldIdent, Format, Input, Lit, Optional, Struct, UnnamedVar, Var},
+    asmfmt::{
+        AsmFmtInput, Directive, Elem, FieldIdent, Format, Lit, Optional, Struct, UnnamedVar, Var,
+    },
     attr::{AsmFormat, IRKind},
 };
 
-pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
-    let input = Input::from_syn(&input)?;
-    match input {
-        Input::Struct(input) => impl_struct(input),
+pub(crate) fn derive(input: impl Into<TokenStream>) -> Result<TokenStream> {
+    match syn::parse2::<AsmFmtInput>(input.into())? {
+        AsmFmtInput::Struct(input) => impl_struct(input),
     }
 }
 
