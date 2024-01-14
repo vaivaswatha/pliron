@@ -18,12 +18,13 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
 
 fn impl_struct(input: Struct) -> Result<TokenStream> {
     let name = &input.ident;
+    let span = input.ident.span();
     let body = match input.kind {
         IRKind::Type | IRKind::Attribute => {
-            AttribTypePrinterBuilder::new(input.ident.span(), &input.fields).build(&input.format)
+            AttribTypePrinterBuilder::new(span, &input.fields).build(&input.format)?
         }
-        IRKind::Op => OpPrinterBuilder::new(input.ident.span(), &input.fields).build(&input.format),
-    }?;
+        IRKind::Op => OpPrinterBuilder::new(span, &input.fields).build(&input.format)?,
+    };
     Ok(quote! {
         impl ::pliron::printable::Printable for #name {
             fn fmt(
