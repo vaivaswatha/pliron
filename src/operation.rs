@@ -403,7 +403,7 @@ impl ArenaObj for Operation {
 }
 
 /// Container for a [Use] in an [Operation].
-pub(crate) struct Operand<T: DefUseParticipant> {
+pub struct Operand<T: DefUseParticipant> {
     pub(crate) r#use: UseNode<T>,
     /// This is the `opd_idx`'th operand of [user_op](Self::user_op).
     pub(crate) opd_idx: usize,

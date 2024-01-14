@@ -2,7 +2,10 @@ use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{Data, DataStruct, DeriveInput, Result};
 
-use crate::attr::{require_once, Attribute, DialectName, TypeName};
+use crate::{
+    attr::{require_once, Attribute, DialectName, IRKind, TypeName},
+    derive_shared::{build_struct_body, derive_qualified},
+};
 
 enum Input<'a> {
     Struct(Struct<'a>),
@@ -41,12 +44,14 @@ impl<'a> Struct<'a> {
 struct Attrs {
     dialect: DialectName,
     type_name: TypeName,
+    attributes: Vec<syn::Attribute>,
 }
 
 impl Attrs {
     fn from_syn(span: Span, input: &[syn::Attribute]) -> Result<Self> {
         let mut dialect = None;
         let mut type_name = None;
+        let mut attributes = vec![];
 
         for attr in input {
             if attr.path().is_ident(DialectName::ATTR_NAME) {
@@ -64,6 +69,8 @@ impl Attrs {
                         type_name = Some(n);
                     }
                 }
+            } else {
+                attributes.push(attr.clone());
             }
         }
 
@@ -74,7 +81,11 @@ impl Attrs {
             return Err(err_struct_attrib_required(span, "type_name"));
         };
 
-        Ok(Self { dialect, type_name })
+        Ok(Self {
+            dialect,
+            type_name,
+            attributes,
+        })
     }
 }
 
@@ -85,11 +96,27 @@ fn err_struct_attrib_required(span: Span, attr: &str) -> syn::Error {
     )
 }
 
-fn impl_struct(input: Struct) -> TokenStream {
+fn impl_struct(def: &DeriveInput, input: Struct) -> TokenStream {
     let name = &input.ident;
+
+    let def_struct = {
+        let attributes = input.attrs.attributes;
+        let kind = IRKind::Type;
+        let vis = &def.vis;
+        let generics = &def.generics;
+        let struct_body = build_struct_body(def);
+
+        quote! {
+            #[derive(::pliron_derive::DeriveAttribDummy)]
+            #(#attributes)*
+            #kind
+            #vis struct #name #generics #struct_body
+        }
+    };
+
     let dialect = input.attrs.dialect;
     let type_name = input.attrs.type_name;
-    quote! {
+    let impl_type = quote! {
         impl ::pliron::r#type::Type for #name {
             fn hash_type(&self) -> ::pliron::storage_uniquer::TypeValueHash {
                 ::pliron::storage_uniquer::TypeValueHash::new(self)
@@ -112,20 +139,24 @@ fn impl_struct(input: Struct) -> TokenStream {
                 }
             }
         }
+    };
 
-        impl ::pliron::common_traits::Qualified for #name {
-            type Qualifier = ::pliron::r#type::TypeId;
+    let impl_qualified = derive_qualified(
+        name,
+        quote! { ::pliron::r#type::TypeId },
+        quote! { self.get_type_id() },
+    );
 
-            fn get_qualifier(&self, _ctx: &::pliron::context::Context) -> Self::Qualifier {
-                self.get_type_id()
-            }
-        }
+    quote! {
+        #def_struct
+        #impl_type
+        #impl_qualified
     }
 }
 
-pub(crate) fn derive(input: DeriveInput) -> syn::Result<TokenStream> {
-    let input = Input::from_syn(&input)?;
-    match input {
-        Input::Struct(input) => Ok(impl_struct(input)),
+pub(crate) fn def_type(input: DeriveInput) -> syn::Result<TokenStream> {
+    let create_input = Input::from_syn(&input)?;
+    match create_input {
+        Input::Struct(strct) => Ok(impl_struct(&input, strct)),
     }
 }

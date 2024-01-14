@@ -321,11 +321,6 @@ impl<'a> PrinterBuilder for AttribTypePrinterBuilder<'a> {
                 let args = self.args_to_token_streams(&args);
                 Ok(self.build_call_toplevel_directive(d, args).into())
             }
-            "qualifier" => {
-                require_toplevel(self.span, "qualifier", toplevel)?;
-                let args = quote! { () };
-                Ok(self.build_call_toplevel_directive(d, args).into())
-            }
             _ => {
                 // custom directives are allowed at the top-level
                 require_toplevel(self.span, &d.name, toplevel)?;

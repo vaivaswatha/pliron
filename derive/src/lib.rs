@@ -1,30 +1,31 @@
 mod asmfmt;
 mod attr;
-mod ir_attr;
-mod ir_op;
-mod ir_parseable;
-mod ir_printable;
-mod ir_type;
+mod derive_attr;
+mod derive_op;
+mod derive_parseable;
+mod derive_printable;
+mod derive_shared;
+mod derive_type;
 
 use proc_macro::TokenStream;
 use syn::{parse_macro_input, DeriveInput};
 
-#[proc_macro_derive(Attribute, attributes(dialect, attr_name))]
-pub fn derive_attribute(input: TokenStream) -> TokenStream {
+#[proc_macro_attribute]
+pub fn def_attribute(_args: TokenStream, input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    to_token_stream(ir_attr::derive(input))
+    to_token_stream(derive_attr::def_attribute(input))
 }
 
 #[proc_macro_attribute]
-pub fn declare_op(_args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn def_op(_args: TokenStream, input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    to_token_stream(ir_op::declare(input))
+    to_token_stream(derive_op::def_op(input))
 }
 
-#[proc_macro_derive(Type, attributes(dialect, type_name))]
-pub fn derive_type(input: TokenStream) -> TokenStream {
+#[proc_macro_attribute]
+pub fn def_type(_args: TokenStream, input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    to_token_stream(ir_type::derive(input))
+    to_token_stream(derive_type::def_type(input))
 }
 
 #[proc_macro_derive(
@@ -33,7 +34,7 @@ pub fn derive_type(input: TokenStream) -> TokenStream {
 )]
 pub fn derive_printable(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    to_token_stream(ir_printable::derive(input))
+    to_token_stream(derive_printable::derive(input))
 }
 
 #[proc_macro_derive(
@@ -42,19 +43,19 @@ pub fn derive_printable(input: TokenStream) -> TokenStream {
 )]
 pub fn derive_parsable(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    to_token_stream(ir_parseable::derive(input))
+    to_token_stream(derive_parseable::derive(input))
 }
 
 #[proc_macro_derive(NotParsableType)]
 pub fn derive_not_parsable_type(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    to_token_stream(ir_parseable::derive_not_parsable_type(input))
+    to_token_stream(derive_parseable::derive_not_parsable_type(input))
 }
 
 #[proc_macro_derive(NotParsableAttribute)]
 pub fn derive_not_parsable_attribute(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    to_token_stream(ir_parseable::derive_not_parsable_attribute(input))
+    to_token_stream(derive_parseable::derive_not_parsable_attribute(input))
 }
 
 pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> TokenStream {

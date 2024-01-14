@@ -2,7 +2,10 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::{Data, DataStruct, DeriveInput, Result};
 
-use crate::attr::{require_once, Attribute, DialectName, IRKind, OpName};
+use crate::{
+    attr::{require_once, Attribute, DialectName, IRKind, OpName},
+    derive_shared::impl_verifiers_register,
+};
 
 enum Input<'a> {
     Struct(Struct<'a>),
@@ -95,29 +98,30 @@ fn err_struct_attrib_required(span: Span, attr: &str) -> syn::Error {
 
 fn impl_struct(input: Struct) -> TokenStream {
     let name = &input.ident;
+
+    let def_struct = {
+        let attributes = input.attrs.other;
+        let kind = input.attrs.kind;
+
+        quote! {
+            #[derive(Clone, Copy)]
+            #[derive(::pliron_derive::DeriveAttribDummy)]
+            #(#attributes)*
+            #kind
+            pub struct #name { op: ::pliron::context::Ptr<::pliron::operation::Operation> }
+        }
+    };
+
     let verifiers_name = format_ident!("OpInterfaceVerifier_{}", name);
+    let verifiers_register = impl_verifiers_register(
+        name,
+        &verifiers_name,
+        quote! { ::pliron::op::OpInterfaceVerifier },
+    );
+
     let dialect = input.attrs.dialect;
     let op_name = input.attrs.op_name;
-    let kind = input.attrs.kind;
-    let attributes = input.attrs.other;
-    quote! {
-        #[derive(Clone, Copy)]
-        #[derive(::pliron_derive::DeriveAttribDummy)]
-        #(#attributes)*
-        #kind
-        pub struct #name { op: ::pliron::context::Ptr<::pliron::operation::Operation> }
-
-        #[allow(non_camel_case_types)]
-        pub struct #verifiers_name(pub ::pliron::op::OpInterfaceVerifier);
-
-        impl #name {
-            pub const fn build_interface_verifier(verifier: ::pliron::op::OpInterfaceVerifier) -> #verifiers_name {
-                #verifiers_name(verifier)
-            }
-        }
-
-        inventory::collect!(#verifiers_name);
-
+    let impl_op_trait = quote! {
         impl ::pliron::op::Op for #name {
             fn get_operation(&self) -> ::pliron::context::Ptr<::pliron::operation::Operation> {
                 self.op
@@ -146,10 +150,18 @@ fn impl_struct(input: Struct) -> TokenStream {
                 Ok(())
             }
         }
+    };
+
+    quote! {
+        #def_struct
+
+        #verifiers_register
+
+        #impl_op_trait
     }
 }
 
-pub(crate) fn declare(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+pub(crate) fn def_op(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let input = Input::from_syn(&input)?;
     match input {
         Input::Struct(input) => Ok(impl_struct(input)),
