@@ -54,7 +54,9 @@ impl Attrs {
         let mut other = vec![];
 
         for attr in input {
-            if attr.path().is_ident(DialectName::ATTR_NAME) {
+            if attr.path().is_ident("def_op") {
+                continue;
+            } else if attr.path().is_ident(DialectName::ATTR_NAME) {
                 require_once(DialectName::ATTR_NAME, &dialect, attr)?;
                 dialect = Some(DialectName::from_syn(attr)?);
             } else if attr.path().is_ident(IRKind::ATTR_NAME) {
@@ -158,7 +160,7 @@ fn impl_op(input: &DefOp) -> TokenStream {
                 }
             }
 
-            fn verify_interfaces(&self, ctx: &Context) -> ::pliron::error::Result<()> {
+            fn verify_interfaces(&self, ctx: &::pliron::context::Context) -> ::pliron::error::Result<()> {
                 let interface_verifiers = ::inventory::iter::<#verifiers_name>;
                 for verifier in interface_verifiers {
                     (verifier.0)(self, ctx)?;
@@ -181,4 +183,69 @@ pub(crate) fn def_op(input: impl Into<TokenStream>) -> Result<TokenStream> {
     let input = syn::parse2::<DefOpInput>(input.into())?;
     let p = DefOp::from(input);
     Ok(p.into_token_stream())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn simple() {
+        let input = quote! {
+            #[def_op]
+            #[op_name="testing.testop"]
+            struct TestOp;
+        };
+        let got = def_op(input).unwrap();
+
+        let want = quote! {
+            #[derive(Clone, Copy)]
+            #[derive(::pliron_derive::DeriveAttribDummy)]
+            #[ir_kind = "op"]
+            pub struct TestOp {
+                op: ::pliron::context::Ptr<::pliron::operation::Operation>
+            }
+
+            #[allow(non_camel_case_types)]
+            pub struct OpInterfaceVerifier_TestOp(pub ::pliron::op::OpInterfaceVerifier);
+            impl TestOp {
+                pub const fn build_interface_verifier(
+                    verifier: ::pliron::op::OpInterfaceVerifier
+                ) -> OpInterfaceVerifier_TestOp {
+                    OpInterfaceVerifier_TestOp(verifier)
+                }
+            }
+
+            inventory::collect!(OpInterfaceVerifier_TestOp);
+
+            impl ::pliron::op::Op for TestOp {
+                fn get_operation(&self) -> ::pliron::context::Ptr<::pliron::operation::Operation> {
+                    self.op
+                }
+                fn wrap_operation(
+                    op: ::pliron::context::Ptr<::pliron::operation::Operation>
+                ) -> ::pliron::op::OpObj {
+                    Box::new(TestOp { op })
+                }
+                fn get_opid(&self) -> ::pliron::op::OpId {
+                    Self::get_opid_static()
+                }
+                fn get_opid_static() -> ::pliron::op::OpId {
+                    ::pliron::op::OpId {
+                        name: ::pliron::op::OpName::new("testop"),
+                        dialect: ::pliron::dialect::DialectName::new("testing"),
+                    }
+                }
+                fn verify_interfaces(&self, ctx: &::pliron::context::Context) -> ::pliron::error::Result<()> {
+                    let interface_verifiers = ::inventory::iter::<OpInterfaceVerifier_TestOp>;
+                    for verifier in interface_verifiers {
+                        (verifier.0)(self, ctx)?;
+                    }
+                    Ok(())
+                }
+            }
+        };
+
+        assert_eq!(want.to_string(), got.to_string());
+    }
 }

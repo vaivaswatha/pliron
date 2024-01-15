@@ -198,3 +198,59 @@ pub(crate) fn def_type(input: impl Into<TokenStream>) -> syn::Result<TokenStream
     let p = DefType::from(input);
     Ok(p.into_token_stream())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn simple() {
+        let input = quote! {
+            #[def_type]
+            #[type_name = "testing.simple_type"]
+            #[derive(Hash, PartialEq, Eq, Debug)]
+            pub struct SimpleType {}
+        };
+
+        let got = def_type(input).unwrap();
+
+        let want = quote! {
+            #[derive(::pliron_derive::DeriveAttribDummy)]
+            #[def_type]
+            #[derive(Hash, PartialEq, Eq, Debug)]
+            #[ir_kind = "type"]
+            pub struct SimpleType {}
+
+            impl ::pliron::r#type::Type for SimpleType {
+                fn hash_type(&self) -> ::pliron::storage_uniquer::TypeValueHash {
+                    ::pliron::storage_uniquer::TypeValueHash::new(self)
+                }
+
+                fn eq_type(&self, other: &dyn ::pliron::r#type::Type) -> bool {
+                    other.downcast_ref::<Self>().map_or(false, |other| other == self)
+                }
+
+                fn get_type_id(&self) -> ::pliron::r#type::TypeId {
+                    Self::get_type_id_static()
+                }
+
+                fn get_type_id_static() -> ::pliron::r#type::TypeId {
+                    ::pliron::r#type::TypeId {
+                        name: ::pliron::r#type::TypeName::new("simple_type"),
+                        dialect: ::pliron::dialect::DialectName::new("testing"),
+                    }
+                }
+            }
+
+            impl ::pliron::common_traits::Qualified for SimpleType {
+                type Qualifier = ::pliron::r#type::TypeId;   // [get_qualifier]
+
+                fn get_qualifier(&self, ctx: &::pliron::context::Context) -> Self::Qualifier {
+                    self.get_type_id()
+                }
+            }
+        };
+
+        assert_eq!(want.to_string(), got.to_string());
+    }
+}

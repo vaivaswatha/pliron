@@ -67,7 +67,9 @@ impl Attrs {
         let mut attributes = vec![];
 
         for attr in input {
-            if attr.path().is_ident(DialectName::ATTR_NAME) {
+            if attr.path().is_ident("def_attribute") {
+                continue;
+            } else if attr.path().is_ident(DialectName::ATTR_NAME) {
                 require_once(DialectName::ATTR_NAME, &dialect, attr)?;
                 dialect = Some(DialectName::from_syn(attr)?);
             } else if attr.path().is_ident(AttributeName::ATTR_NAME) {
@@ -184,7 +186,7 @@ fn impl_attribute(def_attrib: &DefAttribute) -> TokenStream {
                 }
 
                 fn verify_interfaces(&self, ctx: &Context) -> ::pliron::error::Result<()> {
-                    let interface_verifiers = ::inventory::iter::<#verifiers_name>;
+                    let interface_verifiers = ::inventory::iter::<#verifiers_name>();
                     for verifier in interface_verifiers {
                         (verifier.0)(self, ctx)?;
                     }
@@ -210,4 +212,69 @@ pub(crate) fn def_attribute(input: impl Into<TokenStream>) -> syn::Result<TokenS
     let input = syn::parse2::<DefAttributeInput>(input.into())?;
     let p = DefAttribute::from(input);
     Ok(p.into_token_stream())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn simple() {
+        let input = quote! {
+            #[def_attribute]
+            #[attr_name = "testing.unit"]
+            #[derive(PartialEq, Eq, Debug, Clone)]
+            pub struct UnitAttr();
+        };
+        let got = def_attribute(input).unwrap();
+
+        let want = quote! {
+            #[derive(::pliron_derive::DeriveAttribDummy)]
+            #[derive(PartialEq, Eq, Debug, Clone)]
+            #[ir_kind = "attribute"]
+            pub struct UnitAttr();
+
+            #[allow (non_camel_case_types)]
+            pub struct AttrInterfaceVerifier_UnitAttr(pub ::pliron::attribute::AttrInterfaceVerifier);
+            impl UnitAttr {
+                pub const fn build_interface_verifier(verifier: ::pliron::attribute::AttrInterfaceVerifier) -> AttrInterfaceVerifier_UnitAttr {
+                    AttrInterfaceVerifier_UnitAttr(verifier)
+                }
+            }
+            inventory::collect!(AttrInterfaceVerifier_UnitAttr);
+            impl ::pliron::attribute::Attribute for UnitAttr {
+                fn eq_attr(&self, other: &dyn ::pliron::attribute::Attribute) -> bool {
+                    other.downcast_ref::<Self>().map_or(false, |other| other == self)
+                }
+
+                fn get_attr_id(&self) -> ::pliron::attribute::AttrId {
+                    Self::get_attr_id_static()
+                }
+
+                fn get_attr_id_static() -> ::pliron::attribute::AttrId {
+                    ::pliron::attribute::AttrId {
+                        name: ::pliron::attribute::AttrName::new("unit"),
+                        dialect: ::pliron::dialect::DialectName::new("testing"),
+                    }
+                }
+
+                fn verify_interfaces(&self, ctx: &Context) -> ::pliron::error::Result<()> {
+                    let interface_verifiers = ::inventory::iter::<AttrInterfaceVerifier_UnitAttr>();
+                    for verifier in interface_verifiers {
+                        (verifier.0)(self, ctx)?;
+                    }
+                    Ok(())
+                }
+            }
+            impl ::pliron::common_traits::Qualified for UnitAttr {
+                type Qualifier = ::pliron::attribute::AttrId;
+
+                fn get_qualifier(&self, ctx: &::pliron::context::Context) -> Self::Qualifier {
+                    self.get_attr_id()
+                }
+            }
+        };
+
+        assert_eq!(want.to_string(), got.to_string());
+    }
 }
