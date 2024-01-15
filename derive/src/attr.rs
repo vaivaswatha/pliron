@@ -127,6 +127,10 @@ impl TryFrom<String> for AsmFormat {
 }
 
 impl AsmFormat {
+    pub fn into_format(self) -> Format {
+        self.0
+    }
+
     pub fn format(&self) -> &Format {
         &self.0
     }

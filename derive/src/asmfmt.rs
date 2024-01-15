@@ -56,6 +56,24 @@ pub(crate) enum FieldIdent {
     Unnamed(usize),
 }
 
+impl From<FieldIdent> for Elem {
+    fn from(value: FieldIdent) -> Self {
+        match value {
+            FieldIdent::Named(name) => Elem::new_var(name),
+            FieldIdent::Unnamed(index) => Elem::new_unnamed_var(index),
+        }
+    }
+}
+
+impl From<&FieldIdent> for Elem {
+    fn from(value: &FieldIdent) -> Self {
+        match value {
+            FieldIdent::Named(name) => Elem::new_var(name),
+            FieldIdent::Unnamed(index) => Elem::new_unnamed_var(*index),
+        }
+    }
+}
+
 impl From<&str> for FieldIdent {
     fn from(s: &str) -> Self {
         Self::Named(s.to_string())
@@ -198,6 +216,12 @@ pub(crate) enum Elem {
     Directive(Directive),
 
     Optional(Optional),
+}
+
+impl Default for Elem {
+    fn default() -> Self {
+        Self::Lit(Lit::new(""))
+    }
 }
 
 impl Elem {
