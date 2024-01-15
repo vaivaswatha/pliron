@@ -185,7 +185,7 @@ fn impl_attribute(def_attrib: &DefAttribute) -> TokenStream {
                     }
                 }
 
-                fn verify_interfaces(&self, ctx: &Context) -> ::pliron::error::Result<()> {
+                fn verify_interfaces(&self, ctx: &::pliron::context::Context) -> ::pliron::error::Result<()> {
                     let interface_verifiers = ::inventory::iter::<#verifiers_name>();
                     for verifier in interface_verifiers {
                         (verifier.0)(self, ctx)?;
@@ -258,7 +258,7 @@ mod tests {
                     }
                 }
 
-                fn verify_interfaces(&self, ctx: &Context) -> ::pliron::error::Result<()> {
+                fn verify_interfaces(&self, ctx: &::pliron::context::Context) -> ::pliron::error::Result<()> {
                     let interface_verifiers = ::inventory::iter::<AttrInterfaceVerifier_UnitAttr>();
                     for verifier in interface_verifiers {
                         (verifier.0)(self, ctx)?;

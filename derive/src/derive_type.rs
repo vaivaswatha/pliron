@@ -67,7 +67,9 @@ impl Attrs {
         let mut attributes = vec![];
 
         for attr in input {
-            if attr.path().is_ident(DialectName::ATTR_NAME) {
+            if attr.path().is_ident("def_type") {
+                continue;
+            } else if attr.path().is_ident(DialectName::ATTR_NAME) {
                 require_once(DialectName::ATTR_NAME, &dialect, attr)?;
                 dialect = Some(DialectName::from_syn(attr)?);
             } else if attr.path().is_ident(TypeName::ATTR_NAME) {
@@ -216,7 +218,6 @@ mod tests {
 
         let want = quote! {
             #[derive(::pliron_derive::DeriveAttribDummy)]
-            #[def_type]
             #[derive(Hash, PartialEq, Eq, Debug)]
             #[ir_kind = "type"]
             pub struct SimpleType {}
