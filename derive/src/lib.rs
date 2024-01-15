@@ -29,10 +29,7 @@ pub fn derive_printable(input: TokenStream) -> TokenStream {
     to_token_stream(derive_printable::derive(input))
 }
 
-#[proc_macro_derive(
-    Parsable,
-    attributes(dialect, ir_kind, type_name, attr_name, asm_format)
-)]
+#[proc_macro_derive(Parsable, attributes(dialect, ir_kind, asm_format))]
 pub fn derive_parsable(input: TokenStream) -> TokenStream {
     to_token_stream(derive_parseable::derive(input))
 }

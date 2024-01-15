@@ -1,4 +1,4 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::format_ident;
 use syn::parse::{Parse, ParseStream};
 use syn::Data;
@@ -14,7 +14,14 @@ use winnow::{
 
 use crate::attr::{require_once, AsmFormat, Attribute, IRKind};
 
-pub(crate) enum AsmFmtInput {
+pub(crate) struct AsmFmtInput {
+    pub ident: syn::Ident,
+    pub kind: IRKind,
+    pub format: AsmFormat,
+    pub data: FmtData,
+}
+
+pub(crate) enum FmtData {
     Struct(Struct),
 }
 
@@ -29,24 +36,70 @@ impl TryFrom<DeriveInput> for AsmFmtInput {
     type Error = syn::Error;
 
     fn try_from(input: DeriveInput) -> syn::Result<Self> {
-        match &input.data {
-            Data::Struct(data) => Struct::from_syn(&input, data).map(AsmFmtInput::Struct),
-            Data::Enum(_) => Err(syn::Error::new_spanned(
+        let mut kind = None;
+        let mut format = None;
+
+        for attr in &input.attrs {
+            if attr.path().is_ident(AsmFormat::ATTR_NAME) {
+                require_once(AsmFormat::ATTR_NAME, &format, attr)?;
+                format = Some(AsmFormat::from_syn(attr)?);
+            }
+            if attr.path().is_ident(IRKind::ATTR_NAME) {
+                require_once(IRKind::ATTR_NAME, &kind, attr)?;
+                kind = Some(IRKind::from_syn(attr)?);
+            }
+        }
+
+        let Some(kind) = kind else {
+            return Err(syn::Error::new_spanned(
                 input,
+                "unknown IR object type. Use #[ir_kind=...] or one of the supported derive clauses Type, Attrib, ...",
+            ));
+        };
+
+        let data = match input.data {
+            Data::Struct(ref data) => Struct::from_syn(data).map(FmtData::Struct),
+            Data::Enum(_) => Err(syn::Error::new_spanned(
+                &input,
                 "Type can only be derived for structs",
             )),
             Data::Union(_) => Err(syn::Error::new_spanned(
-                input,
+                &input,
                 "Type can only be derived for structs",
             )),
+        }?;
+
+        let mut format = match format {
+            Some(f) => f,
+            None => {
+                let mut format = match kind {
+                    IRKind::Op => generic_op_format(),
+                    IRKind::Type | IRKind::Attribute => try_format_from_input(&input)?,
+                };
+                if !format.is_empty() && kind != IRKind::Op {
+                    format.enclose(Elem::Lit("<".into()), Elem::Lit(">".into()));
+                }
+                format.into()
+            }
+        };
+
+        if kind == IRKind::Op {
+            format.format_mut().prepend(Optional::new(
+                Elem::new_directive("results"),
+                Format::from(vec![Elem::new_directive("results"), Elem::new_lit(" = ")]),
+            ));
         }
+
+        Ok(Self {
+            ident: input.ident,
+            kind,
+            format,
+            data,
+        })
     }
 }
 
 pub(crate) struct Struct {
-    pub ident: syn::Ident,
-    pub kind: IRKind,
-    pub format: AsmFormat,
     pub fields: Vec<FieldIdent>,
 }
 
@@ -108,49 +161,7 @@ impl quote::ToTokens for FieldIdent {
 }
 
 impl Struct {
-    fn from_syn(input: &DeriveInput, data: &DataStruct) -> syn::Result<Self> {
-        let mut kind = None;
-        let mut format = None;
-
-        for attr in &input.attrs {
-            if attr.path().is_ident(AsmFormat::ATTR_NAME) {
-                require_once(AsmFormat::ATTR_NAME, &format, attr)?;
-                format = Some(AsmFormat::from_syn(attr)?);
-            }
-            if attr.path().is_ident(IRKind::ATTR_NAME) {
-                require_once(IRKind::ATTR_NAME, &kind, attr)?;
-                kind = Some(IRKind::from_syn(attr)?);
-            }
-        }
-
-        let Some(kind) = kind else {
-            return Err(syn::Error::new_spanned(
-                input,
-                "unknown IR object type. Use #[ir_kind=...] or one of the supported derive clauses Type, Attrib, ...",
-            ));
-        };
-
-        let mut format = match format {
-            Some(f) => f,
-            None => {
-                let mut format = match kind {
-                    IRKind::Op => generic_op_format(),
-                    IRKind::Type | IRKind::Attribute => try_format_from_struct(input, data)?,
-                };
-                if !format.is_empty() && kind != IRKind::Op {
-                    format.enclose(Elem::Lit("<".into()), Elem::Lit(">".into()));
-                }
-                format.into()
-            }
-        };
-
-        if kind == IRKind::Op {
-            format.format_mut().prepend(Optional::new(
-                Elem::new_directive("results"),
-                Format::from(vec![Elem::new_directive("results"), Elem::new_lit(" = ")]),
-            ));
-        }
-
+    fn from_syn(data: &DataStruct) -> syn::Result<Self> {
         let fields = data
             .fields
             .iter()
@@ -161,18 +172,19 @@ impl Struct {
             })
             .collect();
 
-        Ok(Self {
-            ident: input.ident.clone(),
-            fields,
-            kind,
-            format,
-        })
+        Ok(Self { fields })
     }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct Format {
     pub elems: Vec<Elem>,
+}
+
+impl From<Vec<Elem>> for Format {
+    fn from(elems: Vec<Elem>) -> Self {
+        Self { elems }
+    }
 }
 
 impl Format {
@@ -194,9 +206,17 @@ impl Format {
     }
 }
 
-impl From<Vec<Elem>> for Format {
-    fn from(elems: Vec<Elem>) -> Self {
-        Self { elems }
+impl Format {
+    pub fn parse(input: &str) -> Result<Self> {
+        let mut input = Located::new(input);
+        let elems = match parse_asm_fmt(&mut input) {
+            Ok(elems) => elems,
+            Err(err) => {
+                let msg = format!("{}", err);
+                return Err(msg.into());
+            }
+        };
+        Ok(Self { elems })
     }
 }
 
@@ -277,6 +297,18 @@ pub(crate) struct Lit {
     pub lit: String,
 }
 
+impl From<Lit> for Elem {
+    fn from(lit: Lit) -> Self {
+        Self::Lit(lit)
+    }
+}
+
+impl From<&str> for Lit {
+    fn from(s: &str) -> Self {
+        Self::new(s)
+    }
+}
+
 impl Lit {
     pub fn new(s: impl Into<String>) -> Self {
         Self {
@@ -290,18 +322,6 @@ impl Lit {
             pos: Some(pos),
             lit: s.into(),
         }
-    }
-}
-
-impl From<Lit> for Elem {
-    fn from(lit: Lit) -> Self {
-        Self::Lit(lit)
-    }
-}
-
-impl From<&str> for Lit {
-    fn from(s: &str) -> Self {
-        Self::new(s)
     }
 }
 
@@ -345,6 +365,18 @@ pub struct UnnamedVar {
     pub index: usize,
 }
 
+impl From<UnnamedVar> for Elem {
+    fn from(var: UnnamedVar) -> Self {
+        Self::UnnamedVar(var)
+    }
+}
+
+impl From<usize> for UnnamedVar {
+    fn from(index: usize) -> Self {
+        Self::new(index)
+    }
+}
+
 impl UnnamedVar {
     pub fn new(index: usize) -> Self {
         Self { pos: None, index }
@@ -355,18 +387,6 @@ impl UnnamedVar {
             pos: Some(pos),
             index,
         }
-    }
-}
-
-impl From<UnnamedVar> for Elem {
-    fn from(var: UnnamedVar) -> Self {
-        Self::UnnamedVar(var)
-    }
-}
-
-impl From<usize> for UnnamedVar {
-    fn from(index: usize) -> Self {
-        Self::new(index)
     }
 }
 
@@ -453,18 +473,185 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 type Error = Box<dyn std::error::Error>;
 
-impl Format {
-    pub fn parse(input: &str) -> Result<Self> {
-        let mut input = Located::new(input);
-        let elems = match parse_asm_fmt(&mut input) {
-            Ok(elems) => elems,
-            Err(err) => {
-                let msg = format!("{}", err);
-                return Err(msg.into());
-            }
-        };
-        Ok(Self { elems })
+struct FmtValue(Vec<Elem>);
+
+impl From<Elem> for FmtValue {
+    fn from(elem: Elem) -> Self {
+        Self(vec![elem])
     }
+}
+
+impl From<Vec<Elem>> for FmtValue {
+    fn from(elems: Vec<Elem>) -> Self {
+        Self(elems)
+    }
+}
+
+impl From<Directive> for FmtValue {
+    fn from(d: Directive) -> Self {
+        Self(vec![Elem::Directive(d)])
+    }
+}
+
+impl From<Optional> for FmtValue {
+    fn from(opt: Optional) -> Self {
+        Self(vec![Elem::Optional(opt)])
+    }
+}
+
+impl From<FmtValue> for Vec<Elem> {
+    fn from(value: FmtValue) -> Self {
+        value.0
+    }
+}
+
+impl From<FmtValue> for Format {
+    fn from(value: FmtValue) -> Self {
+        Self { elems: value.0 }
+    }
+}
+
+impl FmtValue {
+    // flattens a FmtValue such that it contains no nested Values.
+    fn flatten(self) -> Vec<Elem> {
+        self.0
+    }
+
+    fn flatten_into(self, values: &mut Vec<Elem>) {
+        values.extend(self.0);
+    }
+}
+
+pub struct AttribTypeFmtEvaler<'a> {
+    span: Span,
+    fields: &'a [FieldIdent],
+}
+
+impl<'a> AttribTypeFmtEvaler<'a> {
+    pub fn new(span: Span, fields: &'a [FieldIdent]) -> Self {
+        Self { span, fields }
+    }
+
+    fn span(&self) -> Span {
+        self.span
+    }
+
+    pub fn eval(&self, f: Format) -> syn::Result<Format> {
+        Ok(self.eval_format(f, true)?.into())
+    }
+
+    fn eval_format(&self, f: Format, toplevel: bool) -> syn::Result<Format> {
+        let elems = self.eval_elems(f.elems, toplevel)?;
+        Ok(elems.into())
+    }
+
+    fn eval_elems(&self, elem: Vec<Elem>, toplevel: bool) -> syn::Result<FmtValue> {
+        let results = elem.into_iter().map(|e| self.eval_elem(e, toplevel));
+        let mut elems = vec![];
+        for r in results {
+            r?.flatten_into(&mut elems);
+        }
+        Ok(FmtValue(elems))
+    }
+
+    fn eval_elem(&self, elem: Elem, toplevel: bool) -> syn::Result<FmtValue> {
+        match elem {
+            Elem::Lit(_) | Elem::Var(_) | Elem::UnnamedVar(_) => Ok(elem.into()),
+            Elem::Directive(d) => self.eval_directive(d, toplevel),
+            Elem::Optional(opt) => self.eval_optional(opt, toplevel),
+        }
+    }
+
+    fn eval_directive(&self, d: Directive, toplevel: bool) -> syn::Result<FmtValue> {
+        match d.name.as_str() {
+            "params" => {
+                require_no_args(self.span, "params", &d.args)?;
+                if toplevel {
+                    Ok(FmtValue::from(d))
+                } else {
+                    Ok(FmtValue::from(
+                        self.fields.iter().map(|f| f.into()).collect::<Vec<_>>(),
+                    ))
+                }
+            }
+            "struct" => {
+                require_toplevel(self.span, &d.name, toplevel)?;
+                require_args(self.span, "struct", &d.args)?;
+                let args = self.eval_args(d.args)?;
+                Ok(FmtValue::from(Directive { args, ..d }))
+            }
+            _ => {
+                require_toplevel(self.span, &d.name, toplevel)?;
+                let args = self.eval_args(d.args)?;
+                Ok(FmtValue::from(Directive { args, ..d }))
+            }
+        }
+    }
+
+    fn eval_args(&self, args: Vec<Elem>) -> syn::Result<Vec<Elem>> {
+        let values = self.eval_elems(args, false)?;
+        Ok(values.into())
+    }
+
+    fn eval_optional(&self, opt: Optional, toplevel: bool) -> syn::Result<FmtValue> {
+        require_toplevel(self.span(), "optional", toplevel).unwrap();
+
+        let mut check_tmp = self.eval_elem(*opt.check, false)?.flatten();
+        let Some(check) = check_tmp.pop() else {
+            return Err(syn::Error::new(
+                self.span(),
+                "`check` argument of `optional` has no value",
+            ));
+        };
+        if !check_tmp.is_empty() {
+            return Err(syn::Error::new(
+                self.span(),
+                "`check` argument of `optional` directive must be a single value",
+            ));
+        }
+
+        let then_format = self.eval_format(opt.then_format, toplevel)?;
+        let else_format = opt
+            .else_format
+            .map(|f| self.eval_format(f, toplevel))
+            .transpose()?;
+
+        Ok(FmtValue::from(Optional {
+            check: Box::new(check),
+            then_format,
+            else_format,
+        }))
+    }
+}
+
+fn require_toplevel(span: Span, directive: &str, toplevel: bool) -> syn::Result<()> {
+    if !toplevel {
+        return Err(syn::Error::new(
+            span,
+            format!("`{}` directive is only allowed at the top-level", directive),
+        ));
+    }
+    Ok(())
+}
+
+fn require_no_args(span: Span, directive: &str, args: &[Elem]) -> syn::Result<()> {
+    if !args.is_empty() {
+        return Err(syn::Error::new(
+            span,
+            format!("`{}` directive does not take any arguments", directive),
+        ));
+    }
+    Ok(())
+}
+
+fn require_args(span: Span, directive: &str, args: &[Elem]) -> syn::Result<()> {
+    if args.is_empty() {
+        return Err(syn::Error::new(
+            span,
+            format!("`{}` directive requires arguments", directive),
+        ));
+    }
+    Ok(())
 }
 
 type Str<'a> = Located<&'a str>;
@@ -622,11 +809,18 @@ fn sym<'a>(c: char) -> impl Parser<Str<'a>, char, ContextError> {
     c.context(StrContext::Expected(c.into()))
 }
 
-pub(crate) fn try_format_from_struct(
-    _input: &syn::DeriveInput,
-    data: &syn::DataStruct,
-) -> syn::Result<Format> {
+pub(crate) fn try_format_from_input(input: &syn::DeriveInput) -> syn::Result<Format> {
     // TODO: add support for per field attributes?
+
+    let data = match input.data {
+        Data::Struct(ref data) => data,
+        _ => {
+            return Err(syn::Error::new_spanned(
+                input,
+                "Type can only be derived for structs",
+            ))
+        }
+    };
 
     let elems = match data.fields {
         syn::Fields::Named(ref fields) => {

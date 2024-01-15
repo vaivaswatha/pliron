@@ -1,17 +1,21 @@
 use proc_macro2::{Span, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{
     parse::{Parse, ParseStream},
-    Data, DeriveInput, Result,
+    DeriveInput, Result,
 };
 
 use crate::{
     attr::{require_once, Attribute, DialectName, IRKind, TypeName},
-    derive_shared::{build_struct_body, derive_qualified},
+    derive_shared::{build_struct_body, ImplQualified},
 };
 
-enum DefTypeInput {
-    Struct(Struct),
+struct DefTypeInput {
+    vis: syn::Visibility,
+    ident: syn::Ident,
+    generics: syn::Generics,
+    data: syn::Data,
+    attrs: Attrs,
 }
 
 impl Parse for DefTypeInput {
@@ -25,44 +29,19 @@ impl TryFrom<DeriveInput> for DefTypeInput {
     type Error = syn::Error;
 
     fn try_from(input: DeriveInput) -> Result<Self> {
-        match input.data {
-            Data::Struct(_) => Struct::try_from(input).map(DefTypeInput::Struct),
-            Data::Enum(_) => Err(syn::Error::new_spanned(
-                input,
-                "Type can only be derived for structs",
-            )),
-            Data::Union(_) => Err(syn::Error::new_spanned(
-                input,
-                "Type can only be derived for structs",
-            )),
-        }
-    }
-}
-
-struct Struct {
-    vis: syn::Visibility,
-    ident: syn::Ident,
-    generics: syn::Generics,
-    data: syn::DataStruct,
-    attrs: Attrs,
-}
-
-impl TryFrom<DeriveInput> for Struct {
-    type Error = syn::Error;
-
-    fn try_from(input: DeriveInput) -> Result<Self> {
-        let syn::Data::Struct(data) = input.data else {
+        let attrs = Attrs::try_from(&input)?;
+        let data @ syn::Data::Struct(_) = input.data else {
             return Err(syn::Error::new_spanned(
-                input,
+                &input,
                 "Type can only be derived for structs",
             ));
         };
-        Ok(Struct {
+        Ok(Self {
             vis: input.vis,
             generics: input.generics,
             data,
-            attrs: Attrs::from_syn(input.ident.span(), &input.attrs)?,
             ident: input.ident,
+            attrs,
         })
     }
 }
@@ -71,6 +50,14 @@ struct Attrs {
     dialect: DialectName,
     type_name: TypeName,
     attributes: Vec<syn::Attribute>,
+}
+
+impl TryFrom<&DeriveInput> for Attrs {
+    type Error = syn::Error;
+
+    fn try_from(input: &DeriveInput) -> Result<Self> {
+        Self::from_syn(input.ident.span(), &input.attrs)
+    }
 }
 
 impl Attrs {
@@ -122,15 +109,41 @@ fn err_struct_attrib_required(span: Span, attr: &str) -> syn::Error {
     )
 }
 
-fn impl_struct(input: Struct) -> TokenStream {
+struct DefType {
+    input: DefTypeInput,
+    qualified: ImplQualified,
+}
+
+impl From<DefTypeInput> for DefType {
+    fn from(input: DefTypeInput) -> Self {
+        let qualified = ImplQualified {
+            ident: input.ident.clone(),
+            qualifier: syn::parse_quote! { ::pliron::r#type::TypeId },
+            getter: quote! { self.get_type_id() },
+        };
+        Self { input, qualified }
+    }
+}
+
+impl ToTokens for DefType {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.extend(impl_type(&self));
+    }
+}
+
+fn impl_type(def_type: &DefType) -> TokenStream {
+    let input = &def_type.input;
     let name = &input.ident;
 
     let def_struct = {
-        let attributes = input.attrs.attributes;
+        let attributes = &input.attrs.attributes;
         let kind = IRKind::Type;
         let vis = &input.vis;
         let generics = &input.generics;
-        let struct_body = build_struct_body(&input.data);
+        let struct_body = match input.data {
+            syn::Data::Struct(ref s) => build_struct_body(s),
+            _ => unreachable!(),
+        };
 
         quote! {
             #[derive(::pliron_derive::DeriveAttribDummy)]
@@ -140,49 +153,48 @@ fn impl_struct(input: Struct) -> TokenStream {
         }
     };
 
-    let dialect = input.attrs.dialect;
-    let type_name = input.attrs.type_name;
-    let impl_type = quote! {
-        impl ::pliron::r#type::Type for #name {
-            fn hash_type(&self) -> ::pliron::storage_uniquer::TypeValueHash {
-                ::pliron::storage_uniquer::TypeValueHash::new(self)
-            }
+    let impl_type = {
+        let dialect = &input.attrs.dialect;
+        let type_name = &input.attrs.type_name;
 
-            fn eq_type(&self, other: &dyn ::pliron::r#type::Type) -> bool {
-                other
-                    .downcast_ref::<Self>()
-                    .map_or(false, |other| other == self)
-            }
+        quote! {
+            impl ::pliron::r#type::Type for #name {
+                fn hash_type(&self) -> ::pliron::storage_uniquer::TypeValueHash {
+                    ::pliron::storage_uniquer::TypeValueHash::new(self)
+                }
 
-            fn get_type_id(&self) -> ::pliron::r#type::TypeId {
-                Self::get_type_id_static()
-            }
+                fn eq_type(&self, other: &dyn ::pliron::r#type::Type) -> bool {
+                    other
+                        .downcast_ref::<Self>()
+                        .map_or(false, |other| other == self)
+                }
 
-            fn get_type_id_static() -> ::pliron::r#type::TypeId {
-                ::pliron::r#type::TypeId {
-                    name: ::pliron::r#type::TypeName::new(#type_name),
-                    dialect: ::pliron::dialect::DialectName::new(#dialect),
+                fn get_type_id(&self) -> ::pliron::r#type::TypeId {
+                    Self::get_type_id_static()
+                }
+
+                fn get_type_id_static() -> ::pliron::r#type::TypeId {
+                    ::pliron::r#type::TypeId {
+                        name: ::pliron::r#type::TypeName::new(#type_name),
+                        dialect: ::pliron::dialect::DialectName::new(#dialect),
+                    }
                 }
             }
         }
     };
 
-    let impl_qualified = derive_qualified(
-        name,
-        quote! { ::pliron::r#type::TypeId },
-        quote! { self.get_type_id() },
-    );
-
+    let impl_qualified = &def_type.qualified;
     quote! {
         #def_struct
+
         #impl_type
+
         #impl_qualified
     }
 }
 
 pub(crate) fn def_type(input: impl Into<TokenStream>) -> syn::Result<TokenStream> {
-    let create_input = syn::parse2::<DefTypeInput>(input.into())?;
-    match create_input {
-        DefTypeInput::Struct(strct) => Ok(impl_struct(strct)),
-    }
+    let input = syn::parse2::<DefTypeInput>(input.into())?;
+    let p = DefType::from(input);
+    Ok(p.into_token_stream())
 }

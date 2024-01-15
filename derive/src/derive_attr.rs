@@ -1,17 +1,21 @@
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 use syn::{
     parse::{Parse, ParseStream},
-    Data, DeriveInput, Result,
+    DeriveInput, Result,
 };
 
 use crate::{
     attr::{require_once, Attribute, AttributeName, DialectName, IRKind},
-    derive_shared::{build_struct_body, derive_qualified, impl_verifiers_register},
+    derive_shared::{build_struct_body, ImplQualified, VerifiersRegister},
 };
 
-enum DefAttributeInput {
-    Struct(Struct),
+struct DefAttributeInput {
+    vis: syn::Visibility,
+    ident: syn::Ident,
+    generics: syn::Generics,
+    attrs: Attrs,
+    data: syn::Data,
 }
 
 impl Parse for DefAttributeInput {
@@ -25,40 +29,14 @@ impl TryFrom<DeriveInput> for DefAttributeInput {
     type Error = syn::Error;
 
     fn try_from(input: DeriveInput) -> Result<Self> {
-        match input.data {
-            Data::Struct(_) => Struct::try_from(input).map(DefAttributeInput::Struct),
-            Data::Enum(_) => Err(syn::Error::new_spanned(
-                input,
-                "Type can only be derived for structs",
-            )),
-            Data::Union(_) => Err(syn::Error::new_spanned(
-                input,
-                "Type can only be derived for structs",
-            )),
-        }
-    }
-}
-
-struct Struct {
-    vis: syn::Visibility,
-    ident: syn::Ident,
-    generics: syn::Generics,
-    data: syn::DataStruct,
-    attrs: Attrs,
-}
-
-impl TryFrom<DeriveInput> for Struct {
-    type Error = syn::Error;
-
-    fn try_from(input: DeriveInput) -> Result<Self> {
-        let syn::Data::Struct(data) = input.data else {
+        let attrs = Attrs::try_from(&input)?;
+        let data @ syn::Data::Struct(_) = input.data else {
             return Err(syn::Error::new_spanned(
-                input,
+                &input,
                 "Type can only be derived for structs",
             ));
         };
-        let attrs = Attrs::from_syn(input.ident.span(), &input.attrs)?;
-        Ok(Struct {
+        Ok(Self {
             vis: input.vis,
             generics: input.generics,
             data,
@@ -72,6 +50,14 @@ struct Attrs {
     dialect: DialectName,
     attr_name: AttributeName,
     attributes: Vec<syn::Attribute>,
+}
+
+impl TryFrom<&DeriveInput> for Attrs {
+    type Error = syn::Error;
+
+    fn try_from(input: &DeriveInput) -> Result<Self> {
+        Self::from_syn(input.ident.span(), &input.attrs)
+    }
 }
 
 impl Attrs {
@@ -118,15 +104,52 @@ fn err_struct_attrib_required(span: Span, attr: &str) -> syn::Error {
     )
 }
 
-fn impl_struct(input: Struct) -> TokenStream {
+struct DefAttribute {
+    input: DefAttributeInput,
+    verifiers: VerifiersRegister,
+    qualified: ImplQualified,
+}
+
+impl From<DefAttributeInput> for DefAttribute {
+    fn from(input: DefAttributeInput) -> Self {
+        let verifiers = VerifiersRegister {
+            ident: input.ident.clone(),
+            verifiers_name: format_ident!("AttrInterfaceVerifier_{}", &input.ident),
+            ifc_name: syn::parse_quote! { ::pliron::attribute::AttrInterfaceVerifier },
+        };
+        let qualified = ImplQualified {
+            ident: input.ident.clone(),
+            qualifier: syn::parse_quote! { ::pliron::attribute::AttrId },
+            getter: quote! { self.get_attr_id() },
+        };
+        Self {
+            input,
+            verifiers,
+            qualified,
+        }
+    }
+}
+
+impl ToTokens for DefAttribute {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.extend(impl_attribute(self))
+    }
+}
+
+fn impl_attribute(def_attrib: &DefAttribute) -> TokenStream {
+    let verifiers_register = &def_attrib.verifiers;
+    let input = &def_attrib.input;
     let name = &input.ident;
 
     let def_struct = {
-        let attributes = input.attrs.attributes;
+        let attributes = &input.attrs.attributes;
         let kind = IRKind::Attribute;
         let vis = &input.vis;
         let generics = &input.generics;
-        let struct_body = build_struct_body(&input.data);
+        let struct_body = match input.data {
+            syn::Data::Struct(ref s) => build_struct_body(s),
+            _ => unreachable!(),
+        };
 
         quote! {
             #[derive(::pliron_derive::DeriveAttribDummy)]
@@ -136,16 +159,10 @@ fn impl_struct(input: Struct) -> TokenStream {
         }
     };
 
-    let verifiers_name = format_ident!("AttrInterfaceVerifier_{}", name);
-    let verifiers_register = impl_verifiers_register(
-        name,
-        &verifiers_name,
-        quote! { ::pliron::attribute::AttrInterfaceVerifier },
-    );
-
     let impl_attribute_trait = {
-        let dialect = input.attrs.dialect;
-        let attr_name = input.attrs.attr_name;
+        let dialect = &input.attrs.dialect;
+        let attr_name = &input.attrs.attr_name;
+        let verifiers_name = &verifiers_register.verifiers_name;
 
         quote! {
             impl ::pliron::attribute::Attribute for #name {
@@ -177,23 +194,20 @@ fn impl_struct(input: Struct) -> TokenStream {
         }
     };
 
-    let impl_qualified_trait = derive_qualified(
-        name,
-        quote! { ::pliron::attribute::AttrId },
-        quote! { self.get_attr_id() },
-    );
-
+    let impl_qualified_trait = &def_attrib.qualified;
     quote! {
         #def_struct
+
         #verifiers_register
 
         #impl_attribute_trait
+
         #impl_qualified_trait
     }
 }
 
 pub(crate) fn def_attribute(input: impl Into<TokenStream>) -> syn::Result<TokenStream> {
-    match syn::parse2::<DefAttributeInput>(input.into())? {
-        DefAttributeInput::Struct(strct) => Ok(impl_struct(strct)),
-    }
+    let input = syn::parse2::<DefAttributeInput>(input.into())?;
+    let p = DefAttribute::from(input);
+    Ok(p.into_token_stream())
 }

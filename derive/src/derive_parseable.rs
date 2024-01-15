@@ -5,7 +5,7 @@ use quote::{format_ident, quote};
 use syn::{DeriveInput, Result};
 
 use crate::{
-    asmfmt::{AsmFmtInput, Directive, Elem, FieldIdent, Lit, Struct, UnnamedVar, Var},
+    asmfmt::{AsmFmtInput, Directive, Elem, FieldIdent, FmtData, Lit, UnnamedVar, Var},
     attr::AsmFormat,
 };
 
@@ -49,22 +49,26 @@ pub(crate) fn derive_not_parsable_attribute(input: impl Into<TokenStream>) -> Re
 
 pub(crate) fn derive(input: impl Into<TokenStream>) -> syn::Result<TokenStream> {
     let input = syn::parse2::<AsmFmtInput>(input.into())?;
-    match input {
-        AsmFmtInput::Struct(input) => Ok(impl_struct(input)),
-    }
+    Ok(impl_parsable(input))
 }
 
-fn impl_struct(input: Struct) -> TokenStream {
+fn impl_parsable(input: AsmFmtInput) -> TokenStream {
     let name = &input.ident;
 
-    let builder = ParserBuilder::new(&input.fields);
-    let body = builder.build(&input.format);
-    let fields = &input.fields;
-    let init_self = quote! {
-        Self {
-            #(#fields),*
+    let (init_self, body) = match input.data {
+        FmtData::Struct(s) => {
+            let builder = ParserBuilder::new(&s.fields);
+            let body = builder.build(&input.format);
+            let init_fields = &s.fields;
+            let init_self = quote! {
+                Self {
+                    #(#init_fields),*
+                }
+            };
+            (init_self, body)
         }
     };
+
     quote! {
         impl ::pliron::parsable::Parsable for #name {
             type Arg = ();

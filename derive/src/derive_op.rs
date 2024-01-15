@@ -1,17 +1,18 @@
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 use syn::{
     parse::{Parse, ParseStream},
-    Data, DeriveInput, Result,
+    DeriveInput, Result,
 };
 
 use crate::{
     attr::{require_once, Attribute, DialectName, IRKind, OpName},
-    derive_shared::impl_verifiers_register,
+    derive_shared::VerifiersRegister,
 };
 
-enum DefOpInput {
-    Struct(Struct),
+struct DefOpInput {
+    attrs: Attrs,
+    ident: syn::Ident,
 }
 
 impl Parse for DefOpInput {
@@ -25,36 +26,13 @@ impl TryFrom<DeriveInput> for DefOpInput {
     type Error = syn::Error;
 
     fn try_from(input: DeriveInput) -> Result<Self> {
-        match input.data {
-            Data::Struct(_) => Struct::try_from(input).map(DefOpInput::Struct),
-            Data::Enum(_) => Err(syn::Error::new_spanned(
-                input,
-                "Type can only be derived for structs",
-            )),
-            Data::Union(_) => Err(syn::Error::new_spanned(
-                input,
-                "Type can only be derived for structs",
-            )),
-        }
-    }
-}
-
-struct Struct {
-    attrs: Attrs,
-    ident: syn::Ident,
-}
-
-impl TryFrom<DeriveInput> for Struct {
-    type Error = syn::Error;
-
-    fn try_from(input: DeriveInput) -> Result<Self> {
-        let syn::Data::Struct(data) = input.data else {
+        let syn::Data::Struct(_) = input.data else {
             return Err(syn::Error::new_spanned(
                 input,
                 "Type can only be derived for structs",
             ));
         };
-        Ok(Struct {
+        Ok(Self {
             attrs: Attrs::from_syn(input.ident.span(), &input.attrs)?,
             ident: input.ident,
         })
@@ -116,11 +94,35 @@ fn err_struct_attrib_required(span: Span, attr: &str) -> syn::Error {
     )
 }
 
-fn impl_struct(input: Struct) -> TokenStream {
+struct DefOp {
+    input: DefOpInput,
+    verifiers: VerifiersRegister,
+}
+
+impl From<DefOpInput> for DefOp {
+    fn from(input: DefOpInput) -> Self {
+        let verifiers = VerifiersRegister {
+            ident: input.ident.clone(),
+            verifiers_name: format_ident!("OpInterfaceVerifier_{}", &input.ident),
+            ifc_name: syn::parse_quote! { ::pliron::op::OpInterfaceVerifier },
+        };
+        Self { input, verifiers }
+    }
+}
+
+impl ToTokens for DefOp {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.extend(impl_op(&self));
+    }
+}
+
+fn impl_op(input: &DefOp) -> TokenStream {
+    let verifiers_register = &input.verifiers;
+    let input = &input.input;
     let name = &input.ident;
 
     let def_struct = {
-        let attributes = input.attrs.other;
+        let attributes = &input.attrs.other;
         let kind = input.attrs.kind;
 
         quote! {
@@ -132,15 +134,9 @@ fn impl_struct(input: Struct) -> TokenStream {
         }
     };
 
-    let verifiers_name = format_ident!("OpInterfaceVerifier_{}", name);
-    let verifiers_register = impl_verifiers_register(
-        name,
-        &verifiers_name,
-        quote! { ::pliron::op::OpInterfaceVerifier },
-    );
-
-    let dialect = input.attrs.dialect;
-    let op_name = input.attrs.op_name;
+    let dialect = &input.attrs.dialect;
+    let op_name = &input.attrs.op_name;
+    let verifiers_name = &verifiers_register.verifiers_name;
     let impl_op_trait = quote! {
         impl ::pliron::op::Op for #name {
             fn get_operation(&self) -> ::pliron::context::Ptr<::pliron::operation::Operation> {
@@ -182,7 +178,7 @@ fn impl_struct(input: Struct) -> TokenStream {
 }
 
 pub(crate) fn def_op(input: impl Into<TokenStream>) -> Result<TokenStream> {
-    match syn::parse2::<DefOpInput>(input.into())? {
-        DefOpInput::Struct(input) => Ok(impl_struct(input)),
-    }
+    let input = syn::parse2::<DefOpInput>(input.into())?;
+    let p = DefOp::from(input);
+    Ok(p.into_token_stream())
 }
