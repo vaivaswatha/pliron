@@ -16,7 +16,6 @@ use crate::{
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, ListSeparator, Printable, PrintableIter},
     r#type::{type_parser, Type, TypeObj},
-    storage_uniquer::TypeValueHash,
 };
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]

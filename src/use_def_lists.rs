@@ -21,7 +21,7 @@ use crate::{
     context::{Context, Ptr},
     linked_list::{ContainsLinkedList, LinkedList},
     operation::Operation,
-    r#type::TypeObj,
+    r#type::{TypeObj, Typed},
 };
 
 /// def-use chains are implemented for [Value]s and `Ptr<BasicBlock`.
@@ -167,6 +167,12 @@ impl Value {
     ) {
         self.get_defnode_mut(ctx)
             .replace_some_uses_with(ctx, pred, other);
+    }
+}
+
+impl Typed for Value {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        self.get_type(ctx)
     }
 }
 

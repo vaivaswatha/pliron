@@ -8,7 +8,7 @@
 //!
 //! The [impl_type](crate::impl_type) macro can be used to implement [Type] for a rust type.
 
-use crate::common_traits::Verify;
+use crate::common_traits::{Qualified, Verify};
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
 use crate::error::Result;
@@ -121,6 +121,50 @@ pub trait Type: Printable + Verify + Downcast + Sync + Debug {
     }
 }
 impl_downcast!(Type);
+
+impl Qualified for dyn Type {
+    type Qualifier = TypeId;
+
+    fn get_qualifier(&self, _ctx: &Context) -> Self::Qualifier {
+        self.get_type_id()
+    }
+}
+
+/// Trait for objects that have a direct type.
+pub trait Typed {
+    /// Get the [Type](crate::type::Type) of the current object.
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj>;
+}
+
+impl Typed for Ptr<TypeObj> {
+    fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
+        *self
+    }
+}
+
+impl Typed for dyn Type {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        self.get_self_ptr(ctx)
+    }
+}
+
+impl<T: Typed + ?Sized> Typed for &T {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        (*self).get_type(ctx)
+    }
+}
+
+impl<T: Typed + ?Sized> Typed for &mut T {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        (**self).get_type(ctx)
+    }
+}
+
+impl<T: Typed + ?Sized> Typed for Box<T> {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        (**self).get_type(ctx)
+    }
+}
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 /// A Type's name (not including it's dialect).
@@ -303,8 +347,8 @@ macro_rules! impl_type {
         $structname: ident, $type_name: literal, $dialect_name: literal) => {
         $(#[$outer])*
         impl $crate::r#type::Type for $structname {
-            fn hash_type(&self) -> TypeValueHash {
-                TypeValueHash::new(self)
+            fn hash_type(&self) -> $crate::storage_uniquer::TypeValueHash {
+                $crate::storage_uniquer::TypeValueHash::new(self)
             }
 
             fn eq_type(&self, other: &dyn Type) -> bool {
@@ -322,6 +366,14 @@ macro_rules! impl_type {
                     name: $crate::r#type::TypeName::new($type_name),
                     dialect: $crate::dialect::DialectName::new($dialect_name),
                 }
+            }
+        }
+
+        impl $crate::common_traits::Qualified for $structname {
+            type Qualifier = $crate::r#type::TypeId;
+
+            fn get_qualifier(&self, _ctx: &$crate::context::Context) -> Self::Qualifier {
+                Self::get_type_id_static()
             }
         }
     }

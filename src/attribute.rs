@@ -35,9 +35,10 @@ use combine::{parser, Parser};
 use downcast_rs::{impl_downcast, Downcast};
 use dyn_clone::DynClone;
 use intertrait::{cast::CastRef, CastFrom};
+use rustc_hash::FxHashMap;
 
 use crate::{
-    common_traits::Verify,
+    common_traits::{Qualified, Verify},
     context::Context,
     dialect::{Dialect, DialectName},
     error::Result,
@@ -47,6 +48,8 @@ use crate::{
     parsable::{spaced, Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
 };
+
+pub type AttributeDict = FxHashMap<&'static str, AttrObj>;
 
 /// Basic functionality that every attribute in the IR must implement.
 ///
@@ -79,6 +82,14 @@ pub trait Attribute: Printable + Verify + Downcast + CastFrom + Sync + DynClone 
 }
 impl_downcast!(Attribute);
 dyn_clone::clone_trait_object!(Attribute);
+
+impl Qualified for dyn Attribute {
+    type Qualifier = AttrId;
+
+    fn get_qualifier(&self, _ctx: &Context) -> Self::Qualifier {
+        self.get_attr_id()
+    }
+}
 
 /// [Attribute] objects are boxed and stored in the IR.
 pub type AttrObj = Box<dyn Attribute>;
@@ -325,6 +336,14 @@ macro_rules! impl_attr {
                     (verifier.0)(self, ctx)?;
                 }
                 Ok(())
+            }
+        }
+
+        impl $crate::common_traits::Qualified for $structname {
+            type Qualifier = $crate::attribute::AttrId;
+
+            fn get_qualifier(&self, _ctx: &Context) -> Self::Qualifier {
+                self.get_attr_id()
             }
         }
     }
