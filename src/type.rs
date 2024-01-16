@@ -132,7 +132,7 @@ impl Qualified for dyn Type {
 
 /// Trait for objects that have a direct type.
 pub trait Typed {
-    /// Get the [Type](crate::type::Type) of the current object.
+    /// Get the [Type] of the current object.
     fn get_type(&self, ctx: &Context) -> Ptr<TypeObj>;
 }
 
