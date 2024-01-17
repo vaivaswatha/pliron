@@ -130,7 +130,7 @@ impl Qualified for dyn Type {
     }
 }
 
-/// Trait for objects that have a direct type.
+/// Trait for IR entities that have a direct type.
 pub trait Typed {
     /// Get the [Type] of the current object.
     fn get_type(&self, ctx: &Context) -> Ptr<TypeObj>;

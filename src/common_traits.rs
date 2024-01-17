@@ -5,9 +5,9 @@ use crate::{
     error::Result,
 };
 
-// Objects that have a qualified name within a dialect.
-// All Attribute and Type instances are qualified objects with their <kind>ID type as the
-// qualifier.
+/// IR entities that have a qualified name within a dialect.
+/// All Attribute and Type instances are qualified objects with their <kind>ID type as the
+/// qualifier.
 pub trait Qualified {
     type Qualifier;
 
