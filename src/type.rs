@@ -8,7 +8,7 @@
 //!
 //! The [impl_type](crate::impl_type) macro can be used to implement [Type] for a rust type.
 
-use crate::common_traits::{Qualified, Verify};
+use crate::common_traits::Verify;
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
 use crate::error::Result;
@@ -121,14 +121,6 @@ pub trait Type: Printable + Verify + Downcast + Sync + Debug {
     }
 }
 impl_downcast!(Type);
-
-impl Qualified for dyn Type {
-    type Qualifier = TypeId;
-
-    fn get_qualifier(&self, _ctx: &Context) -> Self::Qualifier {
-        self.get_type_id()
-    }
-}
 
 /// Trait for IR entities that have a direct type.
 pub trait Typed {
@@ -366,14 +358,6 @@ macro_rules! impl_type {
                     name: $crate::r#type::TypeName::new($type_name),
                     dialect: $crate::dialect::DialectName::new($dialect_name),
                 }
-            }
-        }
-
-        impl $crate::common_traits::Qualified for $structname {
-            type Qualifier = $crate::r#type::TypeId;
-
-            fn get_qualifier(&self, _ctx: &$crate::context::Context) -> Self::Qualifier {
-                Self::get_type_id_static()
             }
         }
     }

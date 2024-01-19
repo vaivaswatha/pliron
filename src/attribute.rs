@@ -38,7 +38,7 @@ use intertrait::{cast::CastRef, CastFrom};
 use rustc_hash::FxHashMap;
 
 use crate::{
-    common_traits::{Qualified, Verify},
+    common_traits::Verify,
     context::Context,
     dialect::{Dialect, DialectName},
     error::Result,
@@ -82,14 +82,6 @@ pub trait Attribute: Printable + Verify + Downcast + CastFrom + Sync + DynClone 
 }
 impl_downcast!(Attribute);
 dyn_clone::clone_trait_object!(Attribute);
-
-impl Qualified for dyn Attribute {
-    type Qualifier = AttrId;
-
-    fn get_qualifier(&self, _ctx: &Context) -> Self::Qualifier {
-        self.get_attr_id()
-    }
-}
 
 /// [Attribute] objects are boxed and stored in the IR.
 pub type AttrObj = Box<dyn Attribute>;
@@ -336,14 +328,6 @@ macro_rules! impl_attr {
                     (verifier.0)(self, ctx)?;
                 }
                 Ok(())
-            }
-        }
-
-        impl $crate::common_traits::Qualified for $structname {
-            type Qualifier = $crate::attribute::AttrId;
-
-            fn get_qualifier(&self, _ctx: &Context) -> Self::Qualifier {
-                self.get_attr_id()
             }
         }
     }
