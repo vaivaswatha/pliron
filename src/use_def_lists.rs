@@ -130,19 +130,6 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        match self {
-            Value::OpResult { op, res_idx } => {
-                op.deref(ctx).get_result_ref(*res_idx).unwrap().get_type()
-            }
-            Value::BlockArgument { block, arg_idx } => block
-                .deref(ctx)
-                .get_argument_ref(*arg_idx)
-                .unwrap()
-                .get_type(),
-        }
-    }
-
     /// How many uses does this definition have?
     pub fn num_uses(&self, ctx: &Context) -> usize {
         self.get_defnode_ref(ctx).num_uses()
@@ -172,7 +159,16 @@ impl Value {
 
 impl Typed for Value {
     fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.get_type(ctx)
+        match self {
+            Value::OpResult { op, res_idx } => {
+                op.deref(ctx).get_result_ref(*res_idx).unwrap().get_type()
+            }
+            Value::BlockArgument { block, arg_idx } => block
+                .deref(ctx)
+                .get_argument_ref(*arg_idx)
+                .unwrap()
+                .get_type(),
+        }
     }
 }
 

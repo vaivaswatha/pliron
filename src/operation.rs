@@ -49,7 +49,7 @@ impl OpResult {
 
 impl Typed for OpResult {
     fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
-        self.ty
+        self.get_type()
     }
 }
 
