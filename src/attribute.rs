@@ -35,6 +35,7 @@ use combine::{parser, Parser};
 use downcast_rs::{impl_downcast, Downcast};
 use dyn_clone::DynClone;
 use intertrait::{cast::CastRef, CastFrom};
+use rustc_hash::FxHashMap;
 
 use crate::{
     common_traits::Verify,
@@ -47,6 +48,8 @@ use crate::{
     parsable::{spaced, Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
 };
+
+pub type AttributeDict = FxHashMap<&'static str, AttrObj>;
 
 /// Basic functionality that every attribute in the IR must implement.
 ///

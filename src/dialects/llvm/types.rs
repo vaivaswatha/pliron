@@ -9,7 +9,6 @@ use crate::{
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable, PrintableIter},
     r#type::{type_parser, Type, TypeObj},
-    storage_uniquer::TypeValueHash,
     verify_err_noloc,
 };
 use combine::{between, optional, parser::char::spaces, sep_by, token, Parser};

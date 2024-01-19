@@ -122,6 +122,42 @@ pub trait Type: Printable + Verify + Downcast + Sync + Debug {
 }
 impl_downcast!(Type);
 
+/// Trait for IR entities that have a direct type.
+pub trait Typed {
+    /// Get the [Type] of the current entity.
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj>;
+}
+
+impl Typed for Ptr<TypeObj> {
+    fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
+        *self
+    }
+}
+
+impl Typed for dyn Type {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        self.get_self_ptr(ctx)
+    }
+}
+
+impl<T: Typed + ?Sized> Typed for &T {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        (*self).get_type(ctx)
+    }
+}
+
+impl<T: Typed + ?Sized> Typed for &mut T {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        (**self).get_type(ctx)
+    }
+}
+
+impl<T: Typed + ?Sized> Typed for Box<T> {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        (**self).get_type(ctx)
+    }
+}
+
 #[derive(Clone, Hash, PartialEq, Eq)]
 /// A Type's name (not including it's dialect).
 pub struct TypeName(Identifier);
@@ -303,8 +339,8 @@ macro_rules! impl_type {
         $structname: ident, $type_name: literal, $dialect_name: literal) => {
         $(#[$outer])*
         impl $crate::r#type::Type for $structname {
-            fn hash_type(&self) -> TypeValueHash {
-                TypeValueHash::new(self)
+            fn hash_type(&self) -> $crate::storage_uniquer::TypeValueHash {
+                $crate::storage_uniquer::TypeValueHash::new(self)
             }
 
             fn eq_type(&self, other: &dyn Type) -> bool {

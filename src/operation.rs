@@ -5,11 +5,10 @@
 use std::marker::PhantomData;
 
 use combine::{attempt, parser::char::spaces, position, token, Parser};
-use rustc_hash::FxHashMap;
 use thiserror::Error;
 
 use crate::{
-    attribute::AttrObj,
+    attribute::AttributeDict,
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
     context::{private::ArenaObj, ArenaCell, Context, Ptr},
@@ -22,7 +21,7 @@ use crate::{
     op::{self, OpId, OpObj},
     parsable::{self, spaced, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::TypeObj,
+    r#type::{TypeObj, Typed},
     region::Region,
     use_def_lists::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
     vec_exns::VecExtns,
@@ -44,6 +43,12 @@ pub(crate) struct OpResult {
 impl OpResult {
     /// Get the [Type](crate::type::Type) of this operation result.
     pub fn get_type(&self) -> Ptr<TypeObj> {
+        self.ty
+    }
+}
+
+impl Typed for OpResult {
+    fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
         self.ty
     }
 }
@@ -103,7 +108,7 @@ pub struct Operation {
     /// previous and next [Operation]s in the block.
     pub(crate) block_links: BlockLinks,
     /// A dictionary of attributes.
-    pub attributes: FxHashMap<&'static str, AttrObj>,
+    pub attributes: AttributeDict,
     /// Regions contained inside this operation.
     pub(crate) regions: Vec<Ptr<Region>>,
     /// Source location of this operation.
@@ -157,7 +162,7 @@ impl Operation {
             operands: vec![],
             successors: vec![],
             block_links: BlockLinks::new_unlinked(),
-            attributes: FxHashMap::default(),
+            attributes: AttributeDict::default(),
             regions: vec![],
             loc: Location::Unknown,
         };
@@ -434,6 +439,12 @@ impl<T: DefUseParticipant + Named> Printable for Operand<T> {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         write!(f, "{}", self.r#use.get_def().unique_name(ctx))
+    }
+}
+
+impl<T: DefUseParticipant + Typed> Typed for Operand<T> {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        self.r#use.get_def().get_type(ctx)
     }
 }
 

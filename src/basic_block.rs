@@ -20,7 +20,7 @@ use crate::{
     operation::Operation,
     parsable::{self, spaced, IntoParseResult, Parsable, ParseResult},
     printable::{self, indented_nl, ListSeparator, Printable, PrintableIter},
-    r#type::{type_parser, TypeObj},
+    r#type::{type_parser, TypeObj, Typed},
     region::Region,
     use_def_lists::{DefNode, Value},
 };
@@ -50,6 +50,12 @@ impl BlockArgument {
 
     /// Get the [Type](crate::type::Type) of this block argument.
     pub fn get_type(&self) -> Ptr<TypeObj> {
+        self.ty
+    }
+}
+
+impl Typed for BlockArgument {
+    fn get_type(&self, _cfg: &Context) -> Ptr<TypeObj> {
         self.ty
     }
 }
