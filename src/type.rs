@@ -8,7 +8,7 @@
 //!
 //! The [impl_type](crate::impl_type) macro can be used to implement [Type] for a rust type.
 
-use crate::common_traits::{Qualified, Verify};
+use crate::common_traits::Verify;
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
 use crate::error::Result;
@@ -22,7 +22,7 @@ use crate::storage_uniquer::TypeValueHash;
 use combine::error::StdParseResult2;
 use combine::{parser, Parser, StreamOnce};
 use downcast_rs::{impl_downcast, Downcast};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -188,6 +188,12 @@ impl Printable for TypeName {
     }
 }
 
+impl Display for TypeName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", *self.0)
+    }
+}
+
 impl Parsable for TypeName {
     type Arg = ();
     type Parsed = TypeName;
@@ -244,6 +250,12 @@ impl Printable for TypeId {
     }
 }
 
+impl Display for TypeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}", self.dialect, self.name)
+    }
+}
+
 /// Since we can't store the [Type] trait in the arena,
 /// we store boxed dyn objects of it instead.
 pub type TypeObj = Box<dyn Type>;
@@ -251,6 +263,18 @@ pub type TypeObj = Box<dyn Type>;
 impl PartialEq for TypeObj {
     fn eq(&self, other: &Self) -> bool {
         (**self).eq_type(&**other)
+    }
+}
+
+impl Printable for TypeObj {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(f, "{} ", self.get_type_id())?;
+        <dyn Type as Printable>::fmt(self.deref(), ctx, state, f)
     }
 }
 
@@ -347,14 +371,6 @@ macro_rules! impl_type {
                     name: $crate::r#type::TypeName::new($type_name),
                     dialect: $crate::dialect::DialectName::new($dialect_name),
                 }
-            }
-        }
-
-        impl $crate::common_traits::Qualified for $structname {
-            type Qualifier = $crate::r#type::TypeId;
-
-            fn get_qualifier(&self, _ctx: &$crate::context::Context) -> Self::Qualifier {
-                Self::get_type_id_static()
             }
         }
     }

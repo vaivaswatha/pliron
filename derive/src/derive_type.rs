@@ -7,7 +7,7 @@ use syn::{
 
 use crate::{
     attr::{require_once, Attribute, DialectName, IRKind, TypeName},
-    derive_shared::{build_struct_body, ImplQualified},
+    derive_shared::build_struct_body,
 };
 
 struct DefTypeInput {
@@ -113,17 +113,11 @@ fn err_struct_attrib_required(span: Span, attr: &str) -> syn::Error {
 
 struct DefType {
     input: DefTypeInput,
-    qualified: ImplQualified,
 }
 
 impl From<DefTypeInput> for DefType {
     fn from(input: DefTypeInput) -> Self {
-        let qualified = ImplQualified {
-            ident: input.ident.clone(),
-            qualifier: syn::parse_quote! { ::pliron::r#type::TypeId },
-            getter: quote! { self.get_type_id() },
-        };
-        Self { input, qualified }
+        Self { input }
     }
 }
 
@@ -185,13 +179,10 @@ fn impl_type(def_type: &DefType) -> TokenStream {
         }
     };
 
-    let impl_qualified = &def_type.qualified;
     quote! {
         #def_struct
 
         #impl_type
-
-        #impl_qualified
     }
 }
 

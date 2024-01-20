@@ -4,7 +4,6 @@ use std::{
     cell::RefCell,
     fmt::{self, Display},
     rc::Rc,
-    sync::Arc,
 };
 
 use crate::{common_traits::RcSharable, context::Context};
@@ -167,24 +166,6 @@ impl Printable for String {
 impl<'a, T: Printable + ?Sized> Printable for &'a T {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         (*self).fmt(ctx, state, f)
-    }
-}
-
-impl<T: Printable + ?Sized> Printable for Rc<T> {
-    fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        (**self).fmt(ctx, state, f)
-    }
-}
-
-impl<T: Printable + ?Sized> Printable for Arc<T> {
-    fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        (**self).fmt(ctx, state, f)
-    }
-}
-
-impl<T: Printable + ?Sized> Printable for Box<T> {
-    fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.as_ref().fmt(ctx, state, f)
     }
 }
 

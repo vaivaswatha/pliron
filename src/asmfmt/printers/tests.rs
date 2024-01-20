@@ -69,7 +69,7 @@ impl Verify for SimpleType {
 //#[asm_format = "`int <` params `>`"]
 //#[asm_format = "`int <` struct(params) `>`"]
 //#[asm_format = "`int <` struct($width, $sign) `>`"]
-#[asm_format = "`int` $width `<` $align `,` $sign `>`"]
+#[asm_format = "$width `<` $align `,` $sign `>`"]
 pub struct IntegerType {
     width: u32,
     sign: bool,
@@ -95,9 +95,15 @@ impl Verify for IntegerType {
 #[type_name = "testing.vec"]
 #[derive(Hash, PartialEq, Eq, Debug, Printable, NotParsableType)]
 // #[asm_format = "`vec [` qualified($elem) `]` "]
-#[asm_format = "`vec ` qualifier($elem) ` <` $elem `>` "]
+// #[asm_format = "`vec ` qualifier($elem) ` <` $elem `>` "]
+#[asm_format = "$elem"]
 pub struct VecType {
     elem: Ptr<TypeObj>,
+}
+impl VecType {
+    fn get(ctx: &mut Context, elem: Ptr<TypeObj>) -> Ptr<TypeObj> {
+        Type::register_instance(Self { elem }, ctx)
+    }
 }
 impl Verify for VecType {
     fn verify(&self, ctx: &Context) -> Result<()> {
@@ -271,7 +277,7 @@ fn print_simple_type() {
     register_dialect(&mut ctx);
 
     let got = SimpleType::get(&mut ctx).disp(&ctx).to_string();
-    assert_eq!(got, "()");
+    assert_eq!(got, "testing.simple_type ()");
 }
 
 #[test]
@@ -281,7 +287,7 @@ fn print_integer_type() {
 
     let ty = IntegerType::get(&mut ctx, 32, true, 8);
     let got = ty.disp(&ctx).to_string();
-    assert_eq!(got, "int32<8,true>");
+    assert_eq!(got, "testing.integer 32<8,true>");
 }
 
 #[test]
@@ -318,9 +324,9 @@ fn print_vec_type() {
     register_dialect(&mut ctx);
 
     let i32_ty = IntegerType::get(&mut ctx, 32, true, 4);
-    let vec_ty = VecType { elem: i32_ty };
+    let vec_ty = VecType::get(&mut ctx, i32_ty);
     let got = vec_ty.disp(&ctx).to_string();
-    assert_eq!(got, "vec testing.integer <int32<4,true>>");
+    assert_eq!(got, "testing.vec testing.integer 32<4,true>");
 }
 
 #[test]
@@ -333,7 +339,7 @@ fn print_function() {
     let func_ty = FunctionType::get(&mut ctx, vec![i32_ty, i32_ty], vec![u64_ty]);
 
     let got = func_ty.disp(&ctx).to_string();
-    assert_eq!(got, "(int32<4,true>,int32<4,true>) -> (int32<8,false>)");
+    assert_eq!(got, "testing.function (testing.integer 32<4,true>,testing.integer 32<4,true>) -> (testing.integer 32<8,false>)");
 }
 
 #[test]
@@ -362,12 +368,9 @@ fn print_int_attr() {
     register_dialect(&mut ctx);
 
     let ty = IntegerType::get(&mut ctx, 32, true, 8);
-    let attr = IntegerAttr {
-        ty,
-        val: ApInt::from(42),
-    };
+    let attr = IntegerAttr::create(ty, ApInt::from(42));
     let got = attr.disp(&ctx).to_string();
-    assert_eq!(got, "0x2a: int32<8,true>");
+    assert_eq!(got, "testing.int 0x2a: testing.integer 32<8,true>");
 }
 
 #[test]
@@ -377,7 +380,7 @@ fn print_vec_attr() {
 
     let vec_attr = VecAttr(vec![UnitAttr::create(), UnitAttr::create()]);
     let got = vec_attr.disp(&ctx).to_string();
-    assert_eq!(got, "<(),()>");
+    assert_eq!(got, "<testing.unit (),testing.unit ()>");
 }
 
 #[test]
@@ -393,6 +396,6 @@ fn print_const_op() {
     let got = const_op.disp(&ctx).to_string();
     assert_eq!(
         got,
-        r#"op_0_0_res0 = "testing.const"() {"constant.value" = 0x2a: int32<4,true>} : <() -> (int32<4,true>)>"#
+        r#"op_0_0_res0 = "testing.const"() {"constant.value" = testing.int 0x2a: testing.integer 32<4,true>} : <() -> (testing.integer 32<4,true>)>"#
     );
 }

@@ -8,7 +8,7 @@ use sorted_vector_map::SortedVectorMap;
 use thiserror::Error;
 
 use crate::{
-    asmfmt::printers::{concat, qualifier, quoted},
+    asmfmt::printers::{concat, quoted},
     attribute::{AttrObj, Attribute},
     common_traits::Verify,
     context::{Context, Ptr},
@@ -50,7 +50,7 @@ impl Printable for StringAttr {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        concat((qualifier(self), " ", quoted(&self.0))).fmt(ctx, state, f)
+        quoted(&self.0).fmt(ctx, state, f)
     }
 }
 
@@ -119,15 +119,7 @@ impl Printable for IntegerAttr {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        concat((
-            qualifier(self),
-            " <",
-            format!("0x{:x}", self.val),
-            ": ",
-            &self.ty,
-            ">",
-        ))
-        .fmt(ctx, _state, f)
+        concat(("<", format!("0x{:x}", self.val), ": ", &self.ty, ">")).fmt(ctx, _state, f)
     }
 }
 
@@ -393,11 +385,11 @@ impl UnitAttr {
 impl Printable for UnitAttr {
     fn fmt(
         &self,
-        ctx: &Context,
-        state: &printable::State,
+        _ctx: &Context,
+        _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        qualifier(self).fmt(ctx, state, f)
+        write!(f, "()")
     }
 }
 
@@ -438,7 +430,7 @@ impl Printable for TypeAttr {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        concat((qualifier(self), " <", self.0, ">")).fmt(ctx, state, f)
+        concat(("<", self.0, ">")).fmt(ctx, state, f)
     }
 }
 

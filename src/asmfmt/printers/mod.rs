@@ -8,10 +8,14 @@ use crate::{
 };
 
 mod attrtype;
+#[allow(unused_imports)]
 pub use attrtype::*;
 
 mod op;
 pub use op::*;
+
+#[cfg(test)]
+mod tests;
 
 /// Wrap a function to implement the Printable trait
 struct PrinterFn<F>(F);
@@ -372,6 +376,3 @@ pub fn operation_generic_format<T: Op>(op: T) -> impl Printable {
         },
     )
 }
-
-#[cfg(test)]
-mod tests;

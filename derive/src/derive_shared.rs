@@ -29,6 +29,7 @@ impl ToTokens for VerifiersRegister {
     }
 }
 
+/*
 pub struct ImplQualified {
     pub ident: syn::Ident,
     pub qualifier: syn::Path,
@@ -52,6 +53,7 @@ impl ToTokens for ImplQualified {
         .to_tokens(tokens);
     }
 }
+*/
 
 pub(crate) fn build_struct_body(ds: &DataStruct) -> proc_macro2::TokenStream {
     match ds.fields {

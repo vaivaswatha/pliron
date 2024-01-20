@@ -3,16 +3,6 @@
 //! ====================================
 //!
 
-use std::fmt;
-
-use crate::{
-    common_traits::Qualified,
-    context::Context,
-    printable::{Printable, State},
-};
-
-use super::PrinterFn;
-
 #[macro_export]
 macro_rules! at_params_directive {
     ($self:ident, ($($printer:ident),*), (), ($($params:ident)*)) => {
@@ -29,31 +19,6 @@ macro_rules! at_params_directive {
 }
 #[allow(unused_imports)]
 pub(crate) use at_params_directive;
-
-#[macro_export]
-macro_rules! at_qualifier_directive {
-    ($self:ident, ($($printer:ident),*), (), ($($_param:ident)*)) => {
-        qualifier($self).fmt($($printer),*)?;
-    };
-    ($self:ident, ($($printer:ident),*), ($field_name:tt), ($($_param:ident)*)) => {
-        qualifier(&$self.$field_name).fmt($($printer),*)?;
-    };
-}
-#[allow(unused_imports)]
-pub(crate) use at_qualifier_directive;
-
-// Prints the qualifier o a qualified object like a type or an attribute.
-pub fn qualifier<T>(v: &T) -> impl Printable + '_
-where
-    T: Qualified,
-    <T as Qualified>::Qualifier: Printable,
-{
-    PrinterFn(
-        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
-            v.get_qualifier(ctx).fmt(ctx, state, f)
-        },
-    )
-}
 
 #[macro_export]
 macro_rules! at_qualified_directive {

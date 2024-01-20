@@ -7,7 +7,7 @@ use syn::{
 
 use crate::{
     attr::{require_once, Attribute, AttributeName, DialectName, IRKind},
-    derive_shared::{build_struct_body, ImplQualified, VerifiersRegister},
+    derive_shared::{build_struct_body, VerifiersRegister},
 };
 
 struct DefAttributeInput {
@@ -109,7 +109,6 @@ fn err_struct_attrib_required(span: Span, attr: &str) -> syn::Error {
 struct DefAttribute {
     input: DefAttributeInput,
     verifiers: VerifiersRegister,
-    qualified: ImplQualified,
 }
 
 impl From<DefAttributeInput> for DefAttribute {
@@ -119,16 +118,7 @@ impl From<DefAttributeInput> for DefAttribute {
             verifiers_name: format_ident!("AttrInterfaceVerifier_{}", &input.ident),
             ifc_name: syn::parse_quote! { ::pliron::attribute::AttrInterfaceVerifier },
         };
-        let qualified = ImplQualified {
-            ident: input.ident.clone(),
-            qualifier: syn::parse_quote! { ::pliron::attribute::AttrId },
-            getter: quote! { self.get_attr_id() },
-        };
-        Self {
-            input,
-            verifiers,
-            qualified,
-        }
+        Self { input, verifiers }
     }
 }
 
@@ -196,15 +186,12 @@ fn impl_attribute(def_attrib: &DefAttribute) -> TokenStream {
         }
     };
 
-    let impl_qualified_trait = &def_attrib.qualified;
     quote! {
         #def_struct
 
         #verifiers_register
 
         #impl_attribute_trait
-
-        #impl_qualified_trait
     }
 }
 
