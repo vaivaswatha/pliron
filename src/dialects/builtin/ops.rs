@@ -3,10 +3,10 @@ use thiserror::Error;
 
 use crate::{
     asmfmt::{
-        parsers::{spaced, type_parser},
+        parsers::{attr_parser, process_parsed_ssa_defs, spaced, type_parser},
         printers::{attr, concat, region, symb_op_header},
     },
-    attribute::{attr_cast, attr_parser, AttrObj},
+    attribute::{attr_cast, AttrObj},
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
     context::{Context, Ptr},
@@ -19,7 +19,7 @@ use crate::{
     linked_list::ContainsLinkedList,
     location::{Located, Location},
     op::{Op, OpObj},
-    operation::{process_parsed_ssa_defs, Operation},
+    operation::Operation,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::{TypeObj, Typed},

@@ -5,17 +5,21 @@ use combine::{
         char::{digit, spaces, string},
         choice::choice,
     },
-    Parser, Stream,
+    token, Parser, Stream,
 };
 
 use crate::{
-    attribute::AttrId,
+    attribute::{AttrId, AttrObj},
+    basic_block::BasicBlock,
     context::Ptr,
-    input_err,
-    location::Located,
+    debug_info::set_operation_result_name,
+    error::Result,
+    identifier::Identifier,
+    location::Location,
+    operation::Operation,
     parsable::{Parsable, ParseResult, StateStream},
-    printable::Printable,
     r#type::{TypeId, TypeName, TypeObj},
+    use_def_lists::Value,
 };
 
 pub trait AsmParser<'a, T> {
@@ -90,32 +94,85 @@ pub fn attr_header<'a>() -> impl AsmParser<'a, AttrId> {
 /// A parser combinator to parse [TypeId] followed by the type's contents.
 pub fn type_parser<'a>(
 ) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
-    combine::parser(|parsable_state: &mut StateStream<'a>| type_parse(parsable_state)).boxed()
+    <Ptr<TypeObj> as Parsable>::parser(())
 }
 
-/// Parse an identified type, which is [TypeId] followed by its contents.
-pub fn type_parse<'a>(state_stream: &mut StateStream<'a>) -> ParseResult<'a, Ptr<TypeObj>> {
-    let loc = state_stream.loc();
-    let type_id_parser = spaced(TypeId::parser(()));
+/// A parser combinator to parse [AttrId] followed by the attribute's contents.
+pub fn attr_parser<'a>(
+) -> Box<dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a> {
+    AttrObj::parser(())
+}
 
-    let mut type_parser = type_id_parser.then(move |type_id: TypeId| {
-        // This clone is to satify the borrow checker.
-        let loc = loc.clone();
-        combine::parser(move |parsable_state: &mut StateStream<'a>| {
-            let state = &parsable_state.state;
-            let dialect = state
-                .ctx
-                .dialects
-                .get(&type_id.dialect)
-                .expect("Dialect name parsed but dialect isn't registered");
-            let Some(type_parser) = dialect.types.get(&type_id) else {
-                input_err!(loc.clone(), "Unregistered type {}", type_id.disp(state.ctx))?
-            };
-            type_parser(&(), ()).parse_stream(parsable_state).into()
+/// Parse an identifier into an SSA [Value]. Typically called to parse
+/// the SSA operands of an [Operation]. If the SSA value hasn't been defined yet,
+/// a [forward reference](crate::dialects::builtin::ops::ForwardRefOp) is returned.
+pub fn ssa_opd_parse<'a>(state_stream: &mut StateStream<'a>, _arg: ()) -> ParseResult<'a, Value> {
+    Identifier::parser(())
+        .parse_stream(state_stream)
+        .map(|opd| {
+            state_stream
+                .state
+                .name_tracker
+                .ssa_use(state_stream.state.ctx, &opd)
         })
-    });
+        .into()
+}
 
-    type_parser.parse_stream(state_stream).into_result()
+/// A parser to parse an identifier into an SSA [Value]. Typically called to parse
+/// the SSA operands of an [Operation]. If the SSA value hasn't been defined yet,
+/// a [forward reference](crate::dialects::builtin::ops::ForwardRefOp) is returned.
+pub fn ssa_opd_parser<'a>(
+) -> Box<dyn Parser<StateStream<'a>, Output = Value, PartialState = ()> + 'a> {
+    combine::parser(move |parsable_state: &mut StateStream<'a>| ssa_opd_parse(parsable_state, ()))
+        .boxed()
+}
+
+/// Parse a block label into a [`Ptr<BasicBlock>`]. Typically called to parse
+/// the block operands of an [Operation]. If the block doesn't exist, it's created,
+pub fn block_opd_parse<'a>(
+    state_stream: &mut StateStream<'a>,
+    _arg: (),
+) -> ParseResult<'a, Ptr<BasicBlock>> {
+    token('^')
+        .with(Identifier::parser(()))
+        .parse_stream(state_stream)
+        .map(|opd| {
+            state_stream
+                .state
+                .name_tracker
+                .block_use(state_stream.state.ctx, &opd)
+        })
+        .into()
+}
+
+/// Parse a block label into a [`Ptr<BasicBlock>`]. Typically called to parse
+/// the block operands of an [Operation]. If the block doesn't exist, it's created,
+pub fn block_opd_parser<'a>(
+) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<BasicBlock>, PartialState = ()> + 'a> {
+    combine::parser(move |parsable_state: &mut StateStream<'a>| block_opd_parse(parsable_state, ()))
+        .boxed()
+}
+
+/// After an [Operation] is fully parsed, for each result,
+/// set its name and register it as an SSA definition.
+pub fn process_parsed_ssa_defs(
+    state_stream: &mut StateStream,
+    results: &Vec<(Identifier, Location)>,
+    op: Ptr<Operation>,
+) -> Result<()> {
+    let ctx = &mut state_stream.state.ctx;
+    assert!(
+        results.len() == op.deref(ctx).get_num_results(),
+        "Error processing parsed SSA definitions. Result count mismatch"
+    );
+
+    let name_tracker = &mut state_stream.state.name_tracker;
+    for (idx, name_loc) in results.iter().enumerate() {
+        let res = op.deref(ctx).get_result(idx).unwrap();
+        name_tracker.ssa_def(ctx, name_loc, res)?;
+        set_operation_result_name(ctx, op, idx, name_loc.0.to_string());
+    }
+    Ok(())
 }
 
 /// Parse from `parser`, ignoring whitespace(s) before and after.

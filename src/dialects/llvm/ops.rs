@@ -1,5 +1,5 @@
 use crate::{
-    asmfmt::printers::concat,
+    asmfmt::{parsers::ssa_opd_parser, printers::concat},
     common_traits::Verify,
     context::Context,
     declare_op,
@@ -10,13 +10,11 @@ use crate::{
     impl_op_interface, input_err,
     location::{Located, Location},
     op::{Op, OpObj},
-    operation::{ssa_opd_parser, Operation},
+    operation::Operation,
     parsable::{Parsable, ParseResult},
     printable::{self, Printable},
     use_def_lists::Value,
 };
-
-use combine::parser::Parser;
 
 declare_op!(
     /// Equivalent to LLVM's return opcode.

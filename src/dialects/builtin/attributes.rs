@@ -487,7 +487,8 @@ mod tests {
     use expect_test::expect;
 
     use crate::{
-        attribute::{attr_cast, attr_parser},
+        asmfmt::parsers::attr_parser,
+        attribute::attr_cast,
         context::Context,
         dialects::{
             self,

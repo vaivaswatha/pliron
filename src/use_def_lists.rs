@@ -21,6 +21,7 @@ use crate::{
     context::{Context, Ptr},
     linked_list::{ContainsLinkedList, LinkedList},
     operation::Operation,
+    parsable::Parsable,
     printable::Printable,
     r#type::{TypeObj, Typed},
 };

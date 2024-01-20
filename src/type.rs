@@ -8,11 +8,14 @@
 //!
 //! The [impl_type](crate::impl_type) macro can be used to implement [Type] for a rust type.
 
+use crate::asmfmt::parsers::spaced;
 use crate::common_traits::Verify;
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
 use crate::error::Result;
 use crate::identifier::Identifier;
+use crate::input_err;
+use crate::location::Located;
 use crate::parsable::{Parsable, ParseResult, ParserFn, StateStream};
 use crate::printable::{self, Printable};
 use crate::storage_uniquer::TypeValueHash;
@@ -261,6 +264,38 @@ impl Printable for TypeObj {
         self.get_type_id().fmt(ctx, state, f)?;
         write!(f, " ")?;
         <dyn Type as Printable>::fmt(self.deref(), ctx, state, f)
+    }
+}
+
+impl Parsable for Ptr<TypeObj> {
+    type Arg = ();
+    type Parsed = Self;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        let loc = state_stream.loc();
+        let type_id_parser = spaced(TypeId::parser(()));
+
+        let mut type_parser = type_id_parser.then(move |type_id: TypeId| {
+            // This clone is to satify the borrow checker.
+            let loc = loc.clone();
+            combine::parser(move |parsable_state: &mut StateStream<'a>| {
+                let state = &parsable_state.state;
+                let dialect = state
+                    .ctx
+                    .dialects
+                    .get(&type_id.dialect)
+                    .expect("Dialect name parsed but dialect isn't registered");
+                let Some(type_parser) = dialect.types.get(&type_id) else {
+                    input_err!(loc.clone(), "Unregistered type {}", type_id.disp(state.ctx))?
+                };
+                type_parser(&(), ()).parse_stream(parsable_state).into()
+            })
+        });
+
+        type_parser.parse_stream(state_stream).into_result()
     }
 }
 
