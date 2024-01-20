@@ -5,13 +5,17 @@ use combine::{
         char::{digit, spaces, string},
         choice::choice,
     },
-    Parser,
+    Parser, Stream,
 };
 
 use crate::{
     attribute::AttrId,
+    context::Ptr,
+    input_err,
+    location::Located,
     parsable::{Parsable, ParseResult, StateStream},
-    r#type::{TypeId, TypeName},
+    printable::Printable,
+    r#type::{TypeId, TypeName, TypeObj},
 };
 
 pub trait AsmParser<'a, T> {
@@ -83,6 +87,59 @@ pub fn attr_header<'a>() -> impl AsmParser<'a, AttrId> {
     from_parseable()
 }
 
+/// A parser combinator to parse [TypeId] followed by the type's contents.
+pub fn type_parser<'a>(
+) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
+    combine::parser(|parsable_state: &mut StateStream<'a>| type_parse(parsable_state)).boxed()
+}
+
+/// Parse an identified type, which is [TypeId] followed by its contents.
+pub fn type_parse<'a>(state_stream: &mut StateStream<'a>) -> ParseResult<'a, Ptr<TypeObj>> {
+    let loc = state_stream.loc();
+    let type_id_parser = spaced(TypeId::parser(()));
+
+    let mut type_parser = type_id_parser.then(move |type_id: TypeId| {
+        // This clone is to satify the borrow checker.
+        let loc = loc.clone();
+        combine::parser(move |parsable_state: &mut StateStream<'a>| {
+            let state = &parsable_state.state;
+            let dialect = state
+                .ctx
+                .dialects
+                .get(&type_id.dialect)
+                .expect("Dialect name parsed but dialect isn't registered");
+            let Some(type_parser) = dialect.types.get(&type_id) else {
+                input_err!(loc.clone(), "Unregistered type {}", type_id.disp(state.ctx))?
+            };
+            type_parser(&(), ()).parse_stream(parsable_state).into()
+        })
+    });
+
+    type_parser.parse_stream(state_stream).into_result()
+}
+
+/// Parse from `parser`, ignoring whitespace(s) before and after.
+/// > **Warning**: Do not use this inside inside repeating combiners, such as [combine::many].
+///     After successfully parsing one instance, if spaces are consumed to parse
+///     the next one, but the next one doesn't exist, it is treated as a failure
+///     that consumed some input. This messes things up. So spaces must be consumed
+///     after a successfull parse, and not prior to an upcoming one.
+///     A possibly right way to, for example, parse a comma separated list of [Identifier]s:
+///
+///```
+///     # use combine::{parser::char::spaces, Parser};
+///     # use pliron::parsable::Parsable;
+///     let ids = spaces().with
+///               (combine::sep_by::<Vec<_>, _, _, _>
+///                 (pliron::identifier::Identifier::parser(()).skip(spaces()),
+///                 combine::token(',').skip(spaces())));
+///```
+pub fn spaced<Input: Stream<Token = char>, Output>(
+    parser: impl Parser<Input, Output = Output>,
+) -> impl Parser<Input, Output = Output> {
+    combine::between(spaces(), spaces(), parser)
+}
+
 pub fn literal<'a>(lit: &'static str) -> impl AsmParser<'a, &'a str> {
     move |state_stream: &mut StateStream<'a>| {
         spaces().parse_stream(state_stream).into_result()?;
@@ -113,5 +170,63 @@ where
             .map(|s| s.parse::<T>().unwrap())
             .parse_stream(state_stream)
             .into_result()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use expect_test::expect;
+
+    use crate::{
+        asmfmt::parsers::type_parser,
+        context::Context,
+        dialects, location,
+        parsable::{self, state_stream_from_iterator},
+    };
+
+    #[test]
+    fn test_parse_type() {
+        let mut ctx = Context::new();
+        dialects::builtin::register(&mut ctx);
+
+        let state_stream = state_stream_from_iterator(
+            "builtin.some".chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+
+        let res = type_parser().parse(state_stream);
+        let err_msg = format!("{}", res.err().unwrap());
+
+        let expected_err_msg = expect![[r#"
+            Parse error at line: 1, column: 1
+            Unregistered type builtin.some
+        "#]];
+        expected_err_msg.assert_eq(&err_msg);
+
+        let state_stream = state_stream_from_iterator(
+            "builtin.int a".chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+
+        let res = type_parser().parse(state_stream);
+        let err_msg = format!("{}", res.err().unwrap());
+
+        let expected_err_msg = expect![[r#"
+            Parse error at line: 1, column: 13
+            Unexpected `a`
+            Expected `<`
+        "#]];
+        expected_err_msg.assert_eq(&err_msg);
+
+        let state_stream = state_stream_from_iterator(
+            "builtin.int <si32>".chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+
+        let parsed = type_parser().parse(state_stream).unwrap().0;
+        assert_eq!(
+            crate::printable::Printable::disp(&parsed, &ctx).to_string(),
+            "builtin.int <si32>"
+        );
     }
 }

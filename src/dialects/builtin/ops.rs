@@ -2,7 +2,10 @@ use combine::{token, Parser};
 use thiserror::Error;
 
 use crate::{
-    asmfmt::printers::{attr, concat, region, symb_op_header},
+    asmfmt::{
+        parsers::{spaced, type_parser},
+        printers::{attr, concat, region, symb_op_header},
+    },
     attribute::{attr_cast, attr_parser, AttrObj},
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
@@ -17,9 +20,9 @@ use crate::{
     location::{Located, Location},
     op::{Op, OpObj},
     operation::{process_parsed_ssa_defs, Operation},
-    parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
+    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{type_parser, TypeObj, Typed},
+    r#type::{TypeObj, Typed},
     region::Region,
     verify_err,
 };

@@ -38,6 +38,7 @@ use intertrait::{cast::CastRef, CastFrom};
 use rustc_hash::FxHashMap;
 
 use crate::{
+    asmfmt::parsers::spaced,
     common_traits::Verify,
     context::Context,
     dialect::{Dialect, DialectName},
@@ -45,7 +46,7 @@ use crate::{
     identifier::Identifier,
     input_err,
     location::Located,
-    parsable::{spaced, Parsable, ParseResult, ParserFn, StateStream},
+    parsable::{Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
 };
 

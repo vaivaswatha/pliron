@@ -1,5 +1,8 @@
 use crate::{
-    asmfmt::printers::{concat, enclosed, list_with_sep},
+    asmfmt::{
+        parsers::{spaced, type_parser},
+        printers::{concat, enclosed, list_with_sep},
+    },
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
@@ -7,9 +10,9 @@ use crate::{
     identifier::Identifier,
     impl_type, input_err_noloc,
     location::{Located, Location},
-    parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
+    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, ListSeparator, Printable},
-    r#type::{type_parser, Type, TypeObj},
+    r#type::{Type, TypeObj},
     verify_err_noloc,
 };
 use combine::{between, optional, parser::char::spaces, sep_by, token, Parser};
@@ -373,6 +376,7 @@ mod tests {
     use expect_test::expect;
 
     use crate::{
+        asmfmt::parsers::type_parser,
         common_traits::Verify,
         context::Context,
         dialects::{
@@ -384,7 +388,7 @@ mod tests {
         location,
         parsable::{self, state_stream_from_iterator},
         printable::Printable,
-        r#type::{type_parser, Type},
+        r#type::Type,
     };
 
     #[test]

@@ -1,6 +1,8 @@
 use apint::ApInt;
+use combine::Parser;
 use expect_test::{expect, Expect};
 use pliron::{
+    asmfmt::parsers::spaced,
     common_traits::Verify,
     debug_info::set_operation_result_name,
     dialects::builtin::{
@@ -10,12 +12,11 @@ use pliron::{
     location,
     op::Op,
     operation::Operation,
-    parsable::{self, spaced, state_stream_from_iterator, Parsable},
+    parsable::{self, state_stream_from_iterator, Parsable},
     printable::Printable,
 };
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
-use combine::parser::Parser;
 
 mod common;
 

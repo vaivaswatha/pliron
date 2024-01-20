@@ -8,15 +8,18 @@ use combine::{
 };
 
 use crate::{
-    asmfmt::printers::{functional_type, typed},
+    asmfmt::{
+        parsers::{spaced, type_parser},
+        printers::{functional_type, typed},
+    },
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
     impl_type,
-    parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
+    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{type_parser, Type, TypeObj},
+    r#type::{Type, TypeObj},
 };
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]

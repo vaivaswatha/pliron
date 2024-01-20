@@ -8,7 +8,7 @@ use combine::{attempt, parser::char::spaces, position, token, Parser};
 use thiserror::Error;
 
 use crate::{
-    asmfmt::printers,
+    asmfmt::{parsers::spaced, printers},
     attribute::AttributeDict,
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
@@ -20,7 +20,7 @@ use crate::{
     linked_list::{private, LinkedList},
     location::{Located, Location},
     op::{self, OpId, OpObj},
-    parsable::{self, spaced, Parsable, ParseResult, StateStream},
+    parsable::{self, Parsable, ParseResult, StateStream},
     printable::{self, ListSeparator, Printable},
     r#type::{TypeObj, Typed},
     region::Region,

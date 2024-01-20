@@ -13,16 +13,13 @@ use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
 use crate::error::Result;
 use crate::identifier::Identifier;
-use crate::input_err;
-use crate::location::Located;
-use crate::parsable::{spaced, Parsable, ParseResult, ParserFn, StateStream};
+use crate::parsable::{Parsable, ParseResult, ParserFn, StateStream};
 use crate::printable::{self, Printable};
 use crate::storage_uniquer::TypeValueHash;
 
-use combine::error::StdParseResult2;
-use combine::{parser, Parser, StreamOnce};
+use combine::{parser, Parser};
 use downcast_rs::{impl_downcast, Downcast};
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -188,12 +185,6 @@ impl Printable for TypeName {
     }
 }
 
-impl Display for TypeName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", *self.0)
-    }
-}
-
 impl Parsable for TypeName {
     type Arg = ();
     type Parsed = TypeName;
@@ -250,12 +241,6 @@ impl Printable for TypeId {
     }
 }
 
-impl Display for TypeId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}.{}", self.dialect, self.name)
-    }
-}
-
 /// Since we can't store the [Type] trait in the arena,
 /// we store boxed dyn objects of it instead.
 pub type TypeObj = Box<dyn Type>;
@@ -273,7 +258,8 @@ impl Printable for TypeObj {
         state: &printable::State,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        write!(f, "{} ", self.get_type_id())?;
+        self.get_type_id().fmt(ctx, state, f)?;
+        write!(f, " ")?;
         <dyn Type as Printable>::fmt(self.deref(), ctx, state, f)
     }
 }
@@ -373,94 +359,5 @@ macro_rules! impl_type {
                 }
             }
         }
-    }
-}
-
-/// Parse an identified type, which is [TypeId] followed by its contents.
-pub fn type_parse<'a>(
-    state_stream: &mut StateStream<'a>,
-) -> StdParseResult2<Ptr<TypeObj>, <StateStream<'a> as StreamOnce>::Error> {
-    let loc = state_stream.loc();
-    let type_id_parser = spaced(TypeId::parser(()));
-
-    let mut type_parser = type_id_parser.then(move |type_id: TypeId| {
-        // This clone is to satify the borrow checker.
-        let loc = loc.clone();
-        combine::parser(move |parsable_state: &mut StateStream<'a>| {
-            let state = &parsable_state.state;
-            let dialect = state
-                .ctx
-                .dialects
-                .get(&type_id.dialect)
-                .expect("Dialect name parsed but dialect isn't registered");
-            let Some(type_parser) = dialect.types.get(&type_id) else {
-                input_err!(loc.clone(), "Unregistered type {}", type_id.disp(state.ctx))?
-            };
-            type_parser(&(), ()).parse_stream(parsable_state).into()
-        })
-    });
-
-    type_parser.parse_stream(state_stream).into_result()
-}
-
-/// A parser combinator to parse [TypeId] followed by the type's contents.
-pub fn type_parser<'a>(
-) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
-    combine::parser(|parsable_state: &mut StateStream<'a>| type_parse(parsable_state)).boxed()
-}
-
-#[cfg(test)]
-mod test {
-    use expect_test::expect;
-
-    use crate::{
-        context::Context,
-        dialects, location,
-        parsable::{self, state_stream_from_iterator},
-        printable::Printable,
-        r#type::type_parser,
-    };
-
-    #[test]
-    fn test_parse_type() {
-        let mut ctx = Context::new();
-        dialects::builtin::register(&mut ctx);
-
-        let state_stream = state_stream_from_iterator(
-            "builtin.some".chars(),
-            parsable::State::new(&mut ctx, location::Source::InMemory),
-        );
-
-        let res = type_parser().parse(state_stream);
-        let err_msg = format!("{}", res.err().unwrap());
-
-        let expected_err_msg = expect![[r#"
-            Parse error at line: 1, column: 1
-            Unregistered type builtin.some
-        "#]];
-        expected_err_msg.assert_eq(&err_msg);
-
-        let state_stream = state_stream_from_iterator(
-            "builtin.int a".chars(),
-            parsable::State::new(&mut ctx, location::Source::InMemory),
-        );
-
-        let res = type_parser().parse(state_stream);
-        let err_msg = format!("{}", res.err().unwrap());
-
-        let expected_err_msg = expect![[r#"
-            Parse error at line: 1, column: 13
-            Unexpected `a`
-            Expected `<`
-        "#]];
-        expected_err_msg.assert_eq(&err_msg);
-
-        let state_stream = state_stream_from_iterator(
-            "builtin.int <si32>".chars(),
-            parsable::State::new(&mut ctx, location::Source::InMemory),
-        );
-
-        let parsed = type_parser().parse(state_stream).unwrap().0;
-        assert_eq!(parsed.disp(&ctx).to_string(), "builtin.int <si32>");
     }
 }

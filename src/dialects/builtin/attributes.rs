@@ -8,7 +8,10 @@ use sorted_vector_map::SortedVectorMap;
 use thiserror::Error;
 
 use crate::{
-    asmfmt::printers::{concat, quoted},
+    asmfmt::{
+        parsers::{spaced, type_parser},
+        printers::{concat, quoted},
+    },
     attribute::{AttrObj, Attribute},
     common_traits::Verify,
     context::{Context, Ptr},
@@ -16,9 +19,9 @@ use crate::{
     error::Result,
     impl_attr, impl_attr_interface, input_err,
     location::Located,
-    parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
+    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{type_parser, TypeObj, Typed},
+    r#type::{TypeObj, Typed},
     verify_err_noloc,
 };
 
