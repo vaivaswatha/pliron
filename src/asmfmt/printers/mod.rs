@@ -98,7 +98,9 @@ pub fn functional_type<'a>(
     )
 }
 
-/// Create a printer for IR entities that have a type.
+/// Create a printer for IR entities that have a type. For functions this will print the
+/// function type `<(i32, i32) -> (i64)>` for example. Operation results and operands will print
+/// the type of the expected value, like `i32`.
 pub fn typed(ty: impl IntoTypedPrinter) -> impl Printable {
     let p = ty.into_typed_printer();
     PrinterFn(move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| p.fmt(ctx, state, f))
