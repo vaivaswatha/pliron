@@ -1,3 +1,8 @@
+//! Printers for IR objects.
+//!
+//! This module provides a set of reusable printer for IR objects.
+//! The printers are also used by the Printable derive macro.
+
 use std::fmt;
 
 pub mod op;
@@ -65,27 +70,7 @@ where
     )
 }
 
-// Using autoref specialization to find a printer implementation for different
-// kind of input types.
-//
-// Specialization order:
-// 1. T implements Printable
-// 2. T is a collection of Printable
-// 3. T implements Display
-//
-// Autoref specialization idea is explained by dtolnay at:
-//   https://github.com/dtolnay/case-studies/blob/master/autoref-specialization/README.md
-#[macro_export]
-macro_rules! print_var {
-    ($v:expr) => {{
-        #[allow(unused_imports)]
-        use $crate::asmfmt::printers::{DisplayKind, PrintableIterKind, PrintableKind};
-        match $v {
-            v => (&v).var_kind().build(v),
-        }
-    }};
-}
-
+/// Print `p` enclosed by `left` and `right`.
 pub fn enclosed<P: Printable>(left: &'static str, right: &'static str, p: P) -> impl Printable {
     PrinterFn(
         move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
@@ -113,11 +98,12 @@ pub fn functional_type<'a>(
     )
 }
 
+/// Create a printer for IR entities that have a type.
 pub fn typed(ty: impl TypedPrinter) -> impl Printable {
     PrinterFn(move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| ty.fmt(ctx, state, f))
 }
 
-/// Used to print the type of an IR object.
+/// Used to print the type of an IR objects that are typed.
 pub trait TypedPrinter {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
