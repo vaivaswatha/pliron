@@ -1,4 +1,5 @@
 use crate::{
+    asmfmt::printers::{enclosed, list_with_sep},
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
@@ -7,7 +8,7 @@ use crate::{
     impl_type, input_err_noloc,
     location::{Located, Location},
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
-    printable::{self, Printable, PrintableIter},
+    printable::{self, ListSeparator, Printable},
     r#type::{type_parser, Type, TypeObj},
     verify_err_noloc,
 };
@@ -185,7 +186,8 @@ impl Printable for StructType {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{} <", Self::get_type_id_static().disp(ctx))?;
+        write!(f, "<")?;
+
         use std::cell::RefCell;
         // Ugly, but also the simplest way to avoid infinite recursion.
         // MLIR does the same: see LLVMTypeSyntax::printStructType.
@@ -203,13 +205,12 @@ impl Printable for StructType {
             write!(f, "{name} ")?;
         }
 
-        write!(
-            f,
-            "{{ {} }}",
-            self.fields
-                .iter()
-                .iprint(ctx, state, printable::ListSeparator::CharSpace(','))
-        )?;
+        enclosed(
+            "{ ",
+            " }",
+            list_with_sep(&self.fields, ListSeparator::CharSpace(',')),
+        )
+        .fmt(ctx, state, f)?;
 
         // Done processing this struct. Remove it from the stack.
         if let Some(name) = &self.name {
@@ -337,12 +338,7 @@ impl Printable for PointerType {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(
-            f,
-            "{} <{}>",
-            Self::get_type_id_static().disp(ctx),
-            self.to.disp(ctx)
-        )
+        write!(f, "<{}>", self.to.disp(ctx))
     }
 }
 
@@ -423,12 +419,7 @@ mod tests {
         assert!(StructType::get_existing_named(&ctx, "LinkedList2").is_none());
 
         assert_eq!(
-            list_struct
-                .deref(&ctx)
-                .downcast_ref::<StructType>()
-                .unwrap()
-                .disp(&ctx)
-                .to_string(),
+            list_struct.disp(&ctx).to_string(),
             "llvm.struct <LinkedList { data: builtin.int <i64>, next: llvm.ptr <llvm.struct <LinkedList>> }>"
         );
 

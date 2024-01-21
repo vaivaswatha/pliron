@@ -4,6 +4,7 @@
 //! and written in safe Rust.
 
 #[forbid(unsafe_code)]
+pub mod asmfmt;
 pub mod attribute;
 pub mod basic_block;
 pub mod common_traits;

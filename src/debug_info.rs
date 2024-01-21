@@ -146,7 +146,7 @@ mod tests {
         let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
         let cop = ConstantOp::new_unlinked(&mut ctx, IntegerAttr::create(i64_ty, ApInt::from(0)));
         let op = cop.get_operation();
-        set_operation_result_name(&mut ctx, op, 0, "foo".to_string());
+        set_operation_result_name(&ctx, op, 0, "foo".to_string());
         assert!(get_operation_result_name(&ctx, op, 0).unwrap() == "foo");
         op.deref(&ctx).verify(&ctx)?;
         Ok(())
@@ -159,7 +159,7 @@ mod tests {
 
         let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
         let block = BasicBlock::new(&mut ctx, Some("entry".into()), vec![i64_ty]);
-        set_block_arg_name(&mut ctx, block, 0, "foo".to_string());
+        set_block_arg_name(&ctx, block, 0, "foo".to_string());
         assert!(get_block_arg_name(&ctx, block, 0).unwrap() == "foo");
         block.deref(&ctx).verify(&ctx)?;
         Ok(())

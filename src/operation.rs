@@ -8,6 +8,7 @@ use combine::{attempt, parser::char::spaces, position, token, Parser};
 use thiserror::Error;
 
 use crate::{
+    asmfmt::printers,
     attribute::AttributeDict,
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
@@ -20,7 +21,7 @@ use crate::{
     location::{Located, Location},
     op::{self, OpId, OpObj},
     parsable::{self, spaced, Parsable, ParseResult, StateStream},
-    printable::{self, Printable},
+    printable::{self, ListSeparator, Printable},
     r#type::{TypeObj, Typed},
     region::Region,
     use_def_lists::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
@@ -50,6 +51,31 @@ impl OpResult {
 impl Typed for OpResult {
     fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
         self.get_type()
+    }
+}
+
+impl Printable for OpResult {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(f, "{}", self.unique_name(ctx))
+    }
+}
+
+impl Printable for Vec<OpResult> {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let sep = ListSeparator::Char(',');
+        let results = self.iter().map(|r| r.unique_name(ctx));
+        printers::iter_with_sep(results, sep).fmt(ctx, state, f)?;
+        Ok(())
     }
 }
 
