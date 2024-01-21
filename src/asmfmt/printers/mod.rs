@@ -1,6 +1,6 @@
 //! Printers for IR objects.
 //!
-//! This module provides a set of reusable printer for IR objects.
+//! This module provides a set of reusable printers for IR objects.
 //! The printers are also used by the Printable derive macro.
 
 use std::fmt;
@@ -103,7 +103,7 @@ pub fn typed(ty: impl TypedPrinter) -> impl Printable {
     PrinterFn(move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| ty.fmt(ctx, state, f))
 }
 
-/// Used to print the type of an IR objects that are typed.
+/// Used to print the type of IR objects that are typed.
 pub trait TypedPrinter {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
