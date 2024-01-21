@@ -52,12 +52,12 @@ pub fn formatted(s: String) -> impl Printable {
     PrinterFn(move |_ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>| write!(f, "{}", s))
 }
 
-/// Print a list of items separated by [sep].
+/// Print a list of items separated by `sep`.
 pub fn list_with_sep<T: Printable>(items: &[T], sep: ListSeparator) -> impl Printable + '_ {
     iter_with_sep(items.iter(), sep)
 }
 
-/// Print an iterator of items separated by [sep].
+/// Print an iterator of items separated by `sep`.
 pub fn iter_with_sep<I>(iter: I, sep: ListSeparator) -> impl Printable
 where
     I: Iterator + Clone,
