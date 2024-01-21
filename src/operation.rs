@@ -65,6 +65,7 @@ impl Printable for OpResult {
     }
 }
 
+/*
 impl Printable for Vec<OpResult> {
     fn fmt(
         &self,
@@ -78,6 +79,7 @@ impl Printable for Vec<OpResult> {
         Ok(())
     }
 }
+*/
 
 impl From<&OpResult> for Value {
     fn from(value: &OpResult) -> Self {
