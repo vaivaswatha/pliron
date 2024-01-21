@@ -99,8 +99,42 @@ pub fn functional_type<'a>(
 }
 
 /// Create a printer for IR entities that have a type.
-pub fn typed(ty: impl TypedPrinter) -> impl Printable {
-    PrinterFn(move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| ty.fmt(ctx, state, f))
+pub fn typed(ty: impl IntoTypedPrinter) -> impl Printable {
+    let p = ty.into_typed_printer();
+    PrinterFn(move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| p.fmt(ctx, state, f))
+}
+
+pub trait IntoTypedPrinter {
+    type Printer: TypedPrinter;
+
+    fn into_typed_printer(self) -> Self::Printer;
+}
+
+impl<'a> IntoTypedPrinter for &'a dyn Type {
+    type Printer = Self;
+    fn into_typed_printer(self) -> Self::Printer {
+        self
+    }
+}
+
+impl<T: Typed + ArenaObj> IntoTypedPrinter for Ptr<T> {
+    type Printer = Self;
+    fn into_typed_printer(self) -> Self::Printer {
+        self
+    }
+}
+
+impl<I> IntoTypedPrinter for I
+where
+    I: IntoIterator,
+    I::IntoIter: Clone,
+    I::Item: Typed,
+{
+    type Printer = IterTypePrinter<I::IntoIter>;
+
+    fn into_typed_printer(self) -> Self::Printer {
+        IterTypePrinter(self.into_iter())
+    }
 }
 
 /// Used to print the type of an IR objects that are typed.
@@ -108,15 +142,9 @@ pub trait TypedPrinter {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
 
-impl TypedPrinter for dyn Type {
+impl<'a> TypedPrinter for &'a dyn Type {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Printable::fmt(self, ctx, state, f)
-    }
-}
-
-impl<T: TypedPrinter> TypedPrinter for &T {
-    fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        (*self).fmt(ctx, state, f)
+        Printable::fmt(&self, ctx, state, f)
     }
 }
 
@@ -127,18 +155,16 @@ impl<T: Typed + ArenaObj> TypedPrinter for Ptr<T> {
     }
 }
 
-impl<T: Typed> TypedPrinter for &Vec<T> {
-    fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let sep = ListSeparator::Char(',');
-        let elems = self.iter().map(|ty| ty.get_type(ctx));
-        iter_with_sep(elems, sep).fmt(ctx, state, f)
-    }
-}
+pub struct IterTypePrinter<I>(I);
 
-impl<T: Typed> TypedPrinter for &[T] {
+impl<T, I> TypedPrinter for IterTypePrinter<I>
+where
+    I: Iterator<Item = T> + Clone,
+    T: Typed,
+{
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sep = ListSeparator::Char(',');
-        let elems = self.iter().map(|ty| ty.get_type(ctx));
+        let elems = self.0.clone().map(|ty| ty.get_type(ctx));
         iter_with_sep(elems, sep).fmt(ctx, state, f)
     }
 }
