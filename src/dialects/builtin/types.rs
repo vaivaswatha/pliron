@@ -221,9 +221,9 @@ impl Printable for UnitType {
         &self,
         _ctx: &Context,
         _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
+        _f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "()")
+        Ok(())
     }
 }
 

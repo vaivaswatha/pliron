@@ -88,10 +88,10 @@ fn replace_c0_with_c1_operand() -> Result<()> {
     expect![[r#"
         builtin.module @bar {
           ^block_0_0():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
               ^entry_block_1_0():
-                c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int <si64>>;
-                c1_op_4_0_res0 = builtin.constant builtin.integer <0x1: builtin.int <si64>>;
+                c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
+                c1_op_4_0_res0 = builtin.constant builtin.integer <0x1: builtin.int<si64>>;
                 llvm.return c0_op_2_0_res0
             }
         }"#]]
@@ -107,9 +107,9 @@ fn replace_c0_with_c1_operand() -> Result<()> {
     expect![[r#"
         builtin.module @bar {
           ^block_0_0():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
               ^entry_block_1_0():
-                c1_op_4_0_res0 = builtin.constant builtin.integer <0x1: builtin.int <si64>>;
+                c1_op_4_0_res0 = builtin.constant builtin.integer <0x1: builtin.int<si64>>;
                 llvm.return c1_op_4_0_res0
             }
         }"#]]
@@ -129,9 +129,9 @@ fn print_simple() -> Result<()> {
     expect![[r#"
         builtin.module @bar {
           ^block_0_0():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
               ^entry_block_1_0():
-                c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int <si64>>;
+                c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
                 llvm.return c0_op_2_0_res0
             }
         }"#]]

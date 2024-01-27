@@ -512,11 +512,11 @@ mod tests {
         assert!(int64_0_ptr == int64_0_ptr2);
         assert_eq!(
             int64_0_ptr.disp(&ctx).to_string(),
-            "builtin.integer <0x0: builtin.int <si64>>"
+            "builtin.integer <0x0: builtin.int<si64>>"
         );
         assert_eq!(
             int64_1_ptr.disp(&ctx).to_string(),
-            "builtin.integer <0xf: builtin.int <si64>>"
+            "builtin.integer <0xf: builtin.int<si64>>"
         );
         assert!(
             ApInt::from(int64_0_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()).is_zero()

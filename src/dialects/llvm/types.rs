@@ -420,7 +420,7 @@ mod tests {
 
         assert_eq!(
             list_struct.disp(&ctx).to_string(),
-            "llvm.struct <LinkedList { data: builtin.int <i64>, next: llvm.ptr <llvm.struct <LinkedList>> }>"
+            "llvm.struct<LinkedList { data: builtin.int<i64>, next: llvm.ptr<llvm.struct<LinkedList>> }>"
         );
 
         let head_fields = vec![
@@ -465,7 +465,7 @@ mod tests {
         let int64pointer_ptr = Type::register_instance(int64pointer_ptr, &mut ctx);
         assert_eq!(
             int64pointer_ptr.disp(&ctx).to_string(),
-            "llvm.ptr <builtin.int <si64>>"
+            "llvm.ptr<builtin.int<si64>>"
         );
         assert!(int64pointer_ptr == PointerType::get(&mut ctx, int64_ptr));
 
@@ -502,7 +502,7 @@ mod tests {
         );
 
         let res = type_parser().parse(state_stream).unwrap().0;
-        assert_eq!(&res.disp(&ctx).to_string(), "llvm.ptr <builtin.int <si64>>");
+        assert_eq!(&res.disp(&ctx).to_string(), "llvm.ptr<builtin.int<si64>>");
     }
 
     #[test]
@@ -512,12 +512,12 @@ mod tests {
         dialects::llvm::register(&mut ctx);
 
         let state_stream = state_stream_from_iterator(
-            "llvm.struct <LinkedList { data: builtin.int <i64>, next: llvm.ptr <llvm.struct <LinkedList>> }>".chars(),
+            "llvm.struct<LinkedList { data: builtin.int<i64>, next: llvm.ptr<llvm.struct<LinkedList>> }>".chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
         let res = type_parser().parse(state_stream).unwrap().0;
-        assert_eq!(&res.disp(&ctx).to_string(), "llvm.struct <LinkedList { data: builtin.int <i64>, next: llvm.ptr <llvm.struct <LinkedList>> }>");
+        assert_eq!(&res.disp(&ctx).to_string(), "llvm.struct<LinkedList { data: builtin.int<i64>, next: llvm.ptr<llvm.struct<LinkedList>> }>");
     }
 
     #[test]
