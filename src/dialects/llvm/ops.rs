@@ -1,5 +1,4 @@
 use crate::{
-    asmfmt::{parsers::ssa_opd_parser, printers::concat},
     common_traits::Verify,
     context::Context,
     declare_op,
@@ -8,6 +7,7 @@ use crate::{
     error::Result,
     identifier::Identifier,
     impl_op_interface, input_err,
+    irfmt::{parsers::ssa_opd_parser, printers::concat},
     location::{Located, Location},
     op::{Op, OpObj},
     operation::Operation,

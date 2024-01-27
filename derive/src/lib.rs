@@ -1,4 +1,3 @@
-mod asmfmt;
 mod attr;
 mod derive_attr;
 mod derive_op;
@@ -6,6 +5,7 @@ mod derive_parseable;
 mod derive_printable;
 mod derive_shared;
 mod derive_type;
+mod irfmt;
 
 use proc_macro::TokenStream;
 
@@ -24,12 +24,12 @@ pub fn def_type(_args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_type::def_type(input))
 }
 
-#[proc_macro_derive(Printable, attributes(dialect, ir_kind, asm_format))]
+#[proc_macro_derive(Printable, attributes(dialect, ir_kind, ir_format))]
 pub fn derive_printable(input: TokenStream) -> TokenStream {
     to_token_stream(derive_printable::derive(input))
 }
 
-#[proc_macro_derive(Parsable, attributes(dialect, ir_kind, asm_format))]
+#[proc_macro_derive(Parsable, attributes(dialect, ir_kind, ir_format))]
 pub fn derive_parsable(input: TokenStream) -> TokenStream {
     to_token_stream(derive_parseable::derive(input))
 }

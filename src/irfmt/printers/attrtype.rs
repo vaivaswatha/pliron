@@ -9,7 +9,7 @@ macro_rules! at_params_directive {
         concat_with_sep(
             ListSeparator::Char(','),
             ($(
-                ::pliron::asmfmt::printers::print_var!(&$self.$params)
+                ::pliron::irfmt::printers::print_var!(&$self.$params)
             ),*),
         ).fmt($($printer),*)?;
     };
@@ -17,8 +17,7 @@ macro_rules! at_params_directive {
         compile_error!("params directive used with too many parameters");
     };
 }
-#[allow(unused_imports)]
-pub(crate) use at_params_directive;
+pub use at_params_directive;
 
 #[macro_export]
 macro_rules! at_qualified_directive {
@@ -32,8 +31,7 @@ macro_rules! at_qualified_directive {
         compile_error!("qualified directive used with too many field names");
     };
 }
-#[allow(unused_imports)]
-pub(crate) use at_qualified_directive;
+pub use at_qualified_directive;
 
 #[macro_export]
 macro_rules! at_struct_directive {
@@ -44,16 +42,15 @@ macro_rules! at_struct_directive {
               concat((
                 literal(stringify!($field_name)),
                 " = ",
-                ::pliron::asmfmt::printers::print_var!(&$self.$field_name),
+                ::pliron::irfmt::printers::print_var!(&$self.$field_name),
               ))
             ),*),
         ).fmt($($printer),*)?;
     };
 }
-#[allow(unused_imports)]
-pub(crate) use at_struct_directive;
+pub use at_struct_directive;
 
-#[allow(unused_macros)]
+#[macro_export]
 macro_rules! at_format_directive {
     ($self:ident, ($($printer:ident),*), (), ($($_param:ident)*)) => {
         compile_error!("format directive used without parameter");
@@ -65,8 +62,7 @@ macro_rules! at_format_directive {
         compile_error!("format directive used with too many field names");
     };
 }
-#[allow(unused_imports)]
-pub(crate) use at_format_directive;
+pub use at_format_directive;
 
 #[macro_export]
 macro_rules! at_quoted_directive {
@@ -80,5 +76,4 @@ macro_rules! at_quoted_directive {
         compile_error!("quoted directive used with too many field names");
     };
 }
-#[allow(unused_imports)]
-pub(crate) use at_quoted_directive;
+pub use at_quoted_directive;

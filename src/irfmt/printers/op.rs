@@ -22,39 +22,36 @@ use super::{concat, enclosed, iter_with_sep, list_with_sep, literal, quoted, Pri
 #[macro_export]
 macro_rules! op_operation_generic_format_directive {
     ($ctx:ident, $self:ident) => {
-        operation_generic_format(*$self)
+        $crate::irfmt::printers::op::operation_generic_format(*$self)
     };
 }
-#[allow(unused_imports)]
-pub(crate) use op_operation_generic_format_directive;
+pub use op_operation_generic_format_directive;
 
 #[macro_export]
 macro_rules! op_results_directive {
-    ($ctx:ident, $op:ident) => {
-        &($op.get_operation().deref($ctx).results)
-    };
+    ($ctx:ident, $op:ident) => {{
+        use $crate::op::Op;
+        $op.get_operation().deref($ctx).results()
+    }};
 }
-#[allow(unused_imports)]
-pub(crate) use op_results_directive;
+pub use op_results_directive;
 
 #[macro_export]
 macro_rules! op_check_directive {
     ($ctx:ident, $self:ident, $ty:expr) => {
-        check($ctx, $ty)
+        $crate::irfmt::printers::check($ctx, $ty)
     };
 }
-#[allow(unused_imports)]
-pub(crate) use op_check_directive;
+pub use op_check_directive;
 
 #[macro_export]
 macro_rules! op_operands_directive {
     ($ctx:ident, $op:ident) => {{
         let operation = $op.get_operation().deref($ctx);
-        OperandsList::new("(", ")", &operation.operands)
+        $crate::irfmt::printers::op::OperandsList::new("(", ")", &operation.operands)
     }};
 }
-#[allow(unused_imports)]
-pub(crate) use op_operands_directive;
+pub use op_operands_directive;
 
 /// Print the operations of an Operation.
 pub fn operands(op: &Operation) -> OperandsList<'_, Value> {
@@ -68,8 +65,7 @@ macro_rules! op_successors_directive {
         successors(operation)
     }};
 }
-#[allow(unused_imports)]
-pub(crate) use op_successors_directive;
+pub use op_successors_directive;
 
 /// Print the successors of an Operation.
 pub fn successors(op: &Operation) -> OperandsList<'_, Ptr<BasicBlock>> {
@@ -129,8 +125,7 @@ macro_rules! op_regions_directive {
         regions(operation)
     }};
 }
-#[allow(unused_imports)]
-pub(crate) use op_regions_directive;
+pub use op_regions_directive;
 
 /// Print the regions of an Operation.
 pub fn regions(op: &Operation) -> impl Printable + '_ {
@@ -147,8 +142,7 @@ macro_rules! op_region_directive {
         region(*$op)
     };
 }
-#[allow(unused_imports)]
-pub(crate) use op_region_directive;
+pub use op_region_directive;
 
 pub fn region<T: Op + OneRegionInterface>(op: &T) -> impl Printable + '_ {
     PrinterFn(
@@ -165,8 +159,7 @@ macro_rules! op_attr_dict_directive {
         attr_dict(operation)
     }};
 }
-#[allow(unused_imports)]
-pub(crate) use op_attr_dict_directive;
+pub use op_attr_dict_directive;
 
 /// Print the attributes of an Op.
 pub fn attr_dict(op: &Operation) -> impl Printable + '_ {
@@ -200,23 +193,21 @@ pub fn attr<'op>(op: &'op Operation, name: &'static str) -> impl Printable + 'op
     )
 }
 
-#[allow(unused_macros)]
+#[macro_export]
 macro_rules! op_format_directive {
     ($ctx:ident, $self:ident, $fmt:expr, $($args:expr),*) => {
         formatted(format!($fmt, $($args),*))
     };
 }
-#[allow(unused_imports)]
-pub(crate) use op_format_directive;
+pub use op_format_directive;
 
-#[allow(unused_macros)]
+#[macro_export]
 macro_rules! op_functional_type_directive {
     ($ctx:ident, $ty:expr, $inputs:expr, $results:expr) => {
         functional_type(print_var!(&$inputs), print_var!(&$results))
     };
 }
-#[allow(unused_imports)]
-pub(crate) use op_functional_type_directive;
+pub use op_functional_type_directive;
 
 /// Print a function type with inputs and results like `<(i32, i32) -> (i64)>`
 pub fn functional_type<'a>(
@@ -241,27 +232,55 @@ macro_rules! op_typed_directive {
         typed(*$self)
     };
 }
-#[allow(unused_imports)]
-pub(crate) use op_typed_directive;
+pub use op_typed_directive;
 
-pub fn typed(ty: impl TypedPrinter) -> impl Printable {
-    PrinterFn(move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| ty.fmt(ctx, state, f))
+/// Create a printer for IR entities that have a type.
+pub fn typed(ty: impl IntoTypedPrinter) -> impl Printable {
+    let p = ty.into_typed_printer();
+    PrinterFn(move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| p.fmt(ctx, state, f))
 }
 
-/// Used to print the type of an IR object.
+pub trait IntoTypedPrinter {
+    type Printer: TypedPrinter;
+
+    fn into_typed_printer(self) -> Self::Printer;
+}
+
+impl<'a> IntoTypedPrinter for &'a dyn Type {
+    type Printer = Self;
+    fn into_typed_printer(self) -> Self::Printer {
+        self
+    }
+}
+
+impl<T: Typed + ArenaObj> IntoTypedPrinter for Ptr<T> {
+    type Printer = Self;
+    fn into_typed_printer(self) -> Self::Printer {
+        self
+    }
+}
+
+impl<I> IntoTypedPrinter for I
+where
+    I: IntoIterator,
+    I::IntoIter: Clone,
+    I::Item: Typed,
+{
+    type Printer = IterTypePrinter<I::IntoIter>;
+
+    fn into_typed_printer(self) -> Self::Printer {
+        IterTypePrinter(self.into_iter())
+    }
+}
+
+/// Used to print the type of an IR objects that are typed.
 pub trait TypedPrinter {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
 
-impl TypedPrinter for dyn Type {
+impl<'a> TypedPrinter for &'a dyn Type {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Printable::fmt(self, ctx, state, f)
-    }
-}
-
-impl<T: TypedPrinter> TypedPrinter for &T {
-    fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        (*self).fmt(ctx, state, f)
+        Printable::fmt(&self, ctx, state, f)
     }
 }
 
@@ -272,18 +291,16 @@ impl<T: Typed + ArenaObj> TypedPrinter for Ptr<T> {
     }
 }
 
-impl<T: Typed> TypedPrinter for &Vec<T> {
-    fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let sep = ListSeparator::Char(',');
-        let elems = self.iter().map(|ty| ty.get_type(ctx));
-        iter_with_sep(elems, sep).fmt(ctx, state, f)
-    }
-}
+pub struct IterTypePrinter<I>(I);
 
-impl<T: Typed> TypedPrinter for &[T] {
+impl<T, I> TypedPrinter for IterTypePrinter<I>
+where
+    I: Iterator<Item = T> + Clone,
+    T: Typed,
+{
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sep = ListSeparator::Char(',');
-        let elems = self.iter().map(|ty| ty.get_type(ctx));
+        let elems = self.0.clone().map(|ty| ty.get_type(ctx));
         iter_with_sep(elems, sep).fmt(ctx, state, f)
     }
 }

@@ -233,14 +233,6 @@ mod tests {
                     }
                 }
             }
-
-            impl ::pliron::common_traits::Qualified for SimpleType {
-                type Qualifier = ::pliron::r#type::TypeId;   // [get_qualifier]
-
-                fn get_qualifier(&self, ctx: &::pliron::context::Context) -> Self::Qualifier {
-                    self.get_type_id()
-                }
-            }
         };
 
         assert_eq!(want.to_string(), got.to_string());

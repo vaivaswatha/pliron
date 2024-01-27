@@ -2,13 +2,13 @@ use apint::ApInt;
 use combine::Parser;
 use expect_test::{expect, Expect};
 use pliron::{
-    asmfmt::parsers::spaced,
     common_traits::Verify,
     debug_info::set_operation_result_name,
     dialects::builtin::{
         attributes::IntegerAttr, op_interfaces::OneResultInterface, ops::ConstantOp,
     },
     error::Result,
+    irfmt::parsers::spaced,
     location,
     op::Op,
     operation::Operation,

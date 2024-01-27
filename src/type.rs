@@ -8,13 +8,13 @@
 //!
 //! The [impl_type](crate::impl_type) macro can be used to implement [Type] for a rust type.
 
-use crate::asmfmt::parsers::spaced;
 use crate::common_traits::Verify;
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
 use crate::error::Result;
 use crate::identifier::Identifier;
 use crate::input_err;
+use crate::irfmt::parsers::spaced;
 use crate::location::Located;
 use crate::parsable::{Parsable, ParseResult, ParserFn, StateStream};
 use crate::printable::{self, Printable};

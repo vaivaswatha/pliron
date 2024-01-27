@@ -1,14 +1,14 @@
 use crate::{
-    asmfmt::{
-        parsers::{spaced, type_parser},
-        printers::{concat, enclosed, list_with_sep},
-    },
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
     identifier::Identifier,
     impl_type, input_err_noloc,
+    irfmt::{
+        parsers::{spaced, type_parser},
+        printers::{concat, enclosed, list_with_sep},
+    },
     location::{Located, Location},
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, ListSeparator, Printable},
@@ -376,7 +376,6 @@ mod tests {
     use expect_test::expect;
 
     use crate::{
-        asmfmt::parsers::type_parser,
         common_traits::Verify,
         context::Context,
         dialects::{
@@ -385,6 +384,7 @@ mod tests {
             llvm::types::{PointerType, StructErr, StructField, StructType},
         },
         error::{Error, ErrorKind, Result},
+        irfmt::parsers::type_parser,
         location,
         parsable::{self, state_stream_from_iterator},
         printable::Printable,

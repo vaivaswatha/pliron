@@ -4,11 +4,11 @@
 use super::*;
 
 use crate::{
-    asmfmt::parsers::AsmParser,
     attribute::{attr_cast, Attribute},
     dialects::builtin::attr_interfaces::TypedAttrInterface,
     identifier::Identifier,
     impl_attr_interface,
+    irfmt::parsers::AsmParser,
     location::{self, Location},
     op::OpObj,
     operation::Operation,
@@ -22,11 +22,11 @@ use pliron_derive::{
 };
 
 use crate::{
-    asmfmt::parsers,
     attribute::AttrObj,
     common_traits::Verify,
     context::Ptr,
     error::Result,
+    irfmt::parsers,
     parsable::{Parsable, ParseResult, StateStream},
     r#type::TypeObj,
 };
@@ -48,7 +48,7 @@ fn register_dialect(ctx: &mut Context) {
 #[def_type]
 #[type_name = "testing.simple_type"]
 #[derive(Hash, PartialEq, Eq, Debug, Printable, Parsable)]
-#[asm_format = "`()`"]
+#[ir_format = "`()`"]
 pub struct SimpleType {}
 impl SimpleType {
     /// Get or create a new simple type.
@@ -65,11 +65,11 @@ impl Verify for SimpleType {
 #[def_type]
 #[type_name = "testing.integer"]
 #[derive(Hash, PartialEq, Eq, Debug, Printable, Parsable)]
-//#[asm_format = "`int <` `sign=` $sign `, width=` $width `, align=` $align `>`"]
-//#[asm_format = "`int <` params `>`"]
-//#[asm_format = "`int <` struct(params) `>`"]
-//#[asm_format = "`int <` struct($width, $sign) `>`"]
-#[asm_format = "$width `<` $align `,` $sign `>`"]
+//#[ir_format = "`int <` `sign=` $sign `, width=` $width `, align=` $align `>`"]
+//#[ir_format = "`int <` params `>`"]
+//#[ir_format = "`int <` struct(params) `>`"]
+//#[ir_format = "`int <` struct($width, $sign) `>`"]
+#[ir_format = "$width `<` $align `,` $sign `>`"]
 pub struct IntegerType {
     width: u32,
     sign: bool,
@@ -94,9 +94,9 @@ impl Verify for IntegerType {
 #[def_type]
 #[type_name = "testing.vec"]
 #[derive(Hash, PartialEq, Eq, Debug, Printable, NotParsableType)]
-// #[asm_format = "`vec [` qualified($elem) `]` "]
-// #[asm_format = "`vec ` qualifier($elem) ` <` $elem `>` "]
-#[asm_format = "$elem"]
+// #[ir_format = "`vec [` qualified($elem) `]` "]
+// #[ir_format = "`vec ` qualifier($elem) ` <` $elem `>` "]
+#[ir_format = "$elem"]
 pub struct VecType {
     elem: Ptr<TypeObj>,
 }
@@ -115,8 +115,8 @@ impl Verify for VecType {
 #[def_type]
 #[type_name = "testing.function"]
 #[derive(Hash, PartialEq, Debug, Eq, Printable)]
-// #[asm_format = "functional_type($inputs, $results)"]
-#[asm_format = "`(` $inputs `) -> (` $results `)`"]
+// #[ir_format = "functional_type($inputs, $results)"]
+#[ir_format = "`(` $inputs `) -> (` $results `)`"]
 pub struct FunctionType {
     inputs: Vec<Ptr<TypeObj>>,
     results: Vec<Ptr<TypeObj>>,
@@ -156,7 +156,7 @@ impl FunctionType {
 #[def_attribute]
 #[attr_name = "testing.int"]
 #[derive(PartialEq, Eq, Debug, Clone, Printable)]
-#[asm_format = "format(`0x{:x}`, $val) `: ` $ty"]
+#[ir_format = "format(`0x{:x}`, $val) `: ` $ty"]
 pub struct IntegerAttr {
     ty: Ptr<TypeObj>,
     val: ApInt,
@@ -190,7 +190,7 @@ impl_attr_interface!(TypedAttrInterface for IntegerAttr {
 #[def_attribute]
 #[attr_name = "testing.string"]
 #[derive(PartialEq, Eq, Debug, Clone, Printable, NotParsableAttribute)]
-#[asm_format = "quoted($0)"]
+#[ir_format = "quoted($0)"]
 struct StringAttr(String);
 impl Verify for StringAttr {
     fn verify(&self, _ctx: &Context) -> Result<()> {
@@ -201,7 +201,7 @@ impl Verify for StringAttr {
 #[def_attribute]
 #[attr_name = "testing.unit"]
 #[derive(PartialEq, Eq, Debug, Clone, Printable, NotParsableAttribute)]
-#[asm_format = "`()`"]
+#[ir_format = "`()`"]
 pub struct UnitAttr();
 impl UnitAttr {
     pub fn create() -> AttrObj {

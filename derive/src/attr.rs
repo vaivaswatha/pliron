@@ -2,7 +2,7 @@ use std::fmt;
 
 use syn::{Expr, ExprLit, Lit, Result};
 
-use crate::asmfmt::Format;
+use crate::irfmt::Format;
 
 pub(crate) trait Attribute
 where
@@ -99,10 +99,10 @@ fn opt_string_pair_from_syn(attr: &syn::Attribute) -> syn::Result<(Option<String
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct AsmFormat(pub Format);
+pub(crate) struct IRFormat(pub Format);
 
-impl Attribute for AsmFormat {
-    const ATTR_NAME: &'static str = "asm_format";
+impl Attribute for IRFormat {
+    const ATTR_NAME: &'static str = "ir_format";
 
     fn from_syn(attr: &syn::Attribute) -> Result<Self> {
         attr.meta.require_name_value()?;
@@ -111,13 +111,13 @@ impl Attribute for AsmFormat {
     }
 }
 
-impl From<Format> for AsmFormat {
+impl From<Format> for IRFormat {
     fn from(f: Format) -> Self {
         Self(f)
     }
 }
 
-impl TryFrom<String> for AsmFormat {
+impl TryFrom<String> for IRFormat {
     type Error = Box<dyn std::error::Error>;
 
     fn try_from(value: String) -> std::result::Result<Self, Self::Error> {
@@ -126,7 +126,7 @@ impl TryFrom<String> for AsmFormat {
     }
 }
 
-impl AsmFormat {
+impl IRFormat {
     pub fn into_format(self) -> Format {
         self.0
     }

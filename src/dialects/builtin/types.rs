@@ -8,15 +8,15 @@ use combine::{
 };
 
 use crate::{
-    asmfmt::{
-        parsers::{spaced, type_parser},
-        printers::{functional_type, typed},
-    },
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
     impl_type,
+    irfmt::{
+        parsers::{spaced, type_parser},
+        printers::{functional_type, typed},
+    },
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::{Type, TypeObj},

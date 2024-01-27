@@ -2,10 +2,6 @@ use combine::{token, Parser};
 use thiserror::Error;
 
 use crate::{
-    asmfmt::{
-        parsers::{attr_parser, process_parsed_ssa_defs, spaced, type_parser},
-        printers::{attr, concat, region, symb_op_header},
-    },
     attribute::{attr_cast, AttrObj},
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
@@ -16,6 +12,10 @@ use crate::{
     error::Result,
     identifier::Identifier,
     impl_op_interface, input_err,
+    irfmt::{
+        parsers::{attr_parser, process_parsed_ssa_defs, spaced, type_parser},
+        printers::{attr, concat, region, symb_op_header},
+    },
     linked_list::ContainsLinkedList,
     location::{Located, Location},
     op::{Op, OpObj},

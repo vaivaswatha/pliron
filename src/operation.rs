@@ -8,7 +8,6 @@ use combine::{attempt, parser::char::spaces, position, token, Parser};
 use thiserror::Error;
 
 use crate::{
-    asmfmt::{parsers::spaced, printers},
     attribute::AttributeDict,
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
@@ -17,6 +16,10 @@ use crate::{
     error::Result,
     identifier::Identifier,
     input_err,
+    irfmt::{
+        parsers::spaced,
+        printers::{self, PrinterCheck},
+    },
     linked_list::{private, LinkedList},
     location::{Located, Location},
     op::{self, OpId, OpObj},
@@ -227,6 +230,11 @@ impl Operation {
     /// Get idx'th result as a Value.
     pub fn get_result(&self, idx: usize) -> Option<Value> {
         self.results.get(idx).map(|res| res.into())
+    }
+
+    /// Get an iterator on the operation results.
+    pub fn results(&self) -> Results<'_> {
+        Results::new(&self.results)
     }
 
     /// Does any result of this operation have a use?
@@ -589,5 +597,52 @@ impl Parsable for Operation {
                 op
             })
             .into()
+    }
+}
+
+#[derive(Clone)]
+pub struct Results<'a> {
+    results: &'a [OpResult],
+}
+
+impl<'a> Results<'a> {
+    fn new(results: &'a [OpResult]) -> Self {
+        Self { results }
+    }
+
+    pub fn len(&self) -> usize {
+        self.results.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.results.is_empty()
+    }
+
+    pub fn get(&self, idx: usize) -> Option<Value> {
+        self.results.get(idx).map(|res| res.into())
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = Value> + '_ {
+        self.results.iter().map(|res| res.into())
+    }
+}
+
+impl Printable for Results<'_> {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let sep = ListSeparator::Char(',');
+        let results = self.results.iter().map(|r| r.unique_name(ctx));
+        printers::iter_with_sep(results, sep).fmt(ctx, state, f)?;
+        Ok(())
+    }
+}
+
+impl<'a> PrinterCheck for Results<'a> {
+    fn check(&self, _ctx: &Context) -> bool {
+        !self.is_empty()
     }
 }

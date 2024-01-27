@@ -5,15 +5,15 @@ use quote::{format_ident, quote, ToTokens};
 use syn::Result;
 
 use crate::{
-    asmfmt::{
-        AsmFmtInput, AttribTypeFmtEvaler, Directive, Elem, FieldIdent, FmtData, Format, Lit,
+    attr::IRKind,
+    irfmt::{
+        AttribTypeFmtEvaler, Directive, Elem, FieldIdent, FmtData, Format, IRFmtInput, Lit,
         Optional, UnnamedVar, Var,
     },
-    attr::IRKind,
 };
 
 pub(crate) fn derive(input: impl Into<TokenStream>) -> Result<TokenStream> {
-    let input = syn::parse2::<AsmFmtInput>(input.into())?;
+    let input = syn::parse2::<IRFmtInput>(input.into())?;
     let p = DerivedPrinter::try_from(input)?;
     Ok(p.into_token_stream())
 }
@@ -23,10 +23,10 @@ enum DerivedPrinter {
     Op(DerivedOpPrinter),
 }
 
-impl TryFrom<AsmFmtInput> for DerivedPrinter {
+impl TryFrom<IRFmtInput> for DerivedPrinter {
     type Error = syn::Error;
 
-    fn try_from(input: AsmFmtInput) -> Result<Self> {
+    fn try_from(input: IRFmtInput) -> Result<Self> {
         match input.kind {
             IRKind::Type | IRKind::Attribute => {
                 DerivedAttribTypePrinter::try_from(input).map(Self::AttribType)
@@ -51,10 +51,10 @@ struct DerivedAttribTypePrinter {
     fields: Vec<FieldIdent>,
 }
 
-impl TryFrom<AsmFmtInput> for DerivedAttribTypePrinter {
+impl TryFrom<IRFmtInput> for DerivedAttribTypePrinter {
     type Error = syn::Error;
 
-    fn try_from(input: AsmFmtInput) -> Result<Self> {
+    fn try_from(input: IRFmtInput) -> Result<Self> {
         let fields = match input.data {
             FmtData::Struct(s) => s.fields,
         };
@@ -92,7 +92,7 @@ impl<'a> PrinterBuilder for AttribTypePrinterBuilder<'a> {
         let args = d.args.iter().map(|e| self.build_elem(e, false));
         let directive = format_ident!("at_{}_directive", d.name);
         quote! {
-            ::pliron::asmfmt::printers::#directive!(self, #printer_args, (#(#args),*), (#(#field_names)*));
+            ::pliron::irfmt::printers::#directive!(self, #printer_args, (#(#args),*), (#(#field_names)*));
         }
     }
 }
@@ -103,8 +103,8 @@ struct DerivedOpPrinter {
     fields: Vec<FieldIdent>,
 }
 
-impl From<AsmFmtInput> for DerivedOpPrinter {
-    fn from(input: AsmFmtInput) -> Self {
+impl From<IRFmtInput> for DerivedOpPrinter {
+    fn from(input: IRFmtInput) -> Self {
         let fields = match input.data {
             FmtData::Struct(s) => s.fields,
         };
@@ -145,7 +145,7 @@ impl PrinterBuilder for OpPrinterBuilder {
         make_print_if(
             toplevel,
             quote! {
-                ::pliron::asmfmt::printers::get_attr!(self, #name)
+                ::pliron::irfmt::printers::get_attr!(self, #name)
             },
         )
     }
@@ -154,7 +154,7 @@ impl PrinterBuilder for OpPrinterBuilder {
         let directive = format_ident!("op_{}_directive", d.name);
         let args = d.args.iter().map(|e| self.build_elem(e, false));
         let printer = quote! {
-            ::pliron::asmfmt::printers::#directive!(ctx, self #(, #args)*)
+            ::pliron::irfmt::printers::#directive!(ctx, self #(, #args)*)
         };
         make_print_if(toplevel, printer)
     }
@@ -185,7 +185,13 @@ trait PrinterBuilder {
     }
 
     fn build_lit(&self, lit: &str, toplevel: bool) -> TokenStream {
-        make_print_if(toplevel, quote! { #lit })
+        if toplevel {
+            make_print(quote! {
+                ::pliron::irfmt::printers::literal(#lit)
+            })
+        } else {
+            quote! { #lit }
+        }
     }
 
     fn build_var(&self, name: &str, toplevel: bool) -> TokenStream {
@@ -202,7 +208,7 @@ trait PrinterBuilder {
     {
         if toplevel {
             make_print(quote! {
-                ::pliron::asmfmt::printers::print_var!(&self.#ident)
+                ::pliron::irfmt::printers::print_var!(&self.#ident)
             })
         } else {
             quote! {

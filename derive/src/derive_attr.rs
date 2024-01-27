@@ -253,13 +253,6 @@ mod tests {
                     Ok(())
                 }
             }
-            impl ::pliron::common_traits::Qualified for UnitAttr {
-                type Qualifier = ::pliron::attribute::AttrId;
-
-                fn get_qualifier(&self, ctx: &::pliron::context::Context) -> Self::Qualifier {
-                    self.get_attr_id()
-                }
-            }
         };
 
         assert_eq!(want.to_string(), got.to_string());

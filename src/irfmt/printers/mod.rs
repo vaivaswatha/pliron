@@ -7,11 +7,11 @@ use crate::{
     printable::{fmt_iter, ListSeparator, Printable, State},
 };
 
-mod attrtype;
+pub mod attrtype;
 #[allow(unused_imports)]
 pub use attrtype::*;
 
-mod op;
+pub mod op;
 pub use op::*;
 
 #[cfg(test)]
@@ -96,7 +96,7 @@ pub fn formatted(s: String) -> impl Printable {
 macro_rules! print_var {
     ($v:expr) => {{
         #[allow(unused_imports)]
-        use $crate::asmfmt::printers::{DisplayKind, PrintableIterKind, PrintableKind};
+        use $crate::irfmt::printers::{DisplayKind, PrintableIterKind, PrintableKind};
         match $v {
             v => (&v).var_kind().build(v),
         }
@@ -105,7 +105,7 @@ macro_rules! print_var {
 
 // make macro available in this crate;
 #[allow(unused_imports)]
-pub(crate) use print_var;
+pub use print_var;
 
 pub struct DisplayVar<T>(T);
 
@@ -134,7 +134,7 @@ impl<T: Printable, L: AsRef<[T]>> Printable for PrintableIterVar<T, L> {
 // returned by var! if the variable implements Display, but not Printable.
 pub struct DisplayTag;
 impl<T: fmt::Display> DisplayKind for &&T {}
-trait DisplayKind {
+pub trait DisplayKind {
     #[inline]
     fn var_kind(&self) -> DisplayTag {
         DisplayTag
@@ -149,7 +149,7 @@ impl DisplayTag {
 pub struct PrintableIterTag<T>(std::marker::PhantomData<T>);
 impl<T: Printable> PrintableIterKind<T> for &Vec<T> {}
 
-trait PrintableIterKind<T> {
+pub trait PrintableIterKind<T> {
     #[inline]
     fn var_kind(&self) -> PrintableIterTag<T> {
         PrintableIterTag(std::marker::PhantomData)
@@ -163,7 +163,7 @@ impl<T: Printable> PrintableIterTag<T> {
 
 pub struct PrintableTag;
 impl<T: Printable> PrintableKind for T {}
-trait PrintableKind {
+pub trait PrintableKind {
     #[inline]
     fn var_kind(&self) -> PrintableTag {
         PrintableTag

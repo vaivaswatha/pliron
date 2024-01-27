@@ -8,16 +8,16 @@ use sorted_vector_map::SortedVectorMap;
 use thiserror::Error;
 
 use crate::{
-    asmfmt::{
-        parsers::{spaced, type_parser},
-        printers::{concat, quoted},
-    },
     attribute::{AttrObj, Attribute},
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
     impl_attr, impl_attr_interface, input_err,
+    irfmt::{
+        parsers::{spaced, type_parser},
+        printers::{concat, quoted},
+    },
     location::Located,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
@@ -487,7 +487,6 @@ mod tests {
     use expect_test::expect;
 
     use crate::{
-        asmfmt::parsers::attr_parser,
         attribute::attr_cast,
         context::Context,
         dialects::{
@@ -498,6 +497,7 @@ mod tests {
                 types::{IntegerType, Signedness},
             },
         },
+        irfmt::parsers::attr_parser,
         location,
         parsable::{self, state_stream_from_iterator},
         printable::Printable,

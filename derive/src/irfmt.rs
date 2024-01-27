@@ -12,12 +12,12 @@ use winnow::{
     Located, Parser,
 };
 
-use crate::attr::{require_once, AsmFormat, Attribute, IRKind};
+use crate::attr::{require_once, Attribute, IRFormat, IRKind};
 
-pub(crate) struct AsmFmtInput {
+pub(crate) struct IRFmtInput {
     pub ident: syn::Ident,
     pub kind: IRKind,
-    pub format: AsmFormat,
+    pub format: IRFormat,
     pub data: FmtData,
 }
 
@@ -25,14 +25,14 @@ pub(crate) enum FmtData {
     Struct(Struct),
 }
 
-impl Parse for AsmFmtInput {
+impl Parse for IRFmtInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let input = DeriveInput::parse(input)?;
         Self::try_from(input)
     }
 }
 
-impl TryFrom<DeriveInput> for AsmFmtInput {
+impl TryFrom<DeriveInput> for IRFmtInput {
     type Error = syn::Error;
 
     fn try_from(input: DeriveInput) -> syn::Result<Self> {
@@ -40,9 +40,9 @@ impl TryFrom<DeriveInput> for AsmFmtInput {
         let mut format = None;
 
         for attr in &input.attrs {
-            if attr.path().is_ident(AsmFormat::ATTR_NAME) {
-                require_once(AsmFormat::ATTR_NAME, &format, attr)?;
-                format = Some(AsmFormat::from_syn(attr)?);
+            if attr.path().is_ident(IRFormat::ATTR_NAME) {
+                require_once(IRFormat::ATTR_NAME, &format, attr)?;
+                format = Some(IRFormat::from_syn(attr)?);
             }
             if attr.path().is_ident(IRKind::ATTR_NAME) {
                 require_once(IRKind::ATTR_NAME, &kind, attr)?;

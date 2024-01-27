@@ -5,8 +5,8 @@ use quote::{format_ident, quote};
 use syn::{DeriveInput, Result};
 
 use crate::{
-    asmfmt::{AsmFmtInput, Directive, Elem, FieldIdent, FmtData, Lit, UnnamedVar, Var},
-    attr::AsmFormat,
+    attr::IRFormat,
+    irfmt::{Directive, Elem, FieldIdent, FmtData, IRFmtInput, Lit, UnnamedVar, Var},
 };
 
 pub(crate) fn derive_not_parsable_type(input: impl Into<TokenStream>) -> Result<TokenStream> {
@@ -48,11 +48,11 @@ pub(crate) fn derive_not_parsable_attribute(input: impl Into<TokenStream>) -> Re
 }
 
 pub(crate) fn derive(input: impl Into<TokenStream>) -> syn::Result<TokenStream> {
-    let input = syn::parse2::<AsmFmtInput>(input.into())?;
+    let input = syn::parse2::<IRFmtInput>(input.into())?;
     Ok(impl_parsable(input))
 }
 
-fn impl_parsable(input: AsmFmtInput) -> TokenStream {
+fn impl_parsable(input: IRFmtInput) -> TokenStream {
     let name = &input.ident;
 
     let (init_self, body) = match input.data {
@@ -99,7 +99,7 @@ impl ParserBuilder {
         }
     }
 
-    fn build(&self, attr: &AsmFormat) -> TokenStream {
+    fn build(&self, attr: &IRFormat) -> TokenStream {
         let elems = attr.format().elems.iter();
         elems.map(|e| self.build_elem(e, true)).collect()
     }
@@ -126,7 +126,7 @@ impl ParserBuilder {
 
     fn build_lit(&self, lit: &str, _toplevel: bool) -> TokenStream {
         quote! {
-            ::pliron::asmfmt::parsers::literal(#lit).parse_next(state_stream)?;
+            ::pliron::irfmt::parsers::literal(#lit).parse_next(state_stream)?;
         }
     }
 
@@ -135,7 +135,7 @@ impl ParserBuilder {
         T: quote::ToTokens,
     {
         quote! {
-            let #ident = ::pliron::asmfmt::parsers::from_parseable().parse_next(state_stream)?.0;
+            let #ident = ::pliron::irfmt::parsers::from_parseable().parse_next(state_stream)?.0;
         }
     }
 

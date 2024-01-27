@@ -235,9 +235,10 @@ mod test {
     use expect_test::expect;
 
     use crate::{
-        asmfmt::parsers::type_parser,
         context::Context,
-        dialects, location,
+        dialects,
+        irfmt::parsers::type_parser,
+        location,
         parsable::{self, state_stream_from_iterator},
     };
 

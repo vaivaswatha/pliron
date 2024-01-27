@@ -8,10 +8,6 @@ use combine::{
 use rustc_hash::FxHashMap;
 
 use crate::{
-    asmfmt::{
-        parsers::{spaced, type_parser},
-        printers::{iter_with_sep, list_with_sep},
-    },
     attribute::AttrObj,
     common_traits::{Named, Verify},
     context::{private::ArenaObj, ArenaCell, Context, Ptr},
@@ -19,6 +15,10 @@ use crate::{
     error::Result,
     identifier::Identifier,
     indented_block,
+    irfmt::{
+        parsers::{spaced, type_parser},
+        printers::{iter_with_sep, list_with_sep},
+    },
     linked_list::{private, ContainsLinkedList, LinkedList},
     location::{Located, Location},
     operation::Operation,
