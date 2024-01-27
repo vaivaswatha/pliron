@@ -8,14 +8,14 @@ use combine::{
 };
 
 use crate::{
-    asmfmt::printers::{functional_type, typed},
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
     impl_type,
+    irfmt::printers::{functional_type, list_with_sep},
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
-    printable::{self, Printable},
+    printable::{self, ListSeparator, Printable},
     r#type::{type_parser, Type, TypeObj},
 };
 
@@ -155,7 +155,12 @@ impl Printable for FunctionType {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        functional_type(typed(&self.inputs), typed(&self.results)).fmt(ctx, state, f)
+        let sep = ListSeparator::Char(',');
+        functional_type(
+            list_with_sep(&self.inputs, sep),
+            list_with_sep(&self.results, sep),
+        )
+        .fmt(ctx, state, f)
     }
 }
 

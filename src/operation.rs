@@ -8,7 +8,6 @@ use combine::{attempt, parser::char::spaces, position, token, Parser};
 use thiserror::Error;
 
 use crate::{
-    asmfmt::printers,
     attribute::AttributeDict,
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
@@ -21,7 +20,7 @@ use crate::{
     location::{Located, Location},
     op::{self, OpId, OpObj},
     parsable::{self, spaced, Parsable, ParseResult, StateStream},
-    printable::{self, ListSeparator, Printable},
+    printable::{self, Printable},
     r#type::{TypeObj, Typed},
     region::Region,
     use_def_lists::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
@@ -64,22 +63,6 @@ impl Printable for OpResult {
         write!(f, "{}", self.unique_name(ctx))
     }
 }
-
-/*
-impl Printable for Vec<OpResult> {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        state: &printable::State,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        let sep = ListSeparator::Char(',');
-        let results = self.iter().map(|r| r.unique_name(ctx));
-        printers::iter_with_sep(results, sep).fmt(ctx, state, f)?;
-        Ok(())
-    }
-}
-*/
 
 impl From<&OpResult> for Value {
     fn from(value: &OpResult) -> Self {
@@ -231,6 +214,11 @@ impl Operation {
         self.results.get(idx).map(|res| res.into())
     }
 
+    /// Get an iterator over the results of this operation.
+    pub fn results(&self) -> impl Iterator<Item = Value> + '_ {
+        self.results.iter().map(Into::into)
+    }
+
     /// Does any result of this operation have a use?
     pub fn has_use(&self) -> bool {
         self.results.iter().any(|res| res.def.has_use())
@@ -256,6 +244,11 @@ impl Operation {
     /// Get a reference to the opd_idx'th operand.
     pub fn get_operand(&self, opd_idx: usize) -> Option<Value> {
         self.operands.get(opd_idx).map(|opd| opd.get_def())
+    }
+
+    /// Get an iterator over the results of this operation.
+    pub fn operands(&self) -> impl Iterator<Item = Value> + '_ {
+        self.operands.iter().map(Operand::get_def)
     }
 
     /// Replace opd_idx'th operand with `other`.

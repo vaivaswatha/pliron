@@ -3,8 +3,8 @@
 //! `pliron` is an extensible compiler IR framework, inspired by MLIR
 //! and written in safe Rust.
 
-#[forbid(unsafe_code)]
-pub mod asmfmt;
+#![forbid(unsafe_code)]
+
 pub mod attribute;
 pub mod basic_block;
 pub mod common_traits;
@@ -14,6 +14,7 @@ pub mod dialect;
 pub mod dialects;
 pub mod error;
 pub mod identifier;
+pub mod irfmt;
 pub mod linked_list;
 pub mod location;
 pub mod op;

@@ -1,11 +1,11 @@
 use crate::{
-    asmfmt::printers::{enclosed, list_with_sep},
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
     identifier::Identifier,
     impl_type, input_err_noloc,
+    irfmt::printers::{enclosed, list_with_sep},
     location::{Located, Location},
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, ListSeparator, Printable},

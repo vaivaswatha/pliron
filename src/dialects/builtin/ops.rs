@@ -2,7 +2,6 @@ use combine::{token, Parser};
 use thiserror::Error;
 
 use crate::{
-    asmfmt::printers::op::{region, symb_op_header, typed_symb_op_header},
     attribute::{attr_cast, attr_parser, AttrObj},
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
@@ -13,6 +12,7 @@ use crate::{
     error::Result,
     identifier::Identifier,
     impl_op_interface, input_err,
+    irfmt::printers::op::{region, symb_op_header, typed_symb_op_header},
     linked_list::ContainsLinkedList,
     location::{Located, Location},
     op::{Op, OpObj},

@@ -8,13 +8,13 @@ use sorted_vector_map::SortedVectorMap;
 use thiserror::Error;
 
 use crate::{
-    asmfmt::printers::quoted,
     attribute::{AttrObj, Attribute},
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
     impl_attr, impl_attr_interface, input_err,
+    irfmt::printers::quoted,
     location::Located,
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},

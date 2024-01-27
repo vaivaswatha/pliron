@@ -1,4 +1,4 @@
-//! Object specific printers and asm_format directives.
+//! Object specific printers and ir_format directives.
 
 use std::fmt;
 

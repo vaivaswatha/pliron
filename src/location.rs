@@ -6,9 +6,9 @@ use combine::stream::position::SourcePosition;
 use rustc_hash::FxHashSet;
 
 use crate::{
-    asmfmt::printers::list_with_sep,
     attribute::AttrObj,
     context::Context,
+    irfmt::printers::list_with_sep,
     printable::{self, Printable},
     uniqued_any::{self, UniquedKey},
 };
