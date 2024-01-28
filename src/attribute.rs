@@ -102,7 +102,7 @@ impl Printable for AttrObj {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         write!(f, "{} ", self.get_attr_id())?;
-        Printable::fmt(self.as_ref(), ctx, state, f)
+        Printable::fmt(self.deref(), ctx, state, f)
     }
 }
 
