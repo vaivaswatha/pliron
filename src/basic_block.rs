@@ -15,11 +15,12 @@ use crate::{
     error::Result,
     identifier::Identifier,
     indented_block,
+    irfmt::printers::{iter_with_sep, list_with_sep},
     linked_list::{private, ContainsLinkedList, LinkedList},
     location::{Located, Location},
     operation::Operation,
     parsable::{self, spaced, IntoParseResult, Parsable, ParseResult},
-    printable::{self, indented_nl, ListSeparator, Printable, PrintableIter},
+    printable::{self, indented_nl, ListSeparator, Printable},
     r#type::{type_parser, TypeObj, Typed},
     region::Region,
     use_def_lists::{DefNode, Value},
@@ -306,9 +307,7 @@ impl Printable for BasicBlock {
             f,
             "^{}({}):",
             self.unique_name(ctx),
-            self.args
-                .iter()
-                .iprint(ctx, state, ListSeparator::Char(','))
+            list_with_sep(&self.args, ListSeparator::Char(',')).print(ctx, state),
         )?;
 
         indented_block!(state, {
@@ -316,8 +315,7 @@ impl Printable for BasicBlock {
                 f,
                 "{}{}",
                 indented_nl(state),
-                self.iter(ctx)
-                    .iprint(ctx, state, ListSeparator::CharNewline(';'))
+                iter_with_sep(self.iter(ctx), ListSeparator::CharNewline(';')).print(ctx, state),
             )?;
         });
 

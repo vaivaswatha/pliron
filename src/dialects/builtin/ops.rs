@@ -12,13 +12,14 @@ use crate::{
     error::Result,
     identifier::Identifier,
     impl_op_interface, input_err,
+    irfmt::printers::op::{region, symb_op_header, typed_symb_op_header},
     linked_list::ContainsLinkedList,
     location::{Located, Location},
     op::{Op, OpObj},
     operation::{process_parsed_ssa_defs, Operation},
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{type_parser, TypeObj},
+    r#type::{type_parser, TypeObj, Typed},
     region::Region,
     verify_err,
 };
@@ -58,13 +59,9 @@ impl Printable for ModuleOp {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(
-            f,
-            "{} @{} ",
-            self.get_opid().disp(ctx),
-            self.get_symbol_name(ctx),
-        )?;
-        self.get_region(ctx).fmt(ctx, state, f)?;
+        symb_op_header(self).fmt(ctx, state, f)?;
+        write!(f, " ")?;
+        region(self).fmt(ctx, state, f)?;
         Ok(())
     }
 }
@@ -202,6 +199,12 @@ impl FuncOp {
     }
 }
 
+impl Typed for FuncOp {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        self.get_type(ctx)
+    }
+}
+
 impl_op_interface!(OneRegionInterface for FuncOp {});
 impl_op_interface!(SymbolOpInterface for FuncOp {});
 impl_op_interface!(IsolatedFromAboveInterface for FuncOp {});
@@ -213,14 +216,9 @@ impl Printable for FuncOp {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(
-            f,
-            "{} @{}: {} ",
-            self.get_opid().disp(ctx),
-            self.get_symbol_name(ctx),
-            self.get_type(ctx).disp(ctx),
-        )?;
-        self.get_region(ctx).fmt(ctx, state, f)?;
+        typed_symb_op_header(self).fmt(ctx, state, f)?;
+        write!(f, " ")?;
+        region(self).fmt(ctx, state, f)?;
         Ok(())
     }
 }
@@ -347,7 +345,7 @@ impl Printable for ConstantOp {
         write!(
             f,
             "{} = {} {}",
-            self.get_result(ctx).unique_name(ctx),
+            self.get_result(ctx).disp(ctx),
             self.get_opid().disp(ctx),
             self.get_value(ctx).disp(ctx)
         )

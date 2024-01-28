@@ -285,9 +285,10 @@ impl Printable for TypeObj {
         &self,
         ctx: &Context,
         state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        Printable::fmt(self.as_ref(), ctx, state, f)
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        self.get_type_id().fmt(ctx, state, f)?;
+        <dyn Type as Printable>::fmt(self.deref(), ctx, state, f)
     }
 }
 
@@ -448,6 +449,6 @@ mod test {
         );
 
         let parsed = type_parser().parse(state_stream).unwrap().0;
-        assert_eq!(parsed.disp(&ctx).to_string(), "builtin.int <si32>");
+        assert_eq!(parsed.disp(&ctx).to_string(), "builtin.int<si32>");
     }
 }

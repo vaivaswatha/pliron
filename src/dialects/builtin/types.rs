@@ -13,8 +13,9 @@ use crate::{
     dialect::Dialect,
     error::Result,
     impl_type,
+    irfmt::printers::{functional_type, list_with_sep},
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
-    printable::{self, ListSeparator, Printable, PrintableIter},
+    printable::{self, ListSeparator, Printable},
     r#type::{type_parser, Type, TypeObj},
 };
 
@@ -85,11 +86,11 @@ impl Parsable for IntegerType {
 impl Printable for IntegerType {
     fn fmt(
         &self,
-        ctx: &Context,
+        _ctx: &Context,
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{} <", Self::get_type_id_static().disp(ctx))?;
+        write!(f, "<",)?;
         match &self.signedness {
             Signedness::Signed => write!(f, "si{}", self.width)?,
             Signedness::Unsigned => write!(f, "ui{}", self.width)?,
@@ -155,13 +156,11 @@ impl Printable for FunctionType {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         let sep = ListSeparator::Char(',');
-        write!(
-            f,
-            "{} <({}) -> ({})>",
-            Self::get_type_id_static().disp(ctx),
-            self.inputs.iter().iprint(ctx, state, sep),
-            self.results.iter().iprint(ctx, state, sep)
+        functional_type(
+            list_with_sep(&self.inputs, sep),
+            list_with_sep(&self.results, sep),
         )
+        .fmt(ctx, state, f)
     }
 }
 
@@ -220,11 +219,11 @@ impl UnitType {
 impl Printable for UnitType {
     fn fmt(
         &self,
-        ctx: &Context,
+        _ctx: &Context,
         _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
+        _f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{}", Self::get_type_id_static().disp(ctx),)
+        Ok(())
     }
 }
 

@@ -100,13 +100,9 @@ impl<'t, 'c, T: Printable> Display for Displayable<'t, 'c, T> {
 /// [disp](Self::disp) calls [print](Self::print) with a default [State],
 /// but otherwise, are both equivalent.
 ///
-/// [Iterator]s that are [Clone]able have the [PrintableIter] trait automatically
-/// implemented, providing corresponding methods [idisp](PrintableIter::idisp) and
-/// [iprint](PrintableIter::iprint).
-///
 /// Example:
 /// ```
-/// use pliron::{context::Context, printable::{State, Printable, ListSeparator, PrintableIter}};
+/// use pliron::{context::Context, printable::{State, Printable, ListSeparator}};
 /// use std::fmt;
 /// struct S {
 ///     i: i64,
@@ -124,7 +120,6 @@ impl<'t, 'c, T: Printable> Display for Displayable<'t, 'c, T> {
 /// let state = State::default();
 /// assert!(S { i: 0 }.print(&ctx, &state).to_string() == "0");
 /// let svec = vec![ S { i: 8 }, S { i: 16 } ];
-/// assert!(svec.iter().idisp(&ctx, ListSeparator::Char(',')).to_string() == "8,16");
 /// use pliron::{indented_block, printable::indented_nl};
 /// indented_block!(state, {
 ///     assert_eq!(format!("{}{}", indented_nl(&state), S { i: 108 }.print(&ctx, &state)), "\n  108");
@@ -156,7 +151,19 @@ pub trait Printable {
     }
 }
 
-impl<'a, T: Printable> Printable for &'a T {
+impl Printable for &str {
+    fn fmt(&self, _ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl Printable for String {
+    fn fmt(&self, _ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl<'a, T: Printable + ?Sized> Printable for &'a T {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         (*self).fmt(ctx, state, f)
     }
@@ -165,6 +172,8 @@ impl<'a, T: Printable> Printable for &'a T {
 #[derive(Clone, Copy)]
 /// When printing lists, how must they be separated
 pub enum ListSeparator {
+    /// No separator
+    None,
     /// Newline
     Newline,
     /// Character followed by a newline.
@@ -173,6 +182,21 @@ pub enum ListSeparator {
     Char(char),
     /// Single character followed by a space
     CharSpace(char),
+}
+
+impl Printable for ListSeparator {
+    fn fmt(&self, _ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ListSeparator::None => Ok(()),
+            ListSeparator::Newline => fmt_indented_newline(state, f),
+            ListSeparator::CharNewline(c) => {
+                write!(f, "{}", c)?;
+                fmt_indented_newline(state, f)
+            }
+            ListSeparator::Char(c) => write!(f, "{}", c),
+            ListSeparator::CharSpace(c) => write!(f, "{} ", c),
+        }
+    }
 }
 
 /// Iterate over [Item](Iterator::Item)s in an [Iterator] and print them.
@@ -191,21 +215,7 @@ where
         first.fmt(ctx, state, f)?;
     }
     for item in iter {
-        match sep {
-            ListSeparator::Newline => {
-                fmt_indented_newline(state, f)?;
-            }
-            ListSeparator::CharNewline(c) => {
-                write!(f, "{}", c)?;
-                fmt_indented_newline(state, f)?;
-            }
-            ListSeparator::Char(c) => {
-                write!(f, "{}", c)?;
-            }
-            ListSeparator::CharSpace(c) => {
-                write!(f, "{} ", c)?;
-            }
-        }
+        sep.fmt(ctx, state, f)?;
         item.fmt(ctx, state, f)?;
     }
     Ok(())
@@ -230,64 +240,6 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt_iter(self.iter.clone(), self.ctx, &self.state, self.sep, f)
-    }
-}
-
-/// Functionality to iterate over and print [Printable] [Item](Iterator::Item)s.
-/// Automatically implemented for suitable [Iterator]s.
-pub trait PrintableIter
-where
-    Self: Iterator + Clone,
-    Self::Item: Printable,
-{
-    fn fmt(
-        self,
-        ctx: &Context,
-        state: &State,
-        sep: ListSeparator,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result;
-
-    /// Get a [Display]'able object from the given [Context] and default [State].
-    fn idisp<'c>(self, ctx: &'c Context, sep: ListSeparator) -> Box<dyn Display + 'c>
-    where
-        Self: Sized + 'c,
-    {
-        self.iprint(ctx, &State::default(), sep)
-    }
-
-    /// Get a [Display]'able object from the given [Context] and [State].
-    fn iprint<'c>(
-        self,
-        ctx: &'c Context,
-        state: &State,
-        sep: ListSeparator,
-    ) -> Box<dyn Display + 'c>
-    where
-        Self: Sized + 'c,
-    {
-        Box::new(DisplayableIter {
-            iter: self,
-            ctx,
-            state: state.share(),
-            sep,
-        })
-    }
-}
-
-impl<I> PrintableIter for I
-where
-    I: Iterator + Clone,
-    I::Item: Printable,
-{
-    fn fmt(
-        self,
-        ctx: &Context,
-        state: &State,
-        sep: ListSeparator,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        fmt_iter(self, ctx, state, sep, f)
     }
 }
 

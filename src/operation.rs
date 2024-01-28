@@ -53,6 +53,17 @@ impl Typed for OpResult {
     }
 }
 
+impl Printable for OpResult {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(f, "{}", self.unique_name(ctx))
+    }
+}
+
 impl From<&OpResult> for Value {
     fn from(value: &OpResult) -> Self {
         Value::OpResult {
@@ -203,6 +214,11 @@ impl Operation {
         self.results.get(idx).map(|res| res.into())
     }
 
+    /// Get an iterator over the results of this operation.
+    pub fn results(&self) -> impl Iterator<Item = Value> + '_ {
+        self.results.iter().map(Into::into)
+    }
+
     /// Does any result of this operation have a use?
     pub fn has_use(&self) -> bool {
         self.results.iter().any(|res| res.def.has_use())
@@ -228,6 +244,11 @@ impl Operation {
     /// Get a reference to the opd_idx'th operand.
     pub fn get_operand(&self, opd_idx: usize) -> Option<Value> {
         self.operands.get(opd_idx).map(|opd| opd.get_def())
+    }
+
+    /// Get an iterator over the results of this operation.
+    pub fn operands(&self) -> impl Iterator<Item = Value> + '_ {
+        self.operands.iter().map(Operand::get_def)
     }
 
     /// Replace opd_idx'th operand with `other`.

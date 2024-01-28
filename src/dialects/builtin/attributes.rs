@@ -14,10 +14,11 @@ use crate::{
     dialect::Dialect,
     error::Result,
     impl_attr, impl_attr_interface, input_err,
+    irfmt::printers::quoted,
     location::Located,
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{type_parser, TypeObj},
+    r#type::{type_parser, TypeObj, Typed},
     verify_err_noloc,
 };
 
@@ -45,11 +46,11 @@ impl From<StringAttr> for String {
 impl Printable for StringAttr {
     fn fmt(
         &self,
-        _ctx: &Context,
-        _state: &printable::State,
+        ctx: &Context,
+        state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{} {:?}", Self::get_attr_id_static(), self.0)
+        quoted(&self.0).fmt(ctx, state, f)
     }
 }
 
@@ -118,13 +119,7 @@ impl Printable for IntegerAttr {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(
-            f,
-            "{} <0x{:x}: {}>",
-            Self::get_attr_id_static(),
-            self.val,
-            self.ty.disp(ctx)
-        )
+        write!(f, "<0x{:x}: {}>", self.val, self.ty.disp(ctx))
     }
 }
 
@@ -176,6 +171,12 @@ impl Parsable for IntegerAttr {
     }
 }
 
+impl Typed for IntegerAttr {
+    fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
+        self.ty
+    }
+}
+
 impl_attr_interface!(TypedAttrInterface for IntegerAttr {
     fn get_type(&self) -> Ptr<TypeObj> {
         self.ty
@@ -220,6 +221,12 @@ impl FloatAttr {
 impl From<FloatAttr> for APFloat {
     fn from(value: FloatAttr) -> Self {
         value.0
+    }
+}
+
+impl Typed for FloatAttr {
+    fn get_type(&self, _cfg: &Context) -> Ptr<TypeObj> {
+        TypedAttrInterface::get_type(self)
     }
 }
 
@@ -378,11 +385,11 @@ impl UnitAttr {
 impl Printable for UnitAttr {
     fn fmt(
         &self,
-        ctx: &Context,
+        _ctx: &Context,
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{}", self.get_attr_id().disp(ctx))
+        write!(f, "()")
     }
 }
 
@@ -423,7 +430,7 @@ impl Printable for TypeAttr {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{} <{}>", self.get_attr_id().disp(ctx), self.0.disp(ctx))
+        write!(f, "<{}>", self.0.disp(ctx))
     }
 }
 
@@ -445,6 +452,12 @@ impl Parsable for TypeAttr {
 impl Verify for TypeAttr {
     fn verify(&self, _ctx: &Context) -> Result<()> {
         Ok(())
+    }
+}
+
+impl Typed for TypeAttr {
+    fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
+        self.0
     }
 }
 
@@ -499,11 +512,11 @@ mod tests {
         assert!(int64_0_ptr == int64_0_ptr2);
         assert_eq!(
             int64_0_ptr.disp(&ctx).to_string(),
-            "builtin.integer <0x0: builtin.int <si64>>"
+            "builtin.integer <0x0: builtin.int<si64>>"
         );
         assert_eq!(
             int64_1_ptr.disp(&ctx).to_string(),
-            "builtin.integer <0xf: builtin.int <si64>>"
+            "builtin.integer <0xf: builtin.int<si64>>"
         );
         assert!(
             ApInt::from(int64_0_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()).is_zero()

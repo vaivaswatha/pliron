@@ -8,7 +8,8 @@ use rustc_hash::FxHashSet;
 use crate::{
     attribute::AttrObj,
     context::Context,
-    printable::{self, Printable, PrintableIter},
+    irfmt::printers::list_with_sep,
+    printable::{self, Printable},
     uniqued_any::{self, UniquedKey},
 };
 
@@ -134,9 +135,7 @@ impl Printable for Location {
                 write!(
                     f,
                     "[{}]",
-                    locations
-                        .iter()
-                        .idisp(ctx, printable::ListSeparator::CharSpace(','))
+                    list_with_sep(locations, printable::ListSeparator::CharSpace(',')).disp(ctx),
                 )
             }
             Self::Named { name, child_loc } => {
