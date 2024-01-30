@@ -12,7 +12,7 @@ use crate::{
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
     context::{private::ArenaObj, ArenaCell, Context, Ptr},
-    debug_info::{self, set_operation_result_name},
+    debug_info::{self},
     error::Result,
     identifier::Identifier,
     input_err,

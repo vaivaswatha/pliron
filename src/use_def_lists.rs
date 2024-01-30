@@ -21,13 +21,12 @@ use crate::{
     context::{Context, Ptr},
     linked_list::{ContainsLinkedList, LinkedList},
     operation::Operation,
-    parsable::Parsable,
     printable::Printable,
     r#type::{TypeObj, Typed},
 };
 
 /// def-use chains are implemented for [Value]s and `Ptr<BasicBlock`.
-pub trait DefUseParticipant: Copy + Hash + Eq {}
+pub(crate) trait DefUseParticipant: Copy + Hash + Eq {}
 impl DefUseParticipant for Value {}
 impl DefUseParticipant for Ptr<BasicBlock> {}
 
