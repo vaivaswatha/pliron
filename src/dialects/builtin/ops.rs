@@ -14,7 +14,7 @@ use crate::{
     impl_op_interface, input_err,
     irfmt::{
         parsers::{attr_parser, process_parsed_ssa_defs, spaced, type_parser},
-        printers::{attr, concat, region, symb_op_header},
+        printers::{attr, concat, region, symb_op_header, typed_symb_op_header},
     },
     linked_list::ContainsLinkedList,
     location::{Located, Location},
@@ -62,7 +62,9 @@ impl Printable for ModuleOp {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        concat((symb_op_header(self), " ", region(self))).fmt(ctx, state, f)?;
+        symb_op_header(self).fmt(ctx, state, f)?;
+        write!(f, " ")?;
+        region(self).fmt(ctx, state, f)?;
         Ok(())
     }
 }
@@ -217,14 +219,10 @@ impl Printable for FuncOp {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        concat((
-            symb_op_header(self),
-            ": ",
-            self.get_type(ctx),
-            " ",
-            region(self),
-        ))
-        .fmt(ctx, state, f)
+        typed_symb_op_header(self).fmt(ctx, state, f)?;
+        write!(f, " ")?;
+        region(self).fmt(ctx, state, f)?;
+        Ok(())
     }
 }
 
@@ -347,16 +345,13 @@ impl Printable for ConstantOp {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        let op = self.get_operation().deref(ctx);
-        concat((
-            self.get_result(ctx),
-            " = ",
-            self.get_opid(),
-            " ",
-            attr(&op, Self::ATTR_KEY_VALUE),
-        ))
-        .fmt(ctx, state, f)?;
-        Ok(())
+        write!(
+            f,
+            "{} = {} {}",
+            self.get_result(ctx).disp(ctx),
+            self.get_opid().disp(ctx),
+            self.get_value(ctx).disp(ctx)
+        )
     }
 }
 

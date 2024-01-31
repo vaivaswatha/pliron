@@ -122,7 +122,7 @@ impl Printable for IntegerAttr {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        concat(("<", format!("0x{:x}", self.val), ": ", &self.ty, ">")).fmt(ctx, _state, f)
+        write!(f, "<0x{:x}: {}>", self.val, self.ty.disp(ctx))
     }
 }
 
@@ -433,7 +433,7 @@ impl Printable for TypeAttr {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        concat(("<", self.0, ">")).fmt(ctx, state, f)
+        write!(f, "<{}>", self.0.disp(ctx))
     }
 }
 
@@ -516,11 +516,11 @@ mod tests {
         assert!(int64_0_ptr == int64_0_ptr2);
         assert_eq!(
             int64_0_ptr.disp(&ctx).to_string(),
-            "builtin.integer <0x0: builtin.int <si64>>"
+            "builtin.integer <0x0: builtin.int<si64>>"
         );
         assert_eq!(
             int64_1_ptr.disp(&ctx).to_string(),
-            "builtin.integer <0xf: builtin.int <si64>>"
+            "builtin.integer <0xf: builtin.int<si64>>"
         );
         assert!(
             ApInt::from(int64_0_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()).is_zero()

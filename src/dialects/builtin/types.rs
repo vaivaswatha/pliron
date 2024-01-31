@@ -15,10 +15,10 @@ use crate::{
     impl_type,
     irfmt::{
         parsers::{spaced, type_parser},
-        printers::{functional_type, typed},
+        printers::{functional_type, list_with_sep},
     },
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
-    printable::{self, Printable},
+    printable::{self, ListSeparator, Printable},
     r#type::{Type, TypeObj},
 };
 
@@ -158,7 +158,12 @@ impl Printable for FunctionType {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        functional_type(typed(&self.inputs), typed(&self.results)).fmt(ctx, state, f)
+        let sep = ListSeparator::Char(',');
+        functional_type(
+            list_with_sep(&self.inputs, sep),
+            list_with_sep(&self.results, sep),
+        )
+        .fmt(ctx, state, f)
     }
 }
 

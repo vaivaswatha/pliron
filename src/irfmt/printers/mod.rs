@@ -1,3 +1,8 @@
+//! Printers for IR objects.
+//!
+//! This module provides a set of reusable printers for IR objects.
+//! The printers are also used by the Printable derive macro.
+
 use std::fmt;
 
 use crate::{
@@ -39,32 +44,6 @@ pub fn disp(disp: impl fmt::Display) -> impl Printable {
 /// Print a plain string as is.
 pub fn literal(lit: &str) -> impl Printable + '_ {
     disp(lit)
-}
-
-/// Print a list of items separated by [sep].
-pub fn list_with_sep<T: Printable>(items: &[T], sep: ListSeparator) -> impl Printable + '_ {
-    iter_with_sep(items.iter(), sep)
-}
-
-/// Print an iterator of items separated by [sep].
-pub fn iter_with_sep<I>(iter: I, sep: ListSeparator) -> impl Printable
-where
-    I: Iterator + Clone,
-    I::Item: Printable,
-{
-    PrinterFn(
-        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
-            fmt_iter(iter.clone(), ctx, state, sep, f)
-        },
-    )
-}
-
-pub fn symb_op_header<T: Op + SymbolOpInterface>(op: &T) -> impl Printable + '_ {
-    PrinterFn(
-        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
-            concat((op.get_opid(), " @", op.get_symbol_name(ctx))).fmt(ctx, state, f)
-        },
-    )
 }
 
 /// Print a string as a quoted string.
@@ -175,6 +154,35 @@ impl PrintableTag {
     }
 }
 
+/// Print a list of items separated by `sep`.
+pub fn list_with_sep<T: Printable>(items: &[T], sep: ListSeparator) -> impl Printable + '_ {
+    iter_with_sep(items.iter(), sep)
+}
+
+/// Print an iterator of items separated by `sep`.
+pub fn iter_with_sep<I>(iter: I, sep: ListSeparator) -> impl Printable
+where
+    I: Iterator + Clone,
+    I::Item: Printable,
+{
+    PrinterFn(
+        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
+            fmt_iter(iter.clone(), ctx, state, sep, f)
+        },
+    )
+}
+
+/// Print `p` enclosed by `left` and `right`.
+pub fn enclosed<P: Printable>(left: &'static str, right: &'static str, p: P) -> impl Printable {
+    PrinterFn(
+        move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
+            write!(f, "{}", left)?;
+            p.fmt(ctx, state, f)?;
+            write!(f, "{}", right)
+        },
+    )
+}
+
 /// Concatenate a heterogeneous list of printable items.
 ///
 /// For example this will create a printer that prints "foobar":
@@ -192,10 +200,6 @@ pub fn concat_with_sep<List: PrinterList>(sep: ListSeparator, items: List) -> im
             items.fmt(ctx, state, sep, f)
         },
     )
-}
-
-pub fn enclosed<P: Printable>(left: &'static str, right: &'static str, p: P) -> impl Printable {
-    concat((literal(left), p, literal(right)))
 }
 
 // locally typed alias for to capture and print a comma separated list of attributes via tuples.
@@ -295,41 +299,17 @@ pub trait PrinterCheck {
     fn check(&self, ctx: &Context) -> bool;
 }
 
-impl PrinterCheck for bool {
-    fn check(&self, _ctx: &Context) -> bool {
-        *self
-    }
-}
-
-impl<T: PrinterCheck> PrinterCheck for &T {
-    fn check(&self, ctx: &Context) -> bool {
-        (*self).check(ctx)
-    }
-}
-
-impl<T: PrinterCheck> PrinterCheck for Box<T> {
-    fn check(&self, ctx: &Context) -> bool {
-        (**self).check(ctx)
-    }
-}
-
-impl<T: PrinterCheck> PrinterCheck for Option<T> {
-    fn check(&self, ctx: &Context) -> bool {
-        match self {
-            Some(v) => v.check(ctx),
-            None => false,
-        }
-    }
-}
-
-impl<T> PrinterCheck for Vec<T> {
-    fn check(&self, _ctx: &Context) -> bool {
-        !self.is_empty()
-    }
-}
-
 impl<T: PrinterCheck + ArenaObj> PrinterCheck for Ptr<T> {
     fn check(&self, ctx: &Context) -> bool {
         self.deref(ctx).check(ctx)
+    }
+}
+
+impl<I, T> PrinterCheck for I
+where
+    I: Iterator<Item = T> + Clone,
+{
+    fn check(&self, ctx: &Context) -> bool {
+        self.clone().next().is_some()
     }
 }

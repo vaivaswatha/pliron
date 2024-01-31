@@ -262,8 +262,7 @@ impl Printable for TypeObj {
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
         self.get_type_id().fmt(ctx, state, f)?;
-        write!(f, " ")?;
-        <dyn Type as Printable>::fmt(self.deref(), ctx, state, f)
+        Printable::fmt(self.deref(), ctx, state, f)
     }
 }
 

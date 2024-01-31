@@ -284,7 +284,7 @@ mod test {
         let parsed = type_parser().parse(state_stream).unwrap().0;
         assert_eq!(
             crate::printable::Printable::disp(&parsed, &ctx).to_string(),
-            "builtin.int <si32>"
+            "builtin.int<si32>"
         );
     }
 }

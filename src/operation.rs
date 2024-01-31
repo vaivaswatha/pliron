@@ -232,7 +232,7 @@ impl Operation {
         self.results.get(idx).map(|res| res.into())
     }
 
-    /// Get an iterator on the operation results.
+    /// Get an iterator over the results of this operation.
     pub fn results(&self) -> Results<'_> {
         Results::new(&self.results)
     }
@@ -262,6 +262,11 @@ impl Operation {
     /// Get a reference to the opd_idx'th operand.
     pub fn get_operand(&self, opd_idx: usize) -> Option<Value> {
         self.operands.get(opd_idx).map(|opd| opd.get_def())
+    }
+
+    /// Get an iterator over the results of this operation.
+    pub fn operands(&self) -> impl Iterator<Item = Value> + '_ {
+        self.operands.iter().map(Operand::get_def)
     }
 
     /// Replace opd_idx'th operand with `other`.
