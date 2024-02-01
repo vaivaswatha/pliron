@@ -5,6 +5,9 @@
 
 #![forbid(unsafe_code)]
 
+// Allow proc-macros to find this crate
+extern crate self as pliron;
+
 pub mod attribute;
 pub mod basic_block;
 pub mod common_traits;

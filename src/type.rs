@@ -6,7 +6,7 @@
 //!
 //! See [MLIR Types](https://mlir.llvm.org/docs/DefiningDialects/AttributesAndTypes/#types)
 //!
-//! The [impl_type](crate::impl_type) macro can be used to implement [Type] for a rust type.
+//! The `#[def_type]` proc macro from [pliron-derive] can be used to implement [Type] for a rust type.
 
 use crate::common_traits::Verify;
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
@@ -295,72 +295,6 @@ impl Printable for TypeObj {
 impl Verify for TypeObj {
     fn verify(&self, ctx: &Context) -> Result<()> {
         self.as_ref().verify(ctx)
-    }
-}
-
-/// impl [Type] for a rust type
-///
-/// Usage:
-/// ```
-/// #[derive(PartialEq, Eq, Hash, Debug)]
-/// struct MyType { }
-/// impl_type!(
-///     /// MyType is mine
-///     MyType,
-///     "name",
-///     "dialect"
-/// );
-/// # use pliron::{
-/// #     impl_type, printable::{self, Printable},
-/// #     context::Context, error::Result, common_traits::Verify,
-/// #     storage_uniquer::TypeValueHash, r#type::Type,
-/// # };
-/// # impl Printable for MyType {
-/// #    fn fmt(&self,
-/// #           _ctx: &Context,
-/// #          _state: &printable::State,
-/// #          _f: &mut core::fmt::Formatter<'_>)
-/// #    -> core::fmt::Result
-/// #    {
-/// #        todo!()
-/// #    }
-/// # }
-/// #
-/// # impl Verify for MyType {
-/// #   fn verify(&self, _ctx: &Context) -> Result<()> {
-/// #        todo!()
-/// #    }
-/// # }
-/// ```
-/// **Note**: pre-requisite traits for [Type] must already be implemented.
-///         Additionaly, Hash and Eq must be implemented by the rust type.
-#[macro_export]
-macro_rules! impl_type {
-    (   $(#[$outer:meta])*
-        $structname: ident, $type_name: literal, $dialect_name: literal) => {
-        $(#[$outer])*
-        impl $crate::r#type::Type for $structname {
-            fn hash_type(&self) -> $crate::storage_uniquer::TypeValueHash {
-                $crate::storage_uniquer::TypeValueHash::new(self)
-            }
-
-            fn eq_type(&self, other: &dyn Type) -> bool {
-                other
-                    .downcast_ref::<Self>()
-                    .map_or(false, |other| other == self)
-            }
-
-            fn get_type_id(&self) -> $crate::r#type::TypeId {
-                Self::get_type_id_static()
-            }
-
-            fn get_type_id_static() -> $crate::r#type::TypeId {
-                $crate::r#type::TypeId {
-                    name: $crate::r#type::TypeName::new($type_name),
-                    dialect: $crate::dialect::DialectName::new($dialect_name),
-                }
-            }
-        }
     }
 }
 

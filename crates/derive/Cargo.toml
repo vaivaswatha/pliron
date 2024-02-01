@@ -1,0 +1,19 @@
+[package]
+name = "pliron-derive"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0.72"
+quote = "1.0.33"
+syn = { version = "2.0.43", features = ["derive"] }

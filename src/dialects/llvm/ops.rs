@@ -1,7 +1,6 @@
 use crate::{
     common_traits::Verify,
     context::Context,
-    declare_op,
     dialect::Dialect,
     dialects::builtin::op_interfaces::{IsTerminatorInterface, ZeroResultVerifyErr},
     error::Result,
@@ -16,19 +15,18 @@ use crate::{
 };
 
 use combine::parser::Parser;
+use pliron_derive::def_op;
 
-declare_op!(
-    /// Equivalent to LLVM's return opcode.
-    ///
-    /// Operands:
-    ///
-    /// | operand | description |
-    /// |-----|-------|
-    /// | `arg` | any type |
-    ReturnOp,
-    "return",
-    "llvm"
-);
+/// Equivalent to LLVM's return opcode.
+///
+/// Operands:
+///
+/// | operand | description |
+/// |-----|-------|
+/// | `arg` | any type |
+#[def_op]
+#[op_name = "llvm.return"]
+pub struct ReturnOp {}
 
 impl ReturnOp {
     pub fn new_unlinked(ctx: &mut Context, value: Value) -> ReturnOp {

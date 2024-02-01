@@ -7,7 +7,8 @@
 //! They are heavy (i.e., not just a pointer, handle or reference),
 //! making clones potentially expensive.
 //!
-//! The [impl_attr](crate::impl_attr) macro can be used to implement [Attribute] for a rust type.
+//! The `#[def_attribute]` proc macro from the pliron-derive create can be used to implement
+//! [Attribute] for a rust type.
 //!
 //! Common semantics, API and behaviour of [Attribute]s are
 //! abstracted into interfaces. Interfaces in pliron capture MLIR
@@ -252,101 +253,16 @@ pub fn attr_parser<'a>(
 /// Every attribute interface must have a function named `verify` with this type.
 pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 
-/// impl [Attribute] for a rust type.
-///
-/// Usage:
-/// ```
-/// #[derive(PartialEq, Eq, Clone, Debug)]
-/// struct MyAttr { }
-/// impl_attr!(
-///     /// MyAttr is mine
-///     MyAttr,
-///     "name",
-///     "dialect"
-/// );
-/// # use pliron::{
-/// #     impl_attr, printable::{self, Printable},
-/// #     context::Context, error::Result, common_traits::Verify,
-/// #     attribute::Attribute,
-/// # };
-/// # impl Printable for MyAttr {
-/// #    fn fmt(&self,
-/// #           _ctx: &Context,
-/// #           _state: &printable::State,
-/// #           _f: &mut core::fmt::Formatter<'_>)
-/// #        -> core::fmt::Result
-/// #    {
-/// #        todo!()
-/// #    }
-/// # }
-///
-/// # impl Verify for MyAttr {
-/// #   fn verify(&self, _ctx: &Context) -> Result<()> {
-/// #        todo!()
-/// #    }
-/// # }
-/// ```
-/// **Note**: pre-requisite traits for [Attribute] must already be implemented.
-///         Additionaly, PartialEq must be implemented by the type.
-#[macro_export]
-macro_rules! impl_attr {
-    (   $(#[$outer:meta])*
-        $structname: ident, $attr_name: literal, $dialect_name: literal) => {
-        paste::paste!{
-            #[allow(non_camel_case_types)]
-            pub struct [<AttrInterfaceVerifier_ $structname>](pub $crate::attribute::AttrInterfaceVerifier);
-            impl $structname {
-                pub const fn build_interface_verifier(verifier: $crate::attribute::AttrInterfaceVerifier) ->
-                [<AttrInterfaceVerifier_ $structname>] {
-                    [<AttrInterfaceVerifier_ $structname>](verifier)
-                }
-            }
-            inventory::collect!([<AttrInterfaceVerifier_ $structname>]);
-        }
-        $(#[$outer])*
-        impl $crate::attribute::Attribute for $structname {
-            fn eq_attr(&self, other: &dyn Attribute) -> bool {
-                other
-                    .downcast_ref::<Self>()
-                    .map_or(false, |other| other == self)
-            }
-
-            fn get_attr_id(&self) -> $crate::attribute::AttrId {
-                Self::get_attr_id_static()
-            }
-
-            fn get_attr_id_static() -> $crate::attribute::AttrId {
-                $crate::attribute::AttrId {
-                    name: $crate::attribute::AttrName::new($attr_name),
-                    dialect: $crate::dialect::DialectName::new($dialect_name),
-                }
-            }
-            fn verify_interfaces(&self, ctx: &Context) -> $crate::error::Result<()> {
-                let interface_verifiers = paste::paste!{
-                    inventory::iter::<[<AttrInterfaceVerifier_ $structname>]>
-                };
-                for verifier in interface_verifiers {
-                    (verifier.0)(self, ctx)?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
 /// Implement an Attribute Interface for an Attribute.
 /// The interface trait must define a `verify` function with type [AttrInterfaceVerifier].
 ///
 /// Usage:
 /// ```
+/// #[def_attribute]
+/// #[attr_name = "dialect.name"]
 /// #[derive(PartialEq, Eq, Clone, Debug)]
 /// struct MyAttr { }
-/// impl_attr!(
-///     /// MyAttr is mine
-///     MyAttr,
-///     "name",
-///     "dialect"
-/// );
+///
 /// trait MyAttrInterface: Attribute {
 ///     fn monu(&self);
 ///     fn verify(attr: &dyn Attribute, ctx: &Context) -> Result<()>
@@ -363,10 +279,12 @@ macro_rules! impl_attr {
 ///     }
 /// );
 /// # use pliron::{
-/// #     impl_attr, printable::{self, Printable},
+/// #     printable::{self, Printable},
 /// #     context::Context, error::Result, common_traits::Verify,
 /// #     attribute::Attribute, impl_attr_interface
 /// # };
+/// # use pliron_derive::def_attribute;
+/// #
 /// # impl Printable for MyAttr {
 /// #    fn fmt(&self, _ctx: &Context, _state: &printable::State, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 /// #        todo!()
