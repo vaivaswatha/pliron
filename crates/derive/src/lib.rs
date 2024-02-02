@@ -24,7 +24,7 @@ use proc_macro::TokenStream;
 /// pub struct StringAttr(String);
 /// ```
 ///
-/// **Note**: pre-requisite traits for [Attribute] must already be implemented.
+/// **Note**: pre-requisite traits for `Attribute` must already be implemented.
 ///         Additionaly, PartialEq must be implemented by the type.
 #[proc_macro_attribute]
 pub fn def_attribute(_args: TokenStream, input: TokenStream) -> TokenStream {
@@ -48,7 +48,7 @@ pub fn def_attribute(_args: TokenStream, input: TokenStream) -> TokenStream {
 /// pub struct UnitType();
 /// ```
 ///
-/// **Note**: pre-requisite traits for [Type] must already be implemented.
+/// **Note**: pre-requisite traits for `Type` must already be implemented.
 ///         Additionaly, Hash and Eq must be implemented by the rust type.
 #[proc_macro_attribute]
 pub fn def_type(_args: TokenStream, input: TokenStream) -> TokenStream {

@@ -135,7 +135,7 @@ impl From<DefTypeInput> for DefType {
 
 impl ToTokens for DefType {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.extend(impl_type(&self));
+        tokens.extend(impl_type(self));
     }
 }
 

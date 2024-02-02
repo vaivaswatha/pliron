@@ -121,7 +121,7 @@ impl From<DefOpInput> for DefOp {
 
 impl ToTokens for DefOp {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.extend(impl_op(&self));
+        tokens.extend(impl_op(self));
     }
 }
 
