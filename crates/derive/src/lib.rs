@@ -44,6 +44,11 @@ pub fn derive_not_parsable_attribute(input: TokenStream) -> TokenStream {
     to_token_stream(derive_parseable::derive_not_parsable_attribute(input))
 }
 
+#[proc_macro_derive(NotParsableOp)]
+pub fn derive_not_parsable_op(input: TokenStream) -> TokenStream {
+    to_token_stream(derive_parseable::derive_not_parsable_op(input))
+}
+
 pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> TokenStream {
     let tokens = match res {
         Ok(tokens) => tokens,

@@ -47,6 +47,25 @@ pub(crate) fn derive_not_parsable_attribute(input: impl Into<TokenStream>) -> Re
     })
 }
 
+pub(crate) fn derive_not_parsable_op(input: impl Into<TokenStream>) -> Result<TokenStream> {
+    let input = syn::parse2::<DeriveInput>(input.into())?;
+    let name = input.ident;
+    Ok(quote! {
+        impl ::pliron::parsable::Parsable for #name {
+            type Arg = Vec<(::pliron::identifier::Identifier, ::pliron::location::Location)>;
+            type Parsed = ::pliron::op::OpObj;
+
+            fn parse<'a>(
+                _state_stream: &mut ::pliron::parsable::StateStream<'a>,
+                _arg: Self::Arg,
+            ) -> ::pliron::parsable::ParseResult<'a, Self::Parsed> {
+                todo!()
+            }
+
+        }
+    })
+}
+
 pub(crate) fn derive(input: impl Into<TokenStream>) -> syn::Result<TokenStream> {
     let input = syn::parse2::<IRFmtInput>(input.into())?;
     Ok(impl_parsable(input))
