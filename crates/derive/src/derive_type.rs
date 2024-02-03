@@ -1,168 +1,85 @@
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
-use syn::{
-    parse::{Parse, ParseStream},
-    DeriveInput, Result,
-};
+use syn::{DeriveInput, LitStr, Result};
 
-use crate::{
-    attr::{require_once, Attribute, DialectName, TypeName},
-    derive_shared::build_struct_body,
-};
+const PROC_MACRO_NAME: &str = "def_type";
 
-pub(crate) fn def_type(input: impl Into<TokenStream>) -> syn::Result<TokenStream> {
-    let input = syn::parse2::<DefTypeInput>(input.into())?;
-    let p = DefType::from(input);
+pub(crate) fn def_type(
+    args: impl Into<TokenStream>,
+    input: impl Into<TokenStream>,
+) -> syn::Result<TokenStream> {
+    let name = syn::parse2::<LitStr>(args.into())?;
+    let input = syn::parse2::<DeriveInput>(input.into())?;
+    let p = DefType::derive(name, input)?;
     Ok(p.into_token_stream())
 }
 
 /// Input for the `#[def_type]` proc macro.
-struct DefTypeInput {
-    vis: syn::Visibility,
-    ident: syn::Ident,
-    generics: syn::Generics,
-    data: syn::Data,
-    attrs: Attrs,
+struct DefType {
+    input: DeriveInput,
+    impl_type: ImplType,
 }
 
-impl Parse for DefTypeInput {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let input = DeriveInput::parse(input)?;
-        Self::try_from(input)
-    }
-}
-
-impl TryFrom<DeriveInput> for DefTypeInput {
-    type Error = syn::Error;
-
-    fn try_from(input: DeriveInput) -> Result<Self> {
-        let attrs = Attrs::try_from(&input)?;
-        let data @ syn::Data::Struct(_) = input.data else {
+impl DefType {
+    fn derive(name: LitStr, input: DeriveInput) -> Result<Self> {
+        let name_str = name.value();
+        let Some((dialect_name, type_name)) = name_str.split_once('.') else {
             return Err(syn::Error::new_spanned(
-                &input,
-                "Type can only be derived for structs",
+                name,
+                "type_name must be in the form `dialect.type_name`",
             ));
         };
-        Ok(Self {
-            vis: input.vis,
-            generics: input.generics,
-            data,
-            ident: input.ident,
-            attrs,
-        })
-    }
-}
 
-/// Attributes supported  by the `#[def_type]` proc macro.
-///
-/// The `dialect` attribute is extracted from the `type_name` attribute if the user used the dot
-/// notation like `#[type_name = "dialect.type_name"]`.
-struct Attrs {
-    dialect: DialectName,
-    type_name: TypeName,
-    attributes: Vec<syn::Attribute>,
-}
-
-impl TryFrom<&DeriveInput> for Attrs {
-    type Error = syn::Error;
-
-    fn try_from(input: &DeriveInput) -> Result<Self> {
-        Self::from_syn(input.ident.span(), &input.attrs)
-    }
-}
-
-impl Attrs {
-    fn from_syn(span: Span, input: &[syn::Attribute]) -> Result<Self> {
-        let mut dialect = None;
-        let mut type_name = None;
-        let mut attributes = vec![];
-
-        for attr in input {
-            if attr.path().is_ident("def_type") {
-                continue;
-            } else if attr.path().is_ident(DialectName::ATTR_NAME) {
-                require_once(DialectName::ATTR_NAME, &dialect, attr)?;
-                dialect = Some(DialectName::from_syn(attr)?);
-            } else if attr.path().is_ident(TypeName::ATTR_NAME) {
-                require_once(TypeName::ATTR_NAME, &type_name, attr)?;
-                match TypeName::from_syn_opt_dialect(attr)? {
-                    (Some(d), n) => {
-                        require_once("dialect", &dialect, attr)?;
-                        dialect = Some(d);
-                        type_name = Some(n);
-                    }
-                    (None, n) => {
-                        type_name = Some(n);
-                    }
-                }
-            } else {
-                attributes.push(attr.clone());
+        match input.data {
+            syn::Data::Struct(_) => {}
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    &input,
+                    "Type can only be derived for structs",
+                ));
             }
         }
 
-        let Some(dialect) = dialect else {
-            return Err(err_struct_attrib_required(span, "dialect"));
+        let attrs: Vec<_> = input
+            .attrs
+            .into_iter()
+            .filter(|attr| !attr.path().is_ident(PROC_MACRO_NAME))
+            .collect();
+        let input = DeriveInput { attrs, ..input };
+
+        let impl_type = ImplType {
+            ident: input.ident.clone(),
+            dialect_name: dialect_name.to_string(),
+            type_name: type_name.to_string(),
         };
-        let Some(type_name) = type_name else {
-            return Err(err_struct_attrib_required(span, "type_name"));
-        };
-
-        Ok(Self {
-            dialect,
-            type_name,
-            attributes,
-        })
-    }
-}
-
-fn err_struct_attrib_required(span: Span, attr: &str) -> syn::Error {
-    syn::Error::new(
-        span,
-        format!("{} attribute must be applied to the struct", attr),
-    )
-}
-
-/// The derived macro body for the `#[def_type]` proc macro.
-struct DefType {
-    input: DefTypeInput,
-}
-
-impl From<DefTypeInput> for DefType {
-    fn from(input: DefTypeInput) -> Self {
-        Self { input }
+        Ok(Self { input, impl_type })
     }
 }
 
 impl ToTokens for DefType {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.extend(impl_type(self));
+        let def_struct = &self.input;
+        let impl_type = &self.impl_type;
+        tokens.extend(quote! {
+            #def_struct
+
+            #impl_type
+        });
     }
 }
 
-fn impl_type(def_type: &DefType) -> TokenStream {
-    let input = &def_type.input;
-    let name = &input.ident;
+struct ImplType {
+    ident: syn::Ident,
+    dialect_name: String,
+    type_name: String,
+}
 
-    let def_struct = {
-        let attributes = &input.attrs.attributes;
-        let vis = &input.vis;
-        let generics = &input.generics;
-        let struct_body = match input.data {
-            syn::Data::Struct(ref s) => build_struct_body(s),
-            _ => unreachable!(),
-        };
-
-        quote! {
-            #(#attributes)*
-            #vis struct #name #generics #struct_body
-        }
-    };
-
-    let impl_type = {
-        let dialect = &input.attrs.dialect;
-        let type_name = &input.attrs.type_name;
-
-        quote! {
+impl ToTokens for ImplType {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let name = &self.ident;
+        let dialect = &self.dialect_name;
+        let type_name = &self.type_name;
+        tokens.extend(quote! {
             impl ::pliron::r#type::Type for #name {
                 fn hash_type(&self) -> ::pliron::storage_uniquer::TypeValueHash {
                     ::pliron::storage_uniquer::TypeValueHash::new(self)
@@ -185,48 +102,40 @@ fn impl_type(def_type: &DefType) -> TokenStream {
                     }
                 }
             }
-        }
-    };
-
-    quote! {
-        #def_struct
-
-        #impl_type
+        });
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use expect_test::expect;
 
     #[test]
     fn simple() {
+        let args = quote! { "testing.simple_type" };
         let input = quote! {
-            #[def_type]
-            #[type_name = "testing.simple_type"]
+            #[def_type("testing.simple_type")]
             #[derive(Hash, PartialEq, Eq, Debug)]
             pub struct SimpleType {}
         };
+        let t = def_type(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(t).unwrap();
+        let got = prettyplease::unparse(&f);
 
-        let got = def_type(input).unwrap();
-
-        let want = quote! {
+        expect![[r##"
             #[derive(Hash, PartialEq, Eq, Debug)]
             pub struct SimpleType {}
-
             impl ::pliron::r#type::Type for SimpleType {
                 fn hash_type(&self) -> ::pliron::storage_uniquer::TypeValueHash {
                     ::pliron::storage_uniquer::TypeValueHash::new(self)
                 }
-
                 fn eq_type(&self, other: &dyn ::pliron::r#type::Type) -> bool {
                     other.downcast_ref::<Self>().map_or(false, |other| other == self)
                 }
-
                 fn get_type_id(&self) -> ::pliron::r#type::TypeId {
                     Self::get_type_id_static()
                 }
-
                 fn get_type_id_static() -> ::pliron::r#type::TypeId {
                     ::pliron::r#type::TypeId {
                         name: ::pliron::r#type::TypeName::new("simple_type"),
@@ -234,8 +143,7 @@ mod tests {
                     }
                 }
             }
-        };
-
-        assert_eq!(want.to_string(), got.to_string());
+        "##]]
+        .assert_eq(&got);
     }
 }

@@ -46,8 +46,7 @@ use super::{
 /// | key | value |
 /// |-----|-------|
 /// | [ATTR_KEY_SYM_NAME](super::ATTR_KEY_SYM_NAME) | [StringAttr](super::attributes::StringAttr) |
-#[def_op]
-#[op_name = "builtin.module"]
+#[def_op("builtin.module")]
 pub struct ModuleOp {}
 
 impl Printable for ModuleOp {
@@ -142,8 +141,7 @@ impl_op_interface!(ZeroResultInterface for ModuleOp {});
 /// |-----|-------|
 /// | [ATTR_KEY_SYM_NAME](super::ATTR_KEY_SYM_NAME) | [StringAttr](super::attributes::StringAttr) |
 /// | [ATTR_KEY_FUNC_TYPE](FuncOp::ATTR_KEY_FUNC_TYPE) | [TypeAttr](super::attributes::TypeAttr) |
-#[def_op]
-#[op_name = "builtin.func"]
+#[def_op("builtin.func")]
 pub struct FuncOp {}
 
 impl FuncOp {
@@ -303,8 +301,7 @@ impl Verify for FuncOp {
 /// | result | description |
 /// |-----|-------|
 /// | `result` | any type |
-#[def_op]
-#[op_name = "builtin.constant"]
+#[def_op("builtin.constant")]
 pub struct ConstantOp {}
 
 impl ConstantOp {
@@ -391,8 +388,7 @@ impl_op_interface! (OneResultInterface for ConstantOp {});
 /// MLIR [uses](https://github.com/llvm/llvm-project/blob/185b81e034ba60081023b6e59504dfffb560f3e3/mlir/lib/AsmParser/Parser.cpp#L1075)
 /// [UnrealizedConversionCastOp](https://mlir.llvm.org/docs/Dialects/Builtin/#builtinunrealized_conversion_cast-unrealizedconversioncastop)
 /// for this purpose.
-#[def_op]
-#[op_name = "builtin.forward_ref"]
+#[def_op("builtin.forward_ref")]
 pub struct ForwardRefOp {}
 
 impl Printable for ForwardRefOp {

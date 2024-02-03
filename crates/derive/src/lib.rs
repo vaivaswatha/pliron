@@ -1,5 +1,3 @@
-mod attr;
-
 mod derive_attr;
 mod derive_op;
 mod derive_shared;
@@ -7,9 +5,12 @@ mod derive_type;
 
 use proc_macro::TokenStream;
 
-/// The `#[def_attribute]` proc macro.
+/// The `#[def_attribute(...)]` proc macro.
 ///
 /// The macro can be used to annotate a Rust struct as a new IR attribute.
+///
+/// The argument to the macro is the fully qualified name of the attribute in the form of
+/// `"dialect.attribute_name"`.
 ///
 /// The macro will leave the struct definition unchanged, but it will generate an implementation of
 /// the pliron::Attribute trait and implements other internal traits and types resources required
@@ -18,8 +19,7 @@ use proc_macro::TokenStream;
 /// Usage:
 ///
 /// ```ignore
-/// #[def_attribute]
-/// #[attr_name = "my_dialect.attribute"]
+/// #[def_attribute("my_dialect.attribute")]
 /// #[derive(Debug, Clone, PartialEq, Eq)]
 /// pub struct StringAttr(String);
 /// ```
@@ -27,13 +27,16 @@ use proc_macro::TokenStream;
 /// **Note**: pre-requisite traits for `Attribute` must already be implemented.
 ///         Additionaly, PartialEq must be implemented by the type.
 #[proc_macro_attribute]
-pub fn def_attribute(_args: TokenStream, input: TokenStream) -> TokenStream {
-    to_token_stream(derive_attr::def_attribute(input))
+pub fn def_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
+    to_token_stream(derive_attr::def_attribute(args, input))
 }
 
-/// The `#[def_type]` proc macro.
+/// The `#[def_type(...)]` proc macro.
 ///
 /// The macro can be used to annotate a Rust struct as a new IR type.
+///
+/// The argument to the macro is the fully qualified name of the type in the form of
+/// `"dialect.type_name"`.
 ///
 /// The macro will leave the struct definition unchanged, but it will generate an implementation of
 /// the pliron::Type trait and implements other internal traits and types resources required
@@ -42,8 +45,7 @@ pub fn def_attribute(_args: TokenStream, input: TokenStream) -> TokenStream {
 /// Usage:
 ///
 /// ```ignore
-/// #[def_type]
-/// #[attr_name = "my_dialect.unit"]
+/// #[def_type("my_dialect.unit")]
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// pub struct UnitType();
 /// ```
@@ -51,13 +53,16 @@ pub fn def_attribute(_args: TokenStream, input: TokenStream) -> TokenStream {
 /// **Note**: pre-requisite traits for `Type` must already be implemented.
 ///         Additionaly, Hash and Eq must be implemented by the rust type.
 #[proc_macro_attribute]
-pub fn def_type(_args: TokenStream, input: TokenStream) -> TokenStream {
-    to_token_stream(derive_type::def_type(input))
+pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
+    to_token_stream(derive_type::def_type(args, input))
 }
 
-/// The `#[def_op]` proc macro.
+/// The `#[def_op(...)]` proc macro.
 ///
-/// The `#[def_op]` can be used to to create a new IR operation.
+/// The `#[def_op("dialect.op"]` can be used to to create a new IR operation.
+///
+/// The argument to the macro is the fully qualified name of the operation in the form of
+/// `"dialect.op_name"`.
 ///
 /// The macro assumes an empty struct and will add the `op: Ptr<Operation>` field used to access
 /// the underlying Operation in the context.
@@ -68,8 +73,7 @@ pub fn def_type(_args: TokenStream, input: TokenStream) -> TokenStream {
 /// Usage:
 ///
 /// ```ignore
-/// #[def_op]
-/// #[type_name = "my_dialect.op"]
+/// #[def_op("my_dialect.op")]
 /// pub struct MyOp {}
 /// ```
 ///
@@ -82,8 +86,8 @@ pub fn def_type(_args: TokenStream, input: TokenStream) -> TokenStream {
 /// }
 /// ```
 #[proc_macro_attribute]
-pub fn def_op(_args: TokenStream, input: TokenStream) -> TokenStream {
-    to_token_stream(derive_op::def_op(input))
+pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
+    to_token_stream(derive_op::def_op(args, input))
 }
 
 pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> TokenStream {

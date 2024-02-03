@@ -24,8 +24,7 @@ use pliron_derive::def_op;
 /// | operand | description |
 /// |-----|-------|
 /// | `arg` | any type |
-#[def_op]
-#[op_name = "llvm.return"]
+#[def_op("llvm.return")]
 pub struct ReturnOp {}
 
 impl ReturnOp {

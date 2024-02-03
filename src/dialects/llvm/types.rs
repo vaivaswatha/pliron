@@ -72,8 +72,7 @@ impl Parsable for StructField {
 ///      Call "set_fields" after creation to set recursive types.
 ///   3. LLVM calls anonymous structs as literal structs and
 ///      named structs as identified structs.
-#[def_type]
-#[type_name = "llvm.struct"]
+#[def_type("llvm.struct")]
 #[derive(Debug)]
 pub struct StructType {
     name: Option<String>,
@@ -311,8 +310,7 @@ impl Parsable for StructType {
 
 impl Eq for StructType {}
 
-#[def_type]
-#[type_name = "llvm.ptr"]
+#[def_type("llvm.ptr")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct PointerType {
     to: Ptr<TypeObj>,

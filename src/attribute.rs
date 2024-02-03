@@ -258,8 +258,7 @@ pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 ///
 /// Usage:
 /// ```
-/// #[def_attribute]
-/// #[attr_name = "dialect.name"]
+/// #[def_attribute("dialect.name")]
 /// #[derive(PartialEq, Eq, Clone, Debug)]
 /// struct MyAttr { }
 ///

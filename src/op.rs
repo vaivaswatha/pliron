@@ -209,8 +209,7 @@ pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<()>;
 ///
 /// Usage:
 /// ```
-/// #[def_op]
-/// #[op_name = "dialect.name"]
+/// #[def_op("dialect.name")]
 /// struct MyOp {};
 ///
 /// trait MyOpInterface: Op {

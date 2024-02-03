@@ -26,8 +26,7 @@ pub enum Signedness {
     Signless,
 }
 
-#[def_type]
-#[type_name = "builtin.int"]
+#[def_type("builtin.int")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct IntegerType {
     width: u64,
@@ -111,8 +110,7 @@ impl Verify for IntegerType {
 ///
 /// See MLIR's [FunctionType](https://mlir.llvm.org/docs/Dialects/Builtin/#functiontype).
 ///
-#[def_type]
-#[type_name = "builtin.function"]
+#[def_type("builtin.function")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FunctionType {
     /// Function arguments / inputs.
@@ -207,8 +205,7 @@ impl Verify for FunctionType {
     }
 }
 
-#[def_type]
-#[type_name = "builtin.unit"]
+#[def_type("builtin.unit")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct UnitType;
 

@@ -27,8 +27,7 @@ use pliron_derive::{def_attribute, def_op};
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
 
-#[def_op]
-#[op_name = "test.one_result"]
+#[def_op("test.one_result")]
 struct ZeroResultOp {}
 
 impl_op_interface!(OneResultInterface for ZeroResultOp {});
@@ -114,8 +113,7 @@ pub trait TestAttrInterface: Attribute {
 impl_op_interface!(TestAttrInterface for StringAttr {});
 impl_op_interface!(TestAttrInterface for pliron::dialects::builtin::attributes::IntegerAttr {});
 
-#[def_attribute]
-#[attr_name = "test.my_attr"]
+#[def_attribute("test.my_attr")]
 #[derive(PartialEq, Clone, Debug)]
 struct MyAttr {
     ty: Ptr<TypeObj>,

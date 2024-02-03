@@ -1,6 +1,5 @@
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
-use syn::DataStruct;
 
 /// VerifiersRegister represents the [inventory] types and implementations
 /// required to by Op and Attribute IR entities.
@@ -28,24 +27,5 @@ impl ToTokens for VerifiersRegister {
             inventory::collect!(#verifiers_name);
         }
         .to_tokens(tokens);
-    }
-}
-
-/// Helper function to create a token stream for the fields of a struct.
-pub(crate) fn build_struct_body(ds: &DataStruct) -> proc_macro2::TokenStream {
-    match ds.fields {
-        syn::Fields::Named(_) => {
-            let it = ds.fields.iter();
-            quote::quote! {
-                { #(#it),* }
-            }
-        }
-        syn::Fields::Unnamed(_) => {
-            let it = ds.fields.iter();
-            quote::quote! {
-                ( #(#it),* );
-            }
-        }
-        syn::Fields::Unit => quote::quote! { (); },
     }
 }
