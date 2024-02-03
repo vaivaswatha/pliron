@@ -14,11 +14,10 @@ license.workspace = true
 proc-macro = true
 
 [dependencies]
-prettyplease = "0.2.16"
-proc-macro2 = "1.0.72"
-quote = "1.0.33"
-syn = { version = "2.0.43", features = ["derive"] }
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
 
 [dev-dependencies]
-prettyplease = "0.2.16"
-expect-test = "1.4.0"
+prettyplease.workspace = true
+expect-test.workspace = true
