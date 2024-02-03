@@ -29,7 +29,7 @@ impl DefAttribute {
         let Some((dialect_name, attr_name)) = name_str.split_once('.') else {
             return Err(syn::Error::new_spanned(
                 name,
-                "type_name must be in the form `dialect.type_name`",
+                "attribute name must be in the form of `dialect.attr_name`",
             ));
         };
 
@@ -41,6 +41,13 @@ impl DefAttribute {
                     "Attribute can only be derived for structs",
                 ));
             }
+        }
+
+        if !input.generics.params.is_empty() {
+            return Err(syn::Error::new_spanned(
+                &input,
+                "Attribute cannot be derived for generic structs",
+            ));
         }
 
         let attrs: Vec<_> = input

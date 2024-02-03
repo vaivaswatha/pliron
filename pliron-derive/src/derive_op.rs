@@ -45,6 +45,12 @@ impl DefOp {
                 "Op struct cannot have custom fields",
             ));
         }
+        if !input.generics.params.is_empty() {
+            return Err(syn::Error::new_spanned(
+                &input,
+                "Op cannot be derived for generic structs",
+            ));
+        }
 
         let attrs: Vec<_> = input
             .attrs

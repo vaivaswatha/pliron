@@ -26,7 +26,7 @@ impl DefType {
         let Some((dialect_name, type_name)) = name_str.split_once('.') else {
             return Err(syn::Error::new_spanned(
                 name,
-                "type_name must be in the form `dialect.type_name`",
+                "type name must be in the form `dialect.type_name`",
             ));
         };
 
@@ -38,6 +38,12 @@ impl DefType {
                     "Type can only be derived for structs",
                 ));
             }
+        }
+        if !input.generics.params.is_empty() {
+            return Err(syn::Error::new_spanned(
+                &input,
+                "Type cannot be derived for generic structs",
+            ));
         }
 
         let attrs: Vec<_> = input
