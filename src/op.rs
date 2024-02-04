@@ -3,7 +3,8 @@
 //!
 //! See MLIR's [Op](https://mlir.llvm.org/docs/Tutorials/Toy/Ch-2/#op-vs-operation-using-mlir-operations).
 //!
-//! New [Op]s can be easily declared using the `#[def_op]` proc macro from the pliron-derive crate.
+//! New [Op]s can be easily declared using the [def_op](pliron_derive::def_op)
+//! proc macro from the pliron-derive crate.
 //!
 //! Common semantics, API and behaviour of [Op]s are
 //! abstracted into Op interfaces. Interfaces in pliron capture MLIR

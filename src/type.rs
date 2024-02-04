@@ -6,7 +6,8 @@
 //!
 //! See [MLIR Types](https://mlir.llvm.org/docs/DefiningDialects/AttributesAndTypes/#types)
 //!
-//! The `#[def_type]` proc macro from [pliron-derive] can be used to implement [Type] for a rust type.
+//! The [def_type](pliron_derive::def_type) proc macro from [pliron-derive]
+//! can be used to implement [Type] for a rust type.
 
 use crate::common_traits::Verify;
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
