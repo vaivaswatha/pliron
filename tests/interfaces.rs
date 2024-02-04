@@ -4,7 +4,6 @@ use pliron::{
     attribute::Attribute,
     common_traits::Verify,
     context::{Context, Ptr},
-    declare_op,
     dialect::{Dialect, DialectName},
     dialects::{
         builtin::{
@@ -16,7 +15,7 @@ use pliron::{
     },
     error::{Error, ErrorKind, Result},
     identifier::Identifier,
-    impl_attr, impl_attr_interface, impl_op_interface,
+    impl_attr_interface, impl_op_interface,
     location::Location,
     op::{Op, OpObj},
     operation::Operation,
@@ -24,10 +23,12 @@ use pliron::{
     printable::{self, Printable},
     r#type::TypeObj,
 };
+use pliron_derive::{def_attribute, def_op};
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
 
-declare_op!(ZeroResultOp, "zero_results", "test");
+#[def_op("test.one_result")]
+struct ZeroResultOp {}
 
 impl_op_interface!(OneResultInterface for ZeroResultOp {});
 
@@ -112,6 +113,7 @@ pub trait TestAttrInterface: Attribute {
 impl_op_interface!(TestAttrInterface for StringAttr {});
 impl_op_interface!(TestAttrInterface for pliron::dialects::builtin::attributes::IntegerAttr {});
 
+#[def_attribute("test.my_attr")]
 #[derive(PartialEq, Clone, Debug)]
 struct MyAttr {
     ty: Ptr<TypeObj>,
@@ -131,7 +133,6 @@ impl Printable for MyAttr {
         write!(f, "MyAttr")
     }
 }
-impl_attr!(MyAttr, "my_attr", "test");
 impl_attr_interface!(TypedAttrInterface for MyAttr {
     fn get_type(&self) -> Ptr<TypeObj> {
         self.ty

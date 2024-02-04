@@ -4,7 +4,7 @@ use crate::{
     dialect::Dialect,
     error::Result,
     identifier::Identifier,
-    impl_type, input_err_noloc,
+    input_err_noloc,
     irfmt::printers::{enclosed, list_with_sep},
     location::{Located, Location},
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
@@ -13,6 +13,7 @@ use crate::{
     verify_err_noloc,
 };
 use combine::{between, optional, parser::char::spaces, sep_by, token, Parser};
+use pliron_derive::def_type;
 use thiserror::Error;
 
 use std::hash::Hash;
@@ -71,13 +72,13 @@ impl Parsable for StructField {
 ///      Call "set_fields" after creation to set recursive types.
 ///   3. LLVM calls anonymous structs as literal structs and
 ///      named structs as identified structs.
+#[def_type("llvm.struct")]
 #[derive(Debug)]
 pub struct StructType {
     name: Option<String>,
     fields: Vec<StructField>,
     finalized: bool,
 }
-impl_type!(StructType, "struct", "llvm");
 
 impl StructType {
     /// Get or create a new named StructType.
@@ -309,11 +310,11 @@ impl Parsable for StructType {
 
 impl Eq for StructType {}
 
+#[def_type("llvm.ptr")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct PointerType {
     to: Ptr<TypeObj>,
 }
-impl_type!(PointerType, "ptr", "llvm");
 
 impl PointerType {
     /// Get or create a new pointer type.

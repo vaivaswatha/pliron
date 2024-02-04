@@ -1,17 +1,32 @@
+[workspace]
+resolver = "2"
+members = ["pliron-derive"]
+
 [package]
 name = "pliron"
+description = "Programming Languages Intermediate RepresentatiON"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+license.workspace = true
+
+[workspace.package]
 version = "0.1.7"
 edition = "2021"
 license = "Apache-2.0"
-description = "Programming Languages Intermediate RepresentatiON"
+readme = "README.md"
 repository = "https://github.com/vaivaswatha/pliron"
 categories = ["compilers"]
-readme = "README.md"
 keywords = ["pliron", "llvm", "mlir", "compiler"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+pliron-derive = { path = "./pliron-derive" }
+
 generational-arena = "0.2"
 downcast-rs = "1.2.0"
 rustc-hash = "1.1.0"
@@ -29,4 +44,11 @@ regex = "1.10.2"
 dyn-clone = "1.0.16"
 
 [dev-dependencies]
+expect-test.workspace = true
+
+[workspace.dependencies]
 expect-test = "1.4.0"
+proc-macro2 = "1.0.72"
+quote = "1.0.33"
+prettyplease = "0.2.16"
+syn = { version = "2.0.43", features = ["derive"] }

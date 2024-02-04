@@ -3,7 +3,7 @@
 //!
 //! See MLIR's [Op](https://mlir.llvm.org/docs/Tutorials/Toy/Ch-2/#op-vs-operation-using-mlir-operations).
 //!
-//! New [Op]s can be easily declared using the [declare_op](crate::declare_op) macro.
+//! New [Op]s can be easily declared using the `#[def_op]` proc macro from the pliron-derive crate.
 //!
 //! Common semantics, API and behaviour of [Op]s are
 //! abstracted into Op interfaces. Interfaces in pliron capture MLIR
@@ -204,99 +204,14 @@ pub fn op_impls<T: ?Sized + Op>(op: &dyn Op) -> bool {
 /// Every op interface must have a function named `verify` with this type.
 pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<()>;
 
-/// Declare an [Op]
-///
-/// Usage:
-/// ```
-/// declare_op!(
-///     /// MyOp is mine
-///     MyOp,
-///     "name",
-///     "dialect"
-/// );
-/// # use pliron::{
-/// #     op::Op, declare_op, printable::{self, Printable},
-/// #     context::Context, error::Result, common_traits::Verify
-/// # };
-/// # impl Printable for MyOp {
-/// #    fn fmt(&self, _ctx: &Context, _state: &printable::State, _f: &mut core::fmt::Formatter<'_>)
-/// #     -> core::fmt::Result
-/// #    {
-/// #        todo!()
-/// #    }
-/// # }
-///
-/// # impl Verify for MyOp {
-/// #   fn verify(&self, _ctx: &Context) -> Result<()> {
-/// #        todo!()
-/// #    }
-/// # }
-/// ```
-/// **Note**: pre-requisite traits for [Op] must already be implemented.
-#[macro_export]
-macro_rules! declare_op {
-    (   $(#[$outer:meta])*
-        $structname: ident, $op_name: literal, $dialect_name: literal) => {
-        paste::paste!{
-            /// Interface verifier
-            #[allow(non_camel_case_types)]
-            pub struct [<OpInterfaceVerifier_ $structname>](pub $crate::op::OpInterfaceVerifier);
-            impl $structname {
-                /// Returns the interface verifier
-                pub const fn build_interface_verifier(verifier: $crate::op::OpInterfaceVerifier) ->
-                [<OpInterfaceVerifier_ $structname>] {
-                    [<OpInterfaceVerifier_ $structname>](verifier)
-                }
-            }
-            inventory::collect!([<OpInterfaceVerifier_ $structname>]);
-        }
-        #[derive(Clone, Copy)]
-        $(#[$outer])*
-        pub struct $structname { op: $crate::context::Ptr<$crate::operation::Operation> }
-        impl $crate::op::Op for $structname {
-            fn get_operation(&self) -> $crate::context::Ptr<$crate::operation::Operation> {
-                self.op
-            }
-
-            fn wrap_operation(op: $crate::context::Ptr<$crate::operation::Operation>) -> $crate::op::OpObj {
-                Box::new($structname { op })
-            }
-
-            fn get_opid(&self) -> $crate::op::OpId {
-                Self::get_opid_static()
-            }
-
-            fn get_opid_static() -> $crate::op::OpId {
-                $crate::op::OpId {
-                    name: $crate::op::OpName::new($op_name),
-                    dialect: $crate::dialect::DialectName::new($dialect_name),
-                }
-            }
-
-            fn verify_interfaces(&self, ctx: &Context) -> $crate::error::Result<()> {
-                let interface_verifiers = paste::paste!{
-                    inventory::iter::<[<OpInterfaceVerifier_ $structname>]>
-                };
-                for verifier in interface_verifiers {
-                    (verifier.0)(self, ctx)?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
 /// Implement an Op Interface for an Op. The interface trait must define
 /// a `verify` function with type [OpInterfaceVerifier]
 ///
 /// Usage:
 /// ```
-/// declare_op!(
-///     /// MyOp is mine
-///     MyOp,
-///     "name",
-///     "dialect"
-/// );
+/// #[def_op("dialect.name")]
+/// struct MyOp {};
+///
 /// trait MyOpInterface: Op {
 ///     fn gubbi(&self);
 ///     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
@@ -312,8 +227,9 @@ macro_rules! declare_op {
 ///         fn gubbi(&self) { println!("gubbi"); }
 ///     }
 /// );
+/// # use pliron_derive::def_op;
 /// # use pliron::{
-/// #     op::Op, declare_op, impl_op_interface,
+/// #     op::Op, impl_op_interface,
 /// #     printable::{self, Printable}, context::Context, error::Result,
 /// #     common_traits::Verify
 /// # };
