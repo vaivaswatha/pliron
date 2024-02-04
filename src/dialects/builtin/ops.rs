@@ -162,8 +162,13 @@ impl FuncOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1);
 
         // Create an empty entry block.
+        let arg_types = {
+            let fn_tyref = ty.deref(ctx);
+            let fn_ty = fn_tyref.downcast_ref::<FunctionType>().unwrap();
+            fn_ty.get_inputs().clone()
+        };
         let region = op.deref_mut(ctx).get_region(0).unwrap();
-        let body = BasicBlock::new(ctx, Some("entry".into()), vec![]);
+        let body = BasicBlock::new(ctx, Some("entry".into()), arg_types);
         body.insert_at_front(region, ctx);
         {
             let opref = &mut *op.deref_mut(ctx);
