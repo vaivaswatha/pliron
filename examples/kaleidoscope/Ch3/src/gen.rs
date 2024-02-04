@@ -12,7 +12,7 @@ use pliron::{
 
 use crate::{
     ast::{Expr, Program},
-    dialect::kal,
+    dialect::kal::{self},
     error::Result,
 };
 
