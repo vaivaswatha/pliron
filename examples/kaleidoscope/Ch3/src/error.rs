@@ -20,6 +20,9 @@ pub enum Error {
 
     #[error("Expected identifier, got {1} at {0}")]
     ExpectedIdentifier(Location, Token),
+
+    #[error("variable {0} not found")]
+    VariableNotFound(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

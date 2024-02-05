@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use pliron::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
@@ -13,8 +15,10 @@ use pliron::{
 use crate::{
     ast::{Expr, Program},
     dialect::kal::{self},
-    error::Result,
+    error::{Error, Result},
 };
+
+type Args = HashMap<String, Value>;
 
 pub fn generate(ctx: &mut Context, program: Program) -> Result<ModuleOp> {
     let module = ModuleOp::new(ctx, "main");
@@ -38,7 +42,21 @@ pub fn generate(ctx: &mut Context, program: Program) -> Result<ModuleOp> {
         fn_op.get_operation().insert_at_back(block, ctx);
 
         let block = fn_op.get_entry_block(ctx);
-        let body = expr(ctx, block, body)?;
+
+        let args: Args = {
+            let block_ref = block.deref(ctx);
+            prototype
+                .args
+                .iter()
+                .enumerate()
+                .map(|(i, arg)| {
+                    let arg_op = block_ref.get_argument(i).unwrap();
+                    (arg.clone(), arg_op)
+                })
+                .collect()
+        };
+
+        let body = expr(ctx, block, &args, body)?;
         let ret_op = kal::ReturnOp::new_unlinked(ctx, body);
         ret_op.get_operation().insert_at_back(block, ctx);
     }
@@ -50,14 +68,14 @@ pub fn generate(ctx: &mut Context, program: Program) -> Result<ModuleOp> {
 
         let block = main_fn_op.get_entry_block(ctx);
         for e in program.main {
-            let _ = expr(ctx, block, e)?;
+            let _ = expr(ctx, block, &Args::new(), e)?;
         }
     }
 
     return Ok(module);
 }
 
-fn expr(ctx: &mut Context, block: Ptr<BasicBlock>, e: Expr) -> Result<Value> {
+fn expr(ctx: &mut Context, block: Ptr<BasicBlock>, fn_args: &Args, e: Expr) -> Result<Value> {
     match e {
         Expr::Number(n) => {
             let ty = kal::NumberType::get(ctx);
@@ -67,13 +85,14 @@ fn expr(ctx: &mut Context, block: Ptr<BasicBlock>, e: Expr) -> Result<Value> {
             Ok(op.get_result(ctx))
         }
         Expr::Variable(name) => {
-            let op = kal::VarOp::new_unlinked(ctx, name.as_str());
-            op.get_operation().insert_at_back(block, ctx);
-            Ok(op.get_result(ctx))
+            let Some(v) = fn_args.get(name.as_str()) else {
+                return Err(Error::VariableNotFound(name));
+            };
+            Ok(v.clone())
         }
         Expr::Binary { op, lhs, rhs } => {
-            let lhs = expr(ctx, block, *lhs)?;
-            let rhs = expr(ctx, block, *rhs)?;
+            let lhs = expr(ctx, block, fn_args, *lhs)?;
+            let rhs = expr(ctx, block, fn_args, *rhs)?;
             let op = kal::BinOp::new_unlinked(ctx, convert_op(op), lhs, rhs);
             op.get_operation().insert_at_back(block, ctx);
             Ok(op.get_result(ctx))
@@ -81,7 +100,7 @@ fn expr(ctx: &mut Context, block: Ptr<BasicBlock>, e: Expr) -> Result<Value> {
         Expr::Call { name, args } => {
             let mut arg_values = vec![];
             for arg in args {
-                arg_values.push(expr(ctx, block, arg)?);
+                arg_values.push(expr(ctx, block, fn_args, arg)?);
             }
             let op = kal::CallOp::new_unlinked(ctx, name, arg_values);
             op.get_operation().insert_at_back(block, ctx);

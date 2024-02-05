@@ -26,12 +26,10 @@ use super::{BinOpAttr, BinaryOperator, BoolType, NumberType, ParamsAttr, ATTR_KE
 pub(super) fn register(ctx: &mut Context, dialect: &mut Dialect) {
     BinOp::register(ctx, dialect, BinOp::parser_fn);
     CallOp::register(ctx, dialect, CallOp::parser_fn);
-    VarOp::register(ctx, dialect, VarOp::parser_fn);
     ConstOp::register(ctx, dialect, ConstOp::parser_fn);
     ExternOp::register(ctx, dialect, ExternOp::parser_fn);
     EvalOp::register(ctx, dialect, EvalOp::parser_fn);
     ReturnOp::register(ctx, dialect, ReturnOp::parser_fn);
-    FuncOp::register(ctx, dialect, FuncOp::parser_fn);
 }
 
 #[def_op]
@@ -108,28 +106,6 @@ impl CallOp {
 }
 
 #[def_op]
-#[op_name = "kal.var"]
-#[derive(PartialEq, Hash, Printable, NotParsableOp)]
-pub struct VarOp {}
-impl Verify for VarOp {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        Ok(())
-    }
-}
-impl_op_interface!( SymbolOpInterface for VarOp {});
-impl_op_interface!( ZeroOpdInterface for VarOp {});
-impl_op_interface!( OneResultInterface for VarOp {});
-impl VarOp {
-    pub fn new_unlinked(ctx: &mut Context, name: &str) -> Self {
-        let result_type = vec![NumberType::get(ctx)];
-        let op = Operation::new(ctx, Self::get_opid_static(), result_type, vec![], 0);
-        let vop = Self { op };
-        vop.set_symbol_name(ctx, name);
-        vop
-    }
-}
-
-#[def_op]
 #[op_name = "kal.const"]
 #[derive(PartialEq, Hash, Printable, NotParsableOp)]
 pub struct ConstOp {}
@@ -159,70 +135,6 @@ impl ConstOp {
     pub fn get_value(&self, ctx: &Context) -> AttrObj {
         let op = self.get_operation().deref(ctx);
         op.attributes.get(Self::ATTR_KEY_VALUE).unwrap().clone()
-    }
-}
-
-#[def_op]
-#[op_name = "kal.func"]
-#[derive(PartialEq, Hash, Printable, NotParsableOp)]
-pub struct FuncOp {}
-impl Verify for FuncOp {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        Ok(())
-    }
-}
-impl_op_interface!(SymbolOpInterface for FuncOp {});
-impl_op_interface!(SingleBlockRegionInterface for FuncOp {});
-impl_op_interface!(OneRegionInterface for FuncOp {});
-impl FuncOp {
-    /// Attribute key for the constant value.
-    pub const ATTR_KEY_FUNC_TYPE: &'static str = "func.type";
-
-    pub fn new_unlinked(ctx: &mut Context, name: &str, ty: Ptr<TypeObj>) -> FuncOp {
-        let ty_attr = TypeAttr::create(ty);
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1);
-
-        let arg_types = {
-            let fn_tyref = ty.deref(ctx);
-            let fn_ty = fn_tyref.downcast_ref::<FunctionType>().unwrap();
-            fn_ty.get_inputs().clone()
-        };
-
-        // Create an empty entry block.
-        let region = op.deref_mut(ctx).get_region(0).unwrap();
-        let body = BasicBlock::new(ctx, Some("entry".into()), arg_types);
-        body.insert_at_front(region, ctx);
-        {
-            let opref = &mut *op.deref_mut(ctx);
-            // Set function type attributes.
-            opref.attributes.insert(Self::ATTR_KEY_FUNC_TYPE, ty_attr);
-        }
-        let opop = FuncOp { op };
-        opop.set_symbol_name(ctx, name);
-
-        opop
-    }
-
-    /// Get the function signature (type).
-    pub fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        let opref = self.get_operation().deref(ctx);
-        let ty_attr = opref.attributes.get(Self::ATTR_KEY_FUNC_TYPE).unwrap();
-        attr_cast::<dyn TypedAttrInterface>(&**ty_attr)
-            .unwrap()
-            .get_type()
-    }
-
-    /// Get the entry block of this function.
-    pub fn get_entry_block(&self, ctx: &Context) -> Ptr<BasicBlock> {
-        self.get_region(ctx).deref(ctx).get_head().unwrap()
-    }
-
-    /// Get an iterator over all operations.
-    pub fn op_iter<'a>(&self, ctx: &'a Context) -> impl Iterator<Item = Ptr<Operation>> + 'a {
-        self.get_region(ctx)
-            .deref(ctx)
-            .iter(ctx)
-            .flat_map(|bb| bb.deref(ctx).iter(ctx))
     }
 }
 
