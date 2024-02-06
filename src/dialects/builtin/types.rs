@@ -6,13 +6,13 @@ use combine::{
     },
     sep_by, token, Parser,
 };
+use pliron_derive::def_type;
 
 use crate::{
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
-    impl_type,
     irfmt::{
         parsers::{spaced, type_parser},
         printers::{functional_type, list_with_sep},
@@ -29,12 +29,12 @@ pub enum Signedness {
     Signless,
 }
 
+#[def_type("builtin.int")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct IntegerType {
     width: u64,
     signedness: Signedness,
 }
-impl_type!(IntegerType, "int", "builtin");
 
 impl IntegerType {
     /// Get or create a new integer type.
@@ -113,6 +113,7 @@ impl Verify for IntegerType {
 ///
 /// See MLIR's [FunctionType](https://mlir.llvm.org/docs/Dialects/Builtin/#functiontype).
 ///
+#[def_type("builtin.function")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FunctionType {
     /// Function arguments / inputs.
@@ -120,7 +121,6 @@ pub struct FunctionType {
     /// Function results / outputs.
     results: Vec<Ptr<TypeObj>>,
 }
-impl_type!(FunctionType, "function", "builtin");
 
 impl FunctionType {
     /// Get or create a new Function type.
@@ -208,14 +208,14 @@ impl Verify for FunctionType {
     }
 }
 
+#[def_type("builtin.unit")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct UnitType;
-impl_type!(UnitType, "unit", "builtin");
 
 impl UnitType {
     /// Get or create a new unit type.
     pub fn get(ctx: &mut Context) -> Ptr<TypeObj> {
-        Type::register_instance(UnitType, ctx)
+        Type::register_instance(UnitType {}, ctx)
     }
 }
 

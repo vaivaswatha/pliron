@@ -1,4 +1,5 @@
 use combine::{token, Parser};
+use pliron_derive::def_op;
 use thiserror::Error;
 
 use crate::{
@@ -6,7 +7,6 @@ use crate::{
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
     context::{Context, Ptr},
-    declare_op,
     dialect::Dialect,
     dialects::builtin::op_interfaces::ZeroResultInterface,
     error::Result,
@@ -37,23 +37,20 @@ use super::{
     types::{FunctionType, UnitType},
 };
 
-declare_op!(
-    /// Represents a module, a top level container operation.
-    ///
-    /// See MLIR's [builtin.module](https://mlir.llvm.org/docs/Dialects/Builtin/#builtinmodule-mlirmoduleop).
-    /// It contains a single [SSACFG](super::op_interfaces::RegionKind::SSACFG)
-    /// region containing a single block which can contain any operations and
-    /// does not have a terminator.
-    ///
-    /// Attributes:
-    ///
-    /// | key | value |
-    /// |-----|-------|
-    /// | [ATTR_KEY_SYM_NAME](super::ATTR_KEY_SYM_NAME) | [StringAttr](super::attributes::StringAttr) |
-    ModuleOp,
-    "module",
-    "builtin"
-);
+/// Represents a module, a top level container operation.
+///
+/// See MLIR's [builtin.module](https://mlir.llvm.org/docs/Dialects/Builtin/#builtinmodule-mlirmoduleop).
+/// It contains a single [SSACFG](super::op_interfaces::RegionKind::SSACFG)
+/// region containing a single block which can contain any operations and
+/// does not have a terminator.
+///
+/// Attributes:
+///
+/// | key | value |
+/// |-----|-------|
+/// | [ATTR_KEY_SYM_NAME](super::ATTR_KEY_SYM_NAME) | [StringAttr](super::attributes::StringAttr) |
+#[def_op("builtin.module")]
+pub struct ModuleOp {}
 
 impl Printable for ModuleOp {
     fn fmt(
@@ -138,20 +135,17 @@ impl_op_interface!(IsolatedFromAboveInterface for ModuleOp {});
 impl_op_interface!(ZeroOpdInterface for ModuleOp {});
 impl_op_interface!(ZeroResultInterface for ModuleOp {});
 
-declare_op!(
-    /// An operation with a name containing a single SSA control-flow-graph region.
-    /// See MLIR's [func.func](https://mlir.llvm.org/docs/Dialects/Func/#funcfunc-mlirfuncfuncop).
-    ///
-    /// Attributes:
-    ///
-    /// | key | value |
-    /// |-----|-------|
-    /// | [ATTR_KEY_SYM_NAME](super::ATTR_KEY_SYM_NAME) | [StringAttr](super::attributes::StringAttr) |
-    /// | [ATTR_KEY_FUNC_TYPE](FuncOp::ATTR_KEY_FUNC_TYPE) | [TypeAttr](super::attributes::TypeAttr) |
-    FuncOp,
-    "func",
-    "builtin"
-);
+/// An operation with a name containing a single SSA control-flow-graph region.
+/// See MLIR's [func.func](https://mlir.llvm.org/docs/Dialects/Func/#funcfunc-mlirfuncfuncop).
+///
+/// Attributes:
+///
+/// | key | value |
+/// |-----|-------|
+/// | [ATTR_KEY_SYM_NAME](super::ATTR_KEY_SYM_NAME) | [StringAttr](super::attributes::StringAttr) |
+/// | [ATTR_KEY_FUNC_TYPE](FuncOp::ATTR_KEY_FUNC_TYPE) | [TypeAttr](super::attributes::TypeAttr) |
+#[def_op("builtin.func")]
+pub struct FuncOp {}
 
 impl FuncOp {
     /// Attribute key for the constant value.
@@ -301,25 +295,22 @@ impl Verify for FuncOp {
     }
 }
 
-declare_op!(
-    /// Numeric constant.
-    /// See MLIR's [arith.constant](https://mlir.llvm.org/docs/Dialects/ArithOps/#arithconstant-mlirarithconstantop).
-    ///
-    /// Attributes:
-    ///
-    /// | key | value |
-    /// |-----|-------|
-    /// |[ATTR_KEY_VALUE](ConstantOp::ATTR_KEY_VALUE) | [IntegerAttr] or [FloatAttr] |
-    ///
-    /// Results:
-    ///
-    /// | result | description |
-    /// |-----|-------|
-    /// | `result` | any type |
-    ConstantOp,
-    "constant",
-    "builtin"
-);
+/// Numeric constant.
+/// See MLIR's [arith.constant](https://mlir.llvm.org/docs/Dialects/ArithOps/#arithconstant-mlirarithconstantop).
+///
+/// Attributes:
+///
+/// | key | value |
+/// |-----|-------|
+/// |[ATTR_KEY_VALUE](ConstantOp::ATTR_KEY_VALUE) | [IntegerAttr] or [FloatAttr] |
+///
+/// Results:
+///
+/// | result | description |
+/// |-----|-------|
+/// | `result` | any type |
+#[def_op("builtin.constant")]
+pub struct ConstantOp {}
 
 impl ConstantOp {
     /// Attribute key for the constant value.
@@ -401,15 +392,12 @@ impl Verify for ConstantOp {
 impl_op_interface! (ZeroOpdInterface for ConstantOp {});
 impl_op_interface! (OneResultInterface for ConstantOp {});
 
-declare_op!(
-    /// A placeholder during parsing to refer to yet undefined operations.
-    /// MLIR [uses](https://github.com/llvm/llvm-project/blob/185b81e034ba60081023b6e59504dfffb560f3e3/mlir/lib/AsmParser/Parser.cpp#L1075)
-    /// [UnrealizedConversionCastOp](https://mlir.llvm.org/docs/Dialects/Builtin/#builtinunrealized_conversion_cast-unrealizedconversioncastop)
-    /// for this purpose.
-    ForwardRefOp,
-    "forward_ref",
-    "builtin"
-);
+/// A placeholder during parsing to refer to yet undefined operations.
+/// MLIR [uses](https://github.com/llvm/llvm-project/blob/185b81e034ba60081023b6e59504dfffb560f3e3/mlir/lib/AsmParser/Parser.cpp#L1075)
+/// [UnrealizedConversionCastOp](https://mlir.llvm.org/docs/Dialects/Builtin/#builtinunrealized_conversion_cast-unrealizedconversioncastop)
+/// for this purpose.
+#[def_op("builtin.forward_ref")]
+pub struct ForwardRefOp {}
 
 impl Printable for ForwardRefOp {
     fn fmt(
