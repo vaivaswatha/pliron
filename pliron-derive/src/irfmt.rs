@@ -12,7 +12,7 @@ use winnow::{
     Located, Parser,
 };
 
-use crate::attr::{require_once, Attribute, IRFormat, IRKind};
+use crate::macro_attr::{require_once, IRFormat, IRKind};
 
 pub(crate) struct IRFmtInput {
     pub ident: syn::Ident,

@@ -32,8 +32,7 @@ pub(super) fn register(ctx: &mut Context, dialect: &mut Dialect) {
     ReturnOp::register(ctx, dialect, ReturnOp::parser_fn);
 }
 
-#[def_op]
-#[op_name = "kal.bin_op"]
+#[def_op("kal.bin_op")]
 #[derive(PartialEq, Hash, Printable, NotParsableOp)]
 pub struct BinOp {}
 impl Verify for BinOp {
@@ -74,8 +73,7 @@ impl BinOp {
     }
 }
 
-#[def_op]
-#[op_name = "kal.call"]
+#[def_op("kal.call")]
 #[derive(PartialEq, Hash, Printable, NotParsableOp)]
 pub struct CallOp {}
 impl Verify for CallOp {
@@ -105,8 +103,7 @@ impl CallOp {
     }
 }
 
-#[def_op]
-#[op_name = "kal.const"]
+#[def_op("kal.const")]
 #[derive(PartialEq, Hash, Printable, NotParsableOp)]
 pub struct ConstOp {}
 impl Verify for ConstOp {
@@ -138,8 +135,7 @@ impl ConstOp {
     }
 }
 
-#[def_op]
-#[op_name = "kal.return"]
+#[def_op("kal.return")]
 #[derive(PartialEq, Hash, Printable, NotParsableOp)]
 pub struct ReturnOp {}
 impl Verify for ReturnOp {
@@ -155,8 +151,7 @@ impl ReturnOp {
     }
 }
 
-#[def_op]
-#[op_name = "kal.extern"]
+#[def_op("kal.extern")]
 #[derive(PartialEq, Hash, Printable, NotParsableOp)]
 pub struct ExternOp {}
 impl Verify for ExternOp {
@@ -183,8 +178,7 @@ impl ExternOp {
     }
 }
 
-#[def_op]
-#[op_name = "kal.eval"]
+#[def_op("kal.eval")]
 #[derive(PartialEq, Hash, Printable, NotParsableOp)]
 pub struct EvalOp {}
 impl Verify for EvalOp {

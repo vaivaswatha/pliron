@@ -7,7 +7,6 @@ use std::{
 use clap::Parser;
 
 mod ast;
-mod dialect;
 mod error;
 mod lexer;
 mod parser;

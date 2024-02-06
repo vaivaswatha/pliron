@@ -52,11 +52,18 @@ impl DefOp {
             ));
         }
 
-        let attrs: Vec<_> = input
+        let mut attrs: Vec<_> = input
             .attrs
             .into_iter()
             .filter(|attr| !attr.path().is_ident(PROC_MACRO_NAME))
             .collect();
+        attrs.push(syn::parse_quote! {
+            #[derive(::pliron_derive::DeriveAttribAcceptor)]
+        });
+        attrs.push(syn::parse_quote! {
+            #[ir_kind = "op"]
+        });
+
         let input = DeriveInput { attrs, ..input };
 
         let verifiers = VerifiersRegister {
@@ -171,6 +178,8 @@ mod tests {
 
         expect![[r##"
             #[derive(Clone, Copy)]
+            #[derive(::pliron_derive::DeriveAttribAcceptor)]
+            #[ir_kind = "op"]
             struct TestOp {
                 op: ::pliron::context::Ptr<::pliron::operation::Operation>,
             }

@@ -45,8 +45,7 @@ fn register_dialect(ctx: &mut Context) {
     dialect.register(ctx);
 }
 
-#[def_type]
-#[type_name = "testing.simple_type"]
+#[def_type("testing.simple_type")]
 #[derive(Hash, PartialEq, Eq, Debug, Printable, Parsable)]
 #[ir_format = ""]
 pub struct SimpleType {}
@@ -62,8 +61,7 @@ impl Verify for SimpleType {
     }
 }
 
-#[def_type]
-#[type_name = "testing.int"]
+#[def_type("testing.int")]
 #[derive(Hash, PartialEq, Eq, Debug, Printable, Parsable)]
 //#[ir_format = "`int <` `sign=` $sign `, width=` $width `, align=` $align `>`"]
 //#[ir_format = "`int <` params `>`"]
@@ -91,8 +89,7 @@ impl Verify for IntegerType {
     }
 }
 
-#[def_type]
-#[type_name = "testing.vec"]
+#[def_type("testing.vec")]
 #[derive(Hash, PartialEq, Eq, Debug, Printable, NotParsableType)]
 // #[ir_format = "`vec [` qualified($elem) `]` "]
 // #[ir_format = "`vec ` qualifier($elem) ` <` $elem `>` "]
@@ -112,8 +109,7 @@ impl Verify for VecType {
     }
 }
 
-#[def_type]
-#[type_name = "testing.function"]
+#[def_type("testing.function")]
 #[derive(Hash, PartialEq, Debug, Eq, Printable)]
 // #[ir_format = "functional_type($inputs, $results)"]
 #[ir_format = "`(` $inputs `) -> (` $results `)`"]
@@ -153,8 +149,7 @@ impl FunctionType {
     }
 }
 
-#[def_attribute]
-#[attr_name = "testing.int"]
+#[def_attribute("testing.int")]
 #[derive(PartialEq, Eq, Debug, Clone, Printable)]
 #[ir_format = "format(`0x{:x}`, $val) `: ` $ty"]
 pub struct IntegerAttr {
@@ -187,8 +182,7 @@ impl_attr_interface!(TypedAttrInterface for IntegerAttr {
     }
 });
 
-#[def_attribute]
-#[attr_name = "testing.string"]
+#[def_attribute("testing.string")]
 #[derive(PartialEq, Eq, Debug, Clone, Printable, NotParsableAttribute)]
 #[ir_format = "quoted($0)"]
 struct StringAttr(String);
@@ -198,8 +192,7 @@ impl Verify for StringAttr {
     }
 }
 
-#[def_attribute]
-#[attr_name = "testing.unit"]
+#[def_attribute("testing.unit")]
 #[derive(PartialEq, Eq, Debug, Clone, Printable, NotParsableAttribute)]
 #[ir_format = "`()`"]
 pub struct UnitAttr();
@@ -215,8 +208,7 @@ impl Verify for UnitAttr {
     }
 }
 
-#[def_attribute]
-#[attr_name = "testing.vec"]
+#[def_attribute("testing.vec")]
 #[derive(Clone, PartialEq, Debug, Eq, Printable, NotParsableAttribute)]
 pub struct VecAttr(pub Vec<AttrObj>);
 impl Verify for VecAttr {
@@ -228,8 +220,7 @@ impl Verify for VecAttr {
     }
 }
 
-#[def_op]
-#[op_name = "testing.const"]
+#[def_op("testing.const")]
 #[derive(Printable)]
 struct ConstantOp;
 impl ConstantOp {

@@ -5,7 +5,7 @@ use quote::{format_ident, quote};
 use syn::{DeriveInput, Result};
 
 use crate::{
-    attr::IRFormat,
+    macro_attr::IRFormat,
     irfmt::{Directive, Elem, FieldIdent, FmtData, IRFmtInput, Lit, UnnamedVar, Var},
 };
 

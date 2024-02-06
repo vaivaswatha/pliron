@@ -14,7 +14,7 @@ thiserror = "1.0.56"
 fraction = "0.15.0"
 
 pliron = { version = "0.1.0", path = "../../../" }
-pliron-derive = { version = "0.1.0", path = "../../../crates/derive" }
+pliron-derive = { version = "0.1.0", path = "../../../pliron-derive" }
 
 # required pliron dependencies
 inventory = "0.3.14"

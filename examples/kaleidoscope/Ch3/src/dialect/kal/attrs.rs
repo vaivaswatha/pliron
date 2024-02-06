@@ -19,8 +19,7 @@ pub(super) fn register(dialect: &mut Dialect) {
     ParamsAttr::register_attr_in_dialect(dialect, ParamsAttr::parser_fn);
 }
 
-#[def_attribute]
-#[attr_name = "kal.op"]
+#[def_attribute("kal.op")]
 #[derive(Debug, Clone, PartialEq, Hash, Printable, NotParsableAttribute)]
 #[ir_format = r#"`"`$op`"`"#]
 pub struct BinOpAttr {
@@ -62,8 +61,7 @@ impl std::fmt::Display for BinaryOperator {
     }
 }
 
-#[def_attribute]
-#[attr_name = "kal.number"]
+#[def_attribute("kal.number")]
 #[derive(Debug, Clone, PartialEq, Hash, Printable, NotParsableAttribute)]
 // #[ir_format = "$integral `.` $fractional"]
 pub struct NumberAttr {
@@ -92,8 +90,7 @@ impl NumberAttr {
     }
 }
 
-#[def_attribute]
-#[attr_name = "kal.params"]
+#[def_attribute("kal.params")]
 #[derive(Debug, Clone, PartialEq, Hash, Printable, NotParsableAttribute)]
 #[ir_format = "`(` $params `)`"]
 pub struct ParamsAttr {

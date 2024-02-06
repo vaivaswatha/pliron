@@ -1,5 +1,10 @@
+mod irfmt;
+mod macro_attr;
+
 mod derive_attr;
 mod derive_op;
+mod derive_parseable;
+mod derive_printable;
 mod derive_shared;
 mod derive_type;
 
@@ -88,6 +93,38 @@ pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_op::def_op(args, input))
+}
+
+#[proc_macro_derive(Printable, attributes(dialect, ir_kind, ir_format))]
+pub fn derive_printable(input: TokenStream) -> TokenStream {
+    to_token_stream(derive_printable::derive(input))
+}
+
+// Helper derive macro to accept internal attributes that we pass to Printable, Parsable and other
+// derive macros. The dummy ensures that the injected attributes do not cause a compilation error if no other derive macro is used.
+#[proc_macro_derive(DeriveAttribAcceptor, attributes(ir_kind))]
+pub fn derive_attrib_dummy(_input: TokenStream) -> TokenStream {
+    TokenStream::new()
+}
+
+#[proc_macro_derive(Parsable, attributes(dialect, ir_kind, ir_format))]
+pub fn derive_parsable(input: TokenStream) -> TokenStream {
+    to_token_stream(derive_parseable::derive(input))
+}
+
+#[proc_macro_derive(NotParsableType)]
+pub fn derive_not_parsable_type(input: TokenStream) -> TokenStream {
+    to_token_stream(derive_parseable::derive_not_parsable_type(input))
+}
+
+#[proc_macro_derive(NotParsableAttribute)]
+pub fn derive_not_parsable_attribute(input: TokenStream) -> TokenStream {
+    to_token_stream(derive_parseable::derive_not_parsable_attribute(input))
+}
+
+#[proc_macro_derive(NotParsableOp)]
+pub fn derive_not_parsable_op(input: TokenStream) -> TokenStream {
+    to_token_stream(derive_parseable::derive_not_parsable_op(input))
 }
 
 pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> TokenStream {

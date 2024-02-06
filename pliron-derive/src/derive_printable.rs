@@ -5,11 +5,11 @@ use quote::{format_ident, quote, ToTokens};
 use syn::Result;
 
 use crate::{
-    attr::IRKind,
     irfmt::{
         AttribTypeFmtEvaler, Directive, Elem, FieldIdent, FmtData, Format, IRFmtInput, Lit,
         Optional, UnnamedVar, Var,
     },
+    macro_attr::IRKind,
 };
 
 pub(crate) fn derive(input: impl Into<TokenStream>) -> Result<TokenStream> {

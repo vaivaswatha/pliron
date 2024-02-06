@@ -12,8 +12,7 @@ pub(super) fn register(dialect: &mut Dialect) {
     UnresolvedType::register_type_in_dialect(dialect, UnresolvedType::parser_fn);
 }
 
-#[def_type]
-#[type_name = "kal.num"]
+#[def_type("kal.num")]
 #[derive(Debug, Clone, PartialEq, Hash, Printable, NotParsableType)]
 pub struct NumberType {}
 impl Verify for NumberType {
@@ -27,8 +26,7 @@ impl NumberType {
     }
 }
 
-#[def_type]
-#[type_name = "kal.bool"]
+#[def_type("kal.bool")]
 #[derive(Debug, Clone, PartialEq, Hash, Printable, NotParsableType)]
 pub struct BoolType {}
 impl Verify for BoolType {
@@ -42,8 +40,7 @@ impl BoolType {
     }
 }
 
-#[def_type]
-#[type_name = "kal.func"]
+#[def_type("kal.func")]
 #[derive(Debug, Clone, PartialEq, Hash, Printable, NotParsableType)]
 pub struct FuncType {
     num_args: usize,
@@ -54,8 +51,7 @@ impl Verify for FuncType {
     }
 }
 
-#[def_type]
-#[type_name = "kal.unresolved_type"]
+#[def_type("kal.unresolved_type")]
 #[derive(Debug, Clone, PartialEq, Hash, Printable, NotParsableType)]
 pub struct UnresolvedType {}
 impl Verify for UnresolvedType {
