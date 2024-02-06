@@ -16,7 +16,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
-      run: RUSTFLAGS="-D warnings" cargo build --workspace --verbose
+    - run: RUSTFLAGS="-D warnings" cargo build --workspace --verbose
 
   tests:
     name: Run tests
@@ -25,7 +25,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
-      run: cargo test --workspace --verbose
+    - run: cargo test --workspace --verbose
 
   clippy:
     name: Clippy
@@ -34,7 +34,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
-      run: cargo clippy --workspace -- -D warnings
+    - run: cargo clippy --workspace -- -D warnings
 
   format:
     name: Code format
@@ -43,7 +43,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
-      run: cargo fmt --check
+    - run: cargo fmt --check
 
   docs:
     name: Documentation
@@ -52,4 +52,4 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
-      run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace
+    - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace
