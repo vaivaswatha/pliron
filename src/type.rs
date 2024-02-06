@@ -14,19 +14,21 @@ use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::{Dialect, DialectName};
 use crate::error::Result;
 use crate::identifier::Identifier;
-use crate::input_err;
 use crate::location::Located;
 use crate::parsable::{spaced, Parsable, ParseResult, ParserFn, StateStream};
 use crate::printable::{self, Printable};
 use crate::storage_uniquer::TypeValueHash;
+use crate::{arg_err_noloc, input_err};
 
 use combine::error::StdParseResult2;
 use combine::{parser, Parser, StreamOnce};
 use downcast_rs::{impl_downcast, Downcast};
+use std::cell::Ref;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::Deref;
+use thiserror::Error;
 
 /// Basic functionality that every type in the IR must implement.
 /// Type objects (instances of a Type) are (mostly) immutable once created,
@@ -76,7 +78,7 @@ pub trait Type: Printable + Verify + Downcast + Sync + Debug {
     /// Register an instance of a type in the provided [Context]
     /// Returns a pointer to self. If the type was already registered,
     /// a pointer to the existing object is returned.
-    fn register_instance(t: Self, ctx: &mut Context) -> Ptr<TypeObj>
+    fn register_instance(t: Self, ctx: &mut Context) -> TypePtr<Self>
     where
         Self: Sized,
     {
@@ -84,22 +86,26 @@ pub trait Type: Printable + Verify + Downcast + Sync + Debug {
         let idx = ctx
             .type_store
             .get_or_create_unique(Box::new(t), hash, &TypeObj::eq);
-        Ptr {
+        let ptr = Ptr {
             idx,
             _dummy: PhantomData::<TypeObj>,
-        }
+        };
+        TypePtr(ptr, PhantomData::<Self>)
     }
 
     /// If an instance of `t` already exists, get a [Ptr] to it.
     /// Consumes `t` either way.
-    fn get_instance(t: Self, ctx: &Context) -> Option<Ptr<TypeObj>>
+    fn get_instance(t: Self, ctx: &Context) -> Option<TypePtr<Self>>
     where
         Self: Sized,
     {
         let is = |other: &TypeObj| t.eq_type(&**other);
-        ctx.type_store.get(t.hash_type(), &is).map(|idx| Ptr {
-            idx,
-            _dummy: PhantomData::<TypeObj>,
+        ctx.type_store.get(t.hash_type(), &is).map(|idx| {
+            let ptr = Ptr {
+                idx,
+                _dummy: PhantomData::<TypeObj>,
+            };
+            TypePtr(ptr, PhantomData::<Self>)
         })
     }
 
@@ -296,6 +302,91 @@ impl Printable for TypeObj {
 impl Verify for TypeObj {
     fn verify(&self, ctx: &Context) -> Result<()> {
         self.as_ref().verify(ctx)
+    }
+}
+
+/// A wrapper around [`Ptr<TypeObj>`](TypeObj) with the underlying [Type] statically marked.
+#[derive(Debug)]
+pub struct TypePtr<T: Type>(Ptr<TypeObj>, PhantomData<T>);
+
+#[derive(Error, Debug)]
+#[error("TypePtr mismatch: Constructing {expected} but provided {provided}")]
+pub struct TypePtrErr {
+    pub expected: String,
+    pub provided: String,
+}
+
+impl<T: Type> TypePtr<T> {
+    /// Return a [Ref] to the [Type]
+    /// This borrows from a RefCell and the borrow is live
+    /// as long as the returned [Ref] lives.
+    pub fn deref<'a>(&self, ctx: &'a Context) -> Ref<'a, T> {
+        Ref::map(self.0.deref(ctx), |t| {
+            t.downcast_ref::<T>()
+                .expect("Type mistmatch, inconsistent TypePtr")
+        })
+    }
+
+    /// Create a new [TypePtr] from [`Ptr<TypeObj>`](TypeObj)
+    pub fn new(ptr: Ptr<TypeObj>, ctx: &Context) -> Result<TypePtr<T>> {
+        if ptr.deref(ctx).is::<T>() {
+            Ok(TypePtr(ptr, PhantomData::<T>))
+        } else {
+            arg_err_noloc!(TypePtrErr {
+                expected: T::get_type_id_static().disp(ctx).to_string(),
+                provided: ptr.disp(ctx).to_string()
+            })
+        }
+    }
+
+    /// Erase the static rust type.
+    pub fn ptr(&self) -> Ptr<TypeObj> {
+        self.0
+    }
+}
+
+impl<T: Type> From<TypePtr<T>> for Ptr<TypeObj> {
+    fn from(value: TypePtr<T>) -> Self {
+        value.ptr()
+    }
+}
+
+impl<T: Type> Clone for TypePtr<T> {
+    fn clone(&self) -> TypePtr<T> {
+        *self
+    }
+}
+
+impl<T: Type> Copy for TypePtr<T> {}
+
+impl<T: Type> PartialEq for TypePtr<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T: Type> Eq for TypePtr<T> {}
+
+impl<T: Type> Hash for TypePtr<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl<T: Type> Printable for TypePtr<T> {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        Printable::fmt(&self.0, ctx, state, f)
+    }
+}
+
+impl<T: Type> Verify for TypePtr<T> {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        self.0.verify(ctx)
     }
 }
 

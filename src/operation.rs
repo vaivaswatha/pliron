@@ -4,7 +4,7 @@
 
 use std::marker::PhantomData;
 
-use combine::{attempt, parser::char::spaces, position, token, Parser};
+use combine::{attempt, parser::char::spaces, token, Parser};
 use thiserror::Error;
 
 use crate::{
@@ -19,7 +19,7 @@ use crate::{
     linked_list::{private, LinkedList},
     location::{Located, Location},
     op::{self, OpId, OpObj},
-    parsable::{self, spaced, Parsable, ParseResult, StateStream},
+    parsable::{self, location, spaced, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::{TypeObj, Typed},
     region::Region,
@@ -540,14 +540,14 @@ impl Parsable for Operation {
         _arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
         let loc = state_stream.loc();
-        let src = loc
+        let _src = loc
             .source()
             .expect("Location from Parsable must be Location::SrcPos");
 
         let results_opid = combine::optional(attempt(
             spaces()
                 .with(combine::sep_by::<Vec<_>, _, _, _>(
-                    (position(), Identifier::parser(())).skip(spaces()),
+                    (location(), Identifier::parser(())).skip(spaces()),
                     token(',').skip(spaces()),
                 ))
                 .skip(spaced(token('='))),
@@ -559,8 +559,8 @@ impl Parsable for Operation {
                 let loc = loc.clone();
                 let results: Vec<_> = results_opt
                     .unwrap_or(vec![])
-                    .iter()
-                    .map(|(pos, id)| (id.clone(), (Location::SrcPos { src, pos: *pos })))
+                    .into_iter()
+                    .map(|(res_loc, id)| (id, (res_loc)))
                     .collect();
                 combine::parser(move |parsable_state: &mut StateStream<'a>| {
                     let state = &parsable_state.state;

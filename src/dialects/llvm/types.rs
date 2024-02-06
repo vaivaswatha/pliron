@@ -6,10 +6,10 @@ use crate::{
     identifier::Identifier,
     input_err_noloc,
     irfmt::printers::{enclosed, list_with_sep},
-    location::{Located, Location},
-    parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
+    location::Located,
+    parsable::{location, spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, ListSeparator, Printable},
-    r#type::{type_parser, Type, TypeObj},
+    r#type::{type_parser, Type, TypeObj, TypePtr},
     verify_err_noloc,
 };
 use combine::{between, optional, parser::char::spaces, sep_by, token, Parser};
@@ -90,7 +90,7 @@ impl StructType {
         ctx: &mut Context,
         name: &str,
         fields: Option<Vec<StructField>>,
-    ) -> Result<Ptr<TypeObj>> {
+    ) -> Result<TypePtr<Self>> {
         let self_ptr = Type::register_instance(
             StructType {
                 name: Some(name.to_string()),
@@ -100,7 +100,7 @@ impl StructType {
             ctx,
         );
         // Verify that we created a new or equivalent existing type.
-        let mut self_ref = self_ptr.deref_mut(ctx);
+        let mut self_ref = self_ptr.ptr().deref_mut(ctx);
         let self_ref = self_ref.downcast_mut::<StructType>().unwrap();
         assert!(self_ref.name.as_ref().unwrap() == name);
         if let Some(fields) = fields {
@@ -116,7 +116,7 @@ impl StructType {
 
     /// Get or create a new unnamed (anonymous) struct.
     /// These are finalized upon creation, and uniqued based on the fields.
-    pub fn get_unnamed(ctx: &mut Context, fields: Vec<StructField>) -> Ptr<TypeObj> {
+    pub fn get_unnamed(ctx: &mut Context, fields: Vec<StructField>) -> TypePtr<Self> {
         Type::register_instance(
             StructType {
                 name: None,
@@ -136,7 +136,7 @@ impl StructType {
     }
 
     /// If a named struct already exists, get a pointer to it.
-    pub fn get_existing_named(ctx: &Context, name: &str) -> Option<Ptr<TypeObj>> {
+    pub fn get_existing_named(ctx: &Context, name: &str) -> Option<TypePtr<Self>> {
         Type::get_instance(
             StructType {
                 name: Some(name.to_string()),
@@ -149,7 +149,7 @@ impl StructType {
     }
 
     /// If an unnamed struct already exists, get a pointer to it.
-    pub fn get_existing_unnamed(ctx: &Context, fields: Vec<StructField>) -> Option<Ptr<TypeObj>> {
+    pub fn get_existing_unnamed(ctx: &Context, fields: Vec<StructField>) -> Option<TypePtr<Self>> {
         Type::get_instance(
             StructType {
                 name: None,
@@ -275,34 +275,31 @@ impl Parsable for StructType {
             between(token('{'), token('}'), fields_parser)
         };
 
-        let named = spaced((combine::position(), Identifier::parser(())))
+        let named = spaced((location(), Identifier::parser(())))
             .and(optional(spaced(body_parser())))
-            .map(|((position, name), body_opt)| (position, Some(name), body_opt));
-        let anonymous = spaced((combine::position(), body_parser()))
-            .map(|(position, body)| (position, None::<Identifier>, Some(body)));
+            .map(|((loc, name), body_opt)| (loc, Some(name), body_opt));
+        let anonymous = spaced((location(), body_parser()))
+            .map(|(loc, body)| (loc, None::<Identifier>, Some(body)));
 
         // A struct type is named or anonymous.
         let mut struct_parser = between(token('<'), token('>'), named.or(anonymous));
 
-        let src = state_stream
-            .loc()
-            .source()
-            .expect("Expect Location::SrcPos for parser locations");
-        let (pos, name_opt, body_opt) = struct_parser.parse_stream(state_stream).into_result()?.0;
+        let (loc, name_opt, body_opt) = struct_parser.parse_stream(state_stream).into_result()?.0;
         let ctx = &mut state_stream.state.ctx;
         if let Some(name) = name_opt {
-            let loc = Location::SrcPos { src, pos };
             StructType::get_named(ctx, &name, body_opt)
                 .map_err(|mut err| {
                     err.set_loc(loc);
                     err
                 })
+                .map(Into::into)
                 .into_parse_result()
         } else {
             Ok(StructType::get_unnamed(
                 ctx,
                 body_opt.expect("Without a name, a struct type must have a body."),
-            ))
+            )
+            .into())
             .into_parse_result()
         }
     }
@@ -318,11 +315,11 @@ pub struct PointerType {
 
 impl PointerType {
     /// Get or create a new pointer type.
-    pub fn get(ctx: &mut Context, to: Ptr<TypeObj>) -> Ptr<TypeObj> {
+    pub fn get(ctx: &mut Context, to: Ptr<TypeObj>) -> TypePtr<Self> {
         Type::register_instance(PointerType { to }, ctx)
     }
     /// Get, if it already exists, a pointer type.
-    pub fn get_existing(ctx: &Context, to: Ptr<TypeObj>) -> Option<Ptr<TypeObj>> {
+    pub fn get_existing(ctx: &Context, to: Ptr<TypeObj>) -> Option<TypePtr<Self>> {
         Type::get_instance(PointerType { to }, ctx)
     }
 
@@ -356,7 +353,7 @@ impl Parsable for PointerType {
     {
         combine::between(token('<'), token('>'), spaced(type_parser()))
             .parse_stream(state_stream)
-            .map(|pointee_ty| PointerType::get(state_stream.state.ctx, pointee_ty))
+            .map(|pointee_ty| PointerType::get(state_stream.state.ctx, pointee_ty).into())
             .into()
     }
 }
@@ -395,12 +392,12 @@ mod tests {
     #[test]
     fn test_struct() -> Result<()> {
         let mut ctx = Context::new();
-        let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signless);
+        let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signless).into();
 
         // Create an opaque struct since we want a recursive type.
-        let list_struct = StructType::get_named(&mut ctx, "LinkedList", None)?;
+        let list_struct = StructType::get_named(&mut ctx, "LinkedList", None)?.into();
         assert!(!StructType::is_finalized(&ctx, list_struct));
-        let list_struct_ptr = PointerType::get(&mut ctx, list_struct);
+        let list_struct_ptr = PointerType::get(&mut ctx, list_struct).into();
         let fields = vec![
             StructField {
                 field_name: "data".into(),
@@ -415,7 +412,9 @@ mod tests {
         StructType::get_named(&mut ctx, "LinkedList", Some(fields))?;
         assert!(StructType::is_finalized(&ctx, list_struct));
 
-        let list_struct_2 = StructType::get_existing_named(&ctx, "LinkedList").unwrap();
+        let list_struct_2 = StructType::get_existing_named(&ctx, "LinkedList")
+            .unwrap()
+            .into();
         assert!(list_struct == list_struct_2);
         assert!(StructType::get_existing_named(&ctx, "LinkedList2").is_none());
 
@@ -459,8 +458,8 @@ mod tests {
     #[test]
     fn test_pointer_types() {
         let mut ctx = Context::new();
-        let int32_1_ptr = IntegerType::get(&mut ctx, 32, Signedness::Signed);
-        let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signed);
+        let int32_1_ptr = IntegerType::get(&mut ctx, 32, Signedness::Signed).into();
+        let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signed).into();
 
         let int64pointer_ptr = PointerType { to: int64_ptr };
         let int64pointer_ptr = Type::register_instance(int64pointer_ptr, &mut ctx);
@@ -481,14 +480,7 @@ mod tests {
 
         assert!(IntegerType::get_existing(&ctx, 32, Signedness::Signed).unwrap() == int32_1_ptr);
         assert!(PointerType::get_existing(&ctx, int64_ptr).unwrap() == int64pointer_ptr);
-        assert!(
-            int64pointer_ptr
-                .deref(&ctx)
-                .downcast_ref::<PointerType>()
-                .unwrap()
-                .get_pointee_type()
-                == int64_ptr
-        );
+        assert!(int64pointer_ptr.deref(&ctx).get_pointee_type() == int64_ptr);
     }
 
     #[test]

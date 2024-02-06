@@ -12,6 +12,7 @@ use pliron::{
     operation::Operation,
     parsable::{self, spaced, state_stream_from_iterator, Parsable},
     printable::Printable,
+    r#type::TypePtr,
 };
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
@@ -51,7 +52,10 @@ fn replace_c0_with_c1() -> Result<()> {
     let (module_op, _, const_op, _) = const_ret_in_mod(ctx).unwrap();
 
     // Insert a new constant.
-    let one_const = IntegerAttr::create(const_op.get_type(ctx), ApInt::from(1));
+    let one_const = IntegerAttr::create(
+        TypePtr::new(const_op.get_type(ctx), ctx).expect("Expected const_op to have integer type"),
+        ApInt::from(1),
+    );
     let const1_op = ConstantOp::new_unlinked(ctx, one_const);
     const1_op
         .get_operation()
@@ -77,7 +81,10 @@ fn replace_c0_with_c1_operand() -> Result<()> {
     let (module_op, _, const_op, ret_op) = const_ret_in_mod(ctx).unwrap();
 
     // Insert a new constant.
-    let one_const = IntegerAttr::create(const_op.get_type(ctx), ApInt::from(1));
+    let one_const = IntegerAttr::create(
+        TypePtr::new(const_op.get_type(ctx), ctx).unwrap(),
+        ApInt::from(1),
+    );
     let const1_op = ConstantOp::new_unlinked(ctx, one_const);
     const1_op
         .get_operation()

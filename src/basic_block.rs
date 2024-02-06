@@ -3,7 +3,7 @@
 use combine::{
     between,
     parser::{char::spaces, Parser},
-    position, sep_by, token,
+    sep_by, token,
 };
 use rustc_hash::FxHashMap;
 
@@ -17,9 +17,9 @@ use crate::{
     indented_block,
     irfmt::printers::{iter_with_sep, list_with_sep},
     linked_list::{private, ContainsLinkedList, LinkedList},
-    location::{Located, Location},
+    location::Located,
     operation::Operation,
-    parsable::{self, spaced, IntoParseResult, Parsable, ParseResult},
+    parsable::{self, location, spaced, IntoParseResult, Parsable, ParseResult},
     printable::{self, indented_nl, ListSeparator, Printable},
     r#type::{type_parser, TypeObj, Typed},
     region::Region,
@@ -337,12 +337,9 @@ impl Parsable for BasicBlock {
         _arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
         let loc = state_stream.loc();
-        let src = loc
-            .source()
-            .expect("Location from Parsable must be Location::SrcPos");
 
         let arg = (
-            (position(), Identifier::parser(())).skip(spaced(token(':'))),
+            (location(), Identifier::parser(())).skip(spaced(token(':'))),
             type_parser().skip(spaces()),
         );
         let args = spaced(between(
@@ -365,14 +362,13 @@ impl Parsable for BasicBlock {
         // We've parsed the components. Now construct the result.
         let (arg_names, arg_types): (Vec<_>, Vec<_>) = args.into_iter().unzip();
         let block = BasicBlock::new(state_stream.state.ctx, Some(label.clone()), arg_types);
-        for (arg_idx, (pos, name)) in arg_names.into_iter().enumerate() {
+        for (arg_idx, (loc, name)) in arg_names.into_iter().enumerate() {
             let def: Value = (&block.deref(state_stream.state.ctx).args[arg_idx]).into();
             let name_string = name.to_string();
-            state_stream.state.name_tracker.ssa_def(
-                state_stream.state.ctx,
-                &(name, Location::SrcPos { src, pos }),
-                def,
-            )?;
+            state_stream
+                .state
+                .name_tracker
+                .ssa_def(state_stream.state.ctx, &(name, loc), def)?;
             set_block_arg_name(state_stream.state.ctx, block, arg_idx, name_string);
         }
         for op in ops {
