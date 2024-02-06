@@ -210,6 +210,15 @@ pub fn spaced<Input: Stream<Token = char>, Output>(
     combine::between(spaces(), spaces(), parser)
 }
 
+/// A parser that returns the current [Location] and does nothing else
+pub fn location<'a>() -> Box<dyn Parser<StateStream<'a>, Output = Location, PartialState = ()> + 'a>
+{
+    combine::parser(|parsable_state: &mut StateStream<'a>| {
+        combine::ParseResult::PeekOk(parsable_state.loc()).into()
+    })
+    .boxed()
+}
+
 /// Convert [Result] into [StdParseResult2].
 /// Enables using `?` on [Result] during parsing.
 pub trait IntoParseResult<'a, T> {

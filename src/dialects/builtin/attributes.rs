@@ -17,9 +17,9 @@ use crate::{
     impl_attr_interface, input_err,
     irfmt::printers::quoted,
     location::Located,
-    parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
+    parsable::{location, spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{type_parser, TypeObj, Typed},
+    r#type::{type_parser, TypeObj, TypePtr, Typed},
     verify_err_noloc,
 };
 
@@ -71,7 +71,7 @@ impl Parsable for StringAttr {
     ) -> ParseResult<'a, Self::Parsed> {
         // An escaped charater is one that is preceded by a backslash.
         let escaped_char = combine::parser(move |parsable_state: &mut StateStream<'a>| {
-            // This combine::parser() is so that we can get a position before the parsing begins.
+            // This combine::parser() is so that we can get a location before the parsing begins.
             let loc = parsable_state.loc();
             let mut escaped_char = token('\\').with(any()).then(move |c: char| {
                 let loc = loc.clone();
@@ -109,7 +109,7 @@ impl Parsable for StringAttr {
 #[def_attribute("builtin.integer")]
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct IntegerAttr {
-    ty: Ptr<TypeObj>,
+    ty: TypePtr<IntegerType>,
     val: ApInt,
 }
 
@@ -124,22 +124,15 @@ impl Printable for IntegerAttr {
     }
 }
 
-#[derive(Error, Debug)]
-#[error("value of IntegerAttr must be of IntegerType")]
-struct IntegerAttrVerifyErr;
-
 impl Verify for IntegerAttr {
-    fn verify(&self, ctx: &Context) -> Result<()> {
-        if !self.ty.deref(ctx).is::<IntegerType>() {
-            return verify_err_noloc!(IntegerAttrVerifyErr);
-        }
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         Ok(())
     }
 }
 
 impl IntegerAttr {
     /// Create a new [IntegerAttr].
-    pub fn create(ty: Ptr<TypeObj>, val: ApInt) -> AttrObj {
+    pub fn create(ty: TypePtr<IntegerType>, val: ApInt) -> AttrObj {
         Box::new(IntegerAttr { ty, val })
     }
 }
@@ -149,6 +142,10 @@ impl From<IntegerAttr> for ApInt {
         value.val
     }
 }
+
+#[derive(Error, Debug)]
+#[error("Type of IntegerAttr must be IntegerType")]
+struct IntegerAttrTyErr;
 
 impl Parsable for IntegerAttr {
     type Arg = ();
@@ -164,23 +161,34 @@ impl Parsable for IntegerAttr {
             string("0x")
                 .with(many1::<String, _, _>(hex_digit()))
                 .skip(token(':'))
-                .and(type_parser()),
+                .and((location(), type_parser())),
         )
+        .then(move |(digits, (ty_loc, ty))| {
+            combine::parser(move |parsable_state: &mut StateStream<'a>| {
+                let ty = TypePtr::new(ty, parsable_state.state.ctx).map_err(|_| {
+                    (input_err!(ty_loc.clone(), IntegerAttrTyErr) as Result<()>).unwrap_err()
+                })?;
+                Ok(IntegerAttr::create(
+                    ty,
+                    ApInt::from_str_radix(16, digits.clone()).unwrap(),
+                ))
+                .into_parse_result()
+            })
+        })
         .parse_stream(state_stream)
-        .map(|(digits, ty)| IntegerAttr::create(ty, ApInt::from_str_radix(16, digits).unwrap()))
         .into()
     }
 }
 
 impl Typed for IntegerAttr {
     fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
-        self.ty
+        self.ty.ptr()
     }
 }
 
 impl_attr_interface!(TypedAttrInterface for IntegerAttr {
     fn get_type(&self) -> Ptr<TypeObj> {
-        self.ty
+        self.ty.ptr()
     }
 });
 
@@ -504,6 +512,8 @@ mod tests {
     #[test]
     fn test_integer_attributes() {
         let mut ctx = Context::new();
+        dialects::builtin::register(&mut ctx);
+
         let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
 
         let int64_0_ptr = IntegerAttr::create(i64_ty, ApInt::from_i64(0));
@@ -525,6 +535,22 @@ mod tests {
                     int64_1_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()
                 )) == 15
         );
+
+        let attr_input = "builtin.integer <0x0: builtin.unit>";
+        let state_stream = state_stream_from_iterator(
+            attr_input.chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+
+        let parse_err = attr_parser()
+            .parse(state_stream)
+            .err()
+            .expect("Integer attribute with non-integer type shouldn't be parsed successfully");
+        let expected_err_msg = expect![[r#"
+            Parse error at line: 1, column: 22
+            Type of IntegerAttr must be IntegerType
+        "#]];
+        expected_err_msg.assert_eq(&parse_err.to_string());
     }
 
     #[test]
@@ -624,7 +650,7 @@ mod tests {
         let mut ctx = Context::new();
         dialects::builtin::register(&mut ctx);
 
-        let ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
+        let ty = IntegerType::get(&mut ctx, 64, Signedness::Signed).into();
         let ty_attr = TypeAttr::create(ty);
 
         let ty_interface = attr_cast::<dyn TypedAttrInterface>(&*ty_attr).unwrap();

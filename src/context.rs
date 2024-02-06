@@ -105,7 +105,7 @@ pub struct Ptr<T: ArenaObj> {
 }
 
 impl<'a, T: ArenaObj> Ptr<T> {
-    /// Return a Ref to the pointee.
+    /// Return a [Ref] to the pointee.
     /// This borrows from a RefCell and the borrow is live
     /// as long as the returned Ref lives.
     pub fn deref(&self, ctx: &'a Context) -> Ref<'a, T> {

@@ -16,7 +16,7 @@ use crate::{
     irfmt::printers::{functional_type, list_with_sep},
     parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, ListSeparator, Printable},
-    r#type::{type_parser, Type, TypeObj},
+    r#type::{type_parser, Type, TypeObj, TypePtr},
 };
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
@@ -35,11 +35,15 @@ pub struct IntegerType {
 
 impl IntegerType {
     /// Get or create a new integer type.
-    pub fn get(ctx: &mut Context, width: u64, signedness: Signedness) -> Ptr<TypeObj> {
+    pub fn get(ctx: &mut Context, width: u64, signedness: Signedness) -> TypePtr<Self> {
         Type::register_instance(IntegerType { width, signedness }, ctx)
     }
     /// Get, if it already exists, an integer type.
-    pub fn get_existing(ctx: &Context, width: u64, signedness: Signedness) -> Option<Ptr<TypeObj>> {
+    pub fn get_existing(
+        ctx: &Context,
+        width: u64,
+        signedness: Signedness,
+    ) -> Option<TypePtr<Self>> {
         Type::get_instance(IntegerType { width, signedness }, ctx)
     }
 
@@ -78,7 +82,9 @@ impl Parsable for IntegerType {
         let mut parser = between(token('<'), token('>'), spaced(parser));
         parser
             .parse_stream(&mut state_stream.stream)
-            .map(|(signedness, width)| IntegerType::get(state_stream.state.ctx, width, signedness))
+            .map(|(signedness, width)| {
+                IntegerType::get(state_stream.state.ctx, width, signedness).into()
+            })
             .into()
     }
 }
@@ -125,7 +131,7 @@ impl FunctionType {
         ctx: &mut Context,
         inputs: Vec<Ptr<TypeObj>>,
         results: Vec<Ptr<TypeObj>>,
-    ) -> Ptr<TypeObj> {
+    ) -> TypePtr<Self> {
         Type::register_instance(FunctionType { inputs, results }, ctx)
     }
     /// Get, if it already exists, a Function type.
@@ -133,7 +139,7 @@ impl FunctionType {
         ctx: &Context,
         inputs: Vec<Ptr<TypeObj>>,
         results: Vec<Ptr<TypeObj>>,
-    ) -> Option<Ptr<TypeObj>> {
+    ) -> Option<TypePtr<Self>> {
         Type::get_instance(FunctionType { inputs, results }, ctx)
     }
 
@@ -194,7 +200,7 @@ impl Parsable for FunctionType {
         ));
         parser
             .parse_stream(state_stream)
-            .map(|(inputs, results)| Self::get(state_stream.state.ctx, inputs, results))
+            .map(|(inputs, results)| Self::get(state_stream.state.ctx, inputs, results).into())
             .into()
     }
 }
@@ -211,7 +217,7 @@ pub struct UnitType;
 
 impl UnitType {
     /// Get or create a new unit type.
-    pub fn get(ctx: &mut Context) -> Ptr<TypeObj> {
+    pub fn get(ctx: &mut Context) -> TypePtr<Self> {
         Type::register_instance(UnitType {}, ctx)
     }
 }
@@ -238,7 +244,7 @@ impl Parsable for UnitType {
     where
         Self: Sized,
     {
-        Ok(UnitType::get(state_stream.state.ctx)).into_parse_result()
+        Ok(UnitType::get(state_stream.state.ctx).into()).into_parse_result()
     }
 }
 
@@ -268,6 +274,7 @@ mod tests {
         },
         location,
         parsable::{self, state_stream_from_iterator, Parsable},
+        r#type::Type,
     };
     #[test]
     fn test_integer_types() {
@@ -285,13 +292,13 @@ mod tests {
         assert!(int32_1_ptr != int64_ptr);
         assert!(int32_1_ptr != uint32_ptr);
 
-        assert!(int32_1_ptr.deref(&ctx).get_self_ptr(&ctx) == int32_1_ptr);
-        assert!(int32_2_ptr.deref(&ctx).get_self_ptr(&ctx) == int32_1_ptr);
-        assert!(int32_2_ptr.deref(&ctx).get_self_ptr(&ctx) == int32_2_ptr);
-        assert!(int64_ptr.deref(&ctx).get_self_ptr(&ctx) == int64_ptr);
-        assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) == uint32_ptr);
-        assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) != int32_1_ptr);
-        assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) != int64_ptr);
+        assert!(int32_1_ptr.deref(&ctx).get_self_ptr(&ctx) == int32_1_ptr.into());
+        assert!(int32_2_ptr.deref(&ctx).get_self_ptr(&ctx) == int32_1_ptr.into());
+        assert!(int32_2_ptr.deref(&ctx).get_self_ptr(&ctx) == int32_2_ptr.into());
+        assert!(int64_ptr.deref(&ctx).get_self_ptr(&ctx) == int64_ptr.into());
+        assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) == uint32_ptr.into());
+        assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) != int32_1_ptr.into());
+        assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) != int64_ptr.into());
     }
 
     #[test]
@@ -300,9 +307,12 @@ mod tests {
         let int32_1_ptr = IntegerType::get(&mut ctx, 32, Signedness::Signed);
         let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signed);
 
-        let ft = FunctionType::get(&mut ctx, vec![int32_1_ptr], vec![int64_ptr]).deref(&ctx);
-        let ft_ref = ft.downcast_ref::<FunctionType>().unwrap();
-        assert!(ft_ref.get_inputs()[0] == int32_1_ptr && ft_ref.get_results()[0] == int64_ptr);
+        let ft_ref = FunctionType::get(&mut ctx, vec![int32_1_ptr.into()], vec![int64_ptr.into()])
+            .deref(&ctx);
+        assert!(
+            ft_ref.get_inputs()[0] == int32_1_ptr.into()
+                && ft_ref.get_results()[0] == int64_ptr.into()
+        );
     }
 
     #[test]
@@ -319,7 +329,11 @@ mod tests {
             .unwrap()
             .0
              .0;
-        assert!(res == IntegerType::get_existing(&ctx, 64, Signedness::Signed).unwrap())
+        assert!(
+            res == IntegerType::get_existing(&ctx, 64, Signedness::Signed)
+                .unwrap()
+                .into()
+        )
     }
 
     #[test]
@@ -360,6 +374,10 @@ mod tests {
             .unwrap()
             .0
              .0;
-        assert!(res == FunctionType::get_existing(&ctx, vec![], vec![si32]).unwrap())
+        assert!(
+            res == FunctionType::get_existing(&ctx, vec![], vec![si32.into()])
+                .unwrap()
+                .into()
+        )
     }
 }
