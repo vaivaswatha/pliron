@@ -59,7 +59,7 @@ impl TryFrom<IRFmtInput> for DerivedAttribTypePrinter {
             FmtData::Struct(s) => s.fields,
         };
         let evaler = AttribTypeFmtEvaler::new(input.ident.span(), &fields);
-        let format = evaler.eval(input.format.into_format())?;
+        let format = evaler.eval(input.format)?;
         Ok(Self {
             ident: input.ident,
             format,
@@ -110,7 +110,7 @@ impl From<IRFmtInput> for DerivedOpPrinter {
         };
         Self {
             ident: input.ident,
-            format: input.format.into_format(),
+            format: input.format,
             fields,
         }
     }

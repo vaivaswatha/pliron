@@ -14,7 +14,7 @@ use crate::{
     impl_op_interface, input_err,
     irfmt::{
         parsers::{attr_parser, process_parsed_ssa_defs, spaced, type_parser},
-        printers::{attr, concat, region, symb_op_header, typed_symb_op_header},
+        printers::{region, symb_op_header, typed_symb_op_header},
     },
     linked_list::ContainsLinkedList,
     location::{Located, Location},
@@ -338,7 +338,7 @@ impl Printable for ConstantOp {
     fn fmt(
         &self,
         ctx: &Context,
-        state: &printable::State,
+        _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         write!(

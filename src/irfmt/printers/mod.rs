@@ -7,8 +7,6 @@ use std::fmt;
 
 use crate::{
     context::{private::ArenaObj, Context, Ptr},
-    dialects::builtin::op_interfaces::SymbolOpInterface,
-    op::Op,
     printable::{fmt_iter, ListSeparator, Printable, State},
 };
 
@@ -309,7 +307,7 @@ impl<I, T> PrinterCheck for I
 where
     I: Iterator<Item = T> + Clone,
 {
-    fn check(&self, ctx: &Context) -> bool {
+    fn check(&self, _ctx: &Context) -> bool {
         self.clone().next().is_some()
     }
 }

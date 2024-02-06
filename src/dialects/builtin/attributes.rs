@@ -17,7 +17,7 @@ use crate::{
     impl_attr_interface, input_err,
     irfmt::{
         parsers::{spaced, type_parser},
-        printers::{concat, quoted},
+        printers::quoted,
     },
     location::Located,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
@@ -431,7 +431,7 @@ impl Printable for TypeAttr {
     fn fmt(
         &self,
         ctx: &Context,
-        state: &printable::State,
+        _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         write!(f, "<{}>", self.0.disp(ctx))

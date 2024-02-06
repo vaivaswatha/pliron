@@ -78,17 +78,11 @@ impl IRFormat {
         let value = attrib_lit_value(attr)?.value();
         Self::try_from(value).map_err(|e| syn::Error::new_spanned(attr, e))
     }
+}
 
-    pub fn into_format(self) -> Format {
-        self.0
-    }
-
-    pub fn format(&self) -> &Format {
-        &self.0
-    }
-
-    pub fn format_mut(&mut self) -> &mut Format {
-        &mut self.0
+impl From<IRFormat> for Format {
+    fn from(f: IRFormat) -> Self {
+        f.0
     }
 }
 

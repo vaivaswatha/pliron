@@ -4,9 +4,8 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{DeriveInput, Result};
 
-use crate::{
-    macro_attr::IRFormat,
-    irfmt::{Directive, Elem, FieldIdent, FmtData, IRFmtInput, Lit, UnnamedVar, Var},
+use crate::irfmt::{
+    Directive, Elem, FieldIdent, FmtData, Format, IRFmtInput, Lit, UnnamedVar, Var,
 };
 
 pub(crate) fn derive_not_parsable_type(input: impl Into<TokenStream>) -> Result<TokenStream> {
@@ -118,8 +117,8 @@ impl ParserBuilder {
         }
     }
 
-    fn build(&self, attr: &IRFormat) -> TokenStream {
-        let elems = attr.format().elems.iter();
+    fn build(&self, format: &Format) -> TokenStream {
+        let elems = format.elems.iter();
         elems.map(|e| self.build_elem(e, true)).collect()
     }
 

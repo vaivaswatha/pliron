@@ -17,7 +17,7 @@ use crate::macro_attr::{require_once, IRFormat, IRKind};
 pub(crate) struct IRFmtInput {
     pub ident: syn::Ident,
     pub kind: IRKind,
-    pub format: IRFormat,
+    pub format: Format,
     pub data: FmtData,
 }
 
@@ -69,7 +69,7 @@ impl TryFrom<DeriveInput> for IRFmtInput {
             )),
         }?;
 
-        let mut format = match format {
+        let format = match format {
             Some(f) => f,
             None => {
                 let mut format = match kind {
@@ -83,8 +83,9 @@ impl TryFrom<DeriveInput> for IRFmtInput {
             }
         };
 
+        let mut format: Format = format.into();
         if kind == IRKind::Op {
-            format.format_mut().prepend(Optional::new(
+            format.prepend(Optional::new(
                 Elem::new_directive("results"),
                 Format::from(vec![Elem::new_directive("results"), Elem::new_lit(" = ")]),
             ));

@@ -334,7 +334,7 @@ impl Printable for PointerType {
     fn fmt(
         &self,
         ctx: &Context,
-        state: &printable::State,
+        _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         write!(f, "<{}>", self.to.disp(ctx))

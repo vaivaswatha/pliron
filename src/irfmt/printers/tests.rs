@@ -10,7 +10,7 @@ use crate::{
     impl_attr_interface,
     irfmt::parsers::AsmParser,
     location::{self, Location},
-    op::OpObj,
+    op::{Op, OpObj},
     operation::Operation,
     parsable::{self, state_stream_from_iterator},
     r#type::Type,
