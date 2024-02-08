@@ -21,8 +21,7 @@ use crate::printable::{self, Printable};
 use crate::storage_uniquer::TypeValueHash;
 use crate::{arg_err_noloc, input_err};
 
-use combine::error::StdParseResult2;
-use combine::{parser, Parser, StreamOnce};
+use combine::{parser, Parser};
 use downcast_rs::{impl_downcast, Downcast};
 use std::cell::Ref;
 use std::fmt::Debug;
@@ -421,37 +420,4 @@ impl<T: Type> Verify for TypePtr<T> {
     fn verify(&self, ctx: &Context) -> Result<()> {
         self.0.verify(ctx)
     }
-}
-
-/// Parse an identified type, which is [TypeId] followed by its contents.
-pub fn type_parse<'a>(
-    state_stream: &mut StateStream<'a>,
-) -> StdParseResult2<Ptr<TypeObj>, <StateStream<'a> as StreamOnce>::Error> {
-    let loc = state_stream.loc();
-    let type_id_parser = spaced(TypeId::parser(()));
-
-    let mut type_parser = type_id_parser.then(move |type_id: TypeId| {
-        // This clone is to satify the borrow checker.
-        let loc = loc.clone();
-        combine::parser(move |parsable_state: &mut StateStream<'a>| {
-            let state = &parsable_state.state;
-            let dialect = state
-                .ctx
-                .dialects
-                .get(&type_id.dialect)
-                .expect("Dialect name parsed but dialect isn't registered");
-            let Some(type_parser) = dialect.types.get(&type_id) else {
-                input_err!(loc.clone(), "Unregistered type {}", type_id.disp(state.ctx))?
-            };
-            type_parser(&(), ()).parse_stream(parsable_state).into()
-        })
-    });
-
-    type_parser.parse_stream(state_stream).into_result()
-}
-
-/// A parser combinator to parse [TypeId] followed by the type's contents.
-pub fn type_parser<'a>(
-) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
-    combine::parser(|parsable_state: &mut StateStream<'a>| type_parse(parsable_state)).boxed()
 }
