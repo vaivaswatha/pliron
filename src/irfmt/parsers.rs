@@ -98,7 +98,7 @@ pub fn block_opd_parse<'a>(
         .into()
 }
 
-/// Parse a block label into a [`Ptr<BasicBlock>`]. Typically called to parse
+/// A parser to parse a block label into a [`Ptr<BasicBlock>`]. Typically called to parse
 /// the block operands of an [Operation]. If the block doesn't exist, it's created,
 pub fn block_opd_parser<'a>(
 ) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<BasicBlock>, PartialState = ()> + 'a> {
