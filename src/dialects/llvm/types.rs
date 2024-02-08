@@ -100,7 +100,7 @@ impl StructType {
             ctx,
         );
         // Verify that we created a new or equivalent existing type.
-        let mut self_ref = self_ptr.ptr().deref_mut(ctx);
+        let mut self_ref = self_ptr.to_ptr().deref_mut(ctx);
         let self_ref = self_ref.downcast_mut::<StructType>().unwrap();
         assert!(self_ref.name.as_ref().unwrap() == name);
         if let Some(fields) = fields {

@@ -165,7 +165,7 @@ impl Parsable for IntegerAttr {
         )
         .then(move |(digits, (ty_loc, ty))| {
             combine::parser(move |parsable_state: &mut StateStream<'a>| {
-                let ty = TypePtr::new(ty, parsable_state.state.ctx).map_err(|_| {
+                let ty = TypePtr::from_ptr(ty, parsable_state.state.ctx).map_err(|_| {
                     (input_err!(ty_loc.clone(), IntegerAttrTyErr) as Result<()>).unwrap_err()
                 })?;
                 Ok(IntegerAttr::create(
@@ -182,13 +182,13 @@ impl Parsable for IntegerAttr {
 
 impl Typed for IntegerAttr {
     fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
-        self.ty.ptr()
+        self.ty.into()
     }
 }
 
 impl_attr_interface!(TypedAttrInterface for IntegerAttr {
     fn get_type(&self) -> Ptr<TypeObj> {
-        self.ty.ptr()
+        self.ty.into()
     }
 });
 

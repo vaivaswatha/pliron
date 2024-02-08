@@ -328,7 +328,7 @@ impl<T: Type> TypePtr<T> {
     }
 
     /// Create a new [TypePtr] from [`Ptr<TypeObj>`](TypeObj)
-    pub fn new(ptr: Ptr<TypeObj>, ctx: &Context) -> Result<TypePtr<T>> {
+    pub fn from_ptr(ptr: Ptr<TypeObj>, ctx: &Context) -> Result<TypePtr<T>> {
         if ptr.deref(ctx).is::<T>() {
             Ok(TypePtr(ptr, PhantomData::<T>))
         } else {
@@ -340,14 +340,14 @@ impl<T: Type> TypePtr<T> {
     }
 
     /// Erase the static rust type.
-    pub fn ptr(&self) -> Ptr<TypeObj> {
+    pub fn to_ptr(&self) -> Ptr<TypeObj> {
         self.0
     }
 }
 
 impl<T: Type> From<TypePtr<T>> for Ptr<TypeObj> {
     fn from(value: TypePtr<T>) -> Self {
-        value.ptr()
+        value.to_ptr()
     }
 }
 

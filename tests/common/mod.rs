@@ -30,7 +30,7 @@ pub fn const_ret_in_mod(ctx: &mut Context) -> Result<(ModuleOp, FuncOp, Constant
     let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
     let module = ModuleOp::new(ctx, "bar");
     // Our function is going to have type () -> ().
-    let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty.ptr()]);
+    let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
     let func = FuncOp::new_unlinked(ctx, "foo", func_ty);
     module.add_operation(ctx, func.get_operation());
     let bb = func.get_entry_block(ctx);

@@ -53,7 +53,8 @@ fn replace_c0_with_c1() -> Result<()> {
 
     // Insert a new constant.
     let one_const = IntegerAttr::create(
-        TypePtr::new(const_op.get_type(ctx), ctx).expect("Expected const_op to have integer type"),
+        TypePtr::from_ptr(const_op.get_type(ctx), ctx)
+            .expect("Expected const_op to have integer type"),
         ApInt::from(1),
     );
     let const1_op = ConstantOp::new_unlinked(ctx, one_const);
@@ -82,7 +83,7 @@ fn replace_c0_with_c1_operand() -> Result<()> {
 
     // Insert a new constant.
     let one_const = IntegerAttr::create(
-        TypePtr::new(const_op.get_type(ctx), ctx).unwrap(),
+        TypePtr::from_ptr(const_op.get_type(ctx), ctx).unwrap(),
         ApInt::from(1),
     );
     let const1_op = ConstantOp::new_unlinked(ctx, one_const);
