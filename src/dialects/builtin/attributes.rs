@@ -15,11 +15,14 @@ use crate::{
     dialect::Dialect,
     error::Result,
     impl_attr_interface, input_err,
-    irfmt::printers::quoted,
+    irfmt::{
+        parsers::{location, spaced, type_parser},
+        printers::quoted,
+    },
     location::Located,
-    parsable::{location, spaced, IntoParseResult, Parsable, ParseResult, StateStream},
+    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{type_parser, TypeObj, TypePtr, Typed},
+    r#type::{TypeObj, TypePtr, Typed},
     verify_err_noloc,
 };
 
@@ -493,7 +496,7 @@ mod tests {
     use expect_test::expect;
 
     use crate::{
-        attribute::{attr_cast, attr_parser},
+        attribute::attr_cast,
         context::Context,
         dialects::{
             self,
@@ -503,6 +506,7 @@ mod tests {
                 types::{IntegerType, Signedness},
             },
         },
+        irfmt::parsers::attr_parser,
         location,
         parsable::{self, state_stream_from_iterator},
         printable::Printable,

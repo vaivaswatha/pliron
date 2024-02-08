@@ -20,13 +20,13 @@ use crate::{
 use combine::{
     easy::{self, Errors, ParseError},
     error::{StdParseResult2, Tracked},
-    parser::char::spaces,
     stream::{
         self, buffered,
         position::{self, SourcePosition},
+        state::Stream,
         IteratorStream,
     },
-    Parser, Positioned, Stream, StreamOnce,
+    Parser, Positioned, StreamOnce,
 };
 use rustc_hash::FxHashMap;
 use thiserror::Error;
@@ -65,7 +65,7 @@ impl<'a> Iterator for CharIterator<'a> {
 
 /// A [State]ful [Stream]. Every [Parsable::parser] gets this as input,
 /// allowing for the parser to have access to a state.
-pub type StateStream<'a> = stream::state::Stream<
+pub type StateStream<'a> = Stream<
     buffered::Stream<
         easy::Stream<
             stream::position::Stream<stream::IteratorStream<CharIterator<'a>>, SourcePosition>,
@@ -187,37 +187,6 @@ pub type ParserFn<Arg, Parsed> =
         _: &'a (),
         arg: Arg,
     ) -> Box<dyn Parser<StateStream<'a>, Output = Parsed, PartialState = ()> + 'a>;
-
-/// Parse from `parser`, ignoring whitespace(s) before and after.
-/// > **Warning**: Do not use this inside inside repeating combiners, such as [combine::many].
-///     After successfully parsing one instance, if spaces are consumed to parse
-///     the next one, but the next one doesn't exist, it is treated as a failure
-///     that consumed some input. This messes things up. So spaces must be consumed
-///     after a successfull parse, and not prior to an upcoming one.
-///     A possibly right way to, for example, parse a comma separated list of [Identifier]s:
-///
-///```
-///     # use combine::{parser::char::spaces, Parser};
-///     # use pliron::parsable::Parsable;
-///     let ids = spaces().with
-///               (combine::sep_by::<Vec<_>, _, _, _>
-///                 (pliron::identifier::Identifier::parser(()).skip(spaces()),
-///                 combine::token(',').skip(spaces())));
-///```
-pub fn spaced<Input: Stream<Token = char>, Output>(
-    parser: impl Parser<Input, Output = Output>,
-) -> impl Parser<Input, Output = Output> {
-    combine::between(spaces(), spaces(), parser)
-}
-
-/// A parser that returns the current [Location] and does nothing else
-pub fn location<'a>() -> Box<dyn Parser<StateStream<'a>, Output = Location, PartialState = ()> + 'a>
-{
-    combine::parser(|parsable_state: &mut StateStream<'a>| {
-        combine::ParseResult::PeekOk(parsable_state.loc()).into()
-    })
-    .boxed()
-}
 
 /// Convert [Result] into [StdParseResult2].
 /// Enables using `?` on [Result] during parsing.

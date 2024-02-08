@@ -7,10 +7,11 @@ use pliron::{
         attributes::IntegerAttr, op_interfaces::OneResultInterface, ops::ConstantOp,
     },
     error::Result,
+    irfmt::parsers::spaced,
     location,
     op::Op,
     operation::Operation,
-    parsable::{self, spaced, state_stream_from_iterator, Parsable},
+    parsable::{self, state_stream_from_iterator, Parsable},
     printable::Printable,
     r#type::TypePtr,
 };

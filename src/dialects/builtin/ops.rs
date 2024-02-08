@@ -3,7 +3,7 @@ use pliron_derive::def_op;
 use thiserror::Error;
 
 use crate::{
-    attribute::{attr_cast, attr_parser, AttrObj},
+    attribute::{attr_cast, AttrObj},
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
     context::{Context, Ptr},
@@ -12,14 +12,17 @@ use crate::{
     error::Result,
     identifier::Identifier,
     impl_op_interface, input_err,
-    irfmt::printers::op::{region, symb_op_header, typed_symb_op_header},
+    irfmt::{
+        parsers::{attr_parser, process_parsed_ssa_defs, spaced, type_parser},
+        printers::op::{region, symb_op_header, typed_symb_op_header},
+    },
     linked_list::ContainsLinkedList,
     location::{Located, Location},
     op::{Op, OpObj},
-    operation::{process_parsed_ssa_defs, Operation},
-    parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
+    operation::Operation,
+    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{type_parser, TypeObj, TypePtr, Typed},
+    r#type::{TypeObj, TypePtr, Typed},
     region::Region,
     verify_err,
 };
