@@ -13,10 +13,13 @@ use crate::{
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
-    irfmt::printers::{functional_type, list_with_sep},
-    parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
+    irfmt::{
+        parsers::{spaced, type_parser},
+        printers::{functional_type, list_with_sep},
+    },
+    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, ListSeparator, Printable},
-    r#type::{type_parser, Type, TypeObj},
+    r#type::{Type, TypeObj},
 };
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]

@@ -45,8 +45,9 @@ use crate::{
     error::Result,
     identifier::Identifier,
     input_err,
+    irfmt::parsers::spaced,
     location::Located,
-    parsable::{spaced, Parsable, ParseResult, ParserFn, StateStream},
+    parsable::{Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
 };
 
@@ -104,6 +105,43 @@ impl Printable for AttrObj {
     ) -> core::fmt::Result {
         write!(f, "{} ", self.get_attr_id())?;
         Printable::fmt(self.deref(), ctx, state, f)
+    }
+}
+
+impl Parsable for AttrObj {
+    type Arg = ();
+    type Parsed = AttrObj;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        let loc = state_stream.loc();
+        let attr_id_parser = spaced(AttrId::parser(()));
+
+        let mut attr_parser = attr_id_parser.then(move |attr_id: AttrId| {
+            let loc = loc.clone();
+            combine::parser(move |parsable_state: &mut StateStream<'a>| {
+                let state = &parsable_state.state;
+                let dialect = state
+                    .ctx
+                    .dialects
+                    .get(&attr_id.dialect)
+                    .expect("Dialect name parsed but dialect isn't registered");
+                let Some(attr_parser) = dialect.attributes.get(&attr_id) else {
+                    input_err!(
+                        loc.clone(),
+                        "Unregistered attribute {}",
+                        attr_id.disp(state.ctx)
+                    )?
+                };
+                attr_parser(&(), ())
+                    .parse_stream(parsable_state)
+                    .into_result()
+            })
+        });
+
+        attr_parser.parse_stream(state_stream).into_result()
     }
 }
 
@@ -212,42 +250,6 @@ impl Parsable for AttrId {
             .map(|(dialect, name)| AttrId { dialect, name });
         parser.parse_stream(state_stream).into()
     }
-}
-
-/// Parse an identified attribute, which is [AttrId] followed by its contents.
-pub fn attr_parse<'a>(state_stream: &mut StateStream<'a>) -> ParseResult<'a, AttrObj> {
-    let loc = state_stream.loc();
-    let attr_id_parser = spaced(AttrId::parser(()));
-
-    let mut attr_parser = attr_id_parser.then(move |attr_id: AttrId| {
-        let loc = loc.clone();
-        combine::parser(move |parsable_state: &mut StateStream<'a>| {
-            let state = &parsable_state.state;
-            let dialect = state
-                .ctx
-                .dialects
-                .get(&attr_id.dialect)
-                .expect("Dialect name parsed but dialect isn't registered");
-            let Some(attr_parser) = dialect.attributes.get(&attr_id) else {
-                input_err!(
-                    loc.clone(),
-                    "Unregistered attribute {}",
-                    attr_id.disp(state.ctx)
-                )?
-            };
-            attr_parser(&(), ())
-                .parse_stream(parsable_state)
-                .into_result()
-        })
-    });
-
-    attr_parser.parse_stream(state_stream).into_result()
-}
-
-/// A parser combinator to parse [AttrId] followed by the attribute's contents.
-pub fn attr_parser<'a>(
-) -> Box<dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a> {
-    combine::parser(|parsable_state: &mut StateStream<'a>| attr_parse(parsable_state)).boxed()
 }
 
 /// Every attribute interface must have a function named `verify` with this type.

@@ -5,11 +5,14 @@ use crate::{
     error::Result,
     identifier::Identifier,
     input_err_noloc,
-    irfmt::printers::{enclosed, list_with_sep},
+    irfmt::{
+        parsers::{spaced, type_parser},
+        printers::{enclosed, list_with_sep},
+    },
     location::{Located, Location},
-    parsable::{spaced, IntoParseResult, Parsable, ParseResult, StateStream},
+    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, ListSeparator, Printable},
-    r#type::{type_parser, Type, TypeObj},
+    r#type::{Type, TypeObj},
     verify_err_noloc,
 };
 use combine::{between, optional, parser::char::spaces, sep_by, token, Parser};
@@ -386,10 +389,11 @@ mod tests {
             llvm::types::{PointerType, StructErr, StructField, StructType},
         },
         error::{Error, ErrorKind, Result},
+        irfmt::parsers::type_parser,
         location,
         parsable::{self, state_stream_from_iterator},
         printable::Printable,
-        r#type::{type_parser, Type},
+        r#type::Type,
     };
 
     #[test]
