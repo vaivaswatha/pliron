@@ -12,14 +12,15 @@ use crate::{
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
     context::{private::ArenaObj, ArenaCell, Context, Ptr},
-    debug_info::{self, set_operation_result_name},
+    debug_info,
     error::Result,
     identifier::Identifier,
     input_err,
+    irfmt::parsers::spaced,
     linked_list::{private, LinkedList},
     location::{Located, Location},
     op::{self, OpId, OpObj},
-    parsable::{self, spaced, Parsable, ParseResult, StateStream},
+    parsable::{self, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::{TypeObj, Typed},
     region::Region,
@@ -585,76 +586,4 @@ impl Parsable for Operation {
             })
             .into()
     }
-}
-
-/// Parse an identifier into an SSA [Value]. Typically called to parse
-/// the SSA operands of an [Operation]. If the SSA value hasn't been defined yet,
-/// a [forward reference](crate::dialects::builtin::ops::ForwardRefOp) is returned.
-pub fn ssa_opd_parse<'a>(state_stream: &mut StateStream<'a>, _arg: ()) -> ParseResult<'a, Value> {
-    Identifier::parser(())
-        .parse_stream(state_stream)
-        .map(|opd| {
-            state_stream
-                .state
-                .name_tracker
-                .ssa_use(state_stream.state.ctx, &opd)
-        })
-        .into()
-}
-
-/// A parser to parse an identifier into an SSA [Value]. Typically called to parse
-/// the SSA operands of an [Operation]. If the SSA value hasn't been defined yet,
-/// a [forward reference](crate::dialects::builtin::ops::ForwardRefOp) is returned.
-pub fn ssa_opd_parser<'a>(
-) -> Box<dyn Parser<StateStream<'a>, Output = Value, PartialState = ()> + 'a> {
-    combine::parser(move |parsable_state: &mut StateStream<'a>| ssa_opd_parse(parsable_state, ()))
-        .boxed()
-}
-
-/// Parse a block label into a [`Ptr<BasicBlock>`]. Typically called to parse
-/// the block operands of an [Operation]. If the block doesn't exist, it's created,
-pub fn block_opd_parse<'a>(
-    state_stream: &mut StateStream<'a>,
-    _arg: (),
-) -> ParseResult<'a, Ptr<BasicBlock>> {
-    token('^')
-        .with(Identifier::parser(()))
-        .parse_stream(state_stream)
-        .map(|opd| {
-            state_stream
-                .state
-                .name_tracker
-                .block_use(state_stream.state.ctx, &opd)
-        })
-        .into()
-}
-
-/// Parse a block label into a [`Ptr<BasicBlock>`]. Typically called to parse
-/// the block operands of an [Operation]. If the block doesn't exist, it's created,
-pub fn block_opd_parser<'a>(
-) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<BasicBlock>, PartialState = ()> + 'a> {
-    combine::parser(move |parsable_state: &mut StateStream<'a>| block_opd_parse(parsable_state, ()))
-        .boxed()
-}
-
-/// After an [Operation] is fully parsed, for each result,
-/// set its name and register it as an SSA definition.
-pub fn process_parsed_ssa_defs(
-    state_stream: &mut StateStream,
-    results: &Vec<(Identifier, Location)>,
-    op: Ptr<Operation>,
-) -> Result<()> {
-    let ctx = &mut state_stream.state.ctx;
-    assert!(
-        results.len() == op.deref(ctx).get_num_results(),
-        "Error processing parsed SSA definitions. Result count mismatch"
-    );
-
-    let name_tracker = &mut state_stream.state.name_tracker;
-    for (idx, name_loc) in results.iter().enumerate() {
-        let res = op.deref(ctx).get_result(idx).unwrap();
-        name_tracker.ssa_def(ctx, name_loc, res)?;
-        set_operation_result_name(ctx, op, idx, name_loc.0.to_string());
-    }
-    Ok(())
 }
