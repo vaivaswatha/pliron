@@ -11,45 +11,45 @@ env:
 
 jobs:
   build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
-    - name: Build
-      run: RUSTFLAGS="-D warnings" cargo build --workspace --verbose
+    - run: RUSTFLAGS="-D warnings" cargo build --workspace --verbose
 
   tests:
+    name: Run tests
     runs-on: ubuntu-latest
     needs: build
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
-    - name: Run tests
-      run: cargo test --workspace --verbose
+    - run: cargo test --workspace --verbose
 
   clippy:
+    name: Clippy
     runs-on: ubuntu-latest
     needs: build
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
-    - name: Clippy
-      run: cargo clippy --workspace -- -D warnings
+    - run: cargo clippy --workspace -- -D warnings
 
   format:
+    name: Code format
     runs-on: ubuntu-latest
     needs: build
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
-    - name: Code format
-      run: cargo fmt --check
+    - run: cargo fmt --check
 
   docs:
+    name: Documentation
     runs-on: ubuntu-latest
     needs: build
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
-    - name: Documentation
-      run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace
+    - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace
