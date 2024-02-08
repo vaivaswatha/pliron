@@ -47,7 +47,7 @@ pub fn location<'a>() -> Box<dyn Parser<StateStream<'a>, Output = Location, Part
 /// A parser combinator to parse [TypeId](crate::type::TypeId) followed by the type's contents.
 pub fn type_parser<'a>(
 ) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
-    <Ptr<TypeObj> as Parsable>::parser(())
+    Ptr::<TypeObj>::parser(())
 }
 
 /// A parser combinator to parse [AttrId](crate::attribute::AttrId) followed by the attribute's contents.
