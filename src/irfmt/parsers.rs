@@ -110,7 +110,7 @@ pub fn block_opd_parser<'a>(
 /// set its name and register it as an SSA definition.
 pub fn process_parsed_ssa_defs(
     state_stream: &mut StateStream,
-    results: &Vec<(Identifier, Location)>,
+    results: &[(Identifier, Location)],
     op: Ptr<Operation>,
 ) -> Result<()> {
     let ctx = &mut state_stream.state.ctx;

@@ -16,7 +16,7 @@ use crate::{
     error::Result,
     impl_attr_interface, input_err,
     irfmt::{
-        parsers::{location, spaced, type_parser},
+        parsers::{spaced, type_parser},
         printers::quoted,
     },
     location::Located,
@@ -146,10 +146,6 @@ impl From<IntegerAttr> for ApInt {
     }
 }
 
-#[derive(Error, Debug)]
-#[error("Type of IntegerAttr must be IntegerType")]
-struct IntegerAttrTyErr;
-
 impl Parsable for IntegerAttr {
     type Arg = ();
     type Parsed = AttrObj;
@@ -164,22 +160,13 @@ impl Parsable for IntegerAttr {
             string("0x")
                 .with(many1::<String, _, _>(hex_digit()))
                 .skip(token(':'))
-                .and((location(), type_parser())),
+                .and(TypePtr::<IntegerType>::parser(())),
         )
-        .then(move |(digits, (ty_loc, ty))| {
-            combine::parser(move |parsable_state: &mut StateStream<'a>| {
-                let ty = TypePtr::from_ptr(ty, parsable_state.state.ctx).map_err(|_| {
-                    (input_err!(ty_loc.clone(), IntegerAttrTyErr) as Result<()>).unwrap_err()
-                })?;
-                Ok(IntegerAttr::create(
-                    ty,
-                    ApInt::from_str_radix(16, digits.clone()).unwrap(),
-                ))
-                .into_parse_result()
-            })
-        })
         .parse_stream(state_stream)
-        .into()
+        .map(move |(digits, ty)| {
+            IntegerAttr::create(ty, ApInt::from_str_radix(16, digits.clone()).unwrap())
+        })
+        .into_result()
     }
 }
 
@@ -552,7 +539,7 @@ mod tests {
             .expect("Integer attribute with non-integer type shouldn't be parsed successfully");
         let expected_err_msg = expect![[r#"
             Parse error at line: 1, column: 22
-            Type of IntegerAttr must be IntegerType
+            Expected type builtin.int, but found builtin.unit
         "#]];
         expected_err_msg.assert_eq(&parse_err.to_string());
     }

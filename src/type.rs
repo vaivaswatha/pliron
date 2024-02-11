@@ -455,7 +455,7 @@ impl<T: Type + Parsable<Arg = (), Parsed = TypePtr<T>>> Parsable for TypePtr<T> 
         arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
         let loc = state_stream.loc();
-        TypeId::parser(())
+        spaced(TypeId::parser(()))
             .then(move |type_id| {
                 let loc = loc.clone();
                 combine::parser(move |parsable_state: &mut StateStream<'a>| {
