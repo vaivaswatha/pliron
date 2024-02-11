@@ -259,7 +259,7 @@ impl PartialEq for StructType {
 
 impl Parsable for StructType {
     type Arg = ();
-    type Parsed = Ptr<TypeObj>;
+    type Parsed = TypePtr<Self>;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
@@ -295,14 +295,12 @@ impl Parsable for StructType {
                     err.set_loc(loc);
                     err
                 })
-                .map(Into::into)
                 .into_parse_result()
         } else {
             Ok(StructType::get_unnamed(
                 ctx,
                 body_opt.expect("Without a name, a struct type must have a body."),
-            )
-            .into())
+            ))
             .into_parse_result()
         }
     }
@@ -345,7 +343,7 @@ impl Printable for PointerType {
 
 impl Parsable for PointerType {
     type Arg = ();
-    type Parsed = Ptr<TypeObj>;
+    type Parsed = TypePtr<Self>;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
@@ -356,7 +354,7 @@ impl Parsable for PointerType {
     {
         combine::between(token('<'), token('>'), spaced(type_parser()))
             .parse_stream(state_stream)
-            .map(|pointee_ty| PointerType::get(state_stream.state.ctx, pointee_ty).into())
+            .map(|pointee_ty| PointerType::get(state_stream.state.ctx, pointee_ty))
             .into()
     }
 }

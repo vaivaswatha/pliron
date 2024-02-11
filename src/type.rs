@@ -120,14 +120,44 @@ pub trait Type: Printable + Verify + Downcast + Sync + Debug {
         Self: Sized;
 
     /// Register this Type's [TypeId] in the dialect it belongs to.
-    fn register_type_in_dialect(dialect: &mut Dialect, parser: ParserFn<(), Ptr<TypeObj>>)
+    fn register_type_in_dialect(dialect: &mut Dialect, parser: ParserFn<(), TypePtr<Self>>)
     where
         Self: Sized,
     {
-        dialect.add_type(Self::get_type_id_static(), parser);
+        // Specifying higher ranked lifetime on a closure:
+        // https://stackoverflow.com/a/46198877/2128804
+        fn constrain<F>(f: F) -> F
+        where
+            F: for<'a> Fn(
+                &'a (),
+            ) -> Box<
+                dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a,
+            >,
+        {
+            f
+        }
+        let ptr_parser = constrain(move |_| {
+            combine::parser(move |parsable_state: &mut StateStream<'_>| {
+                parser(&(), ())
+                    .parse_stream(parsable_state)
+                    .map(|typtr| typtr.to_ptr())
+                    .into_result()
+            })
+            .boxed()
+        });
+        dialect.add_type(Self::get_type_id_static(), Box::new(ptr_parser));
     }
 }
 impl_downcast!(Type);
+
+/// A storable closure for parsing any [TypeId] followed by the full [Type].
+pub(crate) type TypeParserFn = Box<
+    dyn for<'a> Fn(
+        &'a (),
+    ) -> Box<
+        dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a,
+    >,
+>;
 
 /// Trait for IR entities that have a direct type.
 pub trait Typed {
@@ -323,7 +353,7 @@ impl Parsable for Ptr<TypeObj> {
                 let Some(type_parser) = dialect.types.get(&type_id) else {
                     input_err!(loc.clone(), "Unregistered type {}", type_id.disp(state.ctx))?
                 };
-                type_parser(&(), ()).parse_stream(parsable_state).into()
+                type_parser(&()).parse_stream(parsable_state).into()
             })
         });
 
@@ -413,6 +443,35 @@ impl<T: Type> Printable for TypePtr<T> {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         Printable::fmt(&self.0, ctx, state, f)
+    }
+}
+
+impl<T: Type + Parsable<Arg = (), Parsed = TypePtr<T>>> Parsable for TypePtr<T> {
+    type Arg = ();
+    type Parsed = Self;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        let loc = state_stream.loc();
+        TypeId::parser(())
+            .then(move |type_id| {
+                let loc = loc.clone();
+                combine::parser(move |parsable_state: &mut StateStream<'a>| {
+                    if type_id != T::get_type_id_static() {
+                        input_err!(
+                            loc.clone(),
+                            "Expected type {}, but found {}",
+                            T::get_type_id_static().disp(parsable_state.state.ctx),
+                            type_id.disp(parsable_state.state.ctx)
+                        )?
+                    }
+                    T::parser(arg).parse_stream(parsable_state).into()
+                })
+            })
+            .parse_stream(state_stream)
+            .into_result()
     }
 }
 

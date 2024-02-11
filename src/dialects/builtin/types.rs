@@ -63,7 +63,7 @@ impl IntegerType {
 
 impl Parsable for IntegerType {
     type Arg = ();
-    type Parsed = Ptr<TypeObj>;
+    type Parsed = TypePtr<Self>;
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
@@ -85,9 +85,7 @@ impl Parsable for IntegerType {
         let mut parser = between(token('<'), token('>'), spaced(parser));
         parser
             .parse_stream(&mut state_stream.stream)
-            .map(|(signedness, width)| {
-                IntegerType::get(state_stream.state.ctx, width, signedness).into()
-            })
+            .map(|(signedness, width)| IntegerType::get(state_stream.state.ctx, width, signedness))
             .into()
     }
 }
@@ -175,7 +173,7 @@ impl Printable for FunctionType {
 
 impl Parsable for FunctionType {
     type Arg = ();
-    type Parsed = Ptr<TypeObj>;
+    type Parsed = TypePtr<Self>;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
@@ -203,7 +201,7 @@ impl Parsable for FunctionType {
         ));
         parser
             .parse_stream(state_stream)
-            .map(|(inputs, results)| Self::get(state_stream.state.ctx, inputs, results).into())
+            .map(|(inputs, results)| Self::get(state_stream.state.ctx, inputs, results))
             .into()
     }
 }
@@ -238,7 +236,7 @@ impl Printable for UnitType {
 
 impl Parsable for UnitType {
     type Arg = ();
-    type Parsed = Ptr<TypeObj>;
+    type Parsed = TypePtr<Self>;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
@@ -247,7 +245,7 @@ impl Parsable for UnitType {
     where
         Self: Sized,
     {
-        Ok(UnitType::get(state_stream.state.ctx).into()).into_parse_result()
+        Ok(UnitType::get(state_stream.state.ctx)).into_parse_result()
     }
 }
 
