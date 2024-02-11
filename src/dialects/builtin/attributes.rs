@@ -163,7 +163,7 @@ impl Parsable for IntegerAttr {
                 .and(TypePtr::<IntegerType>::parser(())),
         )
         .parse_stream(state_stream)
-        .map(move |(digits, ty)| {
+        .map(|(digits, ty)| {
             IntegerAttr::create(ty, ApInt::from_str_radix(16, digits.clone()).unwrap())
         })
         .into_result()
