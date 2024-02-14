@@ -73,8 +73,6 @@ pub trait Attribute: Printable + Verify + Downcast + CastFrom + Sync + DynClone 
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 
     /// Register this attribute's [AttrId] in the dialect it belongs to.
-    /// **Warning**: No check is made as to whether this attr is already registered
-    ///  in `dialect`.
     fn register_attr_in_dialect(dialect: &mut Dialect, attr_parser: ParserFn<(), AttrObj>)
     where
         Self: Sized,
@@ -142,6 +140,12 @@ impl Parsable for AttrObj {
         });
 
         attr_parser.parse_stream(state_stream).into_result()
+    }
+}
+
+impl Verify for AttrObj {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        self.as_ref().verify(ctx)
     }
 }
 

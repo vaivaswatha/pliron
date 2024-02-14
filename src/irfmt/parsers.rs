@@ -5,7 +5,7 @@ use crate::{
     debug_info::set_operation_result_name,
     error::Result,
     identifier::Identifier,
-    location::Location,
+    location::{Located, Location},
     operation::Operation,
     parsable::{Parsable, ParseResult, StateStream},
     r#type::TypeObj,
@@ -35,10 +35,19 @@ pub fn spaced<Input: Stream<Token = char>, Output>(
     combine::between(spaces(), spaces(), parser)
 }
 
+/// A parser that returns the current [Location] and does nothing else
+pub fn location<'a>() -> Box<dyn Parser<StateStream<'a>, Output = Location, PartialState = ()> + 'a>
+{
+    combine::parser(|parsable_state: &mut StateStream<'a>| {
+        combine::ParseResult::PeekOk(parsable_state.loc()).into()
+    })
+    .boxed()
+}
+
 /// A parser combinator to parse [TypeId](crate::type::TypeId) followed by the type's contents.
 pub fn type_parser<'a>(
 ) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
-    <Ptr<TypeObj> as Parsable>::parser(())
+    Ptr::<TypeObj>::parser(())
 }
 
 /// A parser combinator to parse [AttrId](crate::attribute::AttrId) followed by the attribute's contents.
@@ -89,7 +98,7 @@ pub fn block_opd_parse<'a>(
         .into()
 }
 
-/// Parse a block label into a [`Ptr<BasicBlock>`]. Typically called to parse
+/// A parser to parse a block label into a [`Ptr<BasicBlock>`]. Typically called to parse
 /// the block operands of an [Operation]. If the block doesn't exist, it's created,
 pub fn block_opd_parser<'a>(
 ) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<BasicBlock>, PartialState = ()> + 'a> {
@@ -101,7 +110,7 @@ pub fn block_opd_parser<'a>(
 /// set its name and register it as an SSA definition.
 pub fn process_parsed_ssa_defs(
     state_stream: &mut StateStream,
-    results: &Vec<(Identifier, Location)>,
+    results: &[(Identifier, Location)],
     op: Ptr<Operation>,
 ) -> Result<()> {
     let ctx = &mut state_stream.state.ctx;
