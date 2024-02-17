@@ -56,7 +56,7 @@ macro_rules! at_format_directive {
         compile_error!("format directive used without parameter");
     };
     ($self:ident, ($($printer:ident),*), ($fmt:expr, $field_name:ident), ($($params:ident)*)) => {
-        formatted(format!($fmt, $self.$field_name)).fmt($($printer),*)?;
+        ::pliron::irfmt::printers::formatted(format!($fmt, $self.$field_name)).fmt($($printer),*)?;
     };
     ($self:ident, ($($printer:ident),*), ($fmt:expr, $field_name:ident, $($extra:ident),+), ($($params:ident)*)) => {
         compile_error!("format directive used with too many field names");

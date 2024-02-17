@@ -305,6 +305,10 @@ impl Operation {
         op::from_operation(ctx, ptr)
     }
 
+    pub fn regions(&self) -> &[Ptr<Region>] {
+        &self.regions
+    }
+
     /// Get a [Ptr] to the `reg_idx`th region.
     pub fn get_region(&self, reg_idx: usize) -> Option<Ptr<Region>> {
         self.regions.get(reg_idx).cloned()
