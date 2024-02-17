@@ -18,6 +18,7 @@ proc-macro2.workspace = true
 quote.workspace = true
 syn.workspace = true
 winnow = "0.5.37"
+combine.workspace = true
 
 [dev-dependencies]
 prettyplease.workspace = true
