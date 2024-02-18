@@ -39,7 +39,7 @@ intertrait = "0.2.2"
 linkme = "0.2"
 paste = "1.0"
 inventory = "0.3"
-combine = "4.6.6"
+combine.workspace = true
 regex = "1.10.2"
 dyn-clone = "1.0.16"
 
@@ -52,3 +52,4 @@ proc-macro2 = "1.0.72"
 quote = "1.0.33"
 prettyplease = "0.2.16"
 syn = { version = "2.0.43", features = ["derive"] }
+combine = "4.6.6"

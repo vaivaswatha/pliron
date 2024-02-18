@@ -50,11 +50,18 @@ impl DefAttribute {
             ));
         }
 
-        let attrs: Vec<_> = input
+        let mut attrs: Vec<_> = input
             .attrs
             .into_iter()
             .filter(|attr| !attr.path().is_ident(PROC_MACRO_NAME))
             .collect();
+        attrs.push(syn::parse_quote! {
+            #[derive(::pliron_derive::DeriveAttribAcceptor)]
+        });
+        attrs.push(syn::parse_quote! {
+            #[ir_kind = "attribute"]
+        });
+
         let input = DeriveInput { attrs, ..input };
 
         let verifiers = VerifiersRegister {
@@ -157,6 +164,8 @@ mod tests {
 
         expect![[r##"
             #[derive(PartialEq, Eq, Debug, Clone)]
+            #[derive(::pliron_derive::DeriveAttribAcceptor)]
+            #[ir_kind = "attribute"]
             pub struct UnitAttr();
             #[allow(non_camel_case_types)]
             pub struct AttrInterfaceVerifier_UnitAttr(

@@ -1,5 +1,9 @@
+mod irfmt;
+mod macro_attr;
+
 mod derive_attr;
 mod derive_op;
+mod derive_printable;
 mod derive_shared;
 mod derive_type;
 
@@ -90,6 +94,11 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_op::def_op(args, input))
 }
 
+#[proc_macro_derive(Printable, attributes(dialect, ir_kind, ir_format))]
+pub fn derive_printable(input: TokenStream) -> TokenStream {
+    to_token_stream(derive_printable::derive(input))
+}
+
 pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> TokenStream {
     let tokens = match res {
         Ok(tokens) => tokens,
@@ -101,4 +110,11 @@ pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> Tok
         }
     };
     TokenStream::from(tokens)
+}
+
+// Helper derive macro to accept internal attributes that we pass to Printable, Parsable and other
+// derive macros. The helper ensures that the injected attributes do not cause a compilation error if no other derive macro is used.
+#[proc_macro_derive(DeriveAttribAcceptor, attributes(ir_kind))]
+pub fn derive_attrib_dummy(_input: TokenStream) -> TokenStream {
+    TokenStream::new()
 }

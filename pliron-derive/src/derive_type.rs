@@ -46,11 +46,18 @@ impl DefType {
             ));
         }
 
-        let attrs: Vec<_> = input
+        let mut attrs: Vec<_> = input
             .attrs
             .into_iter()
             .filter(|attr| !attr.path().is_ident(PROC_MACRO_NAME))
             .collect();
+        attrs.push(syn::parse_quote! {
+            #[derive(::pliron_derive::DeriveAttribAcceptor)]
+        });
+        attrs.push(syn::parse_quote! {
+            #[ir_kind = "type"]
+        });
+
         let input = DeriveInput { attrs, ..input };
 
         let impl_type = ImplType {
@@ -131,6 +138,8 @@ mod tests {
 
         expect![[r##"
             #[derive(Hash, PartialEq, Eq, Debug)]
+            #[derive(::pliron_derive::DeriveAttribAcceptor)]
+            #[ir_kind = "type"]
             pub struct SimpleType {}
             impl ::pliron::r#type::Type for SimpleType {
                 fn hash_type(&self) -> ::pliron::storage_uniquer::TypeValueHash {
