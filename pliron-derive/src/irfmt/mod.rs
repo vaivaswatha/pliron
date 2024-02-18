@@ -5,8 +5,7 @@ use syn::Data;
 use syn::{self, DataStruct, DeriveInput};
 
 mod eval;
-mod parse;
-mod parse2;
+mod parser;
 
 pub use eval::AttribTypeFmtEvaler;
 
@@ -207,7 +206,7 @@ impl Format {
 
 impl Format {
     pub fn parse(input: &str) -> Result<Self> {
-        parse2::parse(input)
+        parser::parse(input)
     }
 }
 
