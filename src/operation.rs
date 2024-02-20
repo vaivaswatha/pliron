@@ -314,7 +314,7 @@ impl Operation {
     }
 
     /// Drop all uses that this operation holds.
-    pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &mut Context) {
+    pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &Context) {
         // The operands cease to be a use of their definitions.
         let operands = std::mem::take(&mut (ptr.deref_mut(ctx).operands));
         for opd in operands {
