@@ -288,6 +288,11 @@ impl Operation {
         op::from_operation(ctx, ptr)
     }
 
+    /// Iterate over the regions of self.
+    pub fn regions(&self) -> impl Iterator<Item = Ptr<Region>> + '_ {
+        self.regions.iter().cloned()
+    }
+
     /// Get a [Ptr] to the `reg_idx`th region.
     pub fn get_region(&self, reg_idx: usize) -> Option<Ptr<Region>> {
         self.regions.get(reg_idx).cloned()

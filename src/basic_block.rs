@@ -187,7 +187,7 @@ impl BasicBlock {
         self.args.len()
     }
 
-    /// Does this block a predecessor?
+    /// Does this block have a predecessor?
     pub fn has_pred(&self) -> bool {
         self.preds.has_use()
     }
@@ -195,6 +195,39 @@ impl BasicBlock {
     /// Number of predecessors to this block.
     pub fn num_preds(&self) -> usize {
         self.preds.num_uses()
+    }
+
+    /// Get the predecessors of this block.
+    pub fn predecessors(&self, ctx: &Context) -> Vec<Ptr<BasicBlock>> {
+        self.preds
+            .get_uses()
+            .iter()
+            .map(|u| {
+                u.op.deref(ctx)
+                    .get_container()
+                    .expect("Unlinked Operation branching to block")
+            })
+            .collect()
+    }
+
+    /// Get number of successors
+    pub fn num_successors(&self, ctx: &Context) -> usize {
+        self.get_tail()
+            .map(|term| term.deref(ctx).get_num_successors())
+            .unwrap_or_default()
+    }
+
+    /// Get a [Ptr] to the succ_idx'th successor.
+    pub fn successor(&self, ctx: &Context, succ_idx: usize) -> Option<Ptr<BasicBlock>> {
+        self.get_tail()
+            .and_then(|term| term.deref(ctx).get_successor(succ_idx))
+    }
+
+    /// Get the successors of this block.
+    pub fn successors(&self, ctx: &Context) -> Vec<Ptr<BasicBlock>> {
+        self.get_tail()
+            .map(|term| term.deref(ctx).successors().collect())
+            .unwrap_or_default()
     }
 
     /// Drop all uses that this block holds.

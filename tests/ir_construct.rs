@@ -14,6 +14,9 @@ use pliron::{
     parsable::{self, state_stream_from_iterator, Parsable},
     printable::Printable,
     r#type::TypePtr,
+    vec_exns::VecExtns,
+    walker::Walker,
+    walkers::{PreOrderProcessor, PreOrderVisitor},
 };
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
@@ -280,4 +283,54 @@ fn parse_err_block_args() {
     "#]];
 
     expect_parse_error(input_label_colon_missing, expected_err);
+}
+
+#[test]
+fn preorder_walk() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    let module_op = const_ret_in_mod(ctx)?.0.get_operation();
+
+    let state = Vec::new();
+
+    let processor = PreOrderProcessor::new(
+        state,
+        |state, _, op| {
+            state.push_back(op);
+            Ok(())
+        },
+        |_, _, _| Ok(()),
+        |_, _, _| Ok(()),
+    );
+    let visitor = PreOrderVisitor::new();
+    let mut walker = Walker::new(visitor, processor);
+    walker.walk_operation(ctx, module_op)?;
+
+    let ops = walker
+        .processor
+        .state
+        .into_iter()
+        .fold("".to_string(), |accum, op| {
+            accum + &op.disp(ctx).to_string() + "\n"
+        });
+
+    expect![[r#"
+        builtin.module @bar {
+          ^block_0_0():
+            builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
+              ^entry_block_1_0():
+                c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
+                llvm.return c0_op_2_0_res0
+            }
+        }
+        builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
+          ^entry_block_1_0():
+            c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
+            llvm.return c0_op_2_0_res0
+        }
+        c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>
+        llvm.return c0_op_2_0_res0
+    "#]]
+    .assert_eq(&ops);
+
+    Ok(())
 }

@@ -460,7 +460,7 @@ mod tests {
     #[test]
     fn test_pointer_types() {
         let mut ctx = Context::new();
-        let int32_1_ptr = IntegerType::get(&mut ctx, 32, Signedness::Signed).into();
+        let int32_1_ptr = IntegerType::get(&mut ctx, 32, Signedness::Signed);
         let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signed).into();
 
         let int64pointer_ptr = PointerType { to: int64_ptr };
