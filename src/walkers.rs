@@ -162,7 +162,7 @@ pub fn walk_block<State>(
 }
 
 /// A preset config with [Order::PreOrder] and [Direction::Forward]
-// for all IR node kinds.
+/// for all IR node kinds.
 pub const WALKCONFIG_PREORDER_FORWARD: WalkConfig = WalkConfig {
     regions_in_op: (Order::PreOrder, Direction::Forward),
     ops_in_block: (Order::PreOrder, Direction::Forward),
@@ -170,7 +170,7 @@ pub const WALKCONFIG_PREORDER_FORWARD: WalkConfig = WalkConfig {
 };
 
 /// A preset config with [Order::PostOrder] and [Direction::Forward]
-// for all IR node kinds.
+/// for all IR node kinds.
 pub const WALKCONFIG_POSTORDER_FORWARD: WalkConfig = WalkConfig {
     regions_in_op: (Order::PostOrder, Direction::Forward),
     ops_in_block: (Order::PostOrder, Direction::Forward),
