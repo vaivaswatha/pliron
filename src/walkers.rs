@@ -2,9 +2,15 @@
 //! - Call a callback to process the node.
 //! - Walk over the children.
 //! The relative orders of performing the above is configurable.
+//!
 //! Throughout this module, only parent-child relations are considered,
 //!   i.e., operations->regions, region->blocks and block->operations.
 //!   Successor/predecessor relations b/w blocks (control-flow-graph) is out-of-scope.
+//!
+//! Two types of walkers are provided. The ones in [interruptible] can be interrupted
+//! during the walk, or have the walk over unvisited children skipped. The ones directly
+//! in this module cannot be interrupted and always complete the full walk.
+//!
 //! Care must be taken if modifications are made to the graph during the walk.
 //! Safe modifications:
 //!    Node deletions: A node can be deleted from its parent only when the
@@ -21,8 +27,6 @@
 use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
-    error::Result,
-    linked_list::{ContainsLinkedList, LinkedList},
     operation::Operation,
     region::Region,
 };
@@ -62,8 +66,171 @@ pub enum IRNode {
     Region(Ptr<Region>),
 }
 
-/// The walker functions calls back to functions of this type.
-pub type WalkerCallback<State> = fn(&mut Context, &mut State, IRNode) -> Result<()>;
+/// Walkers that can be interrupted.
+pub mod interruptible {
+    use std::ops::ControlFlow;
+
+    use crate::{
+        basic_block::BasicBlock,
+        context::{Context, Ptr},
+        linked_list::{ContainsLinkedList, LinkedList},
+        operation::Operation,
+        region::Region,
+    };
+
+    use super::*;
+
+    /// How to continue an ongoing walk.
+    pub enum WalkContinue {
+        /// The walk will simply continue.
+        Advance,
+        /// The walk of the current operation, region or block and their nested elements
+        /// that haven't been visited already will be skipped and will continue with the
+        /// next operation, region or block.
+        Skip,
+    }
+
+    impl WalkContinue {
+        /// Is this Self::Advance?
+        pub fn is_advance(&self) -> bool {
+            matches!(self, Self::Advance)
+        }
+
+        /// Is this Self::Skip?
+        pub fn is_skip(&self) -> bool {
+            matches!(self, Self::Skip)
+        }
+    }
+
+    /// Break or continue an ongoing walk. Breaks can be short-circuited using `?`.
+    /// See [mlir::WalkResult](https://mlir.llvm.org/doxygen/classmlir_1_1WalkResult.html).
+    pub type WalkResult<B> = ControlFlow<B, WalkContinue>;
+
+    /// Utility to build WalkResult::Break
+    pub fn walk_break<B>(b: B) -> WalkResult<B> {
+        WalkResult::Break(b)
+    }
+
+    /// Utility to build WalkResult::Continue(WalkContinue::Advance)
+    pub fn walk_advance<B>() -> WalkResult<B> {
+        WalkResult::Continue(WalkContinue::Advance)
+    }
+
+    /// Utility to build WalkResult::Continue(WalkContinue::Skip)
+    pub fn walk_skip<B>() -> WalkResult<B> {
+        WalkResult::Continue(WalkContinue::Skip)
+    }
+
+    /// The walker functions calls back to functions of this type.
+    pub type WalkerCallback<State, B> = fn(&mut Context, &mut State, IRNode) -> WalkResult<B>;
+
+    /// Visit an [Operation] and walk its children [Region]s.
+    pub fn walk_op<State, B>(
+        ctx: &mut Context,
+        state: &mut State,
+        config: &WalkConfig,
+        root: Ptr<Operation>,
+        callback: WalkerCallback<State, B>,
+    ) -> WalkResult<B> {
+        if let Order::PreOrder = config.regions_in_op.0 {
+            let c = callback(ctx, state, IRNode::Operation(root))?;
+            if c.is_skip() {
+                return walk_advance();
+            }
+        }
+
+        let range: Box<dyn Iterator<Item = usize>> = match config.regions_in_op.1 {
+            Direction::Forward => Box::new(0..root.deref(ctx).num_regions()),
+            Direction::Reverse => Box::new((0..root.deref(ctx).num_regions()).rev()),
+        };
+
+        for reg_idx in range {
+            let region = root
+                .deref(ctx)
+                .get_region(reg_idx)
+                .expect("Region deleted during walk");
+            walk_region(ctx, state, config, region, callback)?;
+        }
+
+        if let Order::PostOrder = config.regions_in_op.0 {
+            callback(ctx, state, IRNode::Operation(root))?;
+        }
+
+        walk_advance()
+    }
+
+    /// Visit a [Region] and walk its children [BasicBlock]s.
+    pub fn walk_region<State, B>(
+        ctx: &mut Context,
+        state: &mut State,
+        config: &WalkConfig,
+        root: Ptr<Region>,
+        callback: WalkerCallback<State, B>,
+    ) -> WalkResult<B> {
+        if let Order::PreOrder = config.blocks_in_region.0 {
+            let c = callback(ctx, state, IRNode::Region(root))?;
+            if c.is_skip() {
+                return walk_advance();
+            }
+        }
+
+        let mut cur_block_opt = match config.blocks_in_region.1 {
+            Direction::Forward => root.deref(ctx).get_head(),
+            Direction::Reverse => root.deref(ctx).get_tail(),
+        };
+
+        while let Some(cur_block) = cur_block_opt {
+            walk_block(ctx, state, config, cur_block, callback)?;
+            cur_block_opt = match config.blocks_in_region.1 {
+                Direction::Forward => cur_block.deref(ctx).get_next(),
+                Direction::Reverse => cur_block.deref(ctx).get_prev(),
+            }
+        }
+
+        if let Order::PostOrder = config.blocks_in_region.0 {
+            callback(ctx, state, IRNode::Region(root))?;
+        }
+
+        walk_advance()
+    }
+
+    /// Visit a [BasicBlock] and walk its children [Operation]s.
+    pub fn walk_block<State, B>(
+        ctx: &mut Context,
+        state: &mut State,
+        config: &WalkConfig,
+        root: Ptr<BasicBlock>,
+        callback: WalkerCallback<State, B>,
+    ) -> WalkResult<B> {
+        if let Order::PreOrder = config.ops_in_block.0 {
+            let c = callback(ctx, state, IRNode::BasicBlock(root))?;
+            if c.is_skip() {
+                return walk_advance();
+            }
+        }
+
+        let mut cur_op_opt = match config.ops_in_block.1 {
+            Direction::Forward => root.deref(ctx).get_head(),
+            Direction::Reverse => root.deref(ctx).get_tail(),
+        };
+
+        while let Some(cur_op) = cur_op_opt {
+            walk_op(ctx, state, config, cur_op, callback)?;
+            cur_op_opt = match config.ops_in_block.1 {
+                Direction::Forward => cur_op.deref(ctx).get_next(),
+                Direction::Reverse => cur_op.deref(ctx).get_prev(),
+            }
+        }
+
+        if let Order::PostOrder = config.ops_in_block.0 {
+            callback(ctx, state, IRNode::BasicBlock(root))?;
+        }
+
+        walk_advance()
+    }
+}
+
+pub type WalkerCallback<State> = fn(&mut Context, &mut State, IRNode);
 
 /// Visit an [Operation] and walk its children [Region]s.
 pub fn walk_op<State>(
@@ -72,29 +239,18 @@ pub fn walk_op<State>(
     config: &WalkConfig,
     root: Ptr<Operation>,
     callback: WalkerCallback<State>,
-) -> Result<()> {
-    if let Order::PreOrder = config.regions_in_op.0 {
-        callback(ctx, state, IRNode::Operation(root))?
+) {
+    struct S<'a, State> {
+        state: &'a mut State,
+        callback: WalkerCallback<State>,
     }
 
-    let range: Box<dyn Iterator<Item = usize>> = match config.regions_in_op.1 {
-        Direction::Forward => Box::new(0..root.deref(ctx).num_regions()),
-        Direction::Reverse => Box::new((0..root.deref(ctx).num_regions()).rev()),
-    };
+    let mut s = S { state, callback };
 
-    for reg_idx in range {
-        let region = root
-            .deref(ctx)
-            .get_region(reg_idx)
-            .expect("Region deleted during walk");
-        walk_region(ctx, state, config, region, callback)?
-    }
-
-    if let Order::PostOrder = config.regions_in_op.0 {
-        callback(ctx, state, IRNode::Operation(root))?
-    }
-
-    Ok(())
+    interruptible::walk_op(ctx, &mut s, config, root, |ctx, s, node| {
+        (s.callback)(ctx, s.state, node);
+        interruptible::walk_advance::<()>()
+    });
 }
 
 /// Visit a [Region] and walk its children [BasicBlock]s.
@@ -104,29 +260,18 @@ pub fn walk_region<State>(
     config: &WalkConfig,
     root: Ptr<Region>,
     callback: WalkerCallback<State>,
-) -> Result<()> {
-    if let Order::PreOrder = config.blocks_in_region.0 {
-        callback(ctx, state, IRNode::Region(root))?
+) {
+    struct S<'a, State> {
+        state: &'a mut State,
+        callback: WalkerCallback<State>,
     }
 
-    let mut cur_block_opt = match config.blocks_in_region.1 {
-        Direction::Forward => root.deref(ctx).get_head(),
-        Direction::Reverse => root.deref(ctx).get_tail(),
-    };
+    let mut s = S { state, callback };
 
-    while let Some(cur_block) = cur_block_opt {
-        walk_block(ctx, state, config, cur_block, callback)?;
-        cur_block_opt = match config.blocks_in_region.1 {
-            Direction::Forward => cur_block.deref(ctx).get_next(),
-            Direction::Reverse => cur_block.deref(ctx).get_prev(),
-        }
-    }
-
-    if let Order::PostOrder = config.blocks_in_region.0 {
-        callback(ctx, state, IRNode::Region(root))?
-    }
-
-    Ok(())
+    interruptible::walk_region(ctx, &mut s, config, root, |ctx, s, node| {
+        (s.callback)(ctx, s.state, node);
+        interruptible::walk_advance::<()>()
+    });
 }
 
 /// Visit a [BasicBlock] and walk its children [Operation]s.
@@ -136,29 +281,18 @@ pub fn walk_block<State>(
     config: &WalkConfig,
     root: Ptr<BasicBlock>,
     callback: WalkerCallback<State>,
-) -> Result<()> {
-    if let Order::PreOrder = config.ops_in_block.0 {
-        callback(ctx, state, IRNode::BasicBlock(root))?
+) {
+    struct S<'a, State> {
+        state: &'a mut State,
+        callback: WalkerCallback<State>,
     }
 
-    let mut cur_op_opt = match config.ops_in_block.1 {
-        Direction::Forward => root.deref(ctx).get_head(),
-        Direction::Reverse => root.deref(ctx).get_tail(),
-    };
+    let mut s = S { state, callback };
 
-    while let Some(cur_op) = cur_op_opt {
-        walk_op(ctx, state, config, cur_op, callback)?;
-        cur_op_opt = match config.ops_in_block.1 {
-            Direction::Forward => cur_op.deref(ctx).get_next(),
-            Direction::Reverse => cur_op.deref(ctx).get_prev(),
-        }
-    }
-
-    if let Order::PostOrder = config.ops_in_block.0 {
-        callback(ctx, state, IRNode::BasicBlock(root))?
-    }
-
-    Ok(())
+    interruptible::walk_block(ctx, &mut s, config, root, |ctx, s, node| {
+        (s.callback)(ctx, s.state, node);
+        interruptible::walk_advance::<()>()
+    });
 }
 
 /// A preset config with [Order::PreOrder] and [Direction::Forward]
@@ -175,4 +309,20 @@ pub const WALKCONFIG_POSTORDER_FORWARD: WalkConfig = WalkConfig {
     regions_in_op: (Order::PostOrder, Direction::Forward),
     ops_in_block: (Order::PostOrder, Direction::Forward),
     blocks_in_region: (Order::PostOrder, Direction::Forward),
+};
+
+/// A preset config with [Order::PreOrder] and [Direction::Reverse]
+/// for all IR node kinds.
+pub const WALKCONFIG_PREORDER_REVERSE: WalkConfig = WalkConfig {
+    regions_in_op: (Order::PreOrder, Direction::Reverse),
+    ops_in_block: (Order::PreOrder, Direction::Reverse),
+    blocks_in_region: (Order::PreOrder, Direction::Reverse),
+};
+
+/// A preset config with [Order::PostOrder] and [Direction::Reverse]
+/// for all IR node kinds.
+pub const WALKCONFIG_POSTORDER_REVERSE: WalkConfig = WalkConfig {
+    regions_in_op: (Order::PostOrder, Direction::Reverse),
+    ops_in_block: (Order::PostOrder, Direction::Reverse),
+    blocks_in_region: (Order::PostOrder, Direction::Reverse),
 };

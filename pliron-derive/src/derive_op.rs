@@ -87,7 +87,7 @@ impl ToTokens for DefOp {
             let ident = &self.input.ident;
             let generics = &self.input.generics;
             quote! {
-                #[derive(Clone, Copy)]
+                #[derive(Clone, Copy, PartialEq, Eq)]
                 #(#attributes)*
                 #vis struct #ident #generics { op: ::pliron::context::Ptr<::pliron::operation::Operation> }
             }
@@ -170,7 +170,7 @@ mod tests {
         let got = prettyplease::unparse(&f);
 
         expect![[r##"
-            #[derive(Clone, Copy)]
+            #[derive(Clone, Copy, PartialEq, Eq)]
             struct TestOp {
                 op: ::pliron::context::Ptr<::pliron::operation::Operation>,
             }

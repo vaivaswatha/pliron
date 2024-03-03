@@ -2,6 +2,7 @@ use apint::ApInt;
 use expect_test::{expect, Expect};
 use pliron::{
     common_traits::Verify,
+    context::Context,
     debug_info::set_operation_result_name,
     dialects::builtin::{
         attributes::IntegerAttr, op_interfaces::OneResultInterface, ops::ConstantOp,
@@ -15,7 +16,12 @@ use pliron::{
     printable::Printable,
     r#type::TypePtr,
     vec_exns::VecExtns,
-    walkers::{self, IRNode, WALKCONFIG_POSTORDER_FORWARD, WALKCONFIG_PREORDER_FORWARD},
+    walkers::{
+        self,
+        interruptible::{self, walk_advance, walk_break},
+        IRNode, WALKCONFIG_POSTORDER_FORWARD, WALKCONFIG_POSTORDER_REVERSE,
+        WALKCONFIG_PREORDER_FORWARD,
+    },
 };
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
@@ -285,9 +291,9 @@ fn parse_err_block_args() {
 }
 
 #[test]
-fn test_preorder_forward_walk() -> Result<()> {
+fn test_preorder_forward_walk() {
     let ctx = &mut setup_context_dialects();
-    let module_op = const_ret_in_mod(ctx)?.0.get_operation();
+    let module_op = const_ret_in_mod(ctx).unwrap().0.get_operation();
 
     let mut state = Vec::new();
 
@@ -300,9 +306,8 @@ fn test_preorder_forward_walk() -> Result<()> {
             if let IRNode::Operation(op) = node {
                 state.push_back(op);
             }
-            Ok(())
         },
-    )?;
+    );
 
     let ops = state.into_iter().fold("".to_string(), |accum, op| {
         accum + &op.disp(ctx).to_string() + "\n"
@@ -325,14 +330,12 @@ fn test_preorder_forward_walk() -> Result<()> {
         llvm.return c0_op_2_0_res0
     "#]]
     .assert_eq(&ops);
-
-    Ok(())
 }
 
 #[test]
-fn test_postorder_forward_walk() -> Result<()> {
+fn test_postorder_forward_walk() {
     let ctx = &mut setup_context_dialects();
-    let module_op = const_ret_in_mod(ctx)?.0.get_operation();
+    let module_op = const_ret_in_mod(ctx).unwrap().0.get_operation();
 
     let mut state = Vec::new();
 
@@ -345,9 +348,8 @@ fn test_postorder_forward_walk() -> Result<()> {
             if let IRNode::Operation(op) = node {
                 state.push_back(op);
             }
-            Ok(())
         },
-    )?;
+    );
 
     let ops = state.into_iter().fold("".to_string(), |accum, op| {
         accum + &op.disp(ctx).to_string() + "\n"
@@ -370,6 +372,53 @@ fn test_postorder_forward_walk() -> Result<()> {
         }
     "#]]
     .assert_eq(&ops);
+}
 
-    Ok(())
+#[test]
+fn test_walker_find_op() {
+    let ctx = &mut setup_context_dialects();
+    let (module_op, _, const_op, _) = const_ret_in_mod(ctx).unwrap();
+
+    // Insert a new constant after `const_op`.
+    let one_const = IntegerAttr::create(
+        TypePtr::from_ptr(const_op.get_type(ctx), ctx).unwrap(),
+        ApInt::from(1),
+    );
+    let const1_op = ConstantOp::new_unlinked(ctx, one_const);
+    const1_op
+        .get_operation()
+        .insert_after(ctx, const_op.get_operation());
+    set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".to_string());
+
+    // A function to breaks the walk when a [ConstantOp] is found.
+    fn finder(
+        ctx: &mut Context,
+        _: &mut (),
+        node: IRNode,
+    ) -> interruptible::WalkResult<ConstantOp> {
+        if let IRNode::Operation(op) = node {
+            if let Some(const_op) = Operation::get_op(op, ctx).downcast_ref::<ConstantOp>() {
+                return walk_break(*const_op);
+            }
+        }
+        walk_advance()
+    }
+
+    let res1 = walkers::interruptible::walk_op(
+        ctx,
+        &mut (),
+        &WALKCONFIG_PREORDER_FORWARD,
+        module_op.get_operation(),
+        finder,
+    );
+    assert!(matches!(res1, interruptible::WalkResult::Break(c) if c == const_op));
+
+    let res2 = walkers::interruptible::walk_op(
+        ctx,
+        &mut (),
+        &WALKCONFIG_POSTORDER_REVERSE,
+        module_op.get_operation(),
+        finder,
+    );
+    assert!(matches!(res2, interruptible::WalkResult::Break(c) if c == const1_op));
 }

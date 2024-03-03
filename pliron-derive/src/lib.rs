@@ -67,8 +67,8 @@ pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
 /// The macro assumes an empty struct and will add the `op: Ptr<Operation>` field used to access
 /// the underlying Operation in the context.
 ///
-/// The macro will automatically derive the `Clone` and `Copy` traits for the new struct
-/// definition.
+/// The macro will automatically derive the `Clone`, `Copy`, `PartialEq` and `Eq` traits for the
+/// new struct definition.
 ///
 /// Usage:
 ///
@@ -80,7 +80,7 @@ pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
 /// The example will create a struct definition equivalent to:
 ///
 /// ```ignore
-/// #[derive(Clone, Copy)]
+/// #[derive(Clone, Copy, PartialEq, Eq)]
 /// pub struct MyOp {
 ///   op: Ptr<Operation>,
 /// }
