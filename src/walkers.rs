@@ -2,8 +2,21 @@
 //! - Call a callback to process the node.
 //! - Walk over the children.
 //! The relative orders of performing the above is configurable.
+//! Throughout this module, only parent-child relations are considered,
+//!   i.e., operations->regions, region->blocks and block->operations.
+//!   Successor/predecessor relations b/w blocks (control-flow-graph) is out-of-scope.
 //! Care must be taken if modifications are made to the graph during the walk.
-//! TODO: What is the least restrictive set of guidelines for safe modification?
+//! Safe modifications:
+//!    Node deletions: A node can be deleted from its parent only when the
+//!        parent is visited in a PostOrder walk, after all children are processed.
+//!        This ensure deleted nodes aren't visited.
+//!    Node additions: A node can be inserted into its parent only when the
+//!        parent is visited in a PreOrder walk, before any child is processed.
+//!        This ensures that the new node gets visited.
+//!    Other graph modifications such as changing the order b/w siblings are unsafe.
+//!        (i.e., doing so may lead to multiple visits of the same node or
+//!         some nodes remaining unvisited).
+//!    Non-graph modifications are safe.
 
 use crate::{
     basic_block::BasicBlock,
