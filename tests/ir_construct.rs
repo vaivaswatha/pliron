@@ -14,6 +14,8 @@ use pliron::{
     parsable::{self, state_stream_from_iterator, Parsable},
     printable::Printable,
     r#type::TypePtr,
+    vec_exns::VecExtns,
+    walkers::{self, IRNode, WALKCONFIG_POSTORDER_FORWARD, WALKCONFIG_PREORDER_FORWARD},
 };
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
@@ -280,4 +282,94 @@ fn parse_err_block_args() {
     "#]];
 
     expect_parse_error(input_label_colon_missing, expected_err);
+}
+
+#[test]
+fn test_preorder_forward_walk() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    let module_op = const_ret_in_mod(ctx)?.0.get_operation();
+
+    let mut state = Vec::new();
+
+    walkers::walk_op(
+        ctx,
+        &mut state,
+        &WALKCONFIG_PREORDER_FORWARD,
+        module_op,
+        |_ctx, state, node| {
+            if let IRNode::Operation(op) = node {
+                state.push_back(op);
+            }
+            Ok(())
+        },
+    )?;
+
+    let ops = state.into_iter().fold("".to_string(), |accum, op| {
+        accum + &op.disp(ctx).to_string() + "\n"
+    });
+    expect![[r#"
+        builtin.module @bar {
+          ^block_0_0():
+            builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
+              ^entry_block_1_0():
+                c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
+                llvm.return c0_op_2_0_res0
+            }
+        }
+        builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
+          ^entry_block_1_0():
+            c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
+            llvm.return c0_op_2_0_res0
+        }
+        c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>
+        llvm.return c0_op_2_0_res0
+    "#]]
+    .assert_eq(&ops);
+
+    Ok(())
+}
+
+#[test]
+fn test_postorder_forward_walk() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    let module_op = const_ret_in_mod(ctx)?.0.get_operation();
+
+    let mut state = Vec::new();
+
+    walkers::walk_op(
+        ctx,
+        &mut state,
+        &WALKCONFIG_POSTORDER_FORWARD,
+        module_op,
+        |_ctx, state, node| {
+            if let IRNode::Operation(op) = node {
+                state.push_back(op);
+            }
+            Ok(())
+        },
+    )?;
+
+    let ops = state.into_iter().fold("".to_string(), |accum, op| {
+        accum + &op.disp(ctx).to_string() + "\n"
+    });
+    expect![[r#"
+        c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>
+        llvm.return c0_op_2_0_res0
+        builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
+          ^entry_block_1_0():
+            c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
+            llvm.return c0_op_2_0_res0
+        }
+        builtin.module @bar {
+          ^block_0_0():
+            builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
+              ^entry_block_1_0():
+                c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
+                llvm.return c0_op_2_0_res0
+            }
+        }
+    "#]]
+    .assert_eq(&ops);
+
+    Ok(())
 }
