@@ -68,7 +68,7 @@ fn parse_lit<'a>() -> impl Parser<Stream<'a>, Output = Elem> {
 fn parse_var<'a>() -> impl Parser<Stream<'a>, Output = Elem> {
     let tok = token('$').with(take_while1(|c: char| c.is_alphanumeric() || c == '_'));
     (position(), tok).map(|(pos, s): (_, &str)| match s.parse::<usize>() {
-        Ok(n) => Elem::new_unnamed_var_at(pos, n.into()),
+        Ok(n) => Elem::new_unnamed_var_at(pos, n),
         Err(_) => Elem::new_var_at(pos, s),
     })
 }

@@ -1,5 +1,4 @@
 use proc_macro2::Span;
-use syn;
 
 use super::{Directive, Elem, FieldIdent, FmtValue, Format, Optional};
 
@@ -32,7 +31,7 @@ impl<'a> AttribTypeFmtEvaler<'a> {
 
     /// Evaluate a format string.
     pub fn eval(&self, f: Format) -> syn::Result<Format> {
-        Ok(self.eval_format(f, true)?.into())
+        self.eval_format(f, true)
     }
 
     fn eval_format(&self, f: Format, toplevel: bool) -> syn::Result<Format> {

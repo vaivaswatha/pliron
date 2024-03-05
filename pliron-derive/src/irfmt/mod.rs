@@ -553,7 +553,7 @@ pub(crate) fn try_format_from_input(input: &syn::DeriveInput) -> syn::Result<For
             elems
         }
         syn::Fields::Unnamed(ref fields) => (0..(fields.unnamed.len()))
-            .map(|i| Elem::new_unnamed_var(i as usize))
+            .map(Elem::new_unnamed_var)
             .collect::<Vec<_>>(),
         syn::Fields::Unit => vec![],
     };
