@@ -3,6 +3,7 @@ use std::fmt;
 use crate::irfmt::Format;
 use syn::{Expr, ExprLit, Lit, Result};
 
+/// Common IR type attribute used by derive macros to derive IR entity type specific code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum IRKind {
     Type,
@@ -67,6 +68,8 @@ impl quote::ToTokens for IRKind {
     }
 }
 
+/// Common `ir_format` attribute.
+/// The attribute parse a string value into a [Format] value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct IRFormat(pub Format);
 
@@ -101,6 +104,7 @@ impl TryFrom<String> for IRFormat {
     }
 }
 
+/// Helper function to check that an attribute is not applied more than once.
 pub(crate) fn require_once<T>(
     attr_name: &str,
     value: &Option<T>,
@@ -116,7 +120,9 @@ pub(crate) fn require_once<T>(
     }
 }
 
-pub(crate) fn attrib_lit_value(attr: &syn::Attribute) -> syn::Result<&syn::LitStr> {
+/// Extracts the string value of a `name = "value"` attribute.
+/// Returns an error if the attribute is not a string literal.
+fn attrib_lit_value(attr: &syn::Attribute) -> syn::Result<&syn::LitStr> {
     let nv = attr.meta.require_name_value()?;
     let Expr::Lit(ExprLit {
         lit: Lit::Str(ref lit),

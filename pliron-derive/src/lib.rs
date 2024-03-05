@@ -94,7 +94,12 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_op::def_op(args, input))
 }
 
-#[proc_macro_derive(Printable, attributes(dialect, ir_kind, ir_format))]
+/// The derive macro is normally used together with one of the `#[def_attribute]`, `#[def_type]` or
+/// `#[def_op]` proc macros.
+///
+/// An optional format string can be provided to the derive macro using the `ir_format` attribute.
+/// The `ir_kind` macro attribute is normally filled in by the `def_x` proc macros.
+#[proc_macro_derive(Printable, attributes(ir_kind, ir_format))]
 pub fn derive_printable(input: TokenStream) -> TokenStream {
     to_token_stream(derive_printable::derive(input))
 }
@@ -114,6 +119,7 @@ pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> Tok
 
 // Helper derive macro to accept internal attributes that we pass to Printable, Parsable and other
 // derive macros. The helper ensures that the injected attributes do not cause a compilation error if no other derive macro is used.
+#[doc(hidden)]
 #[proc_macro_derive(DeriveAttribAcceptor, attributes(ir_kind))]
 pub fn derive_attrib_dummy(_input: TokenStream) -> TokenStream {
     TokenStream::new()

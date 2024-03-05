@@ -3,12 +3,25 @@ use syn;
 
 use super::{Directive, Elem, FieldIdent, FmtValue, Format, Optional};
 
+/// Attribute and type format string evaluator.
+///
+/// The evaluator evaluate directives normally used with Attribute or Type IR entities.
+/// Directives are not allowed to use nested directives, and the evaluator will return an error if
+/// the user breaks this rule.
+///
+/// The `params` and `struct` directives are special though.
+/// The `params` directive can be passed to any directive and it will be evaluated to the list of
+/// all fields of the current struct.
+///
+/// The `struct` directive is only allowed at the top-level. It requires a list of field names or
+/// `params` as arguments.
 pub struct AttribTypeFmtEvaler<'a> {
     span: Span,
     fields: &'a [FieldIdent],
 }
 
 impl<'a> AttribTypeFmtEvaler<'a> {
+    /// Create a new evaluator with a list of known fields.
     pub fn new(span: Span, fields: &'a [FieldIdent]) -> Self {
         Self { span, fields }
     }
@@ -17,6 +30,7 @@ impl<'a> AttribTypeFmtEvaler<'a> {
         self.span
     }
 
+    /// Evaluate a format string.
     pub fn eval(&self, f: Format) -> syn::Result<Format> {
         Ok(self.eval_format(f, true)?.into())
     }
@@ -48,7 +62,10 @@ impl<'a> AttribTypeFmtEvaler<'a> {
             "params" => {
                 require_no_args(self.span, "params", &d.args)?;
                 if toplevel {
-                    Ok(FmtValue::from(d))
+                    // Ok(FmtValue::from(d))
+                    Ok(FmtValue::from(
+                        self.fields.iter().map(|f| f.into()).collect::<Vec<_>>(),
+                    ))
                 } else {
                     Ok(FmtValue::from(
                         self.fields.iter().map(|f| f.into()).collect::<Vec<_>>(),
@@ -133,4 +150,72 @@ fn require_args(span: Span, directive: &str, args: &[Elem]) -> syn::Result<()> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn literal_only() {
+        let evaler = AttribTypeFmtEvaler::new(Span::call_site(), &[]);
+        let f = Format::parse("`literal`").unwrap();
+        let want = Format::parse("`literal`").unwrap();
+        let got = evaler.eval(f).unwrap();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn variable_only() {
+        let evaler = AttribTypeFmtEvaler::new(Span::call_site(), &[]);
+        let f = Format::parse("$var").unwrap();
+        let want = Format::parse("$var").unwrap();
+        let got = evaler.eval(f).unwrap();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn params_directive() {
+        let fields = vec!["a".into(), "b".into()];
+        let evaler = AttribTypeFmtEvaler::new(Span::call_site(), &fields);
+        let f = Format::parse("params").unwrap();
+        let want = Format::from(vec![Elem::new_var("a"), Elem::new_var("b")]);
+        let got = evaler.eval(f).unwrap();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn struct_directive() {
+        let evaler = AttribTypeFmtEvaler::new(Span::call_site(), &[]);
+        let f = Format::parse("struct($a, $b)").unwrap();
+        let want = Format::from(vec![Elem::new_directive_with_args_at(
+            0,
+            "struct",
+            vec![Elem::new_var_at(7, "a"), Elem::new_var_at(11, "b")],
+        )]);
+        let got = evaler.eval(f).unwrap();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn struct_with_params() {
+        let fields = vec!["a".into(), "b".into()];
+        let evaler = AttribTypeFmtEvaler::new(Span::call_site(), &fields);
+        let f = Format::parse("struct(params)").unwrap();
+        let want = Format::from(vec![Elem::new_directive_with_args_at(
+            0,
+            "struct",
+            vec![Elem::new_var("a"), Elem::new_var("b")],
+        )]);
+        let got = evaler.eval(f).unwrap();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn nested_directive_error() {
+        let evaler = AttribTypeFmtEvaler::new(Span::call_site(), &[]);
+        let f = Format::parse("a(b)").unwrap();
+        let got = evaler.eval(f);
+        assert!(got.is_err());
+    }
 }

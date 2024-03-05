@@ -2,7 +2,10 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::{DeriveInput, LitStr, Result};
 
-use crate::derive_shared::VerifiersRegister;
+use crate::{
+    derive_shared::{mark_ir_kind, VerifiersRegister},
+    macro_attr::IRKind,
+};
 
 const PROC_MACRO_NAME: &str = "def_op";
 
@@ -52,17 +55,11 @@ impl DefOp {
             ));
         }
 
-        let mut attrs: Vec<_> = input
+        let attrs = input
             .attrs
             .into_iter()
-            .filter(|attr| !attr.path().is_ident(PROC_MACRO_NAME))
-            .collect();
-        attrs.push(syn::parse_quote! {
-            #[derive(::pliron_derive::DeriveAttribAcceptor)]
-        });
-        attrs.push(syn::parse_quote! {
-            #[ir_kind = "op"]
-        });
+            .filter(|attr| !attr.path().is_ident(PROC_MACRO_NAME));
+        let attrs: Vec<_> = mark_ir_kind(attrs, IRKind::Op).collect();
 
         let input = DeriveInput { attrs, ..input };
 
