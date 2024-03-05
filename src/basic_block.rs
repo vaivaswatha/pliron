@@ -198,7 +198,7 @@ impl BasicBlock {
     }
 
     /// Drop all uses that this block holds.
-    pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &mut Context) {
+    pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &Context) {
         let ops: Vec<_> = ptr.deref(ctx).iter(ctx).collect();
         for op in ops {
             Operation::drop_all_uses(op, ctx);
