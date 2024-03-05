@@ -1,6 +1,8 @@
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
+use crate::macro_attr::IRKind;
+
 /// VerifiersRegister represents the [inventory] types and implementations
 /// required to by Op and Attribute IR entities.
 pub struct VerifiersRegister {
@@ -28,4 +30,17 @@ impl ToTokens for VerifiersRegister {
         }
         .to_tokens(tokens);
     }
+}
+
+pub(crate) fn mark_ir_kind(
+    attrs: impl Iterator<Item = syn::Attribute>,
+    kind: IRKind,
+) -> impl Iterator<Item = syn::Attribute> {
+    attrs
+        .chain(std::iter::once(syn::parse_quote! {
+            #[derive(::pliron_derive::DeriveAttribAcceptor)]
+        }))
+        .chain(std::iter::once(syn::parse_quote! {
+            #kind
+        }))
 }

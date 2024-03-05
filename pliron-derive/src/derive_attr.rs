@@ -4,7 +4,10 @@ use syn::{DeriveInput, LitStr, Result};
 
 const PROC_MACRO_NAME: &str = "def_attribute";
 
-use crate::derive_shared::VerifiersRegister;
+use crate::{
+    derive_shared::{mark_ir_kind, VerifiersRegister},
+    macro_attr::IRKind,
+};
 
 pub(crate) fn def_attribute(
     args: impl Into<TokenStream>,
@@ -50,11 +53,12 @@ impl DefAttribute {
             ));
         }
 
-        let attrs: Vec<_> = input
+        let attrs = input
             .attrs
             .into_iter()
-            .filter(|attr| !attr.path().is_ident(PROC_MACRO_NAME))
-            .collect();
+            .filter(|attr| !attr.path().is_ident(PROC_MACRO_NAME));
+        let attrs: Vec<_> = mark_ir_kind(attrs, IRKind::Attribute).collect();
+
         let input = DeriveInput { attrs, ..input };
 
         let verifiers = VerifiersRegister {
@@ -157,6 +161,8 @@ mod tests {
 
         expect![[r##"
             #[derive(PartialEq, Eq, Debug, Clone)]
+            #[derive(::pliron_derive::DeriveAttribAcceptor)]
+            #[ir_kind = "attribute"]
             pub struct UnitAttr();
             #[allow(non_camel_case_types)]
             pub struct AttrInterfaceVerifier_UnitAttr(
