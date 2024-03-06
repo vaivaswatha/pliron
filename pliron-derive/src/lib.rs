@@ -110,19 +110,9 @@ pub fn derive_parsable(input: TokenStream) -> TokenStream {
     to_token_stream(derive_parseable::derive(input))
 }
 
-#[proc_macro_derive(NotParsableType)]
-pub fn derive_not_parsable_type(input: TokenStream) -> TokenStream {
-    to_token_stream(derive_parseable::derive_not_parsable_type(input))
-}
-
-#[proc_macro_derive(NotParsableAttribute)]
-pub fn derive_not_parsable_attribute(input: TokenStream) -> TokenStream {
-    to_token_stream(derive_parseable::derive_not_parsable_attribute(input))
-}
-
-#[proc_macro_derive(NotParsableOp)]
-pub fn derive_not_parsable_op(input: TokenStream) -> TokenStream {
-    to_token_stream(derive_parseable::derive_not_parsable_op(input))
+#[proc_macro_derive(NotParsable, attributes(ir_kind))]
+pub fn derive_not_parsable(input: TokenStream) -> TokenStream {
+    to_token_stream(derive_parseable::derive_not_parsable(input))
 }
 
 pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> TokenStream {

@@ -1,5 +1,5 @@
 use cranelift_module::Linkage;
-use pliron_derive::{def_op, NotParsableOp, Printable};
+use pliron_derive::{def_op, NotParsable, Printable};
 
 use crate::basic_block::BasicBlock;
 use crate::context::Ptr;
@@ -23,7 +23,7 @@ pub fn register(ctx: &mut Context, dialect: &mut Dialect) {
 }
 
 #[def_op("cranelift.func")]
-#[derive(Printable, NotParsableOp)]
+#[derive(Printable, NotParsable)]
 pub struct FuncOp {}
 impl Verify for FuncOp {
     fn verify(&self, ctx: &Context) -> Result<()> {

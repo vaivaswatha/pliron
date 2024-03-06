@@ -1,5 +1,5 @@
 use cranelift_module::Linkage;
-use pliron_derive::{def_attribute, NotParsableAttribute, Printable};
+use pliron_derive::{def_attribute, NotParsable, Printable};
 
 use crate::{
     attribute::{AttrObj, Attribute},
@@ -13,7 +13,7 @@ pub fn register(dialect: &mut Dialect) {
 }
 
 #[def_attribute("cranelift.linkage")]
-#[derive(Debug, PartialEq, Eq, Clone, Printable, NotParsableAttribute)]
+#[derive(Debug, PartialEq, Eq, Clone, Printable, NotParsable)]
 #[ir_format = "`<` format(`{:?}`,$linkage)  `>`"]
 pub struct LinkageAttr {
     pub linkage: Linkage,

@@ -18,9 +18,7 @@ use crate::{
 };
 use apint::ApInt;
 use combine::{eof, error::Commit};
-use pliron_derive::{
-    def_attribute, def_op, def_type, NotParsableAttribute, NotParsableType, Parsable, Printable,
-};
+use pliron_derive::{def_attribute, def_op, def_type, NotParsable, Parsable, Printable};
 
 use crate::{
     attribute::AttrObj,
@@ -96,7 +94,7 @@ impl Verify for IntegerType {
 }
 
 #[def_type("testing.vec")]
-#[derive(Hash, PartialEq, Eq, Debug, Printable, NotParsableType)]
+#[derive(Hash, PartialEq, Eq, Debug, Printable, NotParsable)]
 // #[ir_format = "`vec [` qualified($elem) `]` "]
 // #[ir_format = "`vec ` qualifier($elem) ` <` $elem `>` "]
 #[ir_format = "` ` $elem"]
@@ -189,7 +187,7 @@ impl_attr_interface!(TypedAttrInterface for IntegerAttr {
 });
 
 #[def_attribute("testing.string")]
-#[derive(PartialEq, Eq, Debug, Clone, Printable, NotParsableAttribute)]
+#[derive(PartialEq, Eq, Debug, Clone, Printable, NotParsable)]
 #[ir_format = "quoted($0)"]
 struct StringAttr(String);
 impl Verify for StringAttr {
@@ -199,7 +197,7 @@ impl Verify for StringAttr {
 }
 
 #[def_attribute("testing.unit")]
-#[derive(PartialEq, Eq, Debug, Clone, Printable, NotParsableAttribute)]
+#[derive(PartialEq, Eq, Debug, Clone, Printable, NotParsable)]
 #[ir_format = "`()`"]
 pub struct UnitAttr();
 impl UnitAttr {
@@ -215,7 +213,7 @@ impl Verify for UnitAttr {
 }
 
 #[def_attribute("testing.vec")]
-#[derive(Clone, PartialEq, Debug, Eq, Printable, NotParsableAttribute)]
+#[derive(Clone, PartialEq, Debug, Eq, Printable, NotParsable)]
 pub struct VecAttr(pub Vec<AttrObj>);
 impl Verify for VecAttr {
     fn verify(&self, ctx: &Context) -> Result<()> {
