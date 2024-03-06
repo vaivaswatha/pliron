@@ -26,7 +26,7 @@ use crate::{
 };
 
 /// def-use chains are implemented for [Value]s and `Ptr<BasicBlock`.
-pub trait DefUseParticipant: Copy + Hash + Eq {}
+pub(crate) trait DefUseParticipant: Copy + Hash + Eq {}
 impl DefUseParticipant for Value {}
 impl DefUseParticipant for Ptr<BasicBlock> {}
 

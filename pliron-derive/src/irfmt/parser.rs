@@ -74,9 +74,9 @@ fn parse_var<'a>() -> impl Parser<Stream<'a>, Output = Elem> {
 }
 
 fn parse_directive<'a>() -> impl Parser<Stream<'a>, Output = Elem> {
-    let name = take_while1(|c: char| c.is_alphanumeric() || c == '-' || c == '_').skip(spaces());
+    let name = take_while1(|c: char| c.is_alphanumeric() || c == '-' || c == '_');
     let args = between(token('('), token(')'), sep_by(parse_fmt_elem(), token(',')));
-    (position(), name, optional(args)).map(|(pos, name, args)| {
+    (position(), name.skip(spaces()), optional(args)).map(|(pos, name, args)| {
         Elem::new_directive_with_args_at(pos, name, args.unwrap_or_default())
     })
 }

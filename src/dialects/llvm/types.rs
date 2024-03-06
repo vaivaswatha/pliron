@@ -7,7 +7,7 @@ use crate::{
     input_err_noloc,
     irfmt::{
         parsers::{location, spaced, type_parser},
-        printers::{enclosed, list_with_sep},
+        printers::{concat, enclosed, list_with_sep},
     },
     location::Located,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
@@ -35,12 +35,7 @@ impl Printable for StructField {
         state: &printable::State,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        write!(
-            f,
-            "{}: {}",
-            self.field_name,
-            self.field_type.print(ctx, state)
-        )
+        concat((&self.field_name, ": ", self.field_type)).fmt(ctx, state, f)
     }
 }
 

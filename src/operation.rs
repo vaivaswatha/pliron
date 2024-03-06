@@ -16,12 +16,15 @@ use crate::{
     error::Result,
     identifier::Identifier,
     input_err,
-    irfmt::parsers::{location, spaced},
+    irfmt::{
+        parsers::{location, spaced},
+        printers::{self, PrinterCheck},
+    },
     linked_list::{private, LinkedList},
     location::{Located, Location},
     op::{self, OpId, OpObj},
     parsable::{self, Parsable, ParseResult, StateStream},
-    printable::{self, Printable},
+    printable::{self, ListSeparator, Printable},
     r#type::{TypeObj, Typed},
     region::Region,
     use_def_lists::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
@@ -71,6 +74,20 @@ impl From<&OpResult> for Value {
             op: value.def_op,
             res_idx: value.res_idx,
         }
+    }
+}
+
+impl Printable for Vec<OpResult> {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let sep = ListSeparator::Char(',');
+        let results = self.iter().map(|r| r.unique_name(ctx));
+        printers::iter_with_sep(results, sep).fmt(ctx, state, f)?;
+        Ok(())
     }
 }
 
@@ -216,8 +233,8 @@ impl Operation {
     }
 
     /// Get an iterator over the results of this operation.
-    pub fn results(&self) -> impl Iterator<Item = Value> + '_ {
-        self.results.iter().map(Into::into)
+    pub fn results(&self) -> Results<'_> {
+        Results::new(&self.results)
     }
 
     /// Does any result of this operation have a use?
@@ -286,6 +303,10 @@ impl Operation {
     /// Create an OpObj corresponding to self.
     pub fn get_op(ptr: Ptr<Self>, ctx: &Context) -> OpObj {
         op::from_operation(ctx, ptr)
+    }
+
+    pub fn regions(&self) -> &[Ptr<Region>] {
+        &self.regions
     }
 
     /// Get a [Ptr] to the `reg_idx`th region.
@@ -399,7 +420,7 @@ impl ArenaObj for Operation {
 }
 
 /// Container for a [Use] in an [Operation].
-pub(crate) struct Operand<T: DefUseParticipant> {
+pub struct Operand<T: DefUseParticipant> {
     pub(crate) r#use: UseNode<T>,
     /// This is the `opd_idx`'th operand of [user_op](Self::user_op).
     pub(crate) opd_idx: usize,
@@ -585,5 +606,52 @@ impl Parsable for Operation {
                 op
             })
             .into()
+    }
+}
+
+#[derive(Clone)]
+pub struct Results<'a> {
+    results: &'a [OpResult],
+}
+
+impl<'a> Results<'a> {
+    fn new(results: &'a [OpResult]) -> Self {
+        Self { results }
+    }
+
+    pub fn len(&self) -> usize {
+        self.results.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.results.is_empty()
+    }
+
+    pub fn get(&self, idx: usize) -> Option<Value> {
+        self.results.get(idx).map(|res| res.into())
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = Value> + '_ {
+        self.results.iter().map(|res| res.into())
+    }
+}
+
+impl Printable for Results<'_> {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let sep = ListSeparator::Char(',');
+        let results = self.results.iter().map(|r| r.unique_name(ctx));
+        printers::iter_with_sep(results, sep).fmt(ctx, state, f)?;
+        Ok(())
+    }
+}
+
+impl<'a> PrinterCheck for Results<'a> {
+    fn check(&self, _ctx: &Context) -> bool {
+        !self.is_empty()
     }
 }

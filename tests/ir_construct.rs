@@ -1,4 +1,5 @@
 use apint::ApInt;
+use combine::Parser;
 use expect_test::{expect, Expect};
 use pliron::{
     common_traits::Verify,
@@ -17,7 +18,6 @@ use pliron::{
 };
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
-use combine::parser::Parser;
 
 mod common;
 

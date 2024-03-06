@@ -1,2 +1,3 @@
-/target
+target/
+/derive/target
 Cargo.lock

@@ -399,15 +399,11 @@ impl Printable for ForwardRefOp {
     fn fmt(
         &self,
         ctx: &Context,
-        _state: &printable::State,
+        state: &printable::State,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        write!(
-            f,
-            "{} = {}",
-            self.get_result(ctx).unique_name(ctx),
-            self.get_opid().disp(ctx),
-        )
+        self.get_opid().fmt(ctx, state, f)?;
+        Ok(())
     }
 }
 

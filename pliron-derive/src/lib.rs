@@ -3,6 +3,7 @@ mod macro_attr;
 
 mod derive_attr;
 mod derive_op;
+mod derive_parseable;
 mod derive_printable;
 mod derive_shared;
 mod derive_type;
@@ -102,6 +103,16 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_derive(Printable, attributes(ir_kind, ir_format))]
 pub fn derive_printable(input: TokenStream) -> TokenStream {
     to_token_stream(derive_printable::derive(input))
+}
+
+#[proc_macro_derive(Parsable, attributes(dialect, ir_kind, ir_format))]
+pub fn derive_parsable(input: TokenStream) -> TokenStream {
+    to_token_stream(derive_parseable::derive(input))
+}
+
+#[proc_macro_derive(NotParsable, attributes(ir_kind))]
+pub fn derive_not_parsable(input: TokenStream) -> TokenStream {
+    to_token_stream(derive_parseable::derive_not_parsable(input))
 }
 
 pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> TokenStream {
