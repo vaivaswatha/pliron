@@ -49,7 +49,7 @@ impl Region {
     }
 
     /// Drop all uses that this region holds.
-    pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &mut Context) {
+    pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &Context) {
         let blocks: Vec<_> = ptr.deref(ctx).iter(ctx).collect();
         for block in blocks {
             BasicBlock::drop_all_uses(block, ctx);

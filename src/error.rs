@@ -7,10 +7,15 @@ use crate::location::{Located, Location};
 /// The kinds of errors we have during compilation.
 #[derive(Debug, Error)]
 pub enum ErrorKind {
-    #[error("invalid input")]
+    /// Something's wrong with the program being compiled
+    #[error("invalid input program")]
     InvalidInput,
+    /// The IR was found to be inconsistent or invalid during verification
     #[error("verification failed")]
     VerificationFailed,
+    /// Inconsistent or invalid argument(s) passed to a pliron function.
+    #[error("invalid argument")]
+    InvalidArgument,
 }
 
 /// An error object that can hold any [std::error::Error].
@@ -124,6 +129,39 @@ macro_rules! input_err {
     }
 }
 
+/// Create an [ErrorKind::InvalidArgument] error from any [std::error::Error] object.
+/// The macro also accepts [format!] like arguments to create one-off errors.
+/// ```rust
+/// use thiserror::Error;
+/// use pliron::{arg_err, error::{Result, ErrorKind, Error}, location::Location};
+///
+/// #[derive(Error, Debug)]
+/// #[error("sample error")]
+/// pub struct SampleErr;
+///
+/// assert!(
+///     matches!(
+///         arg_err!(Location::Unknown, SampleErr),
+///         Result::<()>::Err(Error {
+///            kind: ErrorKind::InvalidArgument,
+///            err,
+///            loc: _,
+///         }) if err.is::<SampleErr>()
+/// ));
+///
+/// let res_msg: Result<()> = arg_err!(Location::Unknown, "Some formatted {}", 0);
+/// assert_eq!(
+///     res_msg.unwrap_err().err.to_string(),
+///     "Some formatted 0"
+/// );
+/// ```
+#[macro_export]
+macro_rules! arg_err {
+    ($loc: expr, $($t:tt)*) => {
+        $crate::create_err!($loc, $crate::error::ErrorKind::InvalidArgument, $($t)*)
+    }
+}
+
 /// Same as [verify_err] but when no location is known.
 #[macro_export]
 macro_rules! verify_err_noloc {
@@ -137,5 +175,13 @@ macro_rules! verify_err_noloc {
 macro_rules! input_err_noloc {
     ($($t:tt)*) => {
         $crate::create_err!($crate::location::Location::Unknown, $crate::error::ErrorKind::InvalidInput, $($t)*)
+    }
+}
+
+/// Same as [arg_err] but when no location is known.
+#[macro_export]
+macro_rules! arg_err_noloc {
+    ($($t:tt)*) => {
+        $crate::create_err!($crate::location::Location::Unknown, $crate::error::ErrorKind::InvalidArgument, $($t)*)
     }
 }

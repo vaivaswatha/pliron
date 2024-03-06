@@ -23,6 +23,7 @@ use combine::{
     stream::{
         self, buffered,
         position::{self, SourcePosition},
+        state::Stream,
         IteratorStream,
     },
     Parser, Positioned, StreamOnce,
@@ -64,7 +65,7 @@ impl<'a> Iterator for CharIterator<'a> {
 
 /// A [State]ful [Stream]. Every [Parsable::parser] gets this as input,
 /// allowing for the parser to have access to a state.
-pub type StateStream<'a> = stream::state::Stream<
+pub type StateStream<'a> = Stream<
     buffered::Stream<
         easy::Stream<
             stream::position::Stream<stream::IteratorStream<CharIterator<'a>>, SourcePosition>,

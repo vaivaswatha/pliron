@@ -7,14 +7,14 @@ use rustc_hash::FxHashMap;
 
 use crate::{
     attribute::{AttrId, AttrObj},
-    context::{Context, Ptr},
+    context::Context,
     identifier::Identifier,
     input_err,
     location::{Located, Location},
     op::{OpId, OpObj},
     parsable::{IntoParseResult, Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
-    r#type::{TypeId, TypeObj},
+    r#type::{TypeId, TypeParserFn},
 };
 
 /// Dialect name: Safe wrapper around a String.
@@ -87,11 +87,11 @@ pub struct Dialect {
     /// Name of this dialect.
     pub name: DialectName,
     /// Ops that are part of this dialect.
-    pub ops: FxHashMap<OpId, ParserFn<Vec<(Identifier, Location)>, OpObj>>,
+    pub(crate) ops: FxHashMap<OpId, ParserFn<Vec<(Identifier, Location)>, OpObj>>,
     /// Types that are part of this dialect.
-    pub types: FxHashMap<TypeId, ParserFn<(), Ptr<TypeObj>>>,
+    pub(crate) types: FxHashMap<TypeId, TypeParserFn>,
     /// Attributes that are part of this dialect.
-    pub attributes: FxHashMap<AttrId, ParserFn<(), AttrObj>>,
+    pub(crate) attributes: FxHashMap<AttrId, ParserFn<(), AttrObj>>,
 }
 
 impl Printable for Dialect {
@@ -122,19 +122,23 @@ impl Dialect {
     }
 
     /// Add an [Op](crate::op::Op) to this dialect.
-    pub fn add_op(&mut self, op: OpId, op_parser: ParserFn<Vec<(Identifier, Location)>, OpObj>) {
+    pub(crate) fn add_op(
+        &mut self,
+        op: OpId,
+        op_parser: ParserFn<Vec<(Identifier, Location)>, OpObj>,
+    ) {
         assert!(op.dialect == self.name);
         self.ops.insert(op, op_parser);
     }
 
     /// Add a [Type](crate::type::Type) to this dialect.
-    pub fn add_type(&mut self, ty: TypeId, ty_parser: ParserFn<(), Ptr<TypeObj>>) {
+    pub(crate) fn add_type(&mut self, ty: TypeId, ty_parser: TypeParserFn) {
         assert!(ty.dialect == self.name);
         self.types.insert(ty, ty_parser);
     }
 
     /// Add an [Attribute](crate::attribute::Attribute) to this dialect.
-    pub fn add_attr(&mut self, attr: AttrId, attr_parser: ParserFn<(), AttrObj>) {
+    pub(crate) fn add_attr(&mut self, attr: AttrId, attr_parser: ParserFn<(), AttrObj>) {
         assert!(attr.dialect == self.name);
         self.attributes.insert(attr, attr_parser);
     }
@@ -142,16 +146,6 @@ impl Dialect {
     /// This Dialect's name.
     pub fn get_name(&self) -> &DialectName {
         &self.name
-    }
-
-    /// Get reference to a registered Dialect by name.
-    pub fn get_ref(ctx: &Context, name: DialectName) -> Option<&Dialect> {
-        ctx.dialects.get(&name)
-    }
-
-    /// Get mutable reference to a registered Dialect by name.
-    pub fn get_mut(ctx: &mut Context, name: DialectName) -> Option<&mut Dialect> {
-        ctx.dialects.get_mut(&name)
     }
 }
 

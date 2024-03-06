@@ -15,7 +15,7 @@ use crate::{
     debug_info::set_operation_result_name,
     error::Result,
     identifier::Identifier,
-    location::Location,
+    location::{Located, Location},
     operation::Operation,
     parsable::{Parsable, ParseResult, StateStream},
     r#type::{TypeId, TypeName, TypeObj},
@@ -91,13 +91,44 @@ pub fn attr_header<'a>() -> impl AsmParser<'a, AttrId> {
     from_parseable()
 }
 
-/// A parser combinator to parse [TypeId] followed by the type's contents.
-pub fn type_parser<'a>(
-) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
-    <Ptr<TypeObj> as Parsable>::parser(())
+/// Parse from `parser`, ignoring whitespace(s) before and after.
+/// > **Warning**: Do not use this inside inside repeating combiners, such as [combine::many].
+///     After successfully parsing one instance, if spaces are consumed to parse
+///     the next one, but the next one doesn't exist, it is treated as a failure
+///     that consumed some input. This messes things up. So spaces must be consumed
+///     after a successfull parse, and not prior to an upcoming one.
+///     A possibly right way to, for example, parse a comma separated list of [Identifier]s:
+///
+///```
+///     # use combine::{parser::char::spaces, Parser};
+///     # use pliron::parsable::Parsable;
+///     let ids = spaces().with
+///               (combine::sep_by::<Vec<_>, _, _, _>
+///                 (pliron::identifier::Identifier::parser(()).skip(spaces()),
+///                 combine::token(',').skip(spaces())));
+///```
+pub fn spaced<Input: Stream<Token = char>, Output>(
+    parser: impl Parser<Input, Output = Output>,
+) -> impl Parser<Input, Output = Output> {
+    combine::between(spaces(), spaces(), parser)
 }
 
-/// A parser combinator to parse [AttrId] followed by the attribute's contents.
+/// A parser that returns the current [Location] and does nothing else
+pub fn location<'a>() -> Box<dyn Parser<StateStream<'a>, Output = Location, PartialState = ()> + 'a>
+{
+    combine::parser(|parsable_state: &mut StateStream<'a>| {
+        combine::ParseResult::PeekOk(parsable_state.loc()).into()
+    })
+    .boxed()
+}
+
+/// A parser combinator to parse [TypeId](crate::type::TypeId) followed by the type's contents.
+pub fn type_parser<'a>(
+) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
+    Ptr::<TypeObj>::parser(())
+}
+
+/// A parser combinator to parse [AttrId](crate::attribute::AttrId) followed by the attribute's contents.
 pub fn attr_parser<'a>(
 ) -> Box<dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a> {
     AttrObj::parser(())
@@ -145,7 +176,7 @@ pub fn block_opd_parse<'a>(
         .into()
 }
 
-/// Parse a block label into a [`Ptr<BasicBlock>`]. Typically called to parse
+/// A parser to parse a block label into a [`Ptr<BasicBlock>`]. Typically called to parse
 /// the block operands of an [Operation]. If the block doesn't exist, it's created,
 pub fn block_opd_parser<'a>(
 ) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<BasicBlock>, PartialState = ()> + 'a> {
@@ -157,7 +188,7 @@ pub fn block_opd_parser<'a>(
 /// set its name and register it as an SSA definition.
 pub fn process_parsed_ssa_defs(
     state_stream: &mut StateStream,
-    results: &Vec<(Identifier, Location)>,
+    results: &[(Identifier, Location)],
     op: Ptr<Operation>,
 ) -> Result<()> {
     let ctx = &mut state_stream.state.ctx;
@@ -173,28 +204,6 @@ pub fn process_parsed_ssa_defs(
         set_operation_result_name(ctx, op, idx, name_loc.0.to_string());
     }
     Ok(())
-}
-
-/// Parse from `parser`, ignoring whitespace(s) before and after.
-/// > **Warning**: Do not use this inside inside repeating combiners, such as [combine::many].
-///     After successfully parsing one instance, if spaces are consumed to parse
-///     the next one, but the next one doesn't exist, it is treated as a failure
-///     that consumed some input. This messes things up. So spaces must be consumed
-///     after a successfull parse, and not prior to an upcoming one.
-///     A possibly right way to, for example, parse a comma separated list of [Identifier]s:
-///
-///```
-///     # use combine::{parser::char::spaces, Parser};
-///     # use pliron::parsable::Parsable;
-///     let ids = spaces().with
-///               (combine::sep_by::<Vec<_>, _, _, _>
-///                 (pliron::identifier::Identifier::parser(()).skip(spaces()),
-///                 combine::token(',').skip(spaces())));
-///```
-pub fn spaced<Input: Stream<Token = char>, Output>(
-    parser: impl Parser<Input, Output = Output>,
-) -> impl Parser<Input, Output = Output> {
-    combine::between(spaces(), spaces(), parser)
 }
 
 pub fn literal<'a>(lit: &'static str) -> impl AsmParser<'a, &'a str> {
@@ -232,14 +241,15 @@ where
 
 #[cfg(test)]
 mod test {
+    use super::*;
+
     use expect_test::expect;
 
     use crate::{
         context::Context,
-        dialects,
-        irfmt::parsers::type_parser,
-        location,
+        dialects, location,
         parsable::{self, state_stream_from_iterator},
+        printable::Printable,
     };
 
     #[test]
@@ -282,9 +292,6 @@ mod test {
         );
 
         let parsed = type_parser().parse(state_stream).unwrap().0;
-        assert_eq!(
-            crate::printable::Printable::disp(&parsed, &ctx).to_string(),
-            "builtin.int<si32>"
-        );
+        assert_eq!(parsed.disp(&ctx).to_string(), "builtin.int<si32>");
     }
 }

@@ -14,6 +14,7 @@ use crate::{
     operation::Operation,
     parsable::{self, state_stream_from_iterator},
     r#type::Type,
+    r#type::TypePtr,
 };
 use apint::ApInt;
 use combine::{eof, error::Commit};
@@ -51,7 +52,7 @@ fn register_dialect(ctx: &mut Context) {
 pub struct SimpleType {}
 impl SimpleType {
     /// Get or create a new simple type.
-    pub fn get(ctx: &mut Context) -> Ptr<TypeObj> {
+    pub fn get(ctx: &mut Context) -> TypePtr<Self> {
         Type::register_instance(SimpleType {}, ctx)
     }
 }
@@ -74,12 +75,17 @@ pub struct IntegerType {
     align: u32,
 }
 impl IntegerType {
-    fn get(ctx: &mut Context, width: u32, sign: bool, align: u32) -> Ptr<TypeObj> {
+    fn get(ctx: &mut Context, width: u32, sign: bool, align: u32) -> TypePtr<Self> {
         Type::register_instance(Self { sign, width, align }, ctx)
     }
 
     /// Get, if it already exists, an integer type.
-    pub fn get_existing(ctx: &Context, width: u32, sign: bool, align: u32) -> Option<Ptr<TypeObj>> {
+    pub fn get_existing(
+        ctx: &Context,
+        width: u32,
+        sign: bool,
+        align: u32,
+    ) -> Option<TypePtr<Self>> {
         Type::get_instance(Self { width, sign, align }, ctx)
     }
 }
@@ -98,7 +104,7 @@ pub struct VecType {
     elem: Ptr<TypeObj>,
 }
 impl VecType {
-    fn get(ctx: &mut Context, elem: Ptr<TypeObj>) -> Ptr<TypeObj> {
+    fn get(ctx: &mut Context, elem: Ptr<TypeObj>) -> TypePtr<Self> {
         Type::register_instance(Self { elem }, ctx)
     }
 }
@@ -130,7 +136,7 @@ impl Verify for FunctionType {
 }
 impl ::pliron::parsable::Parsable for FunctionType {
     type Arg = ();
-    type Parsed = ::pliron::context::Ptr<::pliron::r#type::TypeObj>;
+    type Parsed = TypePtr<Self>;
     fn parse<'a>(
         _state_stream: &mut ::pliron::parsable::StateStream<'a>,
         _arg: Self::Arg,
@@ -144,7 +150,7 @@ impl FunctionType {
         ctx: &mut Context,
         inputs: Vec<Ptr<TypeObj>>,
         results: Vec<Ptr<TypeObj>>,
-    ) -> Ptr<TypeObj> {
+    ) -> TypePtr<Self> {
         Type::register_instance(FunctionType { inputs, results }, ctx)
     }
 }
@@ -153,11 +159,11 @@ impl FunctionType {
 #[derive(PartialEq, Eq, Debug, Clone, Printable)]
 #[ir_format = "format(`0x{:x}`, $val) `: ` $ty"]
 pub struct IntegerAttr {
-    ty: Ptr<TypeObj>,
+    ty: TypePtr<IntegerType>,
     val: ApInt,
 }
 impl IntegerAttr {
-    pub fn create(ty: Ptr<TypeObj>, val: ApInt) -> AttrObj {
+    pub fn create(ty: TypePtr<IntegerType>, val: ApInt) -> AttrObj {
         Box::new(IntegerAttr { ty, val })
     }
 }
@@ -178,7 +184,7 @@ impl ::pliron::parsable::Parsable for IntegerAttr {
 }
 impl_attr_interface!(TypedAttrInterface for IntegerAttr {
     fn get_type(&self) -> Ptr<TypeObj> {
-        self.ty
+        self.ty.to_ptr()
     }
 });
 
@@ -315,7 +321,7 @@ fn print_vec_type() {
     register_dialect(&mut ctx);
 
     let i32_ty = IntegerType::get(&mut ctx, 32, true, 4);
-    let vec_ty = VecType::get(&mut ctx, i32_ty);
+    let vec_ty = VecType::get(&mut ctx, i32_ty.to_ptr());
     let got = vec_ty.disp(&ctx).to_string();
     assert_eq!(got, "testing.vec testing.int32<4,true>");
 }
@@ -325,8 +331,8 @@ fn print_function() {
     let mut ctx = Context::new();
     register_dialect(&mut ctx);
 
-    let i32_ty = IntegerType::get(&mut ctx, 32, true, 4);
-    let u64_ty = IntegerType::get(&mut ctx, 32, false, 8);
+    let i32_ty = IntegerType::get(&mut ctx, 32, true, 4).to_ptr();
+    let u64_ty = IntegerType::get(&mut ctx, 32, false, 8).to_ptr();
     let func_ty = FunctionType::get(&mut ctx, vec![i32_ty, i32_ty], vec![u64_ty]);
 
     let got = func_ty.disp(&ctx).to_string();

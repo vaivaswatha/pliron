@@ -6,7 +6,7 @@ use crate::{
     error::Result,
     identifier::Identifier,
     impl_op_interface, input_err,
-    irfmt::{parsers::ssa_opd_parser, printers::concat},
+    irfmt::parsers::ssa_opd_parser,
     location::{Located, Location},
     op::{Op, OpObj},
     operation::Operation,
@@ -39,16 +39,19 @@ impl Printable for ReturnOp {
     fn fmt(
         &self,
         ctx: &Context,
-        state: &printable::State,
+        _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        concat((
-            self.get_opid(),
-            " ",
-            self.get_operation().deref(ctx).get_operand_ref(0).unwrap(),
-        ))
-        .fmt(ctx, state, f)?;
-        Ok(())
+        write!(
+            f,
+            "{} {}",
+            self.get_opid().disp(ctx),
+            self.get_operation()
+                .deref(ctx)
+                .get_operand_ref(0)
+                .unwrap()
+                .disp(ctx)
+        )
     }
 }
 

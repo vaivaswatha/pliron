@@ -14,12 +14,15 @@ pub(crate) fn derive_not_parsable_type(input: impl Into<TokenStream>) -> Result<
     Ok(quote! {
         impl ::pliron::parsable::Parsable for #name {
             type Arg = ();
-            type Parsed = ::pliron::context::Ptr<::pliron::r#type::TypeObj>;
+            type Parsed = ::pliron::r#type::TypePtr<Self>;
 
             fn parse<'a>(
                 _state_stream: &mut ::pliron::parsable::StateStream<'a>,
                 _arg: Self::Arg,
-            ) -> ::pliron::parsable::ParseResult<'a, Self::Parsed> {
+            ) -> ::pliron::parsable::ParseResult<'a, Self::Parsed>
+            where
+                Self: Sized,
+            {
                 todo!()
             }
 
@@ -90,7 +93,7 @@ fn impl_parsable(input: IRFmtInput) -> TokenStream {
     quote! {
         impl ::pliron::parsable::Parsable for #name {
             type Arg = ();
-            type Parsed = Ptr<TypeObj>;
+            type Parsed = TypePtr<Self>;
 
             fn parse<'a>(
                 state_stream: &mut StateStream<'a>,

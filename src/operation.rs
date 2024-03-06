@@ -4,7 +4,7 @@
 
 use std::marker::PhantomData;
 
-use combine::{attempt, parser::char::spaces, position, token, Parser};
+use combine::{attempt, parser::char::spaces, token, Parser};
 use thiserror::Error;
 
 use crate::{
@@ -12,12 +12,12 @@ use crate::{
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
     context::{private::ArenaObj, ArenaCell, Context, Ptr},
-    debug_info::{self},
+    debug_info,
     error::Result,
     identifier::Identifier,
     input_err,
     irfmt::{
-        parsers::spaced,
+        parsers::{location, spaced},
         printers::{self, PrinterCheck},
     },
     linked_list::{private, LinkedList},
@@ -335,7 +335,7 @@ impl Operation {
     }
 
     /// Drop all uses that this operation holds.
-    pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &mut Context) {
+    pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &Context) {
         // The operands cease to be a use of their definitions.
         let operands = std::mem::take(&mut (ptr.deref_mut(ctx).operands));
         for opd in operands {
@@ -562,14 +562,14 @@ impl Parsable for Operation {
         _arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
         let loc = state_stream.loc();
-        let src = loc
+        let _src = loc
             .source()
             .expect("Location from Parsable must be Location::SrcPos");
 
         let results_opid = combine::optional(attempt(
             spaces()
                 .with(combine::sep_by::<Vec<_>, _, _, _>(
-                    (position(), Identifier::parser(())).skip(spaces()),
+                    (location(), Identifier::parser(())).skip(spaces()),
                     token(',').skip(spaces()),
                 ))
                 .skip(spaced(token('='))),
@@ -581,8 +581,8 @@ impl Parsable for Operation {
                 let loc = loc.clone();
                 let results: Vec<_> = results_opt
                     .unwrap_or(vec![])
-                    .iter()
-                    .map(|(pos, id)| (id.clone(), (Location::SrcPos { src, pos: *pos })))
+                    .into_iter()
+                    .map(|(res_loc, id)| (id, (res_loc)))
                     .collect();
                 combine::parser(move |parsable_state: &mut StateStream<'a>| {
                     let state = &parsable_state.state;

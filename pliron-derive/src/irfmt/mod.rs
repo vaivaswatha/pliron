@@ -11,11 +11,13 @@ pub use eval::AttribTypeFmtEvaler;
 
 use crate::macro_attr::{require_once, IRFormat, IRKind};
 
+/// Represents the common input to derive macros that use the `ir_format` attribute in conjunction
+/// with the struct definition in order to create parsers, printers for an IR entity.
 pub(crate) struct IRFmtInput {
     pub ident: syn::Ident,
     pub kind: IRKind,
-    pub format: Format,
     pub data: FmtData,
+    pub format: Format,
 }
 
 pub(crate) enum FmtData {
@@ -97,10 +99,29 @@ impl TryFrom<DeriveInput> for IRFmtInput {
     }
 }
 
+/// Struct format data.
 pub(crate) struct Struct {
     pub fields: Vec<FieldIdent>,
 }
 
+impl Struct {
+    fn from_syn(data: &DataStruct) -> syn::Result<Self> {
+        let fields = data
+            .fields
+            .iter()
+            .enumerate()
+            .map(|(i, f)| match f.ident {
+                Some(ref ident) => FieldIdent::Named(ident.to_string()),
+                None => FieldIdent::Unnamed(i),
+            })
+            .collect();
+
+        Ok(Self { fields })
+    }
+}
+
+/// Field identifier of an IR entity that can be used a variable in a format string.
+/// We extract struct fields as field identifiers.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum FieldIdent {
     Named(String),
@@ -158,22 +179,9 @@ impl quote::ToTokens for FieldIdent {
     }
 }
 
-impl Struct {
-    fn from_syn(data: &DataStruct) -> syn::Result<Self> {
-        let fields = data
-            .fields
-            .iter()
-            .enumerate()
-            .map(|(i, f)| match f.ident {
-                Some(ref ident) => FieldIdent::Named(ident.to_string()),
-                None => FieldIdent::Unnamed(i),
-            })
-            .collect();
-
-        Ok(Self { fields })
-    }
-}
-
+/// A parsed format string.
+///
+/// The format string is a sequence of literals, variables, and directives.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct Format {
     pub elems: Vec<Elem>,
@@ -205,26 +213,29 @@ impl Format {
 }
 
 impl Format {
-    pub fn parse(input: &str) -> Result<Self> {
+    /// Parse a format string.
+    pub fn parse(input: &str) -> parser::Result<Self> {
         parser::parse(input)
     }
 }
 
+/// A single element term in a format string.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Elem {
-    // Literal is a custom string enclosed in backticks. For example `lit` or `(`.
+    /// Literal is a custom string enclosed in backticks. For example `lit` or `(`.
     Lit(Lit),
 
-    // varialbes are custom identifiers starting with a dollar sign. For example $var or $0.
+    /// varialbes are custom identifiers starting with a dollar sign. For example $var or $0.
     Var(Var),
 
-    // Unnamed variables are custom identifiers starting with a dollar sign and a number.
+    /// Unnamed variables are custom identifiers starting with a dollar sign and a number.
     UnnamedVar(UnnamedVar),
 
-    // Directives are builtin identifiers. Some directives may have optional arguments enclosed
+    /// Directives are builtin identifiers. Some directives may have optional arguments enclosed
     // in parens. For example `attr-dict` or `directive($arg1, other-directive)`.
     Directive(Directive),
 
+    /// Optional represents an optional format string.
     Optional(Optional),
 }
 
@@ -263,6 +274,7 @@ impl Elem {
         Self::Directive(Directive::new(name))
     }
 
+    #[allow(dead_code)] // used in tests.
     pub fn new_directive_at(pos: usize, name: impl Into<String>) -> Self {
         Self::Directive(Directive::new_at(pos, name))
     }
@@ -459,10 +471,6 @@ impl Optional {
     }
 }
 
-type Result<T, E = Error> = std::result::Result<T, E>;
-
-type Error = Box<dyn std::error::Error>;
-
 struct FmtValue(Vec<Elem>);
 
 impl From<Elem> for FmtValue {
@@ -545,7 +553,7 @@ pub(crate) fn try_format_from_input(input: &syn::DeriveInput) -> syn::Result<For
             elems
         }
         syn::Fields::Unnamed(ref fields) => (0..(fields.unnamed.len()))
-            .map(|i| Elem::new_unnamed_var(i as usize))
+            .map(Elem::new_unnamed_var)
             .collect::<Vec<_>>(),
         syn::Fields::Unit => vec![],
     };

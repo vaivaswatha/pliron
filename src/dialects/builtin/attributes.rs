@@ -22,7 +22,7 @@ use crate::{
     location::Located,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{TypeObj, Typed},
+    r#type::{TypeObj, TypePtr, Typed},
     verify_err_noloc,
 };
 
@@ -74,7 +74,7 @@ impl Parsable for StringAttr {
     ) -> ParseResult<'a, Self::Parsed> {
         // An escaped charater is one that is preceded by a backslash.
         let escaped_char = combine::parser(move |parsable_state: &mut StateStream<'a>| {
-            // This combine::parser() is so that we can get a position before the parsing begins.
+            // This combine::parser() is so that we can get a location before the parsing begins.
             let loc = parsable_state.loc();
             let mut escaped_char = token('\\').with(any()).then(move |c: char| {
                 let loc = loc.clone();
@@ -112,7 +112,7 @@ impl Parsable for StringAttr {
 #[def_attribute("builtin.integer")]
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct IntegerAttr {
-    ty: Ptr<TypeObj>,
+    ty: TypePtr<IntegerType>,
     val: ApInt,
 }
 
@@ -127,22 +127,15 @@ impl Printable for IntegerAttr {
     }
 }
 
-#[derive(Error, Debug)]
-#[error("value of IntegerAttr must be of IntegerType")]
-struct IntegerAttrVerifyErr;
-
 impl Verify for IntegerAttr {
-    fn verify(&self, ctx: &Context) -> Result<()> {
-        if !self.ty.deref(ctx).is::<IntegerType>() {
-            return verify_err_noloc!(IntegerAttrVerifyErr);
-        }
+    fn verify(&self, _ctx: &Context) -> Result<()> {
         Ok(())
     }
 }
 
 impl IntegerAttr {
     /// Create a new [IntegerAttr].
-    pub fn create(ty: Ptr<TypeObj>, val: ApInt) -> AttrObj {
+    pub fn create(ty: TypePtr<IntegerType>, val: ApInt) -> AttrObj {
         Box::new(IntegerAttr { ty, val })
     }
 }
@@ -167,23 +160,25 @@ impl Parsable for IntegerAttr {
             string("0x")
                 .with(many1::<String, _, _>(hex_digit()))
                 .skip(token(':'))
-                .and(type_parser()),
+                .and(TypePtr::<IntegerType>::parser(())),
         )
         .parse_stream(state_stream)
-        .map(|(digits, ty)| IntegerAttr::create(ty, ApInt::from_str_radix(16, digits).unwrap()))
-        .into()
+        .map(|(digits, ty)| {
+            IntegerAttr::create(ty, ApInt::from_str_radix(16, digits.clone()).unwrap())
+        })
+        .into_result()
     }
 }
 
 impl Typed for IntegerAttr {
     fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
-        self.ty
+        self.ty.into()
     }
 }
 
 impl_attr_interface!(TypedAttrInterface for IntegerAttr {
     fn get_type(&self) -> Ptr<TypeObj> {
-        self.ty
+        self.ty.into()
     }
 });
 
@@ -508,6 +503,8 @@ mod tests {
     #[test]
     fn test_integer_attributes() {
         let mut ctx = Context::new();
+        dialects::builtin::register(&mut ctx);
+
         let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
 
         let int64_0_ptr = IntegerAttr::create(i64_ty, ApInt::from_i64(0));
@@ -529,6 +526,22 @@ mod tests {
                     int64_1_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()
                 )) == 15
         );
+
+        let attr_input = "builtin.integer <0x0: builtin.unit>";
+        let state_stream = state_stream_from_iterator(
+            attr_input.chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+
+        let parse_err = attr_parser()
+            .parse(state_stream)
+            .err()
+            .expect("Integer attribute with non-integer type shouldn't be parsed successfully");
+        let expected_err_msg = expect![[r#"
+            Parse error at line: 1, column: 22
+            Expected type builtin.int, but found builtin.unit
+        "#]];
+        expected_err_msg.assert_eq(&parse_err.to_string());
     }
 
     #[test]
@@ -628,7 +641,7 @@ mod tests {
         let mut ctx = Context::new();
         dialects::builtin::register(&mut ctx);
 
-        let ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
+        let ty = IntegerType::get(&mut ctx, 64, Signedness::Signed).into();
         let ty_attr = TypeAttr::create(ty);
 
         let ty_interface = attr_cast::<dyn TypedAttrInterface>(&*ty_attr).unwrap();

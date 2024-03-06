@@ -14,7 +14,7 @@ use crate::{
     impl_op_interface, input_err,
     irfmt::{
         parsers::{attr_parser, process_parsed_ssa_defs, spaced, type_parser},
-        printers::{region, symb_op_header, typed_symb_op_header},
+        printers::op::{region, symb_op_header, typed_symb_op_header},
     },
     linked_list::ContainsLinkedList,
     location::{Located, Location},
@@ -22,7 +22,7 @@ use crate::{
     operation::Operation,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{TypeObj, Typed},
+    r#type::{TypeObj, TypePtr, Typed},
     region::Region,
     verify_err,
 };
@@ -154,16 +154,12 @@ impl FuncOp {
     /// Create a new [FuncOp].
     /// The underlying [Operation] is not linked to a [BasicBlock].
     /// The returned function has a single region with an empty `entry` block.
-    pub fn new_unlinked(ctx: &mut Context, name: &str, ty: Ptr<TypeObj>) -> FuncOp {
-        let ty_attr = TypeAttr::create(ty);
+    pub fn new_unlinked(ctx: &mut Context, name: &str, ty: TypePtr<FunctionType>) -> FuncOp {
+        let ty_attr = TypeAttr::create(ty.into());
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1);
 
         // Create an empty entry block.
-        let arg_types = {
-            let fn_tyref = ty.deref(ctx);
-            let fn_ty = fn_tyref.downcast_ref::<FunctionType>().unwrap();
-            fn_ty.get_inputs().clone()
-        };
+        let arg_types = ty.deref(ctx).get_inputs().clone();
         let region = op.deref_mut(ctx).get_region(0).unwrap();
         let body = BasicBlock::new(ctx, Some("entry".into()), arg_types);
         body.insert_at_front(region, ctx);
@@ -450,7 +446,7 @@ impl ForwardRefOp {
     /// Create a new [ForwardRefOp].
     /// The underlying [Operation] is not linked to a [BasicBlock].
     pub fn new_unlinked(ctx: &mut Context) -> ForwardRefOp {
-        let ty = UnitType::get(ctx);
+        let ty = UnitType::get(ctx).into();
         let op = Operation::new(ctx, Self::get_opid_static(), vec![ty], vec![], 0);
         ForwardRefOp { op }
     }
