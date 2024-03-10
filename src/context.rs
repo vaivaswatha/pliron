@@ -42,7 +42,7 @@ pub struct Context {
     /// Registered [Op](crate::op::Op)s.
     pub ops: FxHashMap<OpId, OpCreator>,
     /// Storage for uniqued [TypeObj]s.
-    pub type_store: UniqueStore<TypeObj>,
+    pub(crate) type_store: UniqueStore<TypeObj>,
     /// Storage for other uniqued objects.
     pub(crate) uniqued_any_store: UniqueStore<UniquedAny>,
 
