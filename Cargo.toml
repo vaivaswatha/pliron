@@ -27,7 +27,7 @@ keywords = ["pliron", "llvm", "mlir", "compiler"]
 [dependencies]
 pliron-derive = { path = "./pliron-derive" }
 
-generational-arena = "0.2"
+slotmap = "1.0.7"
 downcast-rs = "1.2.0"
 rustc-hash = "1.1.0"
 thiserror = "1.0.49"
