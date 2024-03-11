@@ -53,11 +53,11 @@ pub type UniqueStoreEq<'a, T> = &'a dyn Fn(&T, &T) -> bool;
 pub type UniqueStoreIs<'a, T> = &'a dyn Fn(&T) -> bool;
 
 /// Store unique copy of objects.
-pub struct UniqueStore<T: 'static> {
+pub(crate) struct UniqueStore<T: 'static> {
     /// The actual store, owning the objects.
-    pub unique_store: ArenaCell<T>,
+    pub(crate) unique_store: ArenaCell<T>,
     /// A hash index into the store.
-    pub unique_stores_map: FxHashMap<TypeValueHash, Vec<ArenaIndex>>,
+    pub(crate) unique_stores_map: FxHashMap<TypeValueHash, Vec<ArenaIndex>>,
 }
 
 impl<T: 'static> Default for UniqueStore<T> {
@@ -73,8 +73,8 @@ impl<T: 'static> UniqueStore<T> {
     /// Get or create a unique copy of `t: T`.
     /// `t` is uniqued based on its provided `hash` and `eq`.
     /// Consumes the provided argument either way.
-    /// Returns [generational_arena::Index] into [Self::unique_store] of the unique copy.
-    pub fn get_or_create_unique(
+    /// Returns [ArenaIndex] into [Self::unique_store] of the unique copy.
+    pub(crate) fn get_or_create_unique(
         &mut self,
         t: T,
         hash: TypeValueHash,
@@ -103,7 +103,7 @@ impl<T: 'static> UniqueStore<T> {
     }
 
     /// Get index to the stored object that satisfies `hash` and `is`.
-    pub fn get(&self, hash: TypeValueHash, is: UniqueStoreIs<T>) -> Option<ArenaIndex> {
+    pub(crate) fn get(&self, hash: TypeValueHash, is: UniqueStoreIs<T>) -> Option<ArenaIndex> {
         self.unique_stores_map
             .get(&hash)
             .and_then(|mv| {

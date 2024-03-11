@@ -14,6 +14,7 @@ use crate::{
     uniqued_any::UniquedAny,
 };
 use rustc_hash::FxHashMap;
+use slotmap::{new_key_type, SlotMap};
 use std::{
     any::TypeId,
     cell::{Ref, RefCell, RefMut},
@@ -21,8 +22,11 @@ use std::{
     marker::PhantomData,
 };
 
-pub type ArenaCell<T> = generational_arena::Arena<RefCell<T>>;
-pub type ArenaIndex = generational_arena::Index;
+new_key_type! {
+    pub struct ArenaIndex;
+}
+// pub type ArenaIndex = slotmap::DefaultKey;
+pub type ArenaCell<T> = SlotMap<ArenaIndex, RefCell<T>>;
 
 /// A context stores all IR data of this compilation session.
 #[derive(Default)]
@@ -38,7 +42,7 @@ pub struct Context {
     /// Registered [Op](crate::op::Op)s.
     pub ops: FxHashMap<OpId, OpCreator>,
     /// Storage for uniqued [TypeObj]s.
-    pub type_store: UniqueStore<TypeObj>,
+    pub(crate) type_store: UniqueStore<TypeObj>,
     /// Storage for other uniqued objects.
     pub(crate) uniqued_any_store: UniqueStore<UniquedAny>,
 
@@ -55,7 +59,7 @@ impl Context {
 pub(crate) mod private {
     use std::{cell::RefCell, marker::PhantomData};
 
-    use super::{ArenaCell, Context, Ptr};
+    use super::{ArenaCell, ArenaIndex, Context, Ptr};
 
     /// An IR object owned by Context
     pub trait ArenaObj
@@ -74,7 +78,7 @@ pub(crate) mod private {
 
         /// Allocates object on the arena, given a creator function.
         fn alloc<T: FnOnce(Ptr<Self>) -> Self>(ctx: &mut Context, f: T) -> Ptr<Self> {
-            let creator = |idx: generational_arena::Index| {
+            let creator = |idx: ArenaIndex| {
                 let t = f(Ptr::<Self> {
                     idx,
                     _dummy: PhantomData::<Self>,
@@ -82,7 +86,7 @@ pub(crate) mod private {
                 RefCell::new(t)
             };
             Ptr::<Self> {
-                idx: Self::get_arena_mut(ctx).insert_with(creator),
+                idx: Self::get_arena_mut(ctx).insert_with_key(creator),
                 _dummy: PhantomData,
             }
         }
@@ -100,7 +104,7 @@ use private::ArenaObj;
 /// Pointer to an IR Object owned by Context.
 #[derive(Debug)]
 pub struct Ptr<T: ArenaObj> {
-    pub(crate) idx: generational_arena::Index,
+    pub(crate) idx: ArenaIndex,
     pub(crate) _dummy: PhantomData<T>,
 }
 
@@ -139,8 +143,8 @@ impl<'a, T: ArenaObj> Ptr<T> {
 
     /// Create a unique (to the arena) name based on the arena index.
     pub(crate) fn make_name(&self, name_base: &str) -> String {
-        let idx = self.idx.into_raw_parts();
-        name_base.to_string() + "_" + &idx.0.to_string() + "_" + &idx.1.to_string()
+        let idx = format!("{:?}", self.idx.0);
+        name_base.to_string() + "_" + &idx
     }
 }
 
