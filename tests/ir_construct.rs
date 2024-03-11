@@ -314,20 +314,20 @@ fn test_preorder_forward_walk() {
     });
     expect![[r#"
         builtin.module @bar {
-          ^block_0_0():
+          ^block_1v1():
             builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
-              ^entry_block_1_0():
-                c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
-                llvm.return c0_op_2_0_res0
+              ^entry_block_2v1():
+                c0_op_3v1_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
+                llvm.return c0_op_3v1_res0
             }
         }
         builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
-          ^entry_block_1_0():
-            c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
-            llvm.return c0_op_2_0_res0
+          ^entry_block_2v1():
+            c0_op_3v1_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
+            llvm.return c0_op_3v1_res0
         }
-        c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>
-        llvm.return c0_op_2_0_res0
+        c0_op_3v1_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>
+        llvm.return c0_op_3v1_res0
     "#]]
     .assert_eq(&ops);
 }
@@ -355,19 +355,19 @@ fn test_postorder_forward_walk() {
         accum + &op.disp(ctx).to_string() + "\n"
     });
     expect![[r#"
-        c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>
-        llvm.return c0_op_2_0_res0
+        c0_op_3v1_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>
+        llvm.return c0_op_3v1_res0
         builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
-          ^entry_block_1_0():
-            c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
-            llvm.return c0_op_2_0_res0
+          ^entry_block_2v1():
+            c0_op_3v1_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
+            llvm.return c0_op_3v1_res0
         }
         builtin.module @bar {
-          ^block_0_0():
+          ^block_1v1():
             builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
-              ^entry_block_1_0():
-                c0_op_2_0_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
-                llvm.return c0_op_2_0_res0
+              ^entry_block_2v1():
+                c0_op_3v1_res0 = builtin.constant builtin.integer <0x0: builtin.int<si64>>;
+                llvm.return c0_op_3v1_res0
             }
         }
     "#]]
