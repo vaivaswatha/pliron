@@ -12,10 +12,10 @@
 //! in this module cannot be interrupted and always complete the full walk.
 //!
 //! Care must be taken if modifications are made to the graph during the walk.
-//! Safe modifications:
+//! Safety:
 //!    Node deletions: A node can be deleted from its parent only when the
 //!        parent is visited in a PostOrder walk, after all children are processed.
-//!        This ensure deleted nodes aren't visited.
+//!        This ensures that deleted nodes aren't visited.
 //!    Node additions: A node can be inserted into its parent only when the
 //!        parent is visited in a PreOrder walk, before any child is processed.
 //!        This ensures that the new node gets visited.
