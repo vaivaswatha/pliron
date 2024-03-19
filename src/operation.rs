@@ -293,6 +293,11 @@ impl Operation {
         self.regions.get(reg_idx).cloned()
     }
 
+    /// Number of regions.
+    pub fn num_regions(&self) -> usize {
+        self.regions.len()
+    }
+
     /// Add a new empty region to the operation and return its [Ptr].
     pub fn add_region(ptr: Ptr<Self>, ctx: &mut Context) -> Ptr<Region> {
         let region = Region::new(ctx, ptr);
