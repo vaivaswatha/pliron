@@ -1,7 +1,6 @@
 //! A [BasicBlock] is a list of [Operation]s.
 
 use combine::{
-    between,
     parser::{char::spaces, Parser},
     sep_by, token,
 };
@@ -16,7 +15,7 @@ use crate::{
     identifier::Identifier,
     indented_block,
     irfmt::{
-        parsers::{location, spaced, type_parser},
+        parsers::{delimited_list_parser, location, spaced, type_parser},
         printers::{iter_with_sep, list_with_sep},
     },
     linked_list::{private, ContainsLinkedList, LinkedList},
@@ -345,12 +344,7 @@ impl Parsable for BasicBlock {
             (location(), Identifier::parser(())).skip(spaced(token(':'))),
             type_parser().skip(spaces()),
         );
-        let args = spaced(between(
-            token('('),
-            token(')'),
-            spaces().with(sep_by::<Vec<_>, _, _, _>(arg, token(',').skip(spaces()))),
-        ))
-        .skip(token(':'));
+        let args = spaced(delimited_list_parser('(', ')', ',', arg)).skip(token(':'));
         let ops = spaces().with(sep_by::<Vec<_>, _, _, _>(
             Operation::parser(()).skip(spaces()),
             token(';').skip(spaces()),

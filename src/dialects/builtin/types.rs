@@ -1,10 +1,7 @@
 use combine::{
     between, choice, many1,
-    parser::{
-        char::digit,
-        char::{spaces, string},
-    },
-    sep_by, token, Parser,
+    parser::{char::digit, char::string},
+    token, Parser,
 };
 use pliron_derive::def_type;
 
@@ -14,7 +11,7 @@ use crate::{
     dialect::Dialect,
     error::Result,
     irfmt::{
-        parsers::{spaced, type_parser},
+        parsers::{delimited_list_parser, spaced, type_parser},
         printers::{functional_type, list_with_sep},
     },
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
@@ -182,16 +179,7 @@ impl Parsable for FunctionType {
     where
         Self: Sized,
     {
-        let type_list_parser = || {
-            spaced(between(
-                token('('),
-                token(')'),
-                spaces().with(sep_by::<Vec<_>, _, _, _>(
-                    type_parser().skip(spaces()),
-                    token(',').skip(spaces()),
-                )),
-            ))
-        };
+        let type_list_parser = || spaced(delimited_list_parser('(', ')', ',', type_parser()));
         let mut parser = spaced(between(
             token('<'),
             token('>'),
@@ -219,7 +207,7 @@ pub struct UnitType;
 impl UnitType {
     /// Get or create a new unit type.
     pub fn get(ctx: &mut Context) -> TypePtr<Self> {
-        Type::register_instance(UnitType {}, ctx)
+        Type::register_instance(Self {}, ctx)
     }
 }
 

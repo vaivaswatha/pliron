@@ -6,7 +6,7 @@ use crate::{
     identifier::Identifier,
     input_err_noloc,
     irfmt::{
-        parsers::{location, spaced, type_parser},
+        parsers::{delimited_list_parser, location, spaced, type_parser},
         printers::{enclosed, list_with_sep},
     },
     location::Located,
@@ -15,7 +15,7 @@ use crate::{
     r#type::{Type, TypeObj, TypePtr},
     verify_err_noloc,
 };
-use combine::{between, optional, parser::char::spaces, sep_by, token, Parser};
+use combine::{between, optional, parser::char::spaces, token, Parser};
 use pliron_derive::def_type;
 use thiserror::Error;
 
@@ -269,13 +269,8 @@ impl Parsable for StructType {
         Self: Sized,
     {
         let body_parser = || {
-            // Parse multiple type annotated fields separated by ','.
-            let fields_parser = spaces().with(sep_by::<Vec<_>, _, _, _>(
-                StructField::parser(()).skip(spaces()),
-                token(',').skip(spaces()),
-            ));
-            // The body is multiple type annotated fields surrounded by '{' and '}'.
-            between(token('{'), token('}'), fields_parser)
+            // Parse multiple type annotated fields separated by ',', all of it delimited by braces.
+            delimited_list_parser('{', '}', ',', StructField::parser(()))
         };
 
         let named = spaced((location(), Identifier::parser(())))
@@ -365,14 +360,114 @@ impl Verify for PointerType {
     }
 }
 
+#[def_type("llvm.void")]
+#[derive(Hash, PartialEq, Eq, Debug)]
+pub struct VoidType;
+
+impl VoidType {
+    /// Get or create a new void type.
+    pub fn get(ctx: &mut Context) -> TypePtr<Self> {
+        Type::register_instance(Self {}, ctx)
+    }
+}
+
+impl Printable for VoidType {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        _f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        Ok(())
+    }
+}
+
+impl Parsable for VoidType {
+    type Arg = ();
+
+    type Parsed = TypePtr<VoidType>;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        Ok(VoidType::get(state_stream.state.ctx)).into_parse_result()
+    }
+}
+
+impl Verify for VoidType {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[def_type("llvm.func")]
+#[derive(Hash, PartialEq, Eq, Debug)]
+pub struct FuncType {
+    res: Ptr<TypeObj>,
+    args: Vec<Ptr<TypeObj>>,
+}
+
+impl FuncType {
+    /// Get or create a new Func type.
+    pub fn get(ctx: &mut Context, res: Ptr<TypeObj>, args: Vec<Ptr<TypeObj>>) -> TypePtr<Self> {
+        Type::register_instance(FuncType { res, args }, ctx)
+    }
+}
+impl Verify for FuncType {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl Printable for FuncType {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(
+            f,
+            "<{} ({})>",
+            self.res.disp(ctx),
+            list_with_sep(&self.args, ListSeparator::CharSpace(',')).disp(ctx)
+        )
+    }
+}
+
+impl Parsable for FuncType {
+    type Arg = ();
+
+    type Parsed = TypePtr<FuncType>;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        let type_list_parser = spaced(delimited_list_parser('(', ')', ',', type_parser()));
+        spaced(between(
+            token('<'),
+            token('>'),
+            spaces().with(type_parser()).and(type_list_parser),
+        ))
+        .parse_stream(state_stream)
+        .map(|(res, args)| FuncType::get(state_stream.state.ctx, res, args))
+        .into_result()
+    }
+}
+
 pub fn register(dialect: &mut Dialect) {
+    VoidType::register_type_in_dialect(dialect, VoidType::parser_fn);
     StructType::register_type_in_dialect(dialect, StructType::parser_fn);
     PointerType::register_type_in_dialect(dialect, PointerType::parser_fn);
+    FuncType::register_type_in_dialect(dialect, FuncType::parser_fn);
 }
 
 #[cfg(test)]
 mod tests {
 
+    use combine::{eof, Parser};
     use expect_test::expect;
 
     use crate::{
@@ -381,7 +476,7 @@ mod tests {
         dialects::{
             self,
             builtin::types::{IntegerType, Signedness},
-            llvm::types::{PointerType, StructErr, StructField, StructType},
+            llvm::types::{FuncType, PointerType, StructErr, StructField, StructType, VoidType},
         },
         error::{Error, ErrorKind, Result},
         irfmt::parsers::type_parser,
@@ -551,5 +646,26 @@ mod tests {
             Err (Error { kind: ErrorKind::VerificationFailed, err, loc: _ })
                 if err.is::<StructErr>()
         );
+    }
+
+    #[test]
+    fn test_functype_parsing() {
+        let mut ctx = Context::new();
+        dialects::builtin::register(&mut ctx);
+        dialects::llvm::register(&mut ctx);
+
+        let si32 = IntegerType::get(&mut ctx, 32, Signedness::Signed);
+
+        let input = "llvm.func<llvm.void (builtin.int<si32>)>";
+        let state_stream = state_stream_from_iterator(
+            input.chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+
+        let res = type_parser().and(eof()).parse(state_stream).unwrap().0 .0;
+
+        let void_ty = VoidType::get(&mut ctx);
+        assert!(res == FuncType::get(&mut ctx, void_ty.to_ptr(), vec![si32.into()]).into());
+        assert_eq!(input, &res.disp(&ctx).to_string());
     }
 }

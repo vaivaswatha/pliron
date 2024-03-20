@@ -55,7 +55,7 @@ pub fn def_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
 /// ```
 ///
 /// **Note**: pre-requisite traits for `Type` must already be implemented.
-///         Additionaly, Hash and Eq must be implemented by the rust type.
+///         Additionaly, [Hash](core::hash::Hash) and [Eq] must be implemented by the rust type.
 #[proc_macro_attribute]
 pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_type::def_type(args, input))

@@ -11,7 +11,7 @@ use crate::{
     r#type::TypeObj,
     use_def_lists::Value,
 };
-use combine::{parser::char::spaces, token, Parser, Stream};
+use combine::{between, parser::char::spaces, sep_by, token, Parser, Stream};
 
 /// Parse from `parser`, ignoring whitespace(s) before and after.
 /// > **Warning**: Do not use this inside inside repeating combiners, such as [combine::many].
@@ -54,6 +54,23 @@ pub fn type_parser<'a>(
 pub fn attr_parser<'a>(
 ) -> Box<dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a> {
     AttrObj::parser(())
+}
+
+/// Parse a delimitted list of objects.
+pub fn delimited_list_parser<Input: Stream<Token = char>, Output>(
+    open: char,
+    close: char,
+    sep: char,
+    parser: impl Parser<Input, Output = Output>,
+) -> impl Parser<Input, Output = Vec<Output>> {
+    between(
+        token(open),
+        token(close),
+        spaces().with(sep_by::<Vec<_>, _, _, _>(
+            parser.skip(spaces()),
+            token(sep).skip(spaces()),
+        )),
+    )
 }
 
 /// Parse an identifier into an SSA [Value]. Typically called to parse
