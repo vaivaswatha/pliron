@@ -166,7 +166,6 @@ mod tests {
     fn simple() {
         let arg = quote! { "testing.testop" };
         let input = quote! {
-            #[def_op("testing.testop")]
             struct TestOp;
         };
         let op = def_op(arg, input).unwrap();

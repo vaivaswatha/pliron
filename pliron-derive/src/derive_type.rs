@@ -124,7 +124,6 @@ mod tests {
     fn simple() {
         let args = quote! { "testing.simple_type" };
         let input = quote! {
-            #[def_type("testing.simple_type")]
             #[derive(Hash, PartialEq, Eq, Debug)]
             pub struct SimpleType {}
         };

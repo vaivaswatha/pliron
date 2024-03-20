@@ -151,7 +151,6 @@ mod tests {
     fn simple() {
         let args = quote! { "testing.unit" };
         let input = quote! {
-            #[def_attribute("testing.unit")]
             #[derive(PartialEq, Eq, Debug, Clone)]
             pub struct UnitAttr();
         };
