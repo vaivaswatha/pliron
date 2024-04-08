@@ -182,6 +182,7 @@ mod tests {
             #[allow(non_camel_case_types)]
             pub struct OpInterfaceVerifier_TestOp(pub ::pliron::op::OpInterfaceVerifier);
             impl TestOp {
+                #[doc(hidden)]
                 pub const fn build_interface_verifier(
                     verifier: ::pliron::op::OpInterfaceVerifier,
                 ) -> OpInterfaceVerifier_TestOp {

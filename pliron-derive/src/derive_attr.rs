@@ -168,6 +168,7 @@ mod tests {
                 pub ::pliron::attribute::AttrInterfaceVerifier,
             );
             impl UnitAttr {
+                #[doc(hidden)]
                 pub const fn build_interface_verifier(
                     verifier: ::pliron::attribute::AttrInterfaceVerifier,
                 ) -> AttrInterfaceVerifier_UnitAttr {

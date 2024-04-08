@@ -200,7 +200,7 @@ impl Printable for StructType {
         thread_local! {
             // We use a vec instead of a HashMap hoping that this isn't
             // going to be large, in which case vec would be faster.
-            static IN_PRINTING: RefCell<Vec<String>>  = RefCell::new(vec![]);
+            static IN_PRINTING: RefCell<Vec<String>>  = const { RefCell::new(vec![]) };
         }
         if let Some(name) = &self.name {
             let in_printing = IN_PRINTING.with(|f| f.borrow().contains(name));
@@ -546,7 +546,7 @@ mod tests {
     #[test]
     fn test_pointer_types() {
         let mut ctx = Context::new();
-        let int32_1_ptr = IntegerType::get(&mut ctx, 32, Signedness::Signed).into();
+        let int32_1_ptr = IntegerType::get(&mut ctx, 32, Signedness::Signed);
         let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signed).into();
 
         let int64pointer_ptr = PointerType { to: int64_ptr };

@@ -318,7 +318,6 @@ mod tests {
         assert!(
             res == IntegerType::get_existing(&ctx, 64, Signedness::Signed)
                 .unwrap()
-                .into()
         )
     }
 
@@ -363,7 +362,6 @@ mod tests {
         assert!(
             res == FunctionType::get_existing(&ctx, vec![], vec![si32.into()])
                 .unwrap()
-                .into()
         )
     }
 }
