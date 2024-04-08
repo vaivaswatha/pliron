@@ -61,12 +61,12 @@ fn replace_c0_with_c1() -> Result<()> {
     let (module_op, _, const_op, _) = const_ret_in_mod(ctx).unwrap();
 
     // Insert a new constant.
-    let one_const = IntegerAttr::create(
-        TypePtr::from_ptr(const_op.get_type(ctx), ctx)
+    let one_const = IntegerAttr::new(
+        TypePtr::from_ptr(const_op.result_type(ctx), ctx)
             .expect("Expected const_op to have integer type"),
         ApInt::from(1),
     );
-    let const1_op = ConstantOp::new_unlinked(ctx, one_const);
+    let const1_op = ConstantOp::new(ctx, one_const.into());
     const1_op
         .get_operation()
         .insert_after(ctx, const_op.get_operation());
@@ -91,11 +91,11 @@ fn replace_c0_with_c1_operand() -> Result<()> {
     let (module_op, _, const_op, ret_op) = const_ret_in_mod(ctx).unwrap();
 
     // Insert a new constant.
-    let one_const = IntegerAttr::create(
-        TypePtr::from_ptr(const_op.get_type(ctx), ctx).unwrap(),
+    let one_const = IntegerAttr::new(
+        TypePtr::from_ptr(const_op.result_type(ctx), ctx).unwrap(),
         ApInt::from(1),
     );
-    let const1_op = ConstantOp::new_unlinked(ctx, one_const);
+    let const1_op = ConstantOp::new(ctx, one_const.into());
     const1_op
         .get_operation()
         .insert_after(ctx, const_op.get_operation());
@@ -380,11 +380,11 @@ fn test_walker_find_op() {
     let (module_op, _, const_op, _) = const_ret_in_mod(ctx).unwrap();
 
     // Insert a new constant after `const_op`.
-    let one_const = IntegerAttr::create(
-        TypePtr::from_ptr(const_op.get_type(ctx), ctx).unwrap(),
+    let one_const = IntegerAttr::new(
+        TypePtr::from_ptr(const_op.result_type(ctx), ctx).unwrap(),
         ApInt::from(1),
     );
-    let const1_op = ConstantOp::new_unlinked(ctx, one_const);
+    let const1_op = ConstantOp::new(ctx, one_const.into());
     const1_op
         .get_operation()
         .insert_after(ctx, const_op.get_operation());

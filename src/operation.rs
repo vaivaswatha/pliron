@@ -85,6 +85,7 @@ impl Named for OpResult {
 }
 
 /// Links an [Operation] with other operations and the container [BasicBlock]
+#[derive(Default)]
 pub struct BlockLinks {
     /// Parent block of this operation.
     pub parent_block: Option<Ptr<BasicBlock>>,
@@ -95,12 +96,8 @@ pub struct BlockLinks {
 }
 
 impl BlockLinks {
-    pub fn new_unlinked() -> BlockLinks {
-        BlockLinks {
-            parent_block: None,
-            next_op: None,
-            prev_op: None,
-        }
+    pub fn new() -> BlockLinks {
+        BlockLinks::default()
     }
 }
 
@@ -173,7 +170,7 @@ impl Operation {
             results: vec![],
             operands: vec![],
             successors: vec![],
-            block_links: BlockLinks::new_unlinked(),
+            block_links: BlockLinks::new(),
             attributes: AttributeDict::default(),
             regions: vec![],
             loc: Location::Unknown,
@@ -216,7 +213,7 @@ impl Operation {
     }
 
     /// Get an iterator over the results of this operation.
-    pub fn results(&self) -> impl Iterator<Item = Value> + '_ {
+    pub fn results(&self) -> impl Iterator<Item = Value> + Clone + '_ {
         self.results.iter().map(Into::into)
     }
 
@@ -248,7 +245,7 @@ impl Operation {
     }
 
     /// Get an iterator over the results of this operation.
-    pub fn operands(&self) -> impl Iterator<Item = Value> + '_ {
+    pub fn operands(&self) -> impl Iterator<Item = Value> + Clone + '_ {
         self.operands.iter().map(Operand::get_def)
     }
 
@@ -507,8 +504,8 @@ impl Verify for Operation {
         for region in &self.regions {
             region.verify(ctx)?;
         }
-        Self::get_op(self.self_ptr, ctx).verify(ctx)?;
-        Self::get_op(self.self_ptr, ctx).verify_interfaces(ctx)
+        Self::get_op(self.self_ptr, ctx).verify_interfaces(ctx)?;
+        Self::get_op(self.self_ptr, ctx).verify(ctx)
     }
 }
 

@@ -37,11 +37,11 @@ impl DefAttribute {
         };
 
         match input.data {
-            syn::Data::Struct(_) => {}
+            syn::Data::Struct(_) | syn::Data::Enum(_) => {}
             _ => {
                 return Err(syn::Error::new_spanned(
                     &input,
-                    "Attribute can only be derived for structs",
+                    "Attribute can only be derived for structs or enums",
                 ));
             }
         }

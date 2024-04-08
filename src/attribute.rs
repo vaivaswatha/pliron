@@ -73,11 +73,32 @@ pub trait Attribute: Printable + Verify + Downcast + CastFrom + Sync + DynClone 
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 
     /// Register this attribute's [AttrId] in the dialect it belongs to.
-    fn register_attr_in_dialect(dialect: &mut Dialect, attr_parser: ParserFn<(), AttrObj>)
+    fn register_attr_in_dialect<A: Attribute>(dialect: &mut Dialect, attr_parser: ParserFn<(), A>)
     where
         Self: Sized,
     {
-        dialect.add_attr(Self::get_attr_id_static(), attr_parser);
+        // Specifying higher ranked lifetime on a closure:
+        // https://stackoverflow.com/a/46198877/2128804
+        fn constrain<F>(f: F) -> F
+        where
+            F: for<'a> Fn(
+                &'a (),
+            ) -> Box<
+                dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a,
+            >,
+        {
+            f
+        }
+        let attr_parser = constrain(move |_| {
+            combine::parser(move |parsable_state: &mut StateStream<'_>| {
+                attr_parser(&(), ())
+                    .parse_stream(parsable_state)
+                    .map(|attr| -> AttrObj { Box::new(attr) })
+                    .into_result()
+            })
+            .boxed()
+        });
+        dialect.add_attr(Self::get_attr_id_static(), Box::new(attr_parser));
     }
 }
 impl_downcast!(Attribute);
@@ -86,9 +107,23 @@ dyn_clone::clone_trait_object!(Attribute);
 /// [Attribute] objects are boxed and stored in the IR.
 pub type AttrObj = Box<dyn Attribute>;
 
+/// A storable closure for parsing any [AttrId] followed by the full [Attribute].
+pub(crate) type AttrParserFn = Box<
+    dyn for<'a> Fn(
+        &'a (),
+    )
+        -> Box<dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a>,
+>;
+
 impl PartialEq for AttrObj {
     fn eq(&self, other: &Self) -> bool {
         (**self).eq_attr(&**other)
+    }
+}
+
+impl<T: Attribute> From<T> for AttrObj {
+    fn from(value: T) -> Self {
+        Box::new(value)
     }
 }
 
@@ -133,9 +168,7 @@ impl Parsable for AttrObj {
                         attr_id.disp(state.ctx)
                     )?
                 };
-                attr_parser(&(), ())
-                    .parse_stream(parsable_state)
-                    .into_result()
+                attr_parser(&()).parse_stream(parsable_state).into_result()
             })
         });
 

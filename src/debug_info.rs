@@ -25,7 +25,7 @@ fn set_name_from_attr_map(
     max_idx: usize,
     name: String,
 ) {
-    let name_attr = StringAttr::create(name);
+    let name_attr: AttrObj = StringAttr::new(name).into();
     match attributes.entry(ATTR_KEY_DEBUG_INFO) {
         hash_map::Entry::Occupied(mut occupied) => {
             let di_dict = occupied.get_mut().downcast_mut::<SmallDictAttr>().unwrap();
@@ -38,12 +38,11 @@ fn set_name_from_attr_map(
             names.0[idx] = name_attr;
         }
         hash_map::Entry::Vacant(vacant) => {
-            let mut names = Vec::new_init(max_idx, |_idx| UnitAttr::create());
+            let mut names = Vec::new_init(max_idx, |_idx| UnitAttr::new().into());
             names[idx] = name_attr;
-            vacant.insert(SmallDictAttr::create(vec![(
-                DEBUG_INFO_KEY_NAME,
-                VecAttr::create(names),
-            )]));
+            vacant.insert(
+                SmallDictAttr::new(vec![(DEBUG_INFO_KEY_NAME, VecAttr::new(names).into())]).into(),
+            );
         }
     }
 }
@@ -144,7 +143,7 @@ mod tests {
         dialects::builtin::register(&mut ctx);
 
         let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
-        let cop = ConstantOp::new_unlinked(&mut ctx, IntegerAttr::create(i64_ty, ApInt::from(0)));
+        let cop = ConstantOp::new(&mut ctx, IntegerAttr::new(i64_ty, ApInt::from(0)).into());
         let op = cop.get_operation();
         set_operation_result_name(&ctx, op, 0, "foo".to_string());
         assert!(get_operation_result_name(&ctx, op, 0).unwrap() == "foo");

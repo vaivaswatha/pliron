@@ -268,7 +268,7 @@ impl NameTracker {
             Entry::Occupied(occ) => *occ.get(),
             Entry::Vacant(vac) => {
                 // Insert a forward reference.
-                let forward_def = ForwardRefOp::new_unlinked(ctx).get_result(ctx);
+                let forward_def = ForwardRefOp::new(ctx).get_result(ctx);
                 vac.insert(forward_def);
                 forward_def
             }

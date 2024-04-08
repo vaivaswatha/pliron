@@ -10,6 +10,7 @@ use crate::{
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
+    impl_verify_succ,
     irfmt::{
         parsers::{delimited_list_parser, spaced, type_parser},
         printers::{functional_type, list_with_sep},
@@ -237,11 +238,7 @@ impl Parsable for UnitType {
     }
 }
 
-impl Verify for UnitType {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        Ok(())
-    }
-}
+impl_verify_succ!(UnitType);
 
 pub fn register(dialect: &mut Dialect) {
     IntegerType::register_type_in_dialect(dialect, IntegerType::parser_fn);

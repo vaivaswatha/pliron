@@ -6,7 +6,7 @@ use combine::Parser;
 use rustc_hash::FxHashMap;
 
 use crate::{
-    attribute::{AttrId, AttrObj},
+    attribute::{AttrId, AttrParserFn},
     context::Context,
     identifier::Identifier,
     input_err,
@@ -91,7 +91,7 @@ pub struct Dialect {
     /// Types that are part of this dialect.
     pub(crate) types: FxHashMap<TypeId, TypeParserFn>,
     /// Attributes that are part of this dialect.
-    pub(crate) attributes: FxHashMap<AttrId, ParserFn<(), AttrObj>>,
+    pub(crate) attributes: FxHashMap<AttrId, AttrParserFn>,
 }
 
 impl Printable for Dialect {
@@ -138,7 +138,7 @@ impl Dialect {
     }
 
     /// Add an [Attribute](crate::attribute::Attribute) to this dialect.
-    pub(crate) fn add_attr(&mut self, attr: AttrId, attr_parser: ParserFn<(), AttrObj>) {
+    pub(crate) fn add_attr(&mut self, attr: AttrId, attr_parser: AttrParserFn) {
         assert!(attr.dialect == self.name);
         self.attributes.insert(attr, attr_parser);
     }

@@ -14,7 +14,7 @@ use crate::{
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
-    impl_attr_interface, input_err,
+    impl_attr_interface, impl_verify_succ, input_err,
     irfmt::{
         parsers::{spaced, type_parser},
         printers::quoted,
@@ -36,8 +36,8 @@ pub struct StringAttr(String);
 
 impl StringAttr {
     /// Create a new [StringAttr].
-    pub fn create(value: String) -> AttrObj {
-        Box::new(StringAttr(value))
+    pub fn new(value: String) -> Self {
+        StringAttr(value)
     }
 }
 
@@ -58,15 +58,11 @@ impl Printable for StringAttr {
     }
 }
 
-impl Verify for StringAttr {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        Ok(())
-    }
-}
+impl_verify_succ!(StringAttr);
 
 impl Parsable for StringAttr {
     type Arg = ();
-    type Parsed = AttrObj;
+    type Parsed = Self;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
@@ -99,9 +95,7 @@ impl Parsable for StringAttr {
             token('"'),
             many(escaped_char.or(none_of("\"".chars()))),
         )
-        .map(|str: Vec<_>| -> Box<dyn Attribute> {
-            Box::new(StringAttr(str.into_iter().collect()))
-        });
+        .map(|str: Vec<_>| StringAttr(str.into_iter().collect()));
 
         quoted_string.parse_stream(state_stream).into()
     }
@@ -135,8 +129,8 @@ impl Verify for IntegerAttr {
 
 impl IntegerAttr {
     /// Create a new [IntegerAttr].
-    pub fn create(ty: TypePtr<IntegerType>, val: ApInt) -> AttrObj {
-        Box::new(IntegerAttr { ty, val })
+    pub fn new(ty: TypePtr<IntegerType>, val: ApInt) -> Self {
+        IntegerAttr { ty, val }
     }
 }
 
@@ -148,7 +142,7 @@ impl From<IntegerAttr> for ApInt {
 
 impl Parsable for IntegerAttr {
     type Arg = ();
-    type Parsed = AttrObj;
+    type Parsed = Self;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
@@ -164,7 +158,7 @@ impl Parsable for IntegerAttr {
         )
         .parse_stream(state_stream)
         .map(|(digits, ty)| {
-            IntegerAttr::create(ty, ApInt::from_str_radix(16, digits.clone()).unwrap())
+            IntegerAttr::new(ty, ApInt::from_str_radix(16, digits.clone()).unwrap())
         })
         .into_result()
     }
@@ -212,8 +206,8 @@ impl Verify for FloatAttr {
 
 impl FloatAttr {
     /// Create a new [FloatAttr].
-    pub fn create(value: APFloat) -> AttrObj {
-        Box::new(FloatAttr(value))
+    pub fn new(value: APFloat) -> Self {
+        FloatAttr(value)
     }
 }
 
@@ -289,7 +283,7 @@ impl Verify for SmallDictAttr {
 
 impl Parsable for SmallDictAttr {
     type Arg = ();
-    type Parsed = AttrObj;
+    type Parsed = Self;
 
     fn parse<'a>(
         _state_stream: &mut StateStream<'a>,
@@ -301,12 +295,12 @@ impl Parsable for SmallDictAttr {
 
 impl SmallDictAttr {
     /// Create a new [SmallDictAttr].
-    pub fn create(value: Vec<(&'static str, AttrObj)>) -> AttrObj {
+    pub fn new(value: Vec<(&'static str, AttrObj)>) -> Self {
         let mut dict = SortedVectorMap::with_capacity(value.len());
         for (name, val) in value {
             dict.insert(name, val);
         }
-        Box::new(SmallDictAttr(dict))
+        SmallDictAttr(dict)
     }
 
     /// Add an entry to the dictionary.
@@ -335,8 +329,8 @@ impl SmallDictAttr {
 pub struct VecAttr(pub Vec<AttrObj>);
 
 impl VecAttr {
-    pub fn create(value: Vec<AttrObj>) -> AttrObj {
-        Box::new(VecAttr(value))
+    pub fn new(value: Vec<AttrObj>) -> Self {
+        VecAttr(value)
     }
 }
 
@@ -359,7 +353,7 @@ impl Verify for VecAttr {
 
 impl Parsable for VecAttr {
     type Arg = ();
-    type Parsed = AttrObj;
+    type Parsed = Self;
 
     fn parse<'a>(
         _state_stream: &mut StateStream<'a>,
@@ -372,12 +366,12 @@ impl Parsable for VecAttr {
 /// Represent attributes that only have meaning from their existence.
 /// See [UnitAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#unitattr) in MLIR.
 #[def_attribute("builtin.unit")]
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Default)]
 pub struct UnitAttr();
 
 impl UnitAttr {
-    pub fn create() -> AttrObj {
-        Box::new(UnitAttr())
+    pub fn new() -> Self {
+        UnitAttr()
     }
 }
 
@@ -400,13 +394,13 @@ impl Verify for UnitAttr {
 
 impl Parsable for UnitAttr {
     type Arg = ();
-    type Parsed = AttrObj;
+    type Parsed = Self;
 
     fn parse<'a>(
         _state_stream: &mut StateStream<'a>,
         _argg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
-        Ok(UnitAttr::create()).into_parse_result()
+        Ok(UnitAttr::new()).into_parse_result()
     }
 }
 
@@ -417,8 +411,8 @@ impl Parsable for UnitAttr {
 pub struct TypeAttr(Ptr<TypeObj>);
 
 impl TypeAttr {
-    pub fn create(ty: Ptr<TypeObj>) -> AttrObj {
-        Box::new(TypeAttr(ty))
+    pub fn new(ty: Ptr<TypeObj>) -> Self {
+        TypeAttr(ty)
     }
 }
 
@@ -435,14 +429,14 @@ impl Printable for TypeAttr {
 
 impl Parsable for TypeAttr {
     type Arg = ();
-    type Parsed = AttrObj;
+    type Parsed = Self;
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
         between(token('<'), token('>'), spaced(type_parser()))
-            .map(TypeAttr::create)
+            .map(TypeAttr::new)
             .parse_stream(state_stream)
             .into()
     }
@@ -483,7 +477,7 @@ mod tests {
     use expect_test::expect;
 
     use crate::{
-        attribute::attr_cast,
+        attribute::{attr_cast, AttrObj},
         context::Context,
         dialects::{
             self,
@@ -507,10 +501,10 @@ mod tests {
 
         let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
 
-        let int64_0_ptr = IntegerAttr::create(i64_ty, ApInt::from_i64(0));
-        let int64_1_ptr = IntegerAttr::create(i64_ty, ApInt::from_i64(15));
+        let int64_0_ptr: AttrObj = IntegerAttr::new(i64_ty, ApInt::from_i64(0)).into();
+        let int64_1_ptr: AttrObj = IntegerAttr::new(i64_ty, ApInt::from_i64(15)).into();
         assert!(int64_0_ptr.is::<IntegerAttr>() && &int64_0_ptr != &int64_1_ptr);
-        let int64_0_ptr2 = IntegerAttr::create(i64_ty, ApInt::from_i64(0));
+        let int64_0_ptr2: AttrObj = IntegerAttr::new(i64_ty, ApInt::from_i64(0)).into();
         assert!(int64_0_ptr == int64_0_ptr2);
         assert_eq!(
             int64_0_ptr.disp(&ctx).to_string(),
@@ -549,10 +543,10 @@ mod tests {
         let mut ctx = Context::new();
         dialects::builtin::register(&mut ctx);
 
-        let str_0_ptr = StringAttr::create("hello".to_string());
-        let str_1_ptr = StringAttr::create("world".to_string());
+        let str_0_ptr: AttrObj = StringAttr::new("hello".to_string()).into();
+        let str_1_ptr: AttrObj = StringAttr::new("world".to_string()).into();
         assert!(str_0_ptr.is::<StringAttr>() && &str_0_ptr != &str_1_ptr);
-        let str_0_ptr2 = StringAttr::create("hello".to_string());
+        let str_0_ptr2: AttrObj = StringAttr::new("hello".to_string()).into();
         assert!(str_0_ptr == str_0_ptr2);
         assert_eq!(str_0_ptr.disp(&ctx).to_string(), "builtin.string \"hello\"");
         assert_eq!(str_1_ptr.disp(&ctx).to_string(), "builtin.string \"world\"");
@@ -597,19 +591,21 @@ mod tests {
 
     #[test]
     fn test_dictionary_attributes() {
-        let hello_attr = StringAttr::create("hello".to_string());
-        let world_attr = StringAttr::create("world".to_string());
+        let hello_attr: AttrObj = StringAttr::new("hello".to_string()).into();
+        let world_attr: AttrObj = StringAttr::new("world".to_string()).into();
 
-        let mut dict1 = SmallDictAttr::create(vec![
+        let mut dict1: AttrObj = SmallDictAttr::new(vec![
             ("hello", hello_attr.clone()),
             ("world", world_attr.clone()),
-        ]);
+        ])
+        .into();
         let mut dict2 =
-            SmallDictAttr::create(vec![("hello", StringAttr::create("hello".to_string()))]);
-        let dict1_rev = SmallDictAttr::create(vec![
+            SmallDictAttr::new(vec![("hello", StringAttr::new("hello".to_string()).into())]).into();
+        let dict1_rev = SmallDictAttr::new(vec![
             ("world", world_attr.clone()),
             ("hello", hello_attr.clone()),
-        ]);
+        ])
+        .into();
         assert!(&dict1 != &dict2);
         assert!(dict1 == dict1_rev);
 
@@ -628,10 +624,10 @@ mod tests {
 
     #[test]
     fn test_vec_attributes() {
-        let hello_attr = StringAttr::create("hello".to_string());
-        let world_attr = StringAttr::create("world".to_string());
+        let hello_attr: AttrObj = StringAttr::new("hello".to_string()).into();
+        let world_attr: AttrObj = StringAttr::new("world".to_string()).into();
 
-        let vec_attr = VecAttr::create(vec![hello_attr.clone(), world_attr.clone()]);
+        let vec_attr: AttrObj = VecAttr::new(vec![hello_attr.clone(), world_attr.clone()]).into();
         let vec = vec_attr.downcast_ref::<VecAttr>().unwrap();
         assert!(vec.0.len() == 2 && vec.0[0] == hello_attr && vec.0[1] == world_attr);
     }
@@ -642,7 +638,7 @@ mod tests {
         dialects::builtin::register(&mut ctx);
 
         let ty = IntegerType::get(&mut ctx, 64, Signedness::Signed).into();
-        let ty_attr = TypeAttr::create(ty);
+        let ty_attr: AttrObj = TypeAttr::new(ty).into();
 
         let ty_interface = attr_cast::<dyn TypedAttrInterface>(&*ty_attr).unwrap();
         assert!(ty_interface.get_type() == ty);

@@ -23,21 +23,37 @@
 //! [OpObj]s can be downcasted to their concrete types using
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 
-use combine::{parser, Parser};
+use combine::{
+    parser::{self},
+    token, Parser,
+};
 use downcast_rs::{impl_downcast, Downcast};
 use intertrait::{cast::CastRef, CastFrom};
-use std::{fmt::Display, ops::Deref};
+use std::{
+    fmt::{self, Display},
+    ops::Deref,
+};
+use thiserror::Error;
 
 use crate::{
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::{Dialect, DialectName},
+    dialects::builtin::types::FunctionType,
     error::Result,
     identifier::Identifier,
+    input_err,
+    irfmt::{
+        parsers::{
+            delimited_list_parser, location, process_parsed_ssa_defs, spaced, ssa_opd_parser,
+        },
+        printers::{functional_type, iter_with_sep},
+    },
     location::Location,
     operation::Operation,
-    parsable::{Parsable, ParseResult, ParserFn, StateStream},
+    parsable::{IntoParseResult, Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
+    r#type::Typed,
 };
 
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -257,6 +273,148 @@ macro_rules! impl_op_interface {
         #[intertrait::cast_to]
         impl $intr_name for $op_name {
             $($tt)*
+        }
+    };
+}
+
+/// Printer for an [Op] in canonical syntax.
+/// `res_1: type_1, res_2: type_2, ... res_n: type_n = op_id (opd_1, opd_2, ... opd_n) : function-type`
+/// TODO: Handle operations with regions, attributes.
+pub fn canonical_syntax_fmt(
+    op: OpObj,
+    ctx: &Context,
+    _state: &printable::State,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
+    let sep = printable::ListSeparator::CharSpace(',');
+    let op = op.get_operation().deref(ctx);
+    let operands = iter_with_sep(op.operands(), sep);
+    let op_type = functional_type(
+        iter_with_sep(op.results().map(|res| res.get_type(ctx)), sep),
+        iter_with_sep(op.operands().map(|opd| opd.get_type(ctx)), sep),
+    );
+
+    if op.get_num_results() != 0 {
+        let results = iter_with_sep(op.results(), sep);
+        write!(f, "{} = ", results.disp(ctx))?;
+    }
+    let ret = write!(
+        f,
+        "{} ({}) : {}",
+        op.get_opid().disp(ctx),
+        operands.disp(ctx),
+        op_type.disp(ctx),
+    );
+    ret
+}
+
+#[derive(Error, Debug)]
+pub enum CanonicalSyntaxParseError {
+    #[error("Type specifies {num_res_ty} results, but operation has {num_res} results")]
+    ResultsMismatch { num_res_ty: usize, num_res: usize },
+    #[error("Type specifies {num_opd_ty} operands, but operation has {num_opd} operands")]
+    OperandsMismatch { num_opd_ty: usize, num_opd: usize },
+}
+
+/// Parse an [Op] in canonical syntax.
+/// See [canonical_syntax_fmt] for the syntax.
+pub fn canonical_syntax_parse<'a>(
+    opid: OpId,
+    state_stream: &mut StateStream<'a>,
+    results: Vec<(Identifier, Location)>,
+) -> ParseResult<'a, OpObj> {
+    // Results and opid have already been parsed. Continue after that.
+    delimited_list_parser('(', ')', ',', ssa_opd_parser())
+        .skip(spaced(token(':')))
+        .and((location(), FunctionType::parser(())))
+        .then(move |(operands, (fty_loc, fty))| {
+            let opid = opid.clone();
+            let results = results.clone();
+            let fty_loc = fty_loc.clone();
+            combine::parser(move |parsable_state: &mut StateStream<'a>| {
+                let results = results.clone();
+                let ctx = &mut parsable_state.state.ctx;
+                let results_types = fty.deref(ctx).get_results().to_vec();
+                let operands_types = fty.deref(ctx).get_inputs().to_vec();
+                if results_types.len() != results.len() {
+                    input_err!(
+                        fty_loc.clone(),
+                        CanonicalSyntaxParseError::ResultsMismatch {
+                            num_res_ty: results_types.len(),
+                            num_res: results.len()
+                        }
+                    )?
+                }
+                if operands.len() != operands_types.len() {
+                    input_err!(
+                        fty_loc.clone(),
+                        CanonicalSyntaxParseError::OperandsMismatch {
+                            num_opd_ty: operands_types.len(),
+                            num_opd: operands.len()
+                        }
+                    )?
+                }
+                let opr = Operation::new(ctx, opid.clone(), results_types, operands.clone(), 0);
+                let op = from_operation(ctx, opr);
+                process_parsed_ssa_defs(parsable_state, &results, opr)?;
+                Ok(op).into_parse_result()
+            })
+        })
+        .parse_stream(state_stream)
+        .into()
+}
+
+/// Parser for an [Op] in canonical syntax.
+/// See [canonical_syntax_fmt] for the syntax.
+pub fn canonical_syntax_parser<'a>(
+    opid: OpId,
+    results: Vec<(Identifier, Location)>,
+) -> Box<dyn Parser<StateStream<'a>, Output = OpObj, PartialState = ()> + 'a> {
+    combine::parser(move |parsable_state: &mut StateStream<'a>| {
+        canonical_syntax_parse(opid.clone(), parsable_state, results.clone())
+    })
+    .boxed()
+}
+
+/// Shorthand for defining a canonical syntax [Printable] and [Parsable] for an [Op]
+/// ```
+/// use pliron_derive::def_op;
+/// use pliron::{impl_canonical_syntax, impl_verify_succ};
+/// #[def_op("dialect.name")]
+/// pub struct MyOp {};
+/// impl_canonical_syntax!(MyOp);
+/// impl_verify_succ!(MyOp);
+/// ```
+#[macro_export]
+macro_rules! impl_canonical_syntax {
+    ($op_name:path) => {
+        // Implement [Printable]($crate::printable::Printable)
+        impl $crate::printable::Printable for $op_name {
+            fn fmt(
+                &self,
+                ctx: &$crate::context::Context,
+                state: &$crate::printable::State,
+                f: &mut std::fmt::Formatter<'_>,
+            ) -> std::fmt::Result {
+                $crate::op::canonical_syntax_fmt(Box::new(*self), ctx, state, f)
+            }
+        }
+
+        // Implement [Parsable]($crate::parsable::Parsable)
+        impl $crate::parsable::Parsable for $op_name {
+            type Arg = Vec<($crate::identifier::Identifier, $crate::location::Location)>;
+            type Parsed = $crate::op::OpObj;
+            fn parse<'a>(
+                state_stream: &mut $crate::parsable::StateStream<'a>,
+                results: Self::Arg,
+            ) -> $crate::parsable::ParseResult<'a, Self::Parsed> {
+                $crate::op::canonical_syntax_parser(
+                    <Self as $crate::op::Op>::get_opid_static(),
+                    results,
+                )
+                .parse_stream(state_stream)
+                .into()
+            }
         }
     };
 }

@@ -1,10 +1,12 @@
+//! [Type]s defined in the LLVM dialect.
+
 use crate::{
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
     error::Result,
     identifier::Identifier,
-    input_err_noloc,
+    impl_verify_succ, input_err_noloc,
     irfmt::{
         parsers::{delimited_list_parser, location, spaced, type_parser},
         printers::{enclosed, list_with_sep},
@@ -354,11 +356,7 @@ impl Parsable for PointerType {
     }
 }
 
-impl Verify for PointerType {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        Ok(())
-    }
-}
+impl_verify_succ!(PointerType);
 
 #[def_type("llvm.void")]
 #[derive(Hash, PartialEq, Eq, Debug)]
@@ -395,11 +393,7 @@ impl Parsable for VoidType {
     }
 }
 
-impl Verify for VoidType {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        Ok(())
-    }
-}
+impl_verify_succ!(VoidType);
 
 #[def_type("llvm.func")]
 #[derive(Hash, PartialEq, Eq, Debug)]
@@ -414,11 +408,8 @@ impl FuncType {
         Type::register_instance(FuncType { res, args }, ctx)
     }
 }
-impl Verify for FuncType {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        Ok(())
-    }
-}
+
+impl_verify_succ!(FuncType);
 
 impl Printable for FuncType {
     fn fmt(

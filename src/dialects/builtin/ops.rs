@@ -11,7 +11,7 @@ use crate::{
     dialects::builtin::op_interfaces::ZeroResultInterface,
     error::Result,
     identifier::Identifier,
-    impl_op_interface, input_err,
+    impl_op_interface, impl_verify_succ, input_err,
     irfmt::{
         parsers::{attr_parser, process_parsed_ssa_defs, spaced, type_parser},
         printers::op::{region, symb_op_header, typed_symb_op_header},
@@ -99,11 +99,7 @@ impl Parsable for ModuleOp {
     }
 }
 
-impl Verify for ModuleOp {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        Ok(())
-    }
-}
+impl_verify_succ!(ModuleOp);
 
 impl ModuleOp {
     /// Create a new [ModuleOp].
@@ -152,10 +148,9 @@ impl FuncOp {
     pub const ATTR_KEY_FUNC_TYPE: &'static str = "func.type";
 
     /// Create a new [FuncOp].
-    /// The underlying [Operation] is not linked to a [BasicBlock].
     /// The returned function has a single region with an empty `entry` block.
-    pub fn new_unlinked(ctx: &mut Context, name: &str, ty: TypePtr<FunctionType>) -> FuncOp {
-        let ty_attr = TypeAttr::create(ty.into());
+    pub fn new(ctx: &mut Context, name: &str, ty: TypePtr<FunctionType>) -> Self {
+        let ty_attr = TypeAttr::new(ty.into());
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1);
 
         // Create an empty entry block.
@@ -166,7 +161,9 @@ impl FuncOp {
         {
             let opref = &mut *op.deref_mut(ctx);
             // Set function type attributes.
-            opref.attributes.insert(Self::ATTR_KEY_FUNC_TYPE, ty_attr);
+            opref
+                .attributes
+                .insert(Self::ATTR_KEY_FUNC_TYPE, ty_attr.into());
         }
         let opop = FuncOp { op };
         opop.set_symbol_name(ctx, name);
@@ -255,10 +252,12 @@ impl Parsable for FuncOp {
             .map(|(fname, fty, _region)| -> OpObj {
                 let ctx = &mut state_stream.state.ctx;
                 {
-                    let ty_attr = TypeAttr::create(fty);
+                    let ty_attr = TypeAttr::new(fty);
                     let opref = &mut *op.deref_mut(ctx);
                     // Set function type attributes.
-                    opref.attributes.insert(Self::ATTR_KEY_FUNC_TYPE, ty_attr);
+                    opref
+                        .attributes
+                        .insert(Self::ATTR_KEY_FUNC_TYPE, ty_attr.into());
                 }
                 let opop = Box::new(FuncOp { op });
                 opop.set_symbol_name(ctx, &fname);
@@ -269,27 +268,22 @@ impl Parsable for FuncOp {
 }
 
 #[derive(Error, Debug)]
-pub enum FuncOpVerifyErr {
-    #[error("function does not have function type")]
-    NotFuncType,
-    #[error("incorrect number of results or operands")]
-    IncorrectNumResultsOpds,
-}
+#[error("function does not have function type")]
+pub struct FuncOpTypeErr;
 
 impl Verify for FuncOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let op = &*self.get_operation().deref(ctx);
         let ty = self.get_type(ctx);
         if !(ty.deref(ctx).is::<FunctionType>()) {
-            return verify_err!(op.loc(), FuncOpVerifyErr::NotFuncType);
-        }
-
-        if op.get_num_results() != 0 || op.get_num_operands() != 0 {
-            return verify_err!(op.loc(), FuncOpVerifyErr::IncorrectNumResultsOpds);
+            return verify_err!(op.loc(), FuncOpTypeErr);
         }
         Ok(())
     }
 }
+
+impl_op_interface!(ZeroOpdInterface for FuncOp {});
+impl_op_interface!(ZeroResultInterface for FuncOp {});
 
 /// Numeric constant.
 /// See MLIR's [arith.constant](https://mlir.llvm.org/docs/Dialects/ArithOps/#arithconstant-mlirarithconstantop).
@@ -317,8 +311,8 @@ impl ConstantOp {
         op.attributes.get(Self::ATTR_KEY_VALUE).unwrap().clone()
     }
 
-    /// Create a new [ConstantOp]. The underlying [Operation] is not linked to a [BasicBlock].
-    pub fn new_unlinked(ctx: &mut Context, value: AttrObj) -> ConstantOp {
+    /// Create a new [ConstantOp].
+    pub fn new(ctx: &mut Context, value: AttrObj) -> Self {
         let result_type = attr_cast::<dyn TypedAttrInterface>(&*value)
             .expect("ConstantOp const value must provide TypedAttrInterface")
             .get_type();
@@ -363,7 +357,7 @@ impl Parsable for ConstantOp {
 
         let attr = attr_parser().parse_stream(state_stream).into_result()?.0;
 
-        let op = Box::new(Self::new_unlinked(state_stream.state.ctx, attr));
+        let op = Box::new(Self::new(state_stream.state.ctx, attr));
         process_parsed_ssa_defs(state_stream, &results, op.get_operation())?;
 
         Ok(op as OpObj).into_parse_result()
@@ -448,8 +442,7 @@ impl Parsable for ForwardRefOp {
 
 impl ForwardRefOp {
     /// Create a new [ForwardRefOp].
-    /// The underlying [Operation] is not linked to a [BasicBlock].
-    pub fn new_unlinked(ctx: &mut Context) -> ForwardRefOp {
+    pub fn new(ctx: &mut Context) -> Self {
         let ty = UnitType::get(ctx).into();
         let op = Operation::new(ctx, Self::get_opid_static(), vec![ty], vec![], 0);
         ForwardRefOp { op }

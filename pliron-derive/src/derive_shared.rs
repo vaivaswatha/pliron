@@ -21,6 +21,7 @@ impl ToTokens for VerifiersRegister {
             pub struct #verifiers_name(pub #ifc);
 
             impl #name {
+                #[doc(hidden)]
                 pub const fn build_interface_verifier(verifier: #ifc) -> #verifiers_name {
                     #verifiers_name(verifier)
                 }

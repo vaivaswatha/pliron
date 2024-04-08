@@ -3,6 +3,8 @@ use crate::{
     dialect::{Dialect, DialectName},
 };
 
+pub mod attributes;
+pub mod op_interfaces;
 pub mod ops;
 pub mod types;
 
