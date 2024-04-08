@@ -315,10 +315,7 @@ mod tests {
             .unwrap()
             .0
              .0;
-        assert!(
-            res == IntegerType::get_existing(&ctx, 64, Signedness::Signed)
-                .unwrap()
-        )
+        assert!(res == IntegerType::get_existing(&ctx, 64, Signedness::Signed).unwrap())
     }
 
     #[test]
@@ -359,9 +356,6 @@ mod tests {
             .unwrap()
             .0
              .0;
-        assert!(
-            res == FunctionType::get_existing(&ctx, vec![], vec![si32.into()])
-                .unwrap()
-        )
+        assert!(res == FunctionType::get_existing(&ctx, vec![], vec![si32.into()]).unwrap())
     }
 }
