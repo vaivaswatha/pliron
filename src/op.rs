@@ -28,7 +28,6 @@ use combine::{
     token, Parser,
 };
 use downcast_rs::{impl_downcast, Downcast};
-use intertrait::{cast::CastRef, CastFrom};
 use std::{
     fmt::{self, Display},
     ops::Deref,
@@ -161,7 +160,7 @@ pub(crate) type OpCreator = fn(Ptr<Operation>) -> OpObj;
 /// which means that [OpObj]s are light-weight.
 ///
 /// See [module](crate::op) documentation for more information.
-pub trait Op: Downcast + Verify + Printable + CastFrom {
+pub trait Op: Downcast + Verify + Printable {
     /// Get the underlying IR Operation
     fn get_operation(&self) -> Ptr<Operation>;
     /// Create a new Op object, by wrapping around an operation.
@@ -210,12 +209,12 @@ pub type OpObj = Box<dyn Op>;
 
 /// Cast reference to an [Op] object to an interface reference.
 pub fn op_cast<T: ?Sized + Op>(op: &dyn Op) -> Option<&T> {
-    op.cast::<T>()
+    crate::trait_cast::any_to_trait::<T>(op.as_any())
 }
 
 /// Does this [Op] object implement interface T?
 pub fn op_impls<T: ?Sized + Op>(op: &dyn Op) -> bool {
-    op.impls::<T>()
+    op_cast::<T>(op).is_some()
 }
 
 /// Every op interface must have a function named `verify` with this type.
@@ -263,14 +262,14 @@ pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<()>;
 /// # }
 #[macro_export]
 macro_rules! impl_op_interface {
-    ($intr_name:ident for $op_name:path { $($tt:tt)* }) => {
+    ($intr_name:ident for $op_name:ident { $($tt:tt)* }) => {
         paste::paste!{
             inventory::submit! {
                 $op_name::build_interface_verifier(<$op_name as $intr_name>::verify)
             }
         }
 
-        #[intertrait::cast_to]
+        $crate::type_to_trait!($op_name, $intr_name);
         impl $intr_name for $op_name {
             $($tt)*
         }

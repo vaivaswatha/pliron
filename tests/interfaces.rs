@@ -8,8 +8,9 @@ use pliron::{
     dialects::{
         builtin::{
             attr_interfaces::TypedAttrInterface,
-            attributes::StringAttr,
+            attributes::{IntegerAttr, StringAttr},
             op_interfaces::{OneResultInterface, OneResultVerifyErr},
+            ops::ModuleOp,
         },
         llvm::ops::ReturnOp,
     },
@@ -99,7 +100,7 @@ pub trait TestOpInterface: Op {
 }
 
 impl_op_interface!(TestOpInterface for ReturnOp {});
-impl_op_interface!(TestOpInterface for pliron::dialects::builtin::ops::ModuleOp {});
+impl_op_interface!(TestOpInterface for ModuleOp {});
 
 pub trait TestAttrInterface: Attribute {
     fn verify(_op: &dyn Attribute, _ctx: &Context) -> Result<()>
@@ -110,8 +111,8 @@ pub trait TestAttrInterface: Attribute {
     }
 }
 
-impl_op_interface!(TestAttrInterface for StringAttr {});
-impl_op_interface!(TestAttrInterface for pliron::dialects::builtin::attributes::IntegerAttr {});
+impl_attr_interface!(TestAttrInterface for StringAttr {});
+impl_attr_interface!(TestAttrInterface for IntegerAttr {});
 
 #[def_attribute("test.my_attr")]
 #[derive(PartialEq, Clone, Debug)]

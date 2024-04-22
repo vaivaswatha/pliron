@@ -35,7 +35,6 @@ use std::{
 use combine::{parser, Parser};
 use downcast_rs::{impl_downcast, Downcast};
 use dyn_clone::DynClone;
-use intertrait::{cast::CastRef, CastFrom};
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -56,7 +55,7 @@ pub type AttributeDict = FxHashMap<&'static str, AttrObj>;
 /// Basic functionality that every attribute in the IR must implement.
 ///
 /// See [module](crate::attribute) documentation for more information.
-pub trait Attribute: Printable + Verify + Downcast + CastFrom + Sync + DynClone + Debug {
+pub trait Attribute: Printable + Verify + Downcast + Sync + DynClone + Debug {
     /// Is self equal to an other Attribute?
     fn eq_attr(&self, other: &dyn Attribute) -> bool;
 
@@ -184,12 +183,12 @@ impl Verify for AttrObj {
 
 /// Cast reference to an [Attribute] object to an interface reference.
 pub fn attr_cast<T: ?Sized + Attribute>(attr: &dyn Attribute) -> Option<&T> {
-    attr.cast::<T>()
+    crate::trait_cast::any_to_trait::<T>(attr.as_any())
 }
 
 /// Does this [Attribute] object implement interface T?
 pub fn attr_impls<T: ?Sized + Attribute>(attr: &dyn Attribute) -> bool {
-    attr.impls::<T>()
+    attr_cast::<T>(attr).is_some()
 }
 
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -336,14 +335,14 @@ pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 /// # }
 #[macro_export]
 macro_rules! impl_attr_interface {
-    ($intr_name:ident for $attr_name:path { $($tt:tt)* }) => {
+    ($intr_name:ident for $attr_name:ident { $($tt:tt)* }) => {
         paste::paste!{
             inventory::submit! {
                 $attr_name::build_interface_verifier(<$attr_name as $intr_name>::verify)
             }
         }
 
-        #[intertrait::cast_to]
+        $crate::type_to_trait!($attr_name, $intr_name);
         impl $intr_name for $attr_name {
             $($tt)*
         }
