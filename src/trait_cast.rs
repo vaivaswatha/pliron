@@ -93,7 +93,7 @@ static TRAIT_CASTERS_MAP: Lazy<FxHashMap<(TypeId, TypeId), Box<dyn ClonableAny +
 /// ```
 #[macro_export]
 macro_rules! type_to_trait {
-    ($ty_name:path, $to_trait_name:path) => {
+    ($ty_name:ty, $to_trait_name:path) => {
         // The rust way to do an anonymous module.
         const _: () = {
             #[linkme::distributed_slice($crate::trait_cast::TRAIT_CASTERS)]
