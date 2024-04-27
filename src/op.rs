@@ -246,27 +246,16 @@ pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<()>;
 /// # use pliron_derive::def_op;
 /// # use pliron::{
 /// #     op::Op, impl_op_interface,
-/// #     printable::{self, Printable}, context::Context, error::Result,
+/// #     context::Context, error::Result,
 /// #     common_traits::Verify
 /// # };
-/// # impl Printable for MyOp {
-/// #    fn fmt(&self, _ctx: &Context, _state: &printable::State, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-/// #        todo!()
-/// #    }
-/// # }
-///
-/// # impl Verify for MyOp {
-/// #   fn verify(&self, _ctx: &Context) -> Result<()> {
-/// #        todo!()
-/// #    }
-/// # }
+/// # pliron::impl_verify_succ!(MyOp);
+/// # pliron::impl_canonical_syntax!(MyOp);
 #[macro_export]
 macro_rules! impl_op_interface {
     ($intr_name:ident for $op_name:ident { $($tt:tt)* }) => {
-        paste::paste!{
-            inventory::submit! {
-                $op_name::build_interface_verifier(<$op_name as $intr_name>::verify)
-            }
+        inventory::submit! {
+            $op_name::build_interface_verifier(<$op_name as $intr_name>::verify)
         }
 
         $crate::type_to_trait!($op_name, $intr_name);

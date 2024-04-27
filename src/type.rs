@@ -36,11 +36,22 @@ use thiserror::Error;
 /// the rust type being defined) and its contents.
 ///
 /// So, for example, if we have
-/// ```rust,ignore
+/// ```rust
+///     # use pliron::{printable::Printable, context::Context,
+///     #   printable::State, impl_verify_succ, error::Result};
+///     # use pliron_derive::def_type;
+///     # use std::fmt::{self, Formatter};
+///     # impl_verify_succ!(IntType);
+///     #[def_type("test.intty")]
+///     #[derive(Debug, PartialEq, Eq, Hash)]
 ///     struct IntType {
 ///         width: u64
 ///     }
-///     impl Type for IntType { .. }
+///     # impl Printable for IntType {
+///     #   fn fmt(&self, _: &Context, _: &State, _: &mut Formatter<'_>) -> fmt::Result {
+///     #       todo!()
+///     #   }
+///     # }
 /// ```
 /// the uniquing will include
 ///   - [`std::any::TypeId::of::<IntType>()`](std::any::TypeId)

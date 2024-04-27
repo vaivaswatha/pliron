@@ -336,10 +336,8 @@ pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 #[macro_export]
 macro_rules! impl_attr_interface {
     ($intr_name:ident for $attr_name:ident { $($tt:tt)* }) => {
-        paste::paste!{
-            inventory::submit! {
-                $attr_name::build_interface_verifier(<$attr_name as $intr_name>::verify)
-            }
+        inventory::submit! {
+            $attr_name::build_interface_verifier(<$attr_name as $intr_name>::verify)
         }
 
         $crate::type_to_trait!($attr_name, $intr_name);
