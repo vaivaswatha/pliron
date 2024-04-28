@@ -1,11 +1,8 @@
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, ToTokens};
+use quote::{quote, ToTokens};
 use syn::{DeriveInput, LitStr, Result};
 
-use crate::{
-    derive_shared::{mark_ir_kind, VerifiersRegister},
-    macro_attr::IRKind,
-};
+use crate::{derive_shared::mark_ir_kind, macro_attr::IRKind};
 
 const PROC_MACRO_NAME: &str = "def_op";
 
@@ -23,7 +20,6 @@ pub(crate) fn def_op(
 struct DefOp {
     input: DeriveInput,
     impl_op: ImplOp,
-    verifiers: VerifiersRegister,
 }
 
 impl DefOp {
@@ -63,23 +59,12 @@ impl DefOp {
 
         let input = DeriveInput { attrs, ..input };
 
-        let verifiers = VerifiersRegister {
-            ident: input.ident.clone(),
-            verifiers_name: format_ident!("OpInterfaceVerifier_{}", &input.ident),
-            ifc_name: syn::parse_quote! { ::pliron::op::OpInterfaceVerifier },
-        };
-
         let impl_op = ImplOp {
             struct_name: input.ident.clone(),
             dialect_name: dialect_name.to_string(),
             op_name: op_name.to_string(),
-            verifiers_name: verifiers.verifiers_name.clone(),
         };
-        Ok(Self {
-            input,
-            impl_op,
-            verifiers,
-        })
+        Ok(Self { input, impl_op })
     }
 }
 
@@ -97,14 +82,10 @@ impl ToTokens for DefOp {
             }
         };
 
-        let verifiers_register = &self.verifiers;
-
         let impl_op_trait = &self.impl_op;
 
         tokens.extend(quote! {
             #def_struct
-
-            #verifiers_register
 
             #impl_op_trait
         });
@@ -115,7 +96,6 @@ struct ImplOp {
     struct_name: syn::Ident,
     dialect_name: String,
     op_name: String,
-    verifiers_name: syn::Ident,
 }
 
 impl ToTokens for ImplOp {
@@ -123,7 +103,6 @@ impl ToTokens for ImplOp {
         let name = &self.struct_name;
         let dialect = &self.dialect_name;
         let op_name = &self.op_name;
-        let verifiers_name = &self.verifiers_name;
         tokens.extend(quote! {
             impl ::pliron::op::Op for #name {
                 fn get_operation(&self) -> ::pliron::context::Ptr<::pliron::operation::Operation> {
@@ -146,9 +125,12 @@ impl ToTokens for ImplOp {
                 }
 
                 fn verify_interfaces(&self, ctx: &::pliron::context::Context) -> ::pliron::error::Result<()> {
-                    let interface_verifiers = ::inventory::iter::<#verifiers_name>;
-                    for verifier in interface_verifiers {
-                        (verifier.0)(self, ctx)?;
+                    if let Some(interface_verifiers) =
+                        ::pliron::op::OP_INTERFACE_VERIFIERS_MAP.get(&Self::get_opid_static())
+                    {
+                        for (_, verifier) in interface_verifiers {
+                            verifier(self, ctx)?;
+                        }
                     }
                     Ok(())
                 }
@@ -179,17 +161,6 @@ mod tests {
             struct TestOp {
                 op: ::pliron::context::Ptr<::pliron::operation::Operation>,
             }
-            #[allow(non_camel_case_types)]
-            pub struct OpInterfaceVerifier_TestOp(pub ::pliron::op::OpInterfaceVerifier);
-            impl TestOp {
-                #[doc(hidden)]
-                pub const fn build_interface_verifier(
-                    verifier: ::pliron::op::OpInterfaceVerifier,
-                ) -> OpInterfaceVerifier_TestOp {
-                    OpInterfaceVerifier_TestOp(verifier)
-                }
-            }
-            inventory::collect!(OpInterfaceVerifier_TestOp);
             impl ::pliron::op::Op for TestOp {
                 fn get_operation(&self) -> ::pliron::context::Ptr<::pliron::operation::Operation> {
                     self.op
@@ -212,9 +183,12 @@ mod tests {
                     &self,
                     ctx: &::pliron::context::Context,
                 ) -> ::pliron::error::Result<()> {
-                    let interface_verifiers = ::inventory::iter::<OpInterfaceVerifier_TestOp>;
-                    for verifier in interface_verifiers {
-                        (verifier.0)(self, ctx)?;
+                    if let Some(interface_verifiers) = ::pliron::op::OP_INTERFACE_VERIFIERS_MAP
+                        .get(&Self::get_opid_static())
+                    {
+                        for (_, verifier) in interface_verifiers {
+                            verifier(self, ctx)?;
+                        }
                     }
                     Ok(())
                 }

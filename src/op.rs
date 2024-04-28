@@ -12,6 +12,8 @@
 //! and [Interfaces](https://mlir.llvm.org/docs/Interfaces/).
 //! Interfaces must all implement an associated function named `verify` with
 //! the type [OpInterfaceVerifier].
+//! New interfaces must be specified via [decl_op_interface](pliron::decl_op_interface)
+//! for proper verification.
 //!
 //! [Op]s that implement an interface must do so using the
 //! [impl_op_interface](crate::impl_op_interface) macro.
@@ -28,6 +30,9 @@ use combine::{
     token, Parser,
 };
 use downcast_rs::{impl_downcast, Downcast};
+use linkme::distributed_slice;
+use once_cell::sync::Lazy;
+use rustc_hash::FxHashMap;
 use std::{
     fmt::{self, Display},
     ops::Deref,
@@ -225,16 +230,19 @@ pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<()>;
 ///
 /// Usage:
 /// ```
+/// # use pliron::decl_op_interface;
+///
 /// #[def_op("dialect.name")]
 /// struct MyOp {};
 ///
-/// trait MyOpInterface: Op {
-///     fn gubbi(&self);
-///     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
-///         where
-///         Self: Sized,
-///     {
-///         Ok(())
+/// decl_op_interface! {
+///     MyOpInterface {
+///         fn gubbi(&self);
+///         fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+///         where Self: Sized,
+///         {
+///             Ok(())
+///         }
 ///     }
 /// }
 /// impl_op_interface!(
@@ -254,14 +262,147 @@ pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<()>;
 #[macro_export]
 macro_rules! impl_op_interface {
     ($intr_name:ident for $op_name:ident { $($tt:tt)* }) => {
-        inventory::submit! {
-            $op_name::build_interface_verifier(<$op_name as $intr_name>::verify)
-        }
-
         $crate::type_to_trait!($op_name, $intr_name);
         impl $intr_name for $op_name {
             $($tt)*
         }
+        const _: () = {
+            #[linkme::distributed_slice(pliron::op::OP_INTERFACE_VERIFIERS)]
+            static INTERFACE_VERIFIER: once_cell::sync::Lazy<
+                (pliron::op::OpId, (std::any::TypeId, pliron::op::OpInterfaceVerifier))
+            > =
+            once_cell::sync::Lazy::new(||
+                ($op_name::get_opid_static(), (std::any::TypeId::of::<dyn $intr_name>(),
+                     <$op_name as $intr_name>::verify))
+            );
+        };
+    };
+}
+
+/// [Op]s paired with every interface it implements (and the verifier for that interface).
+#[distributed_slice]
+pub static OP_INTERFACE_VERIFIERS: [Lazy<(OpId, (std::any::TypeId, OpInterfaceVerifier))>];
+
+/// All interfaces mapped to their super-interfaces
+#[distributed_slice]
+pub static OP_INTERFACE_DEPS: [Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>];
+
+/// A map from every [Op] to its ordered (as per interface deps) list of interface verifiers.
+/// An interface's super-interfaces are to be verified before it itself is.
+pub static OP_INTERFACE_VERIFIERS_MAP: Lazy<
+    FxHashMap<OpId, Vec<(std::any::TypeId, OpInterfaceVerifier)>>,
+> = Lazy::new(|| {
+    use std::any::TypeId;
+    // Collect OP_INTERFACE_VERIFIERS into an [OpId] indexed map.
+    let mut op_intr_verifiers = FxHashMap::default();
+    for lazy in OP_INTERFACE_VERIFIERS {
+        let (op_id, (type_id, verifier)) = (**lazy).clone();
+        op_intr_verifiers
+            .entry(op_id)
+            .and_modify(|verifiers: &mut Vec<(TypeId, OpInterfaceVerifier)>| {
+                verifiers.push((type_id, verifier))
+            })
+            .or_insert(vec![(type_id, verifier)]);
+    }
+
+    // Collect interface deps into a map.
+    let interface_deps: FxHashMap<_, _> = OP_INTERFACE_DEPS
+        .iter()
+        .map(|lazy| (**lazy).clone())
+        .collect();
+
+    // Assign an integer to each interface, such that if y depends on x
+    // i.e., x is a super-interface of y, then dep_sort_idx[x] < dep_sort_idx[y]
+    let mut dep_sort_idx = FxHashMap::<TypeId, u32>::default();
+    let mut sort_idx = 0;
+    fn assign_idx_to_intr(
+        interface_deps: &FxHashMap<TypeId, Vec<TypeId>>,
+        dep_sort_idx: &mut FxHashMap<TypeId, u32>,
+        sort_idx: &mut u32,
+        intr: &TypeId,
+    ) {
+        if dep_sort_idx.contains_key(intr) {
+            return;
+        }
+
+        // Assign index to every dependent first. We don't bother to check for cyclic
+        // dependences since super interfaces are also super traits in Rust.
+        let deps = interface_deps
+            .get(intr)
+            .expect("Expect every interface to have a (possibly empty) list of dependences");
+        for dep in deps {
+            assign_idx_to_intr(interface_deps, dep_sort_idx, sort_idx, dep);
+        }
+
+        // Assign an index to the current interface.
+        dep_sort_idx.insert(*intr, *sort_idx);
+        *sort_idx += 1;
+    }
+
+    // Assign dep_sort_idx to every interface.
+    for lazy in OP_INTERFACE_DEPS.iter() {
+        let (intr, _deps) = &**lazy;
+        assign_idx_to_intr(&interface_deps, &mut dep_sort_idx, &mut sort_idx, intr);
+    }
+
+    for verifiers in op_intr_verifiers.values_mut() {
+        // sort verifiers based on its dep_sort_idx.
+        verifiers.sort_by(|(a, _), (b, _)| dep_sort_idx[a].cmp(&dep_sort_idx[b]));
+    }
+
+    op_intr_verifiers
+});
+
+/// Declare an [Op] interface, which can be implemented by any [Op].
+///
+/// If the interface requires any other interface to be already implemented,
+/// they can be specified. The trait to which this interface is expanded will
+/// have the dependent interfaces as super-traits, in addition to the [Op] trait
+/// itself, which is always automatically added as a super-trait.
+///
+/// When an [Op] is verified, its interfaces are also automatically verified,
+/// with guarantee that a super-interface is verified before an interface itself is.
+///
+/// Example: Here `SameOperandsAndResultType` and `SymbolOpInterface` are super interfaces
+/// for the new interface `MyOpIntr`.
+/// ```
+/// # use pliron::dialects::builtin::op_interfaces::{SameOperandsAndResultType, SymbolOpInterface};
+/// # use pliron::{decl_op_interface, op::Op, context::Context, error::Result};
+/// decl_op_interface!(
+///     /// MyOpIntr is my first op interface.
+///     MyOpIntr: SameOperandsAndResultType, SymbolOpInterface {
+///         fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+///         where Self: Sized,
+///         {
+///             Ok(())
+///         }
+///     }
+/// );
+/// ```
+#[macro_export]
+macro_rules! decl_op_interface {
+    // No deps case
+    ($(#[$docs:meta])*
+        $intr_name:ident { $($tt:tt)* }) => {
+        decl_op_interface!(
+            $(#[$docs])*
+            $intr_name: { $($tt)* }
+        );
+    };
+    // Zero or more deps
+    ($(#[$docs:meta])*
+        $intr_name:ident: $($dep:path),* { $($tt:tt)* }) => {
+        $(#[$docs])*
+        pub trait $intr_name: pliron::op::Op $( + $dep )* {
+            $($tt)*
+        }
+        const _: () = {
+            #[linkme::distributed_slice(pliron::op::OP_INTERFACE_DEPS)]
+            static INTERFACE_DEP: once_cell::sync::Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>
+                = once_cell::sync::Lazy::new(|| {
+                    (std::any::TypeId::of::<dyn $intr_name>(), vec![$(std::any::TypeId::of::<dyn $dep>(),)*])
+             });
+        };
     };
 }
 
@@ -405,4 +546,55 @@ macro_rules! impl_canonical_syntax {
             }
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+
+    use pliron::error::Result;
+    use rustc_hash::{FxHashMap, FxHashSet};
+    use std::any::TypeId;
+
+    use crate::verify_err_noloc;
+
+    use super::{OP_INTERFACE_DEPS, OP_INTERFACE_VERIFIERS_MAP};
+
+    #[test]
+    /// For every interface that an [Op] implements, ensure that the interface verifiers
+    /// get called in the right order, with super-interface verifiers called before their
+    /// sub-interface verifier.
+    fn check_verifiers_deps() -> Result<()> {
+        // Collect interface deps into a map.
+        let interface_deps: FxHashMap<_, _> = OP_INTERFACE_DEPS
+            .iter()
+            .map(|lazy| (**lazy).clone())
+            .collect();
+
+        for (op, intrs) in OP_INTERFACE_VERIFIERS_MAP.iter() {
+            let mut satisfied_deps = FxHashSet::<TypeId>::default();
+            for (intr, _) in intrs {
+                let deps = interface_deps.get(intr).ok_or_else(|| {
+                    let err: Result<()> = verify_err_noloc!(
+                       "Missing deps list for TypeId {:?} when checking verifier dependences for {}",
+                        intr,
+                        op
+                    );
+                    err.unwrap_err()
+                })?;
+                for dep in deps {
+                    if !satisfied_deps.contains(dep) {
+                        return verify_err_noloc!(
+                            "For {}, depencence {:?} not satisfied for {:?}",
+                            op,
+                            dep,
+                            intr
+                        );
+                    }
+                }
+                satisfied_deps.insert(*intr);
+            }
+        }
+
+        Ok(())
+    }
 }

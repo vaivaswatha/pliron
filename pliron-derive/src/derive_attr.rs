@@ -1,13 +1,10 @@
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, ToTokens};
+use quote::{quote, ToTokens};
 use syn::{DeriveInput, LitStr, Result};
 
 const PROC_MACRO_NAME: &str = "def_attribute";
 
-use crate::{
-    derive_shared::{mark_ir_kind, VerifiersRegister},
-    macro_attr::IRKind,
-};
+use crate::{derive_shared::mark_ir_kind, macro_attr::IRKind};
 
 pub(crate) fn def_attribute(
     args: impl Into<TokenStream>,
@@ -23,7 +20,6 @@ pub(crate) fn def_attribute(
 struct DefAttribute {
     input: DeriveInput,
     impl_attr: ImplAttribute,
-    verifiers: VerifiersRegister,
 }
 
 impl DefAttribute {
@@ -61,36 +57,22 @@ impl DefAttribute {
 
         let input = DeriveInput { attrs, ..input };
 
-        let verifiers = VerifiersRegister {
-            ident: input.ident.clone(),
-            verifiers_name: format_ident!("AttrInterfaceVerifier_{}", &input.ident),
-            ifc_name: syn::parse_quote! { ::pliron::attribute::AttrInterfaceVerifier },
-        };
-
         let impl_attr = ImplAttribute {
             ident: input.ident.clone(),
             dialect_name: dialect_name.to_string(),
             attr_name: attr_name.to_string(),
-            verifiers_name: verifiers.verifiers_name.clone(),
         };
 
-        Ok(Self {
-            input,
-            impl_attr,
-            verifiers,
-        })
+        Ok(Self { input, impl_attr })
     }
 }
 
 impl ToTokens for DefAttribute {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let def_struct = &self.input;
-        let verifiers_register = &self.verifiers;
         let impl_attribute_trait = &self.impl_attr;
         tokens.extend(quote! {
             #def_struct
-
-            #verifiers_register
 
             #impl_attribute_trait
         });
@@ -101,7 +83,6 @@ struct ImplAttribute {
     ident: syn::Ident,
     attr_name: String,
     dialect_name: String,
-    verifiers_name: syn::Ident,
 }
 
 impl ToTokens for ImplAttribute {
@@ -109,7 +90,6 @@ impl ToTokens for ImplAttribute {
         let name = &self.ident;
         let attr_name = &self.attr_name;
         let dialect = &self.dialect_name;
-        let verifiers_name = &self.verifiers_name;
         tokens.extend(quote! {
             impl ::pliron::attribute::Attribute for #name {
                 fn eq_attr(&self, other: &dyn ::pliron::attribute::Attribute) -> bool {
@@ -130,9 +110,12 @@ impl ToTokens for ImplAttribute {
                 }
 
                 fn verify_interfaces(&self, ctx: &::pliron::context::Context) -> ::pliron::error::Result<()> {
-                    let interface_verifiers = ::inventory::iter::<#verifiers_name>();
-                    for verifier in interface_verifiers {
-                        (verifier.0)(self, ctx)?;
+                    if let Some(interface_verifiers) =
+                        ::pliron::attribute::ATTR_INTERFACE_VERIFIERS_MAP.get(&Self::get_attr_id_static())
+                    {
+                        for (_, verifier) in interface_verifiers {
+                            verifier(self, ctx)?;
+                        }
                     }
                     Ok(())
                 }
@@ -163,19 +146,6 @@ mod tests {
             #[derive(::pliron_derive::DeriveAttribAcceptor)]
             #[ir_kind = "attribute"]
             pub struct UnitAttr();
-            #[allow(non_camel_case_types)]
-            pub struct AttrInterfaceVerifier_UnitAttr(
-                pub ::pliron::attribute::AttrInterfaceVerifier,
-            );
-            impl UnitAttr {
-                #[doc(hidden)]
-                pub const fn build_interface_verifier(
-                    verifier: ::pliron::attribute::AttrInterfaceVerifier,
-                ) -> AttrInterfaceVerifier_UnitAttr {
-                    AttrInterfaceVerifier_UnitAttr(verifier)
-                }
-            }
-            inventory::collect!(AttrInterfaceVerifier_UnitAttr);
             impl ::pliron::attribute::Attribute for UnitAttr {
                 fn eq_attr(&self, other: &dyn ::pliron::attribute::Attribute) -> bool {
                     other.downcast_ref::<Self>().map_or(false, |other| other == self)
@@ -193,9 +163,12 @@ mod tests {
                     &self,
                     ctx: &::pliron::context::Context,
                 ) -> ::pliron::error::Result<()> {
-                    let interface_verifiers = ::inventory::iter::<AttrInterfaceVerifier_UnitAttr>();
-                    for verifier in interface_verifiers {
-                        (verifier.0)(self, ctx)?;
+                    if let Some(interface_verifiers) = ::pliron::attribute::ATTR_INTERFACE_VERIFIERS_MAP
+                        .get(&Self::get_attr_id_static())
+                    {
+                        for (_, verifier) in interface_verifiers {
+                            verifier(self, ctx)?;
+                        }
                     }
                     Ok(())
                 }

@@ -64,10 +64,7 @@ static TRAIT_CASTERS_MAP: Lazy<FxHashMap<(TypeId, TypeId), Box<dyn ClonableAny +
     Lazy::new(|| {
         TRAIT_CASTERS
             .iter()
-            .map(|lazy_tuple| {
-                let ((tid, iid), caster) = &**lazy_tuple;
-                ((*tid, *iid), caster.clone())
-            })
+            .map(|lazy_tuple| (**lazy_tuple).clone())
             .collect()
     });
 

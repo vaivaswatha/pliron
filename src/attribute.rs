@@ -16,6 +16,8 @@
 //! and [Interfaces](https://mlir.llvm.org/docs/Interfaces/).
 //! Interfaces must all implement an associated function named `verify` with
 //! the type [AttrInterfaceVerifier].
+//! New attributes must be specified via [decl_attr_interface](pliron::decl_attr_interface)
+//! for proper verification.
 //!
 //! [Attribute]s that implement an interface must do so using the
 //! [impl_attr_interface](crate::impl_attr_interface) macro.
@@ -35,6 +37,8 @@ use std::{
 use combine::{parser, Parser};
 use downcast_rs::{impl_downcast, Downcast};
 use dyn_clone::DynClone;
+use linkme::distributed_slice;
+use once_cell::sync::Lazy;
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -300,13 +304,15 @@ pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 /// #[derive(PartialEq, Eq, Clone, Debug)]
 /// struct MyAttr { }
 ///
-/// trait MyAttrInterface: Attribute {
-///     fn monu(&self);
-///     fn verify(attr: &dyn Attribute, ctx: &Context) -> Result<()>
-///         where
-///         Self: Sized,
-///     {
-///         Ok(())
+/// decl_attr_interface! {
+///     /// My first attribute interface.
+///     MyAttrInterface {
+///         fn monu(&self);
+///         fn verify(attr: &dyn Attribute, ctx: &Context) -> Result<()>
+///         where Self: Sized,
+///         {
+///              Ok(())
+///         }
 ///     }
 /// }
 /// impl_attr_interface!(
@@ -316,6 +322,7 @@ pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 ///     }
 /// );
 /// # use pliron::{
+/// #     decl_attr_interface,
 /// #     printable::{self, Printable},
 /// #     context::Context, error::Result, common_traits::Verify,
 /// #     attribute::Attribute, impl_attr_interface
@@ -327,22 +334,220 @@ pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 /// #        todo!()
 /// #    }
 /// # }
-///
-/// # impl Verify for MyAttr {
-/// #   fn verify(&self, _ctx: &Context) -> Result<()> {
-/// #        todo!()
-/// #    }
-/// # }
+/// # pliron::impl_verify_succ!(MyAttr);
 #[macro_export]
 macro_rules! impl_attr_interface {
     ($intr_name:ident for $attr_name:ident { $($tt:tt)* }) => {
-        inventory::submit! {
-            $attr_name::build_interface_verifier(<$attr_name as $intr_name>::verify)
-        }
-
         $crate::type_to_trait!($attr_name, $intr_name);
         impl $intr_name for $attr_name {
             $($tt)*
         }
+        const _: () = {
+            #[linkme::distributed_slice(pliron::attribute::ATTR_INTERFACE_VERIFIERS)]
+            static INTERFACE_VERIFIER: once_cell::sync::Lazy<
+                (pliron::attribute::AttrId, (std::any::TypeId, pliron::attribute::AttrInterfaceVerifier))
+            > =
+            once_cell::sync::Lazy::new(||
+                ($attr_name::get_attr_id_static(), (std::any::TypeId::of::<dyn $intr_name>(),
+                     <$attr_name as $intr_name>::verify))
+            );
+        };
     };
+}
+
+/// [Attribute]s paired with every interface it implements (and the verifier for that interface).
+#[distributed_slice]
+pub static ATTR_INTERFACE_VERIFIERS: [Lazy<(AttrId, (std::any::TypeId, AttrInterfaceVerifier))>];
+
+/// All interfaces mapped to their super-interfaces
+#[distributed_slice]
+pub static ATTR_INTERFACE_DEPS: [Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>];
+
+/// A map from every [Attribute] to its ordered (as per interface deps) list of interface verifiers.
+/// An interface's super-interfaces are to be verified before it itself is.
+pub static ATTR_INTERFACE_VERIFIERS_MAP: Lazy<
+    FxHashMap<AttrId, Vec<(std::any::TypeId, AttrInterfaceVerifier)>>,
+> = Lazy::new(|| {
+    use std::any::TypeId;
+    // Collect ATTR_INTERFACE_VERIFIERS into an [AttrId] indexed map.
+    let mut attr_intr_verifiers = FxHashMap::default();
+    for lazy in ATTR_INTERFACE_VERIFIERS {
+        let (attr_id, (type_id, verifier)) = (**lazy).clone();
+        attr_intr_verifiers
+            .entry(attr_id)
+            .and_modify(|verifiers: &mut Vec<(TypeId, AttrInterfaceVerifier)>| {
+                verifiers.push((type_id, verifier))
+            })
+            .or_insert(vec![(type_id, verifier)]);
+    }
+
+    // Collect interface deps into a map.
+    let interface_deps: FxHashMap<_, _> = ATTR_INTERFACE_DEPS
+        .iter()
+        .map(|lazy| (**lazy).clone())
+        .collect();
+
+    // Assign an integer to each interface, such that if y depends on x
+    // i.e., x is a super-interface of y, then dep_sort_idx[x] < dep_sort_idx[y]
+    let mut dep_sort_idx = FxHashMap::<TypeId, u32>::default();
+    let mut sort_idx = 0;
+    fn assign_idx_to_intr(
+        interface_deps: &FxHashMap<TypeId, Vec<TypeId>>,
+        dep_sort_idx: &mut FxHashMap<TypeId, u32>,
+        sort_idx: &mut u32,
+        intr: &TypeId,
+    ) {
+        if dep_sort_idx.contains_key(intr) {
+            return;
+        }
+
+        // Assign index to every dependent first. We don't bother to check for cyclic
+        // dependences since super interfaces are also super traits in Rust.
+        let deps = interface_deps
+            .get(intr)
+            .expect("Expect every interface to have a (possibly empty) list of dependences");
+        for dep in deps {
+            assign_idx_to_intr(interface_deps, dep_sort_idx, sort_idx, dep);
+        }
+
+        // Assign an index to the current interface.
+        dep_sort_idx.insert(*intr, *sort_idx);
+        *sort_idx += 1;
+    }
+
+    // Assign dep_sort_idx to every interface.
+    for lazy in ATTR_INTERFACE_DEPS.iter() {
+        let (intr, _deps) = &**lazy;
+        assign_idx_to_intr(&interface_deps, &mut dep_sort_idx, &mut sort_idx, intr);
+    }
+
+    for verifiers in attr_intr_verifiers.values_mut() {
+        // sort verifiers based on its dep_sort_idx.
+        verifiers.sort_by(|(a, _), (b, _)| dep_sort_idx[a].cmp(&dep_sort_idx[b]));
+    }
+
+    attr_intr_verifiers
+});
+
+/// Declare an [Attribute] interface, which can be implemented by any [Attribute].
+///
+/// If the interface requires any other interface to be already implemented,
+/// they can be specified. The trait to which this interface is expanded will
+/// have the dependent interfaces as super-traits, in addition to the [Attribute] trait
+/// itself, which is always automatically added as a super-trait.
+///
+/// When an [Attribute] is verified, its interfaces are also automatically verified,
+/// with guarantee that a super-interface is verified before an interface itself is.
+///
+/// Example: Here `Super1` and `Super2` are super interfaces for the interface `MyAttrIntr`.
+/// ```
+/// # use pliron::{decl_attr_interface, attribute::Attribute, context::Context, error::Result};
+/// decl_attr_interface!(
+///     Super1 {
+///         fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
+///         where
+///             Self: Sized,
+///         {
+///             Ok(())
+///         }
+///     }
+/// );
+/// decl_attr_interface!(
+///     Super2 {
+///         fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
+///         where
+///             Self: Sized,
+///         {
+///             Ok(())
+///         }
+///     }
+/// );
+/// decl_attr_interface!(
+///     /// MyAttrIntr is my best attribute interface.
+///     MyAttrIntr: Super1, Super2 {
+///         fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
+///         where
+///             Self: Sized,
+///         {
+///             Ok(())
+///         }
+///     }
+/// );
+/// ```
+#[macro_export]
+macro_rules! decl_attr_interface {
+    // No deps case
+    ($(#[$docs:meta])*
+        $intr_name:ident { $($tt:tt)* }) => {
+        decl_attr_interface!(
+            $(#[$docs])*
+            $intr_name: { $($tt)* }
+        );
+    };
+    // Zero or more deps
+    ($(#[$docs:meta])*
+        $intr_name:ident: $($dep:path),* { $($tt:tt)* }) => {
+        $(#[$docs])*
+        pub trait $intr_name: pliron::attribute::Attribute $( + $dep )* {
+            $($tt)*
+        }
+        const _: () = {
+            #[linkme::distributed_slice(pliron::attribute::ATTR_INTERFACE_DEPS)]
+            static ATTR_INTERFACE_DEP: once_cell::sync::Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>
+                = once_cell::sync::Lazy::new(|| {
+                    (std::any::TypeId::of::<dyn $intr_name>(), vec![$(std::any::TypeId::of::<dyn $dep>(),)*])
+             });
+        };
+    };
+}
+
+#[cfg(test)]
+mod tests {
+
+    use pliron::error::Result;
+    use rustc_hash::{FxHashMap, FxHashSet};
+    use std::any::TypeId;
+
+    use crate::verify_err_noloc;
+
+    use super::{ATTR_INTERFACE_DEPS, ATTR_INTERFACE_VERIFIERS_MAP};
+
+    #[test]
+    /// For every interface that an [Attr] implements, ensure that the interface verifiers
+    /// get called in the right order, with super-interface verifiers called before their
+    /// sub-interface verifier.
+    fn check_verifiers_deps() -> Result<()> {
+        // Collect interface deps into a map.
+        let interface_deps: FxHashMap<_, _> = ATTR_INTERFACE_DEPS
+            .iter()
+            .map(|lazy| (**lazy).clone())
+            .collect();
+
+        for (attr, intrs) in ATTR_INTERFACE_VERIFIERS_MAP.iter() {
+            let mut satisfied_deps = FxHashSet::<TypeId>::default();
+            for (intr, _) in intrs {
+                let deps = interface_deps.get(intr).ok_or_else(|| {
+                    let err: Result<()> = verify_err_noloc!(
+                       "Missing deps list for TypeId {:?} when checking verifier dependences for {}",
+                        intr,
+                        attr
+                    );
+                    err.unwrap_err()
+                })?;
+                for dep in deps {
+                    if !satisfied_deps.contains(dep) {
+                        return verify_err_noloc!(
+                            "For {}, depencence {:?} not satisfied for {:?}",
+                            attr,
+                            dep,
+                            intr
+                        );
+                    }
+                }
+                satisfied_deps.insert(*intr);
+            }
+        }
+
+        Ok(())
+    }
 }

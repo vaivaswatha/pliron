@@ -3,6 +3,7 @@ use thiserror::Error;
 use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
+    decl_op_interface,
     error::Result,
     linked_list::ContainsLinkedList,
     location::Located,
@@ -17,13 +18,15 @@ use crate::{
 
 use super::attributes::StringAttr;
 
-/// An [Op] implementing this interface is a block terminator.
-pub trait IsTerminatorInterface: Op {
-    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        Ok(())
+decl_op_interface! {
+    /// An [Op] implementing this interface is a block terminator.
+    IsTerminatorInterface {
+        fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            Ok(())
+        }
     }
 }
 
@@ -38,19 +41,21 @@ pub enum RegionKind {
     SSACFG,
 }
 
-/// Info on contained [Regions](crate::region::Region).
-pub trait RegionKindInterface: Op {
-    /// Return the kind of the region with the given index inside this operation.
-    fn get_region_kind(idx: usize) -> RegionKind;
-    /// Return true if the region with the given index inside this operation
-    /// must require dominance to hold.
-    fn has_ssa_dominance(idx: usize) -> bool;
+decl_op_interface! {
+    /// Info on contained [Regions](crate::region::Region).
+    RegionKindInterface {
+        /// Return the kind of the region with the given index inside this operation.
+        fn get_region_kind(&self, idx: usize) -> RegionKind;
+        /// Return true if the region with the given index inside this operation
+        /// must require dominance to hold.
+        fn has_ssa_dominance(&self, idx: usize) -> bool;
 
-    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        Ok(())
+        fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            Ok(())
+        }
     }
 }
 
@@ -58,26 +63,28 @@ pub trait RegionKindInterface: Op {
 #[error("Op {0} must have a single region")]
 pub struct OneRegionVerifyErr(String);
 
-/// [Op]s that have exactly one region.
-pub trait OneRegionInterface: Op {
-    /// Get the single region that this [Op] has.
-    fn get_region(&self, ctx: &Context) -> Ptr<Region> {
-        self.get_operation()
-            .deref(ctx)
-            .get_region(0)
-            .expect("Expected OneRegion Op to contain a region")
-    }
-
-    /// Checks that the operation has exactly one region.
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        let self_op = op.get_operation().deref(ctx);
-        if self_op.regions.len() != 1 {
-            return verify_err!(self_op.loc(), OneRegionVerifyErr(op.get_opid().to_string()));
+decl_op_interface! {
+    /// [Op]s that have exactly one region.
+    OneRegionInterface {
+        /// Get the single region that this [Op] has.
+        fn get_region(&self, ctx: &Context) -> Ptr<Region> {
+            self.get_operation()
+                .deref(ctx)
+                .get_region(0)
+                .expect("Expected OneRegion Op to contain a region")
         }
-        Ok(())
+
+        /// Checks that the operation has exactly one region.
+        fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            let self_op = op.get_operation().deref(ctx);
+            if self_op.regions.len() != 1 {
+                return verify_err!(self_op.loc(), OneRegionVerifyErr(op.get_opid().to_string()));
+            }
+            Ok(())
+        }
     }
 }
 
@@ -85,65 +92,69 @@ pub trait OneRegionInterface: Op {
 #[error("Op {0} must only have regions with single block")]
 pub struct SingleBlockRegionVerifyErr(String);
 
-/// [Op]s with regions that have a single block.
-pub trait SingleBlockRegionInterface: Op {
-    /// Get the single body block in `region_idx`.
-    fn get_body(&self, ctx: &Context, region_idx: usize) -> Ptr<BasicBlock> {
-        self.get_operation()
-            .deref(ctx)
-            .get_region(region_idx)
-            .expect("Expected SingleBlockRegion Op to contain a region")
-            .deref(ctx)
-            .get_head()
-            .expect("Expected SingleBlockRegion Op to contain a block")
-    }
-
-    /// Insert an operation at the end of the single block in `region_idx`.
-    fn append_operation(&self, ctx: &mut Context, op: Ptr<Operation>, region_idx: usize) {
-        op.insert_at_back(self.get_body(ctx, region_idx), ctx);
-    }
-
-    /// Checks that the operation has regions with single block.
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        let self_op = op.get_operation().deref(ctx);
-        for region in &self_op.regions {
-            if region.deref(ctx).iter(ctx).count() != 1 {
-                return verify_err!(
-                    self_op.loc(),
-                    SingleBlockRegionVerifyErr(self_op.get_opid().to_string())
-                );
-            }
+decl_op_interface! {
+    /// [Op]s with regions that have a single block.
+    SingleBlockRegionInterface {
+        /// Get the single body block in `region_idx`.
+        fn get_body(&self, ctx: &Context, region_idx: usize) -> Ptr<BasicBlock> {
+            self.get_operation()
+                .deref(ctx)
+                .get_region(region_idx)
+                .expect("Expected SingleBlockRegion Op to contain a region")
+                .deref(ctx)
+                .get_head()
+                .expect("Expected SingleBlockRegion Op to contain a block")
         }
-        Ok(())
+
+        /// Insert an operation at the end of the single block in `region_idx`.
+        fn append_operation(&self, ctx: &mut Context, op: Ptr<Operation>, region_idx: usize) {
+            op.insert_at_back(self.get_body(ctx, region_idx), ctx);
+        }
+
+        /// Checks that the operation has regions with single block.
+        fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            let self_op = op.get_operation().deref(ctx);
+            for region in &self_op.regions {
+                if region.deref(ctx).iter(ctx).count() != 1 {
+                    return verify_err!(
+                        self_op.loc(),
+                        SingleBlockRegionVerifyErr(self_op.get_opid().to_string())
+                    );
+                }
+            }
+            Ok(())
+        }
     }
 }
 
-/// [Op] that defines or declares a [symbol](https://mlir.llvm.org/docs/SymbolsAndSymbolTables/#symbol).
-pub trait SymbolOpInterface: Op {
-    // Get the name of the symbol defined by this operation.
-    fn get_symbol_name(&self, ctx: &Context) -> String {
-        let self_op = self.get_operation().deref(ctx);
-        let s_attr = self_op.attributes.get(super::ATTR_KEY_SYM_NAME).unwrap();
-        String::from(s_attr.downcast_ref::<StringAttr>().unwrap().clone())
-    }
+decl_op_interface! {
+    /// [Op] that defines or declares a [symbol](https://mlir.llvm.org/docs/SymbolsAndSymbolTables/#symbol).
+    SymbolOpInterface {
+        // Get the name of the symbol defined by this operation.
+        fn get_symbol_name(&self, ctx: &Context) -> String {
+            let self_op = self.get_operation().deref(ctx);
+            let s_attr = self_op.attributes.get(super::ATTR_KEY_SYM_NAME).unwrap();
+            String::from(s_attr.downcast_ref::<StringAttr>().unwrap().clone())
+        }
 
-    /// Set a name for the symbol defined by this operation.
-    fn set_symbol_name(&self, ctx: &mut Context, name: &str) {
-        let name_attr = StringAttr::new(name.to_string());
-        let mut self_op = self.get_operation().deref_mut(ctx);
-        self_op
-            .attributes
-            .insert(super::ATTR_KEY_SYM_NAME, name_attr.into());
-    }
+        /// Set a name for the symbol defined by this operation.
+        fn set_symbol_name(&self, ctx: &mut Context, name: &str) {
+            let name_attr = StringAttr::new(name.to_string());
+            let mut self_op = self.get_operation().deref_mut(ctx);
+            self_op
+                .attributes
+                .insert(super::ATTR_KEY_SYM_NAME, name_attr.into());
+        }
 
-    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        Ok(())
+        fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            Ok(())
+        }
     }
 }
 
@@ -151,33 +162,35 @@ pub trait SymbolOpInterface: Op {
 #[error("Op {0} must have single result")]
 pub struct OneResultVerifyErr(pub String);
 
-/// An [Op] having exactly one result.
-pub trait OneResultInterface: Op {
-    /// Get the single result defined by this [Op].
-    fn get_result(&self, ctx: &Context) -> Value {
-        self.get_operation()
-            .deref(ctx)
-            .get_result(0)
-            .unwrap_or_else(|| panic!("{} must have exactly one result", self.get_opid().disp(ctx)))
-    }
-
-    /// Get the type of the single result defined by this [Op].
-    fn result_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.get_operation()
-            .deref(ctx)
-            .get_type(0)
-            .unwrap_or_else(|| panic!("{} must have exactly one result", self.get_opid().disp(ctx)))
-    }
-
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        let op = &*op.get_operation().deref(ctx);
-        if op.get_num_results() != 1 {
-            return verify_err!(op.loc(), OneResultVerifyErr(op.get_opid().to_string()));
+decl_op_interface! {
+    /// An [Op] having exactly one result.
+    OneResultInterface {
+        /// Get the single result defined by this [Op].
+        fn get_result(&self, ctx: &Context) -> Value {
+            self.get_operation()
+                .deref(ctx)
+                .get_result(0)
+                .unwrap_or_else(|| panic!("{} must have exactly one result", self.get_opid().disp(ctx)))
         }
-        Ok(())
+
+        /// Get the type of the single result defined by this [Op].
+        fn result_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+            self.get_operation()
+                .deref(ctx)
+                .get_type(0)
+                .unwrap_or_else(|| panic!("{} must have exactly one result", self.get_opid().disp(ctx)))
+        }
+
+        fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            let op = &*op.get_operation().deref(ctx);
+            if op.get_num_results() != 1 {
+                return verify_err!(op.loc(), OneResultVerifyErr(op.get_opid().to_string()));
+            }
+            Ok(())
+        }
     }
 }
 
@@ -185,30 +198,34 @@ pub trait OneResultInterface: Op {
 #[error("Op {0} must not produce result(s)")]
 pub struct ZeroResultVerifyErr(pub String);
 
-/// An [Op] having no results.
-pub trait ZeroResultInterface: Op {
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        let op = &*op.get_operation().deref(ctx);
-        if op.get_num_results() != 0 {
-            return verify_err!(op.loc(), ZeroResultVerifyErr(op.get_opid().to_string()));
+decl_op_interface! {
+    /// An [Op] having no results.
+    ZeroResultInterface {
+        fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            let op = &*op.get_operation().deref(ctx);
+            if op.get_num_results() != 0 {
+                return verify_err!(op.loc(), ZeroResultVerifyErr(op.get_opid().to_string()));
+            }
+            Ok(())
         }
-        Ok(())
     }
 }
 
-/// An [Op] that calls a function
-pub trait CallOpInterface: Op {
-    /// Returns the symbol of the callee of this call [Op].
-    fn get_callee_sym(&self, ctx: &Context) -> String;
+decl_op_interface! {
+    /// An [Op] that calls a function
+    CallOpInterface {
+        /// Returns the symbol of the callee of this call [Op].
+        fn get_callee_sym(&self, ctx: &Context) -> String;
 
-    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        Ok(())
+        fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            Ok(())
+        }
     }
 }
 
@@ -234,17 +251,19 @@ pub fn get_callees_syms(ctx: &Context, op: Ptr<Operation>) -> Vec<String> {
 #[error("Op {0} must not have any operand")]
 pub struct ZeroOpdVerifyErr(String);
 
-/// An [Op] having no operands.
-pub trait ZeroOpdInterface: Op {
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        let op = &*op.get_operation().deref(ctx);
-        if op.get_num_operands() != 0 {
-            return verify_err!(op.loc(), ZeroOpdVerifyErr(op.get_opid().to_string()));
+decl_op_interface! {
+    /// An [Op] having no operands.
+    ZeroOpdInterface {
+        fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            let op = &*op.get_operation().deref(ctx);
+            if op.get_num_operands() != 0 {
+                return verify_err!(op.loc(), ZeroOpdVerifyErr(op.get_opid().to_string()));
+            }
+            Ok(())
         }
-        Ok(())
     }
 }
 
@@ -252,52 +271,56 @@ pub trait ZeroOpdInterface: Op {
 #[error("Op must have exactly one operand")]
 pub struct OneOpdVerifyErr(String);
 
-/// An [Op] having no operands.
-pub trait OneOpdInterface: Op {
-    /// Get the single operand used by this [Op].
-    fn get_operand(&self, ctx: &Context) -> Value {
-        self.get_operation()
-            .deref(ctx)
-            .get_operand(0)
-            .unwrap_or_else(|| {
-                panic!(
-                    "{} must have exactly one operand",
-                    self.get_opid().disp(ctx)
-                )
-            })
-    }
-
-    /// Get the type of the single operand used by this [Op].
-    fn operand_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.get_operand(ctx).get_type(ctx)
-    }
-
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        let op = &*op.get_operation().deref(ctx);
-        if op.get_num_operands() != 1 {
-            return verify_err!(op.loc(), ZeroOpdVerifyErr(op.get_opid().to_string()));
+decl_op_interface! {
+    /// An [Op] having no operands.
+    OneOpdInterface {
+        /// Get the single operand used by this [Op].
+        fn get_operand(&self, ctx: &Context) -> Value {
+            self.get_operation()
+                .deref(ctx)
+                .get_operand(0)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{} must have exactly one operand",
+                        self.get_opid().disp(ctx)
+                    )
+                })
         }
-        Ok(())
+
+        /// Get the type of the single operand used by this [Op].
+        fn operand_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+            self.get_operand(ctx).get_type(ctx)
+        }
+
+        fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            let op = &*op.get_operation().deref(ctx);
+            if op.get_num_operands() != 1 {
+                return verify_err!(op.loc(), ZeroOpdVerifyErr(op.get_opid().to_string()));
+            }
+            Ok(())
+        }
     }
 }
 
-/// An [Op] whose regions's SSA names are isolated from above.
-/// This is similar to (but not the same as) MLIR's
-/// [IsolatedFromAbove](https://mlir.llvm.org/docs/Traits/#isolatedfromabove) trait.
-/// Definition: all regions that are reachable / traversible in any
-/// direction in the region hierarchy without passing an `IsolatedFromAbove`
-/// barrier, share the same SSA name space.
-/// i.e., a region that is not `IsolatedFromAbove` cannot have any SSA name
-/// in common with that of any of its ancestors or siblings or cousins etc.
-pub trait IsolatedFromAboveInterface: Op {
-    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        Ok(())
+decl_op_interface! {
+    /// An [Op] whose regions's SSA names are isolated from above.
+    /// This is similar to (but not the same as) MLIR's
+    /// [IsolatedFromAbove](https://mlir.llvm.org/docs/Traits/#isolatedfromabove) trait.
+    /// Definition: all regions that are reachable / traversible in any
+    /// direction in the region hierarchy without passing an `IsolatedFromAbove`
+    /// barrier, share the same SSA name space.
+    /// i.e., a region that is not `IsolatedFromAbove` cannot have any SSA name
+    /// in common with that of any of its ancestors or siblings or cousins etc.
+    IsolatedFromAboveInterface {
+        fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            Ok(())
+        }
     }
 }
 
@@ -309,36 +332,38 @@ pub enum SameOperandsTypeVerifyErr {
     TypesDiffer,
 }
 
-// An [Op] with at least one operand, and them all having the same type.
-pub trait SameOperandsType: Op {
-    /// Get the common type of the operands.
-    fn operand_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.get_operation()
-            .deref(ctx)
-            .get_operand(0)
-            .expect("Expected at least one operand")
-            .get_type(ctx)
-    }
-
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        let op = op.get_operation().deref(ctx);
-
-        if op.get_num_operands() == 0 {
-            return verify_err!(op.loc(), SameOperandsTypeVerifyErr::NoOperands);
+decl_op_interface! {
+    /// An [Op] with at least one operand, and them all having the same type.
+    SameOperandsType {
+        /// Get the common type of the operands.
+        fn operand_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+            self.get_operation()
+                .deref(ctx)
+                .get_operand(0)
+                .expect("Expected at least one operand")
+                .get_type(ctx)
         }
 
-        let mut opds = op.operands();
-        let ty = opds.next().unwrap().get_type(ctx);
-        for opd in opds {
-            if opd.get_type(ctx) != ty {
-                return verify_err!(op.loc(), SameResultsTypeVerifyErr::TypesDiffer);
+        fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            let op = op.get_operation().deref(ctx);
+
+            if op.get_num_operands() == 0 {
+                return verify_err!(op.loc(), SameOperandsTypeVerifyErr::NoOperands);
             }
-        }
 
-        Ok(())
+            let mut opds = op.operands();
+            let ty = opds.next().unwrap().get_type(ctx);
+            for opd in opds {
+                if opd.get_type(ctx) != ty {
+                    return verify_err!(op.loc(), SameResultsTypeVerifyErr::TypesDiffer);
+                }
+            }
+
+            Ok(())
+        }
     }
 }
 
@@ -350,35 +375,37 @@ pub enum SameResultsTypeVerifyErr {
     TypesDiffer,
 }
 
-// An [Op] with at least one result, and them all having the same type.
-pub trait SameResultsType: Op {
-    /// Get the common type of the results.
-    fn result_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.get_operation()
-            .deref(ctx)
-            .get_result(0)
-            .expect("Expected at least one result")
-            .get_type(ctx)
-    }
-
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        let op = op.get_operation().deref(ctx);
-
-        if op.get_num_results() == 0 {
-            return verify_err!(op.loc(), SameResultsTypeVerifyErr::NoResults);
+decl_op_interface! {
+    // An [Op] with at least one result, and them all having the same type.
+    SameResultsType {
+        /// Get the common type of the results.
+        fn result_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+            self.get_operation()
+                .deref(ctx)
+                .get_result(0)
+                .expect("Expected at least one result")
+                .get_type(ctx)
         }
 
-        let mut results = op.results();
-        let ty = results.next().unwrap().get_type(ctx);
-        for res in results {
-            if res.get_type(ctx) != ty {
-                return verify_err!(op.loc(), SameResultsTypeVerifyErr::TypesDiffer);
+        fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            let op = op.get_operation().deref(ctx);
+
+            if op.get_num_results() == 0 {
+                return verify_err!(op.loc(), SameResultsTypeVerifyErr::NoResults);
             }
+
+            let mut results = op.results();
+            let ty = results.next().unwrap().get_type(ctx);
+            for res in results {
+                if res.get_type(ctx) != ty {
+                    return verify_err!(op.loc(), SameResultsTypeVerifyErr::TypesDiffer);
+                }
+            }
+            Ok(())
         }
-        Ok(())
     }
 }
 
@@ -386,32 +413,34 @@ pub trait SameResultsType: Op {
 #[error("Op has different operand and result types")]
 pub struct SameOperandsAndResultTypeVerifyErr;
 
-/// An [Op] with at least one result and one operand, and them all having the same type.
-/// See MLIR's [SameOperandsAndResultType](https://mlir.llvm.org/doxygen/classmlir_1_1OpTrait_1_1SameOperandsAndResultType.html).
-pub trait SameOperandsAndResultType: Op + SameOperandsType + SameResultsType {
-    /// Get the common type of results / operands.
-    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.result_type(ctx)
-    }
-
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        let res_ty = op_cast::<dyn SameResultsType>(op)
-            .expect("Op must impl SameResultsType")
-            .result_type(ctx);
-        let opd_ty = op_cast::<dyn SameOperandsType>(op)
-            .expect("Op must impl SameOperandsType")
-            .operand_type(ctx);
-
-        if res_ty != opd_ty {
-            return verify_err!(
-                op.get_operation().deref(ctx).loc(),
-                SameOperandsAndResultTypeVerifyErr
-            );
+decl_op_interface! {
+    /// An [Op] with at least one result and one operand, and them all having the same type.
+    /// See MLIR's [SameOperandsAndResultType](https://mlir.llvm.org/doxygen/classmlir_1_1OpTrait_1_1SameOperandsAndResultType.html).
+    SameOperandsAndResultType: SameOperandsType, SameResultsType {
+        /// Get the common type of results / operands.
+        fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+            self.result_type(ctx)
         }
 
-        Ok(())
+        fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            let res_ty = op_cast::<dyn SameResultsType>(op)
+                .expect("Op must impl SameResultsType")
+                .result_type(ctx);
+            let opd_ty = op_cast::<dyn SameOperandsType>(op)
+                .expect("Op must impl SameOperandsType")
+                .operand_type(ctx);
+
+            if res_ty != opd_ty {
+                return verify_err!(
+                    op.get_operation().deref(ctx).loc(),
+                    SameOperandsAndResultTypeVerifyErr
+                );
+            }
+
+            Ok(())
+        }
     }
 }

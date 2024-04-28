@@ -1,20 +1,23 @@
 use crate::{
     attribute::Attribute,
     context::{Context, Ptr},
+    decl_attr_interface,
     error::Result,
     r#type::TypeObj,
 };
 
-/// [Attribute]s that have an associated [Type](crate::type::Type).
-/// This serves the same purpose as MLIR's `TypedAttrInterface`.
-pub trait TypedAttrInterface: Attribute {
-    /// Get this attribute's type.
-    fn get_type(&self) -> Ptr<TypeObj>;
+decl_attr_interface! {
+    /// [Attribute]s that have an associated [Type](crate::type::Type).
+    /// This serves the same purpose as MLIR's `TypedAttrInterface`.
+    TypedAttrInterface {
+        /// Get this attribute's type.
+        fn get_type(&self) -> Ptr<TypeObj>;
 
-    fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
-    where
-        Self: Sized,
-    {
-        Ok(())
+        fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            Ok(())
+        }
     }
 }
