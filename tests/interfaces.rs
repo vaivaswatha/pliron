@@ -22,11 +22,12 @@ use pliron::{
     identifier::Identifier,
     impl_attr_interface, impl_canonical_syntax, impl_op_interface, impl_verify_succ,
     location::Location,
-    op::{Op, OpObj},
+    op::{op_cast, Op, OpObj},
     operation::Operation,
     parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::TypeObj,
+    trait_cast::any_to_trait,
 };
 use pliron_derive::{def_attribute, def_op};
 
@@ -148,6 +149,11 @@ fn test_op_intr_verify_order() -> Result<()> {
         TestOpInterface2 verified
     "#]]
     .assert_eq(&TEST_OP_VERIFIERS_OUTPUT.lock().unwrap());
+
+    // Ad-hoc op interface conversions test.
+    let x = op_cast::<dyn TestOpInterface>(&vio).unwrap();
+    any_to_trait::<dyn TestOpInterface2>(x.as_any()).unwrap();
+
     Ok(())
 }
 
