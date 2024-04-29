@@ -95,6 +95,20 @@ use once_cell::sync::Lazy;
 static TEST_OP_VERIFIERS_OUTPUT: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("".into()));
 
 decl_op_interface! {
+    TestOpInterfaceX {
+        fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            Ok(())
+        }
+    }
+}
+
+impl_op_interface!(TestOpInterfaceX for ReturnOp {});
+impl_op_interface!(TestOpInterfaceX for ModuleOp {});
+
+decl_op_interface! {
     TestOpInterface {
         fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
         where
@@ -117,9 +131,6 @@ decl_op_interface! {
         }
     }
 }
-
-impl_op_interface!(TestOpInterface for ReturnOp {});
-impl_op_interface!(TestOpInterface for ModuleOp {});
 
 #[def_op("test.verify_intr_op")]
 struct VerifyIntrOp {}
