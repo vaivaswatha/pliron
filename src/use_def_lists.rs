@@ -103,8 +103,6 @@ impl<T: DefUseParticipant> DefNode<T> {
 
 /// Interface for [UseNode] wrappers.
 pub(crate) trait UseTrait: DefUseParticipant {
-    /// Get a reference to the [UseNode] described by this use.
-    fn get_usenode_ref<'a>(r#use: &Use<Self>, ctx: &'a Context) -> Ref<'a, UseNode<Self>>;
     /// Get a mutable reference to the [UseNode] described by this  use.
     fn get_usenode_mut<'a>(r#use: &Use<Self>, ctx: &'a Context) -> RefMut<'a, UseNode<Self>>;
 }
@@ -245,13 +243,6 @@ impl DefTrait for Value {
 }
 
 impl UseTrait for Value {
-    fn get_usenode_ref<'a>(r#use: &Use<Value>, ctx: &'a Context) -> Ref<'a, UseNode<Value>> {
-        let op = r#use.op.deref(ctx);
-        Ref::map(op, |opref| {
-            &opref.get_operand_ref(r#use.opd_idx).unwrap().r#use
-        })
-    }
-
     fn get_usenode_mut<'a>(r#use: &Use<Self>, ctx: &'a Context) -> RefMut<'a, UseNode<Value>> {
         let op = r#use.op.deref_mut(ctx);
         RefMut::map(op, |opref| {
@@ -334,16 +325,6 @@ impl DefTrait for Ptr<BasicBlock> {
 }
 
 impl UseTrait for Ptr<BasicBlock> {
-    fn get_usenode_ref<'a>(
-        r#use: &Use<Ptr<BasicBlock>>,
-        ctx: &'a Context,
-    ) -> Ref<'a, UseNode<Ptr<BasicBlock>>> {
-        let op = r#use.op.deref(ctx);
-        Ref::map(op, |opref| {
-            &opref.get_successor_ref(r#use.opd_idx).unwrap().r#use
-        })
-    }
-
     fn get_usenode_mut<'a>(
         r#use: &Use<Ptr<BasicBlock>>,
         ctx: &'a Context,

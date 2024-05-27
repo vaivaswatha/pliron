@@ -221,28 +221,6 @@ where
     Ok(())
 }
 
-/// An object that implements [Display] for [Iterator]s
-struct DisplayableIter<'c, I>
-where
-    I: Iterator + Clone,
-    I::Item: Printable,
-{
-    iter: I,
-    ctx: &'c Context,
-    state: State,
-    sep: ListSeparator,
-}
-
-impl<'c, I> Display for DisplayableIter<'c, I>
-where
-    I: Iterator + Clone,
-    I::Item: Printable,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt_iter(self.iter.clone(), self.ctx, &self.state, self.sep, f)
-    }
-}
-
 /// Print a new line followed by indentation as per current state.
 pub fn fmt_indented_newline(state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let align = state.get_current_indent().into();

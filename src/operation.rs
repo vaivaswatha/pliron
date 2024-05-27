@@ -375,11 +375,6 @@ impl Operation {
         self.operands.get_mut(opd_idx)
     }
 
-    /// Get a reference to the opd_idx'th successor.
-    pub(crate) fn get_successor_ref(&self, opd_idx: usize) -> Option<&Operand<Ptr<BasicBlock>>> {
-        self.successors.get(opd_idx)
-    }
-
     /// Get a mutable reference to the opd_idx'th successor.
     pub(crate) fn get_successor_mut(
         &mut self,

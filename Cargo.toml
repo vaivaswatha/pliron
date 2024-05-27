@@ -30,7 +30,7 @@ pliron-derive = { path = "./pliron-derive" }
 slotmap = "1.0.7"
 downcast-rs = "1.2.1"
 rustc-hash = "1.1.0"
-thiserror = "1.0.59"
+thiserror = "1.0.61"
 # clap = "4.1.6"
 apint = "0.2.0"
 sorted_vector_map = "0.1.0"
@@ -46,8 +46,8 @@ expect-test.workspace = true
 
 [workspace.dependencies]
 expect-test = "1.5.0"
-proc-macro2 = "1.0.81"
+proc-macro2 = "1.0.84"
 quote = "1.0.36"
-prettyplease = "0.2.19"
-syn = { version = "2.0.60", features = ["derive"] }
+prettyplease = "0.2.20"
+syn = { version = "2.0.66", features = ["derive"] }
 combine = "4.6.7"
