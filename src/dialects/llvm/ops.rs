@@ -16,7 +16,7 @@ use crate::{
                 SameOperandsAndResultType, SameOperandsType, SameResultsType, ZeroResultInterface,
                 ZeroResultVerifyErr,
             },
-            types::IntegerType,
+            types::{IntegerType, Signedness},
         },
         llvm::{
             op_interfaces::{
@@ -45,7 +45,7 @@ use pliron_derive::def_op;
 use thiserror::Error;
 
 use super::{
-    attributes::{GepIndexAttr, GepIndicesAttr},
+    attributes::{GepIndexAttr, GepIndicesAttr, ICmpPredicateAttr},
     types::PointerType,
 };
 
@@ -243,6 +243,8 @@ pub enum ICmpOpVerifyErr {
     ResultNotBool,
     #[error("Operand must be integer or pointer types")]
     IncorrectOperandsType,
+    #[error("Missing or incorrect predicate attribute")]
+    PredAttrErr,
 }
 
 /// Equivalent to LLVM's ICmp opcode.
@@ -261,17 +263,42 @@ pub enum ICmpOpVerifyErr {
 ///
 /// | key | value | via Interface |
 /// |-----|-------| --------------|
-/// | [ATTR_KEY_PREDICATE](ICmpOp::ATTR_KEY_PREDICATE) | [ICmpPredicateAttr](super::attributes::ICmpPredicateAttr) | N/A |
+/// | [ATTR_KEY_PREDICATE](ICmpOp::ATTR_KEY_PREDICATE) | [ICmpPredicateAttr](ICmpPredicateAttr) | N/A |
 #[def_op("llvm.icmp")]
 pub struct ICmpOp {}
 
 impl ICmpOp {
     pub const ATTR_KEY_PREDICATE: &'static str = "llvm.icmp_predicate";
+    /// Create a new [ICmpOp]
+    pub fn new(ctx: &mut Context, pred: ICmpPredicateAttr, lhs: Value, rhs: Value) -> Self {
+        let bool_ty = IntegerType::get(ctx, 1, Signedness::Signless);
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![bool_ty.into()],
+            vec![lhs, rhs],
+            vec![],
+            0,
+        );
+        op.deref_mut(ctx)
+            .attributes
+            .insert(Self::ATTR_KEY_PREDICATE, Box::new(pred));
+        ICmpOp { op }
+    }
 }
 
 impl Verify for ICmpOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let loc = self.get_operation().deref(ctx).loc();
+        let op = &*self.op.deref(ctx);
+
+        let Some(attr) = op.attributes.get(Self::ATTR_KEY_PREDICATE) else {
+            verify_err!(op.loc(), ICmpOpVerifyErr::PredAttrErr)?
+        };
+        if attr.is::<ICmpPredicateAttr>() {
+            verify_err!(op.loc(), ICmpOpVerifyErr::PredAttrErr)?
+        }
+
         let res_ty: TypePtr<IntegerType> =
             TypePtr::from_ptr(self.result_type(ctx), ctx).map_err(|mut err| {
                 err.set_loc(loc.clone());
