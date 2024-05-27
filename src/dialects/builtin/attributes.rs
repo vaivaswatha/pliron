@@ -16,8 +16,8 @@ use crate::{
     error::Result,
     impl_attr_interface, impl_verify_succ, input_err,
     irfmt::{
-        parsers::{spaced, type_parser},
-        printers::quoted,
+        parsers::{delimited_list_parser, spaced, type_parser},
+        printers::{list_with_sep, quoted},
     },
     location::Located,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
@@ -324,6 +324,7 @@ impl SmallDictAttr {
     }
 }
 
+/// A vector of other attributes.
 #[def_attribute("builtin.vec")]
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct VecAttr(pub Vec<AttrObj>);
@@ -337,17 +338,21 @@ impl VecAttr {
 impl Printable for VecAttr {
     fn fmt(
         &self,
-        _ctx: &Context,
+        ctx: &Context,
         _state: &printable::State,
-        _f: &mut core::fmt::Formatter<'_>,
+        f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        todo!()
+        write!(
+            f,
+            "[{}]",
+            list_with_sep(&self.0, printable::ListSeparator::Char(',')).disp(ctx)
+        )
     }
 }
 
 impl Verify for VecAttr {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        todo!()
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        self.0.iter().try_for_each(|elm| elm.verify(ctx))
     }
 }
 
@@ -356,10 +361,13 @@ impl Parsable for VecAttr {
     type Parsed = Self;
 
     fn parse<'a>(
-        _state_stream: &mut StateStream<'a>,
-        _argg: Self::Arg,
+        state_stream: &mut StateStream<'a>,
+        arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
-        todo!()
+        delimited_list_parser('[', ']', ',', AttrObj::parser(arg))
+            .parse_stream(state_stream)
+            .map(VecAttr::new)
+            .into_result()
     }
 }
 

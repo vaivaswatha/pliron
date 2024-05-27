@@ -162,6 +162,7 @@ impl Operation {
         opid: OpId,
         result_types: Vec<Ptr<TypeObj>>,
         operands: Vec<Value>,
+        successors: Vec<Ptr<BasicBlock>>,
         num_regions: usize,
     ) -> Ptr<Operation> {
         let f = |self_ptr: Ptr<Operation>| Operation {
@@ -197,6 +198,12 @@ impl Operation {
             .map(|(opd_idx, def)| Operand::new(ctx, *def, newop, opd_idx))
             .collect();
         newop.deref_mut(ctx).operands = operands;
+        let successors = successors
+            .iter()
+            .enumerate()
+            .map(|(succ_idx, def)| Operand::new(ctx, *def, newop, succ_idx))
+            .collect();
+        newop.deref_mut(ctx).successors = successors;
         newop.deref_mut(ctx).regions = Vec::new_init(num_regions, |_| Region::new(ctx, newop));
 
         newop
@@ -263,20 +270,20 @@ impl Operation {
     }
 
     /// Get a reference to the opd_idx'th successor.
-    pub fn get_successor(&self, opd_idx: usize) -> Option<Ptr<BasicBlock>> {
-        self.successors.get(opd_idx).map(|succ| succ.get_def())
+    pub fn get_successor(&self, succ_idx: usize) -> Option<Ptr<BasicBlock>> {
+        self.successors.get(succ_idx).map(|succ| succ.get_def())
     }
 
     /// Replace opd_idx'th successor with `other`.
-    pub fn replace_successor(&mut self, ctx: &Context, opd_idx: usize, other: Ptr<BasicBlock>) {
+    pub fn replace_successor(&mut self, ctx: &Context, succ_idx: usize, other: Ptr<BasicBlock>) {
         self.successors
-            .get_mut(opd_idx)
-            .unwrap_or_else(|| panic!("No successor at index {}", opd_idx))
+            .get_mut(succ_idx)
+            .unwrap_or_else(|| panic!("No successor at index {}", succ_idx))
             .replace(ctx, other);
     }
 
     /// Get an iterator on the successors.
-    pub fn successors(&self) -> impl Iterator<Item = Ptr<BasicBlock>> + '_ {
+    pub fn successors(&self) -> impl Iterator<Item = Ptr<BasicBlock>> + Clone + '_ {
         self.successors.iter().map(|opd| opd.get_def())
     }
 

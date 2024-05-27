@@ -26,7 +26,7 @@ pub struct BinArithOpErr;
 
 decl_op_interface! {
     /// Binary arithmetic [Op].
-    BinArithOp: SameOperandsAndResultType {
+    BinArithOp: SameOperandsAndResultType, OneResultInterface {
         /// Create a new binary arithmetic operation given the operands.
         fn new(ctx: &mut Context, lhs: Value, rhs: Value) -> Self
         where
@@ -37,6 +37,7 @@ decl_op_interface! {
                 Self::get_opid_static(),
                 vec![lhs.get_type(ctx)],
                 vec![lhs, rhs],
+                vec![],
                 0,
             );
             *Operation::get_op(op, ctx).downcast::<Self>().ok().unwrap()
@@ -47,7 +48,7 @@ decl_op_interface! {
             Self: Sized,
         {
             let op = op.get_operation().deref(ctx);
-            if op.get_num_results() != 1 || op.get_num_operands() != 2 {
+            if op.get_num_operands() != 2 {
                 return verify_err!(op.loc(), BinArithOpErr);
             }
 
@@ -95,11 +96,11 @@ decl_op_interface! {
     /// Integer binary arithmetic [Op] with [IntegerOverflowFlagsAttr]
     IntBinArithOpWithOverflowFlag: IntBinArithOp {
         /// Get the integer overflow flag on this [Op].
-        fn integer_overflow_flag(op: &dyn Op, ctx: &Context) -> IntegerOverflowFlagsAttr
+        fn integer_overflow_flag(&self, ctx: &Context) -> IntegerOverflowFlagsAttr
         where
             Self: Sized,
         {
-            op.get_operation()
+            self.get_operation()
                 .deref(ctx)
                 .attributes
                 .get(ATTR_KEY_INTEGER_OVERFLOW_FLAGS)
@@ -110,11 +111,11 @@ decl_op_interface! {
         }
 
         /// Set the integer overflow flag for this [Op].
-        fn set_integer_overflow_flag(op: &dyn Op, ctx: &Context, flag: IntegerOverflowFlagsAttr)
+        fn set_integer_overflow_flag(&self, ctx: &Context, flag: IntegerOverflowFlagsAttr)
         where
             Self: Sized,
         {
-            op.get_operation()
+            self.get_operation()
                 .deref_mut(ctx)
                 .attributes
                 .insert(ATTR_KEY_INTEGER_OVERFLOW_FLAGS, Box::new(flag));
@@ -143,13 +144,7 @@ decl_op_interface! {
     /// An [Op] with a single result whose type is [PointerType]
     PointerTypeResult: OneResultInterface {
         /// Get the pointee type of the result pointer.
-        fn result_pointee_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-            self.result_type(ctx)
-                .deref(ctx)
-                .downcast_ref::<PointerType>()
-                .unwrap()
-                .get_pointee_type()
-        }
+        fn result_pointee_type(&self, ctx: &Context) -> Ptr<TypeObj>;
 
         fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
         where

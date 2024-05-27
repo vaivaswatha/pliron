@@ -65,7 +65,7 @@ impl Parsable for ZeroResultOp {
 
 impl ZeroResultOp {
     fn new(ctx: &mut Context) -> ZeroResultOp {
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1);
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
         *Operation::get_op(op, ctx).downcast_ref().unwrap()
     }
 }
@@ -140,7 +140,7 @@ impl_op_interface!(TestOpInterface for VerifyIntrOp {});
 impl_op_interface!(TestOpInterface2 for VerifyIntrOp {});
 impl VerifyIntrOp {
     fn new(ctx: &mut Context) -> VerifyIntrOp {
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1);
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
         *Operation::get_op(op, ctx).downcast_ref().unwrap()
     }
 }

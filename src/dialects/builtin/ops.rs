@@ -84,6 +84,7 @@ impl Parsable for ModuleOp {
             Self::get_opid_static(),
             vec![],
             vec![],
+            vec![],
             0,
         );
         let mut parser =
@@ -106,7 +107,7 @@ impl ModuleOp {
     /// The underlying [Operation] is not linked to a [BasicBlock].
     /// The returned module has a single [crate::region::Region] with a single (BasicBlock)[crate::basic_block::BasicBlock].
     pub fn new(ctx: &mut Context, name: &str) -> ModuleOp {
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1);
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
         let opop = ModuleOp { op };
         opop.set_symbol_name(ctx, name);
 
@@ -151,7 +152,7 @@ impl FuncOp {
     /// The returned function has a single region with an empty `entry` block.
     pub fn new(ctx: &mut Context, name: &str, ty: TypePtr<FunctionType>) -> Self {
         let ty_attr = TypeAttr::new(ty.into());
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], 1);
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
 
         // Create an empty entry block.
         let arg_types = ty.deref(ctx).get_inputs().clone();
@@ -237,6 +238,7 @@ impl Parsable for FuncOp {
             Self::get_opid_static(),
             vec![],
             vec![],
+            vec![],
             0,
         );
 
@@ -316,7 +318,14 @@ impl ConstantOp {
         let result_type = attr_cast::<dyn TypedAttrInterface>(&*value)
             .expect("ConstantOp const value must provide TypedAttrInterface")
             .get_type();
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![result_type], vec![], 0);
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![result_type],
+            vec![],
+            vec![],
+            0,
+        );
         op.deref_mut(ctx)
             .attributes
             .insert(Self::ATTR_KEY_VALUE, value);
@@ -444,7 +453,7 @@ impl ForwardRefOp {
     /// Create a new [ForwardRefOp].
     pub fn new(ctx: &mut Context) -> Self {
         let ty = UnitType::get(ctx).into();
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![ty], vec![], 0);
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![ty], vec![], vec![], 0);
         ForwardRefOp { op }
     }
 }

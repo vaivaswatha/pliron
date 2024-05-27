@@ -1,11 +1,15 @@
 //! Attributes belonging to the LLVM dialect.
 
-use combine::{choice, parser::char::string, Parser};
+use combine::{between, choice, parser::char::string, token, Parser};
 use pliron_derive::def_attribute;
 
 use crate::{
     context::Context,
     impl_verify_succ,
+    irfmt::{
+        parsers::{delimited_list_parser, u64_parser},
+        printers::list_with_sep,
+    },
     parsable::{self, Parsable},
     printable::{Printable, State},
 };
@@ -121,5 +125,86 @@ impl Parsable for ICmpPredicateAttr {
         .into()
     }
 }
-
 impl_verify_succ!(ICmpPredicateAttr);
+
+/// An index for a GEP can be either a constant or an SSA operand.
+/// Contrary to its name, this isn't an [Attribute][pliron::attribute::Attribute].
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub enum GepIndexAttr {
+    /// This GEP index is a raw u32 compile time constant
+    Constant(u32),
+    /// This GEP Index is the SSA value in the containing
+    /// [Operation](pliron::operation::Operation)s `operands[idx]`
+    OperandIdx(usize),
+}
+
+impl Printable for GepIndexAttr {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        match self {
+            GepIndexAttr::Constant(c) => write!(f, "c({c})"),
+            GepIndexAttr::OperandIdx(i) => write!(f, "opd({i})"),
+        }
+    }
+}
+
+impl Parsable for GepIndexAttr {
+    type Arg = ();
+    type Parsed = Self;
+
+    fn parse<'a>(
+        state_stream: &mut parsable::StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> parsable::ParseResult<'a, Self> {
+        choice((string("c"), string("opd")))
+            .and(between(token('('), token(')'), u64_parser()))
+            .parse_stream(state_stream)
+            .map(|(gidxt, i)| {
+                if gidxt == "c" {
+                    GepIndexAttr::Constant(i.try_into().unwrap())
+                } else {
+                    GepIndexAttr::OperandIdx(i as usize)
+                }
+            })
+            .into()
+    }
+}
+
+#[def_attribute("llvm.gep_indices")]
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct GepIndicesAttr(pub Vec<GepIndexAttr>);
+
+impl_verify_succ!(GepIndicesAttr);
+impl Printable for GepIndicesAttr {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(
+            f,
+            "[{}]",
+            list_with_sep(&self.0, crate::printable::ListSeparator::CharSpace(',')).disp(ctx)
+        )
+    }
+}
+
+impl Parsable for GepIndicesAttr {
+    type Arg = ();
+    type Parsed = Self;
+
+    fn parse<'a>(
+        state_stream: &mut parsable::StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> parsable::ParseResult<'a, Self::Parsed> {
+        delimited_list_parser('[', ']', ',', GepIndexAttr::parser(()))
+            .parse_stream(state_stream)
+            .map(GepIndicesAttr)
+            .into()
+    }
+}

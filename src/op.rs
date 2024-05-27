@@ -26,7 +26,7 @@
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 
 use combine::{
-    parser::{self},
+    parser::{self, char::spaces},
     token, Parser,
 };
 use downcast_rs::{impl_downcast, Downcast};
@@ -49,7 +49,8 @@ use crate::{
     input_err,
     irfmt::{
         parsers::{
-            delimited_list_parser, location, process_parsed_ssa_defs, spaced, ssa_opd_parser,
+            block_opd_parser, delimited_list_parser, location, process_parsed_ssa_defs, spaced,
+            ssa_opd_parser,
         },
         printers::{functional_type, iter_with_sep},
     },
@@ -407,7 +408,7 @@ macro_rules! decl_op_interface {
 }
 
 /// Printer for an [Op] in canonical syntax.
-/// `res_1: type_1, res_2: type_2, ... res_n: type_n = op_id (opd_1, opd_2, ... opd_n) : function-type`
+/// `res_1: type_1, res_2: type_2, ... res_n: type_n = op_id (opd_1, opd_2, ... opd_n) [succ_1, succ_2, ... succ_n] : function-type`
 /// TODO: Handle operations with regions, attributes.
 pub fn canonical_syntax_fmt(
     op: OpObj,
@@ -418,6 +419,7 @@ pub fn canonical_syntax_fmt(
     let sep = printable::ListSeparator::CharSpace(',');
     let op = op.get_operation().deref(ctx);
     let operands = iter_with_sep(op.operands(), sep);
+    let successors = iter_with_sep(op.successors(), sep);
     let op_type = functional_type(
         iter_with_sep(op.results().map(|res| res.get_type(ctx)), sep),
         iter_with_sep(op.operands().map(|opd| opd.get_type(ctx)), sep),
@@ -429,9 +431,10 @@ pub fn canonical_syntax_fmt(
     }
     let ret = write!(
         f,
-        "{} ({}) : {}",
+        "{} ({}) [{}] : {}",
         op.get_opid().disp(ctx),
         operands.disp(ctx),
+        successors.disp(ctx),
         op_type.disp(ctx),
     );
     ret
@@ -454,9 +457,10 @@ pub fn canonical_syntax_parse<'a>(
 ) -> ParseResult<'a, OpObj> {
     // Results and opid have already been parsed. Continue after that.
     delimited_list_parser('(', ')', ',', ssa_opd_parser())
+        .and(spaces().with(delimited_list_parser('[', ']', ',', block_opd_parser())))
         .skip(spaced(token(':')))
         .and((location(), FunctionType::parser(())))
-        .then(move |(operands, (fty_loc, fty))| {
+        .then(move |((operands, successors), (fty_loc, fty))| {
             let opid = opid.clone();
             let results = results.clone();
             let fty_loc = fty_loc.clone();
@@ -483,7 +487,14 @@ pub fn canonical_syntax_parse<'a>(
                         }
                     )?
                 }
-                let opr = Operation::new(ctx, opid.clone(), results_types, operands.clone(), 0);
+                let opr = Operation::new(
+                    ctx,
+                    opid.clone(),
+                    results_types,
+                    operands.clone(),
+                    successors.clone(),
+                    0,
+                );
                 let op = from_operation(ctx, opr);
                 process_parsed_ssa_defs(parsable_state, &results, opr)?;
                 Ok(op).into_parse_result()

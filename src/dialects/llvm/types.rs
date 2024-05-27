@@ -8,7 +8,7 @@ use crate::{
     identifier::Identifier,
     impl_verify_succ, input_err_noloc,
     irfmt::{
-        parsers::{delimited_list_parser, location, spaced, type_parser},
+        parsers::{delimited_list_parser, location, spaced, type_parser, u64_parser},
         printers::{enclosed, list_with_sep},
     },
     location::Located,
@@ -164,6 +164,21 @@ impl StructType {
             ctx,
         )
     }
+
+    /// Get type of the idx'th field.
+    pub fn field_type(&self, field_idx: usize) -> Ptr<TypeObj> {
+        self.fields[field_idx].field_type
+    }
+
+    /// Get name of the idx'th field.
+    pub fn field_name(&self, field_idx: usize) -> Identifier {
+        self.fields[field_idx].field_name.clone()
+    }
+
+    /// Get the number of fields this struct has
+    pub fn num_fields(&self) -> usize {
+        self.fields.len()
+    }
 }
 
 #[derive(Debug, Error)]
@@ -305,36 +320,30 @@ impl Parsable for StructType {
 
 impl Eq for StructType {}
 
+/// An opaque pointer, corresponding to LLVM's pointer type.
 #[def_type("llvm.ptr")]
 #[derive(Hash, PartialEq, Eq, Debug)]
-pub struct PointerType {
-    to: Ptr<TypeObj>,
-}
+pub struct PointerType;
 
 impl PointerType {
     /// Get or create a new pointer type.
-    pub fn get(ctx: &mut Context, to: Ptr<TypeObj>) -> TypePtr<Self> {
-        Type::register_instance(PointerType { to }, ctx)
+    pub fn get(ctx: &mut Context) -> TypePtr<Self> {
+        Type::register_instance(PointerType, ctx)
     }
     /// Get, if it already exists, a pointer type.
-    pub fn get_existing(ctx: &Context, to: Ptr<TypeObj>) -> Option<TypePtr<Self>> {
-        Type::get_instance(PointerType { to }, ctx)
-    }
-
-    /// Get the pointee type.
-    pub fn get_pointee_type(&self) -> Ptr<TypeObj> {
-        self.to
+    pub fn get_existing(ctx: &Context) -> Option<TypePtr<Self>> {
+        Type::get_instance(PointerType, ctx)
     }
 }
 
 impl Printable for PointerType {
     fn fmt(
         &self,
-        ctx: &Context,
+        _ctx: &Context,
         _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
+        _f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "<{}>", self.to.disp(ctx))
+        Ok(())
     }
 }
 
@@ -349,14 +358,74 @@ impl Parsable for PointerType {
     where
         Self: Sized,
     {
-        combine::between(token('<'), token('>'), spaced(type_parser()))
-            .parse_stream(state_stream)
-            .map(|pointee_ty| PointerType::get(state_stream.state.ctx, pointee_ty))
-            .into()
+        Ok(PointerType::get(state_stream.state.ctx)).into_parse_result()
     }
 }
 
 impl_verify_succ!(PointerType);
+
+/// Array type, corresponding to LLVM's array type.
+#[def_type("llvm.array")]
+#[derive(Hash, PartialEq, Eq, Debug)]
+pub struct ArrayType {
+    elem: Ptr<TypeObj>,
+    size: usize,
+}
+
+impl ArrayType {
+    /// Get or create a new array type.
+    pub fn get(ctx: &mut Context, elem: Ptr<TypeObj>, size: usize) -> TypePtr<Self> {
+        Type::register_instance(ArrayType { elem, size }, ctx)
+    }
+    /// Get, if it already exists, an array type.
+    pub fn get_existing(ctx: &Context, elem: Ptr<TypeObj>, size: usize) -> Option<TypePtr<Self>> {
+        Type::get_instance(ArrayType { elem, size }, ctx)
+    }
+
+    /// Get array element type.
+    pub fn elem_type(&self) -> Ptr<TypeObj> {
+        self.elem
+    }
+
+    /// Get array size.
+    pub fn size(&self) -> usize {
+        self.size
+    }
+}
+
+impl Printable for ArrayType {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "[{} x {}]", self.size, self.elem.disp(ctx))
+    }
+}
+
+impl Parsable for ArrayType {
+    type Arg = ();
+    type Parsed = TypePtr<Self>;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed>
+    where
+        Self: Sized,
+    {
+        combine::between(
+            token('['),
+            token(']'),
+            spaced((u64_parser(), spaced(token('x')), type_parser())),
+        )
+        .parse_stream(state_stream)
+        .map(|(size, _, elem)| ArrayType::get(state_stream.state.ctx, elem, size as usize))
+        .into()
+    }
+}
+impl_verify_succ!(ArrayType);
 
 #[def_type("llvm.void")]
 #[derive(Hash, PartialEq, Eq, Debug)]
@@ -458,23 +527,26 @@ pub fn register(dialect: &mut Dialect) {
 #[cfg(test)]
 mod tests {
 
-    use combine::{eof, Parser};
+    use combine::{eof, token, Parser};
     use expect_test::expect;
+    use pliron_derive::def_type;
 
     use crate::{
         common_traits::Verify,
-        context::Context,
+        context::{Context, Ptr},
+        dialect::DialectName,
         dialects::{
             self,
             builtin::types::{IntegerType, Signedness},
-            llvm::types::{FuncType, PointerType, StructErr, StructField, StructType, VoidType},
+            llvm::types::{FuncType, StructErr, StructField, StructType, VoidType},
         },
         error::{Error, ErrorKind, Result},
-        irfmt::parsers::type_parser,
+        impl_verify_succ,
+        irfmt::parsers::{spaced, type_parser},
         location,
-        parsable::{self, state_stream_from_iterator},
-        printable::Printable,
-        r#type::Type,
+        parsable::{self, state_stream_from_iterator, Parsable, ParseResult, StateStream},
+        printable::{self, Printable},
+        r#type::{Type, TypeObj, TypePtr},
     };
 
     #[test]
@@ -485,7 +557,7 @@ mod tests {
         // Create an opaque struct since we want a recursive type.
         let list_struct = StructType::get_named(&mut ctx, "LinkedList", None)?.into();
         assert!(!StructType::is_finalized(&ctx, list_struct));
-        let list_struct_ptr = PointerType::get(&mut ctx, list_struct).into();
+        let list_struct_ptr = TypedPointerType::get(&mut ctx, list_struct).into();
         let fields = vec![
             StructField {
                 field_name: "data".into(),
@@ -508,7 +580,7 @@ mod tests {
 
         assert_eq!(
             list_struct.disp(&ctx).to_string(),
-            "llvm.struct<LinkedList { data: builtin.int<i64>, next: llvm.ptr<llvm.struct<LinkedList>> }>"
+            "llvm.struct<LinkedList { data: builtin.int<i64>, next: llvm.typed_ptr<llvm.struct<LinkedList>> }>"
         );
 
         let head_fields = vec![
@@ -543,19 +615,75 @@ mod tests {
         Ok(())
     }
 
+    /// A pointer type that knows the type it points to.
+    /// This used to be in LLVM earlier, but the latest version
+    /// is now type-erased (https://llvm.org/docs/OpaquePointers.html)
+    #[def_type("llvm.typed_ptr")]
+    #[derive(Hash, PartialEq, Eq, Debug)]
+    pub struct TypedPointerType {
+        to: Ptr<TypeObj>,
+    }
+
+    impl TypedPointerType {
+        /// Get or create a new pointer type.
+        pub fn get(ctx: &mut Context, to: Ptr<TypeObj>) -> TypePtr<Self> {
+            Type::register_instance(TypedPointerType { to }, ctx)
+        }
+        /// Get, if it already exists, a pointer type.
+        pub fn get_existing(ctx: &Context, to: Ptr<TypeObj>) -> Option<TypePtr<Self>> {
+            Type::get_instance(TypedPointerType { to }, ctx)
+        }
+
+        /// Get the pointee type.
+        pub fn get_pointee_type(&self) -> Ptr<TypeObj> {
+            self.to
+        }
+    }
+
+    impl Printable for TypedPointerType {
+        fn fmt(
+            &self,
+            ctx: &Context,
+            _state: &printable::State,
+            f: &mut core::fmt::Formatter<'_>,
+        ) -> core::fmt::Result {
+            write!(f, "<{}>", self.to.disp(ctx))
+        }
+    }
+
+    impl Parsable for TypedPointerType {
+        type Arg = ();
+        type Parsed = TypePtr<Self>;
+
+        fn parse<'a>(
+            state_stream: &mut StateStream<'a>,
+            _arg: Self::Arg,
+        ) -> ParseResult<'a, Self::Parsed>
+        where
+            Self: Sized,
+        {
+            combine::between(token('<'), token('>'), spaced(type_parser()))
+                .parse_stream(state_stream)
+                .map(|pointee_ty| TypedPointerType::get(state_stream.state.ctx, pointee_ty))
+                .into()
+        }
+    }
+
+    impl_verify_succ!(TypedPointerType);
+
     #[test]
     fn test_pointer_types() {
         let mut ctx = Context::new();
         let int32_1_ptr = IntegerType::get(&mut ctx, 32, Signedness::Signed);
         let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signed).into();
 
-        let int64pointer_ptr = PointerType { to: int64_ptr };
+        let int64pointer_ptr = TypedPointerType { to: int64_ptr };
         let int64pointer_ptr = Type::register_instance(int64pointer_ptr, &mut ctx);
         assert_eq!(
             int64pointer_ptr.disp(&ctx).to_string(),
-            "llvm.ptr<builtin.int<si64>>"
+            "llvm.typed_ptr<builtin.int<si64>>"
         );
-        assert!(int64pointer_ptr == PointerType::get(&mut ctx, int64_ptr));
+        assert!(int64pointer_ptr == TypedPointerType::get(&mut ctx, int64_ptr));
 
         assert!(
             int64_ptr
@@ -567,7 +695,7 @@ mod tests {
         );
 
         assert!(IntegerType::get_existing(&ctx, 32, Signedness::Signed).unwrap() == int32_1_ptr);
-        assert!(PointerType::get_existing(&ctx, int64_ptr).unwrap() == int64pointer_ptr);
+        assert!(TypedPointerType::get_existing(&ctx, int64_ptr).unwrap() == int64pointer_ptr);
         assert!(int64pointer_ptr.deref(&ctx).get_pointee_type() == int64_ptr);
     }
 
@@ -576,14 +704,21 @@ mod tests {
         let mut ctx = Context::new();
         dialects::builtin::register(&mut ctx);
         dialects::llvm::register(&mut ctx);
+        TypedPointerType::register_type_in_dialect(
+            &mut ctx.dialects.get_mut(&DialectName::new("llvm")).unwrap(),
+            TypedPointerType::parser_fn,
+        );
 
         let state_stream = state_stream_from_iterator(
-            "llvm.ptr <builtin.int <si64>>".chars(),
+            "llvm.typed_ptr <builtin.int <si64>>".chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
         let res = type_parser().parse(state_stream).unwrap().0;
-        assert_eq!(&res.disp(&ctx).to_string(), "llvm.ptr<builtin.int<si64>>");
+        assert_eq!(
+            &res.disp(&ctx).to_string(),
+            "llvm.typed_ptr<builtin.int<si64>>"
+        );
     }
 
     #[test]
@@ -591,14 +726,19 @@ mod tests {
         let mut ctx = Context::new();
         dialects::builtin::register(&mut ctx);
         dialects::llvm::register(&mut ctx);
+        TypedPointerType::register_type_in_dialect(
+            &mut ctx.dialects.get_mut(&DialectName::new("llvm")).unwrap(),
+            TypedPointerType::parser_fn,
+        );
 
         let state_stream = state_stream_from_iterator(
-            "llvm.struct<LinkedList { data: builtin.int<i64>, next: llvm.ptr<llvm.struct<LinkedList>> }>".chars(),
+            "llvm.struct<LinkedList { data: builtin.int<i64>, next: llvm.typed_ptr<llvm.struct<LinkedList>> }>".chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
         let res = type_parser().parse(state_stream).unwrap().0;
-        assert_eq!(&res.disp(&ctx).to_string(), "llvm.struct<LinkedList { data: builtin.int<i64>, next: llvm.ptr<llvm.struct<LinkedList>> }>");
+        assert_eq!(&res.disp(&ctx).to_string(),
+            "llvm.struct<LinkedList { data: builtin.int<i64>, next: llvm.typed_ptr<llvm.struct<LinkedList>> }>");
     }
 
     #[test]

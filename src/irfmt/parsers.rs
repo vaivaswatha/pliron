@@ -11,7 +11,11 @@ use crate::{
     r#type::TypeObj,
     use_def_lists::Value,
 };
-use combine::{between, parser::char::spaces, sep_by, token, Parser, Stream};
+use combine::{
+    between, many1,
+    parser::char::{digit, spaces},
+    sep_by, token, Parser, Stream,
+};
 
 /// Parse from `parser`, ignoring whitespace(s) before and after.
 /// > **Warning**: Do not use this inside inside repeating combiners, such as [combine::many].
@@ -48,6 +52,18 @@ pub fn location<'a>() -> Box<dyn Parser<StateStream<'a>, Output = Location, Part
 pub fn type_parser<'a>(
 ) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
     Ptr::<TypeObj>::parser(())
+}
+
+pub fn u64_parse<'a>(state_stream: &mut StateStream<'a>, _arg: ()) -> ParseResult<'a, u64> {
+    many1::<String, _, _>(digit())
+        .and_then(|digits| digits.parse::<u64>())
+        .parse_stream(state_stream)
+        .into()
+}
+
+pub fn u64_parser<'a>() -> Box<dyn Parser<StateStream<'a>, Output = u64, PartialState = ()> + 'a> {
+    combine::parser(move |parsable_state: &mut StateStream<'a>| u64_parse(parsable_state, ()))
+        .boxed()
 }
 
 /// A parser combinator to parse [AttrId](crate::attribute::AttrId) followed by the attribute's contents.

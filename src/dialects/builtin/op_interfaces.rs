@@ -30,6 +30,65 @@ decl_op_interface! {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum BranchOpInterfaceVerifyErr {
+    #[error("Branch Op is passing {provided} arguments, but target block expects {expected}")]
+    SuccessorOperandsMismatch { provided: usize, expected: usize },
+    #[error("Forwarded operand at {idx} is of type {forwarded}, but should've been {expected}")]
+    SuccessorOperandTypeMismatch {
+        idx: usize,
+        forwarded: String,
+        expected: String,
+    },
+}
+
+decl_op_interface! {
+    /// This [terminator](IsTerminatorInterface) [Op] branches to
+    /// other [BasicBlock]s, possibly passing arguments to the target block.
+    ///
+    /// This is similar to MLIR's
+    /// [BranchOpInterface](https://github.com/llvm/llvm-project/blob/b1f04d57f5818914d7db506985e2932f217844bd/mlir/include/mlir/Interfaces/ControlFlowInterfaces.td)
+    /// but is stricter: (1) Produced operands aren't supported, just forwarded.
+    /// (2) Type of the value passed is expected to be the same as the target block argument.
+    BranchOpInterface: IsTerminatorInterface {
+        /// Get a list of [Value]s that are forwarded to the target block.
+        fn successor_operands(&self, ctx: &Context, succ_idx: usize) -> Vec<Value>;
+
+        fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            let self_op = op_cast::<dyn BranchOpInterface>(op).unwrap();
+            // Verify that the values passed to a target block
+            // matches the arguments of that block.
+            for (succ_idx, succ) in op.get_operation().deref(ctx).successors().enumerate() {
+                let succ = &*succ.deref(ctx);
+                let operands = self_op.successor_operands(ctx, succ_idx);
+                if succ.get_num_arguments() != operands.len() {
+                    return verify_err!(
+                        op.get_operation().deref(ctx).loc(),
+                        BranchOpInterfaceVerifyErr::SuccessorOperandsMismatch
+                        { provided: operands.len(), expected: succ.get_num_arguments() }
+                    );
+                }
+                for (idx, operand) in operands.iter().enumerate() {
+                    let block_arg = succ.get_argument(idx).unwrap();
+                    if operand.get_type(ctx) != block_arg.get_type(ctx) {
+                        return verify_err!(
+                            op.get_operation().deref(ctx).loc(),
+                            BranchOpInterfaceVerifyErr::SuccessorOperandTypeMismatch {
+                                idx,
+                                forwarded: operand.get_type(ctx).disp(ctx).to_string(),
+                                expected: block_arg.get_type(ctx).disp(ctx).to_string(),
+                            });
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
 /// Describe the abstract semantics of [Regions](crate::region::Region).
 ///
 /// See MLIR's [RegionKind](https://mlir.llvm.org/docs/Interfaces/#regionkindinterfaces).

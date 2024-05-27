@@ -1,8 +1,4 @@
-use combine::{
-    between, choice, many1,
-    parser::{char::digit, char::string},
-    token, Parser,
-};
+use combine::{between, choice, parser::char::string, token, Parser};
 use pliron_derive::def_type;
 
 use crate::{
@@ -12,7 +8,7 @@ use crate::{
     error::Result,
     impl_verify_succ,
     irfmt::{
-        parsers::{delimited_list_parser, spaced, type_parser},
+        parsers::{delimited_list_parser, spaced, type_parser, u64_parser},
         printers::{functional_type, list_with_sep},
     },
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
@@ -77,12 +73,11 @@ impl Parsable for IntegerType {
         ));
 
         // followed by an integer.
-        let parser = choicer
-            .and(many1::<String, _, _>(digit()).map(|digits| digits.parse::<u64>().unwrap()));
+        let parser = choicer.and(u64_parser());
 
         let mut parser = between(token('<'), token('>'), spaced(parser));
         parser
-            .parse_stream(&mut state_stream.stream)
+            .parse_stream(state_stream)
             .map(|(signedness, width)| IntegerType::get(state_stream.state.ctx, width, signedness))
             .into()
     }
