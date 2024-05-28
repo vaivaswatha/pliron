@@ -355,7 +355,7 @@ pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 /// #
 /// # impl Printable for MyAttr {
 /// #    fn fmt(&self, _ctx: &Context, _state: &printable::State, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-/// #        todo!()
+/// #        unimplemented!()
 /// #    }
 /// # }
 /// # pliron::impl_verify_succ!(MyAttr);

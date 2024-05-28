@@ -2,10 +2,8 @@ use combine::{between, choice, parser::char::string, token, Parser};
 use pliron_derive::def_type;
 
 use crate::{
-    common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
-    error::Result,
     impl_verify_succ,
     irfmt::{
         parsers::{delimited_list_parser, spaced, type_parser, u64_parser},
@@ -100,11 +98,7 @@ impl Printable for IntegerType {
     }
 }
 
-impl Verify for IntegerType {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        todo!()
-    }
-}
+impl_verify_succ!(IntegerType);
 
 /// Map from a list of inputs to a list of results
 ///
@@ -190,11 +184,7 @@ impl Parsable for FunctionType {
     }
 }
 
-impl Verify for FunctionType {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        todo!()
-    }
-}
+impl_verify_succ!(FunctionType);
 
 #[def_type("builtin.unit")]
 #[derive(Hash, PartialEq, Eq, Debug)]

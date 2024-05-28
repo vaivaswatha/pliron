@@ -49,7 +49,7 @@ use thiserror::Error;
 ///     }
 ///     # impl Printable for IntType {
 ///     #   fn fmt(&self, _: &Context, _: &State, _: &mut Formatter<'_>) -> fmt::Result {
-///     #       todo!()
+///     #       unimplemented!()
 ///     #   }
 ///     # }
 /// ```

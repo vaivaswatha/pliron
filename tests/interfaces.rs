@@ -59,7 +59,7 @@ impl Parsable for ZeroResultOp {
         _state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
-        todo!()
+        unimplemented!()
     }
 }
 
