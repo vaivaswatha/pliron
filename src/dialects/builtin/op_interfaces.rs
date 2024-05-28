@@ -195,17 +195,15 @@ decl_op_interface! {
         // Get the name of the symbol defined by this operation.
         fn get_symbol_name(&self, ctx: &Context) -> String {
             let self_op = self.get_operation().deref(ctx);
-            let s_attr = self_op.attributes.get(super::ATTR_KEY_SYM_NAME).unwrap();
-            String::from(s_attr.downcast_ref::<StringAttr>().unwrap().clone())
+            let s_attr = self_op.attributes.get::<StringAttr>(super::ATTR_KEY_SYM_NAME).unwrap();
+            String::from(s_attr.clone())
         }
 
         /// Set a name for the symbol defined by this operation.
         fn set_symbol_name(&self, ctx: &mut Context, name: &str) {
             let name_attr = StringAttr::new(name.to_string());
             let mut self_op = self.get_operation().deref_mut(ctx);
-            self_op
-                .attributes
-                .insert(super::ATTR_KEY_SYM_NAME, name_attr.into());
+            self_op.attributes.set(super::ATTR_KEY_SYM_NAME, name_attr);
         }
 
         fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>

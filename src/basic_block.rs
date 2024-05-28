@@ -4,10 +4,9 @@ use combine::{
     parser::{char::spaces, Parser},
     sep_by, token,
 };
-use rustc_hash::FxHashMap;
 
 use crate::{
-    attribute::AttrObj,
+    attribute::AttributeDict,
     common_traits::{Named, Verify},
     context::{private::ArenaObj, ArenaCell, Context, Ptr},
     debug_info::{get_block_arg_name, set_block_arg_name},
@@ -121,7 +120,7 @@ pub struct BasicBlock {
     /// previous and next [BasicBlock]s in the block.
     region_links: RegionLinks,
     /// A dictionary of attributes.
-    pub attributes: FxHashMap<&'static str, AttrObj>,
+    pub attributes: AttributeDict,
 }
 
 impl Named for BasicBlock {
@@ -147,7 +146,7 @@ impl BasicBlock {
             ops_list: OpsInBlock::default(),
             preds: DefNode::new(),
             region_links: RegionLinks::default(),
-            attributes: FxHashMap::default(),
+            attributes: AttributeDict::default(),
         };
         let newblock = Self::alloc(ctx, f);
         // Let's update the args of the new block. Easier to do it here than during creation.

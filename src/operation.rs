@@ -496,7 +496,7 @@ impl<T: DefUseParticipant + DefTrait> Verify for Operand<T> {
 
 impl Verify for Operation {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        for attr in self.attributes.values() {
+        for attr in self.attributes.0.values() {
             attr.verify(ctx)?;
             attr.verify_interfaces(ctx)?;
         }

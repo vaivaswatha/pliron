@@ -162,9 +162,7 @@ impl FuncOp {
         {
             let opref = &mut *op.deref_mut(ctx);
             // Set function type attributes.
-            opref
-                .attributes
-                .insert(Self::ATTR_KEY_FUNC_TYPE, ty_attr.into());
+            opref.attributes.set(Self::ATTR_KEY_FUNC_TYPE, ty_attr);
         }
         let opop = FuncOp { op };
         opop.set_symbol_name(ctx, name);
@@ -175,8 +173,9 @@ impl FuncOp {
     /// Get the function signature (type).
     pub fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         let opref = self.get_operation().deref(ctx);
-        let ty_attr = opref.attributes.get(Self::ATTR_KEY_FUNC_TYPE).unwrap();
-        attr_cast::<dyn TypedAttrInterface>(&**ty_attr)
+        opref
+            .attributes
+            .get_as::<dyn TypedAttrInterface>(Self::ATTR_KEY_FUNC_TYPE)
             .unwrap()
             .get_type()
     }
@@ -257,9 +256,7 @@ impl Parsable for FuncOp {
                     let ty_attr = TypeAttr::new(fty);
                     let opref = &mut *op.deref_mut(ctx);
                     // Set function type attributes.
-                    opref
-                        .attributes
-                        .insert(Self::ATTR_KEY_FUNC_TYPE, ty_attr.into());
+                    opref.attributes.set(Self::ATTR_KEY_FUNC_TYPE, ty_attr);
                 }
                 let opop = Box::new(FuncOp { op });
                 opop.set_symbol_name(ctx, &fname);
@@ -310,7 +307,7 @@ impl ConstantOp {
     /// Get the constant value that this Op defines.
     pub fn get_value(&self, ctx: &Context) -> AttrObj {
         let op = self.get_operation().deref(ctx);
-        op.attributes.get(Self::ATTR_KEY_VALUE).unwrap().clone()
+        op.attributes.0.get(Self::ATTR_KEY_VALUE).unwrap().clone()
     }
 
     /// Create a new [ConstantOp].
@@ -328,6 +325,7 @@ impl ConstantOp {
         );
         op.deref_mut(ctx)
             .attributes
+            .0
             .insert(Self::ATTR_KEY_VALUE, value);
         ConstantOp { op }
     }

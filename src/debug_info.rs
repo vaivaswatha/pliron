@@ -2,10 +2,8 @@
 
 use std::collections::hash_map;
 
-use rustc_hash::FxHashMap;
-
 use crate::{
-    attribute::AttrObj,
+    attribute::{AttrObj, AttributeDict},
     basic_block::BasicBlock,
     context::{Context, Ptr},
     dialects::builtin::{
@@ -20,13 +18,13 @@ use crate::{
 const DEBUG_INFO_KEY_NAME: &str = "debug_info.name";
 
 fn set_name_from_attr_map(
-    attributes: &mut FxHashMap<&str, AttrObj>,
+    attributes: &mut AttributeDict,
     idx: usize,
     max_idx: usize,
     name: String,
 ) {
     let name_attr: AttrObj = StringAttr::new(name).into();
-    match attributes.entry(ATTR_KEY_DEBUG_INFO) {
+    match attributes.0.entry(ATTR_KEY_DEBUG_INFO) {
         hash_map::Entry::Occupied(mut occupied) => {
             let di_dict = occupied.get_mut().downcast_mut::<SmallDictAttr>().unwrap();
             let expect_msg = "Existing attribute entry for result names incorrect";
@@ -48,20 +46,21 @@ fn set_name_from_attr_map(
 }
 
 fn get_name_from_attr_map(
-    attributes: &FxHashMap<&str, AttrObj>,
+    attributes: &AttributeDict,
     idx: usize,
     panic_msg: &str,
 ) -> Option<String> {
-    attributes.get(ATTR_KEY_DEBUG_INFO).and_then(|di_dict| {
-        let di_dict = di_dict.downcast_ref::<SmallDictAttr>().expect(panic_msg);
-        di_dict.lookup(DEBUG_INFO_KEY_NAME).and_then(|names| {
-            let names = names.downcast_ref::<VecAttr>().expect(panic_msg);
-            names.0.get(idx).and_then(|name| {
-                name.downcast_ref::<StringAttr>()
-                    .map(|name_attr| String::from(name_attr.clone()))
+    attributes
+        .get::<SmallDictAttr>(ATTR_KEY_DEBUG_INFO)
+        .and_then(|di_dict| {
+            di_dict.lookup(DEBUG_INFO_KEY_NAME).and_then(|names| {
+                let names = names.downcast_ref::<VecAttr>().expect(panic_msg);
+                names.0.get(idx).and_then(|name| {
+                    name.downcast_ref::<StringAttr>()
+                        .map(|name_attr| String::from(name_attr.clone()))
+                })
             })
         })
-    })
 }
 
 /// Set the name for a result in an [Operation].

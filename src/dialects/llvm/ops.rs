@@ -2,7 +2,6 @@
 
 use crate::{
     arg_err_noloc,
-    attribute::attr_cast,
     basic_block::BasicBlock,
     common_traits::Verify,
     context::{Context, Ptr},
@@ -282,7 +281,7 @@ impl ICmpOp {
         );
         op.deref_mut(ctx)
             .attributes
-            .insert(Self::ATTR_KEY_PREDICATE, Box::new(pred));
+            .set(Self::ATTR_KEY_PREDICATE, pred);
         ICmpOp { op }
     }
 }
@@ -292,10 +291,11 @@ impl Verify for ICmpOp {
         let loc = self.get_operation().deref(ctx).loc();
         let op = &*self.op.deref(ctx);
 
-        let Some(attr) = op.attributes.get(Self::ATTR_KEY_PREDICATE) else {
-            verify_err!(op.loc(), ICmpOpVerifyErr::PredAttrErr)?
-        };
-        if attr.is::<ICmpPredicateAttr>() {
+        if op
+            .attributes
+            .get::<ICmpPredicateAttr>(Self::ATTR_KEY_PREDICATE)
+            .is_none()
+        {
             verify_err!(op.loc(), ICmpOpVerifyErr::PredAttrErr)?
         }
 
@@ -358,10 +358,11 @@ impl Verify for AllocaOp {
         }
         let op = &*self.op.deref(ctx);
         // Ensure correctness of element type.
-        let Some(attr) = op.attributes.get(Self::ATTR_KEY_ELEM_TYPE) else {
-            verify_err!(op.loc(), AllocaOpVerifyErr::ElemTypeAttr)?
-        };
-        if !attr.is::<TypeAttr>() {
+        if op
+            .attributes
+            .get::<TypeAttr>(Self::ATTR_KEY_ELEM_TYPE)
+            .is_none()
+        {
             verify_err!(op.loc(), AllocaOpVerifyErr::ElemTypeAttr)?
         }
 
@@ -375,10 +376,8 @@ impl_op_interface!(PointerTypeResult for AllocaOp {
         self.op
         .deref(ctx)
         .attributes
-        .get(Self::ATTR_KEY_ELEM_TYPE)
-        .expect("AllocaOp missing elem_type attribute")
-        .downcast_ref::<TypeAttr>()
-        .expect("AllocaOp has incorrect elem_type attribute type")
+        .get::<TypeAttr>(Self::ATTR_KEY_ELEM_TYPE)
+        .expect("AllocaOp missing or incorrect type for elem_type attribute")
         .get_type()
     }
 });
@@ -399,7 +398,7 @@ impl AllocaOp {
         );
         op.deref_mut(ctx)
             .attributes
-            .insert(Self::ATTR_KEY_ELEM_TYPE, Box::new(TypeAttr::new(elem_type)));
+            .set(Self::ATTR_KEY_ELEM_TYPE, TypeAttr::new(elem_type));
         AllocaOp { op }
     }
 }
@@ -565,10 +564,11 @@ impl Verify for GetElementPtrOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let op = &*self.op.deref(ctx);
         // Ensure that we have the indices as an attribute.
-        let Some(attr) = op.attributes.get(Self::ATTR_KEY_INDICES) else {
-            verify_err!(op.loc(), GetElementPtrOpErr::IndicesAttrErr)?
-        };
-        if !attr.is::<GepIndicesAttr>() {
+        if op
+            .attributes
+            .get::<GepIndicesAttr>(Self::ATTR_KEY_INDICES)
+            .is_none()
+        {
             verify_err!(op.loc(), GetElementPtrOpErr::IndicesAttrErr)?
         }
 
@@ -612,10 +612,10 @@ impl GetElementPtrOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], opds, vec![], 0);
         op.deref_mut(ctx)
             .attributes
-            .insert(Self::ATTR_KEY_INDICES, Box::new(GepIndicesAttr(attr)));
+            .set(Self::ATTR_KEY_INDICES, GepIndicesAttr(attr));
         op.deref_mut(ctx)
             .attributes
-            .insert(Self::ATTR_KEY_SRC_ELEM_TYPE, Box::new(elem_type));
+            .set(Self::ATTR_KEY_SRC_ELEM_TYPE, elem_type);
         GetElementPtrOp { op }
     }
 
@@ -624,10 +624,8 @@ impl GetElementPtrOp {
         self.op
             .deref(ctx)
             .attributes
-            .get(Self::ATTR_KEY_SRC_ELEM_TYPE)
-            .expect("GetElemPtrOp missing elem_type attribute")
-            .downcast_ref::<TypeAttr>()
-            .expect("GetElementPtrOp has incorrect src_elem_type attribute type")
+            .get::<TypeAttr>(Self::ATTR_KEY_SRC_ELEM_TYPE)
+            .expect("GetElementPtrOp missing or has incorrect src_elem_type attribute type")
             .get_type()
     }
 
@@ -639,8 +637,8 @@ impl GetElementPtrOp {
     /// Get the indices of this GEP.
     pub fn indices(&self, ctx: &Context) -> Vec<GepIndex> {
         let op = &*self.op.deref(ctx);
-        let indices = op.attributes.get(Self::ATTR_KEY_INDICES).unwrap();
-        attr_cast::<GepIndicesAttr>(&**indices)
+        op.attributes
+            .get::<GepIndicesAttr>(Self::ATTR_KEY_INDICES)
             .unwrap()
             .0
             .iter()

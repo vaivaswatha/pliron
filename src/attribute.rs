@@ -54,7 +54,31 @@ use crate::{
     printable::{self, Printable},
 };
 
-pub type AttributeDict = FxHashMap<&'static str, AttrObj>;
+/// A dictionary of attributes, mapping keys to attribute objects.
+#[derive(Default)]
+pub struct AttributeDict(pub FxHashMap<&'static str, AttrObj>);
+
+impl AttributeDict {
+    /// Get reference to attribute value that is mapped to key `k`.
+    pub fn get<T: Attribute>(&self, k: &'static str) -> Option<&T> {
+        self.0.get(k).and_then(|ao| ao.downcast_ref::<T>())
+    }
+
+    /// Get mutable reference to attribute value that is mapped to key `k`.
+    pub fn get_mut<T: Attribute>(&mut self, k: &'static str) -> Option<&mut T> {
+        self.0.get_mut(k).and_then(|ao| ao.downcast_mut::<T>())
+    }
+
+    /// Reference to the attribute value (that is mapped to key `k`) as an interface reference.
+    pub fn get_as<T: ?Sized + Attribute>(&self, k: &'static str) -> Option<&T> {
+        self.0.get(k).and_then(|ao| attr_cast::<T>(&**ao))
+    }
+
+    /// Set the attribute value for key `k`.
+    pub fn set<T: Attribute>(&mut self, k: &'static str, v: T) {
+        self.0.insert(k, Box::new(v));
+    }
+}
 
 /// Basic functionality that every attribute in the IR must implement.
 ///

@@ -103,10 +103,8 @@ decl_op_interface! {
             self.get_operation()
                 .deref(ctx)
                 .attributes
-                .get(ATTR_KEY_INTEGER_OVERFLOW_FLAGS)
-                .expect("Integer overflow flag missing")
-                .downcast_ref::<IntegerOverflowFlagsAttr>()
-                .expect("Attribute expected to be IntegerOverflowFlag")
+                .get::<IntegerOverflowFlagsAttr>(ATTR_KEY_INTEGER_OVERFLOW_FLAGS)
+                .expect("Integer overflow flag missing or is of incorrect type")
                 .clone()
         }
 
@@ -118,7 +116,7 @@ decl_op_interface! {
             self.get_operation()
                 .deref_mut(ctx)
                 .attributes
-                .insert(ATTR_KEY_INTEGER_OVERFLOW_FLAGS, Box::new(flag));
+                .set(ATTR_KEY_INTEGER_OVERFLOW_FLAGS, flag);
         }
 
         fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
@@ -126,7 +124,8 @@ decl_op_interface! {
             Self: Sized,
         {
             let op = op.get_operation().deref(ctx);
-            if !matches!(op.attributes.get(ATTR_KEY_INTEGER_OVERFLOW_FLAGS), Some(attr) if attr.is::<IntegerOverflowFlagsAttr>())
+            if op.attributes.get::<IntegerOverflowFlagsAttr>
+                (ATTR_KEY_INTEGER_OVERFLOW_FLAGS).is_none()
             {
                 return verify_err!(op.loc(), IntBinArithOpWithOverflowFlagErr);
             }
