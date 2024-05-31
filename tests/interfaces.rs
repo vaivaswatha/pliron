@@ -167,19 +167,18 @@ fn test_op_intr_verify_order() -> Result<()> {
 }
 
 decl_attr_interface! {
-    TestAttrInterface {
+    TestAttrInterfaceX {
         fn verify(_op: &dyn Attribute, _ctx: &Context) -> Result<()>
         where
             Self: Sized,
         {
-            *TEST_ATTR_VERIFIERS_OUTPUT.lock().unwrap() += "TestAttrInterface verified\n";
             Ok(())
         }
     }
 }
 
-impl_attr_interface!(TestAttrInterface for StringAttr {});
-impl_attr_interface!(TestAttrInterface for IntegerAttr {});
+impl_attr_interface!(TestAttrInterfaceX for StringAttr {});
+impl_attr_interface!(TestAttrInterfaceX for IntegerAttr {});
 
 #[def_attribute("test.my_attr")]
 #[derive(PartialEq, Clone, Debug)]
@@ -224,6 +223,18 @@ impl Printable for VerifyIntrAttr {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         write!(f, "VerifyIntAttr")
+    }
+}
+
+decl_attr_interface! {
+    TestAttrInterface {
+        fn verify(_op: &dyn Attribute, _ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            *TEST_ATTR_VERIFIERS_OUTPUT.lock().unwrap() += "TestAttrInterface verified\n";
+            Ok(())
+        }
     }
 }
 
