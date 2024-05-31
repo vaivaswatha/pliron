@@ -3,8 +3,8 @@
 use std::fmt;
 
 use crate::{
+    builtin::op_interfaces::{OneRegionInterface, SymbolOpInterface},
     context::Context,
-    dialects::builtin::op_interfaces::{OneRegionInterface, SymbolOpInterface},
     op::Op,
     printable::{Printable, State},
     r#type::Typed,

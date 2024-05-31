@@ -31,7 +31,6 @@ use combine::{
 };
 use downcast_rs::{impl_downcast, Downcast};
 use linkme::distributed_slice;
-use once_cell::sync::Lazy;
 use rustc_hash::FxHashMap;
 use std::{
     fmt::{self, Display},
@@ -40,10 +39,10 @@ use std::{
 use thiserror::Error;
 
 use crate::{
+    builtin::types::FunctionType,
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::{Dialect, DialectName},
-    dialects::builtin::types::FunctionType,
     error::Result,
     identifier::Identifier,
     input_err,
@@ -269,10 +268,10 @@ macro_rules! impl_op_interface {
         }
         const _: () = {
             #[linkme::distributed_slice(pliron::op::OP_INTERFACE_VERIFIERS)]
-            static INTERFACE_VERIFIER: once_cell::sync::Lazy<
+            static INTERFACE_VERIFIER: $crate::Lazy<
                 (pliron::op::OpId, (std::any::TypeId, pliron::op::OpInterfaceVerifier))
             > =
-            once_cell::sync::Lazy::new(||
+            $crate::Lazy::new(||
                 ($op_name::get_opid_static(), (std::any::TypeId::of::<dyn $intr_name>(),
                      <$op_name as $intr_name>::verify))
             );
@@ -282,17 +281,20 @@ macro_rules! impl_op_interface {
 
 /// [Op]s paired with every interface it implements (and the verifier for that interface).
 #[distributed_slice]
-pub static OP_INTERFACE_VERIFIERS: [Lazy<(OpId, (std::any::TypeId, OpInterfaceVerifier))>];
+pub static OP_INTERFACE_VERIFIERS: [crate::Lazy<(
+    OpId,
+    (std::any::TypeId, OpInterfaceVerifier),
+)>];
 
 /// All interfaces mapped to their super-interfaces
 #[distributed_slice]
-pub static OP_INTERFACE_DEPS: [Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>];
+pub static OP_INTERFACE_DEPS: [crate::Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>];
 
 /// A map from every [Op] to its ordered (as per interface deps) list of interface verifiers.
 /// An interface's super-interfaces are to be verified before it itself is.
-pub static OP_INTERFACE_VERIFIERS_MAP: Lazy<
+pub static OP_INTERFACE_VERIFIERS_MAP: crate::Lazy<
     FxHashMap<OpId, Vec<(std::any::TypeId, OpInterfaceVerifier)>>,
-> = Lazy::new(|| {
+> = crate::Lazy::new(|| {
     use std::any::TypeId;
     // Collect OP_INTERFACE_VERIFIERS into an [OpId] indexed map.
     let mut op_intr_verifiers = FxHashMap::default();
@@ -367,7 +369,7 @@ pub static OP_INTERFACE_VERIFIERS_MAP: Lazy<
 /// Example: Here `SameOperandsAndResultType` and `SymbolOpInterface` are super interfaces
 /// for the new interface `MyOpIntr`.
 /// ```
-/// # use pliron::dialects::builtin::op_interfaces::{SameOperandsAndResultType, SymbolOpInterface};
+/// # use pliron::builtin::op_interfaces::{SameOperandsAndResultType, SymbolOpInterface};
 /// # use pliron::{decl_op_interface, op::Op, context::Context, error::Result};
 /// decl_op_interface!(
 ///     /// MyOpIntr is my first op interface.
@@ -399,8 +401,8 @@ macro_rules! decl_op_interface {
         }
         const _: () = {
             #[linkme::distributed_slice(pliron::op::OP_INTERFACE_DEPS)]
-            static INTERFACE_DEP: once_cell::sync::Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>
-                = once_cell::sync::Lazy::new(|| {
+            static INTERFACE_DEP: $crate::Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>
+                = $crate::Lazy::new(|| {
                     (std::any::TypeId::of::<dyn $intr_name>(), vec![$(std::any::TypeId::of::<dyn $dep>(),)*])
              });
         };

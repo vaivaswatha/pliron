@@ -1,4 +1,4 @@
-use crate::{
+use pliron::{
     context::Context,
     dialect::{Dialect, DialectName},
 };

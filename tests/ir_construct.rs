@@ -1,12 +1,10 @@
 use apint::ApInt;
 use expect_test::{expect, Expect};
 use pliron::{
+    builtin::{attributes::IntegerAttr, op_interfaces::OneResultInterface, ops::ConstantOp},
     common_traits::Verify,
     context::Context,
     debug_info::set_operation_result_name,
-    dialects::builtin::{
-        attributes::IntegerAttr, op_interfaces::OneResultInterface, ops::ConstantOp,
-    },
     error::Result,
     irfmt::parsers::spaced,
     location,

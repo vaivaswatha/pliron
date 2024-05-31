@@ -1,6 +1,7 @@
 //! [Type]s defined in the LLVM dialect.
 
-use crate::{
+use combine::{between, optional, parser::char::spaces, token, Parser};
+use pliron::{
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
@@ -17,7 +18,6 @@ use crate::{
     r#type::{Type, TypeObj, TypePtr},
     verify_err_noloc,
 };
-use combine::{between, optional, parser::char::spaces, token, Parser};
 use pliron_derive::def_type;
 use thiserror::Error;
 
@@ -527,19 +527,20 @@ pub fn register(dialect: &mut Dialect) {
 #[cfg(test)]
 mod tests {
 
+    use crate as llvm;
     use combine::{eof, token, Parser};
     use expect_test::expect;
     use pliron_derive::def_type;
 
-    use crate::{
+    use crate::types::{FuncType, StructErr, StructField, StructType, VoidType};
+    use pliron::{
+        builtin::{
+            self,
+            types::{IntegerType, Signedness},
+        },
         common_traits::Verify,
         context::{Context, Ptr},
         dialect::DialectName,
-        dialects::{
-            self,
-            builtin::types::{IntegerType, Signedness},
-            llvm::types::{FuncType, StructErr, StructField, StructType, VoidType},
-        },
         error::{Error, ErrorKind, Result},
         impl_verify_succ,
         irfmt::parsers::{spaced, type_parser},
@@ -702,8 +703,8 @@ mod tests {
     #[test]
     fn test_pointer_type_parsing() {
         let mut ctx = Context::new();
-        dialects::builtin::register(&mut ctx);
-        dialects::llvm::register(&mut ctx);
+        builtin::register(&mut ctx);
+        llvm::register(&mut ctx);
         TypedPointerType::register_type_in_dialect(
             &mut ctx.dialects.get_mut(&DialectName::new("llvm")).unwrap(),
             TypedPointerType::parser_fn,
@@ -724,8 +725,8 @@ mod tests {
     #[test]
     fn test_struct_type_parsing() {
         let mut ctx = Context::new();
-        dialects::builtin::register(&mut ctx);
-        dialects::llvm::register(&mut ctx);
+        builtin::register(&mut ctx);
+        llvm::register(&mut ctx);
         TypedPointerType::register_type_in_dialect(
             &mut ctx.dialects.get_mut(&DialectName::new("llvm")).unwrap(),
             TypedPointerType::parser_fn,
@@ -744,8 +745,8 @@ mod tests {
     #[test]
     fn test_struct_type_errs() {
         let mut ctx = Context::new();
-        dialects::builtin::register(&mut ctx);
-        dialects::llvm::register(&mut ctx);
+        builtin::register(&mut ctx);
+        llvm::register(&mut ctx);
 
         let state_stream = state_stream_from_iterator(
             "llvm.struct < My1 { f1: builtin.int<i8> } >".chars(),
@@ -782,8 +783,8 @@ mod tests {
     #[test]
     fn test_functype_parsing() {
         let mut ctx = Context::new();
-        dialects::builtin::register(&mut ctx);
-        dialects::llvm::register(&mut ctx);
+        builtin::register(&mut ctx);
+        llvm::register(&mut ctx);
 
         let si32 = IntegerType::get(&mut ctx, 32, Signedness::Signed);
 

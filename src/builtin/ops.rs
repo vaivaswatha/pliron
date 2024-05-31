@@ -5,10 +5,10 @@ use thiserror::Error;
 use crate::{
     attribute::{attr_cast, AttrObj},
     basic_block::BasicBlock,
+    builtin::op_interfaces::ZeroResultInterface,
     common_traits::{Named, Verify},
     context::{Context, Ptr},
     dialect::Dialect,
-    dialects::builtin::op_interfaces::ZeroResultInterface,
     error::Result,
     identifier::Identifier,
     impl_op_interface, impl_verify_succ, input_err,

@@ -5,11 +5,11 @@ use std::collections::hash_map;
 use crate::{
     attribute::{AttrObj, AttributeDict},
     basic_block::BasicBlock,
-    context::{Context, Ptr},
-    dialects::builtin::{
+    builtin::{
         attributes::{SmallDictAttr, StringAttr, UnitAttr, VecAttr},
         ATTR_KEY_DEBUG_INFO,
     },
+    context::{Context, Ptr},
     operation::Operation,
     vec_exns::VecExtns,
 };
@@ -118,17 +118,15 @@ pub fn get_block_arg_name(ctx: &Context, block: Ptr<BasicBlock>, arg_idx: usize)
 mod tests {
     use crate::{
         basic_block::BasicBlock,
+        builtin::{
+            self,
+            attributes::IntegerAttr,
+            ops::ConstantOp,
+            types::{IntegerType, Signedness},
+        },
         common_traits::Verify,
         context::Context,
         debug_info::{get_block_arg_name, set_block_arg_name},
-        dialects::{
-            self,
-            builtin::{
-                attributes::IntegerAttr,
-                ops::ConstantOp,
-                types::{IntegerType, Signedness},
-            },
-        },
         error::Result,
         op::Op,
     };
@@ -139,7 +137,7 @@ mod tests {
     #[test]
     fn test_op_result_name() -> Result<()> {
         let mut ctx = Context::new();
-        dialects::builtin::register(&mut ctx);
+        builtin::register(&mut ctx);
 
         let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
         let cop = ConstantOp::new(&mut ctx, IntegerAttr::new(i64_ty, ApInt::from(0)).into());
@@ -153,7 +151,7 @@ mod tests {
     #[test]
     fn test_block_arg_name() -> Result<()> {
         let mut ctx = Context::new();
-        dialects::builtin::register(&mut ctx);
+        builtin::register(&mut ctx);
 
         let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
         let block = BasicBlock::new(&mut ctx, Some("entry".into()), vec![i64_ty.into()]);

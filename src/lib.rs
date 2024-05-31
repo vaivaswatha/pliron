@@ -8,11 +8,11 @@ extern crate self as pliron;
 
 pub mod attribute;
 pub mod basic_block;
+pub mod builtin;
 pub mod common_traits;
 pub mod context;
 pub mod debug_info;
 pub mod dialect;
-pub mod dialects;
 pub mod error;
 pub mod identifier;
 pub mod irfmt;
@@ -30,3 +30,5 @@ pub mod uniqued_any;
 pub mod use_def_lists;
 pub mod vec_exns;
 pub mod walkers;
+
+pub use once_cell::sync::Lazy;

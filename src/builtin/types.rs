@@ -238,11 +238,11 @@ mod tests {
 
     use super::FunctionType;
     use crate::{
-        context::Context,
-        dialects::{
+        builtin::{
             self,
-            builtin::types::{IntegerType, Signedness},
+            types::{IntegerType, Signedness},
         },
+        context::Context,
         location,
         parsable::{self, state_stream_from_iterator, Parsable},
         r#type::Type,
@@ -326,7 +326,7 @@ mod tests {
     #[test]
     fn test_fntype_parsing() {
         let mut ctx = Context::new();
-        dialects::builtin::register(&mut ctx);
+        builtin::register(&mut ctx);
 
         let si32 = IntegerType::get(&mut ctx, 32, Signedness::Signed);
 

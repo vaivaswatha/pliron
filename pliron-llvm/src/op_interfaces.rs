@@ -2,13 +2,13 @@
 
 use thiserror::Error;
 
-use crate::{
-    context::{Context, Ptr},
-    decl_op_interface,
-    dialects::builtin::{
+use pliron::{
+    builtin::{
         op_interfaces::{OneResultInterface, SameOperandsAndResultType},
         types::{IntegerType, Signedness},
     },
+    context::{Context, Ptr},
+    decl_op_interface,
     error::Result,
     location::Located,
     op::{op_cast, Op},

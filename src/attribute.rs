@@ -38,7 +38,6 @@ use combine::{parser, Parser};
 use downcast_rs::{impl_downcast, Downcast};
 use dyn_clone::DynClone;
 use linkme::distributed_slice;
-use once_cell::sync::Lazy;
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -368,10 +367,10 @@ macro_rules! impl_attr_interface {
         }
         const _: () = {
             #[linkme::distributed_slice(pliron::attribute::ATTR_INTERFACE_VERIFIERS)]
-            static INTERFACE_VERIFIER: once_cell::sync::Lazy<
+            static INTERFACE_VERIFIER: $crate::Lazy<
                 (pliron::attribute::AttrId, (std::any::TypeId, pliron::attribute::AttrInterfaceVerifier))
             > =
-            once_cell::sync::Lazy::new(||
+            $crate::Lazy::new(||
                 ($attr_name::get_attr_id_static(), (std::any::TypeId::of::<dyn $intr_name>(),
                      <$attr_name as $intr_name>::verify))
             );
@@ -381,17 +380,20 @@ macro_rules! impl_attr_interface {
 
 /// [Attribute]s paired with every interface it implements (and the verifier for that interface).
 #[distributed_slice]
-pub static ATTR_INTERFACE_VERIFIERS: [Lazy<(AttrId, (std::any::TypeId, AttrInterfaceVerifier))>];
+pub static ATTR_INTERFACE_VERIFIERS: [crate::Lazy<(
+    AttrId,
+    (std::any::TypeId, AttrInterfaceVerifier),
+)>];
 
 /// All interfaces mapped to their super-interfaces
 #[distributed_slice]
-pub static ATTR_INTERFACE_DEPS: [Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>];
+pub static ATTR_INTERFACE_DEPS: [crate::Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>];
 
 /// A map from every [Attribute] to its ordered (as per interface deps) list of interface verifiers.
 /// An interface's super-interfaces are to be verified before it itself is.
-pub static ATTR_INTERFACE_VERIFIERS_MAP: Lazy<
+pub static ATTR_INTERFACE_VERIFIERS_MAP: crate::Lazy<
     FxHashMap<AttrId, Vec<(std::any::TypeId, AttrInterfaceVerifier)>>,
-> = Lazy::new(|| {
+> = crate::Lazy::new(|| {
     use std::any::TypeId;
     // Collect ATTR_INTERFACE_VERIFIERS into an [AttrId] indexed map.
     let mut attr_intr_verifiers = FxHashMap::default();
@@ -517,8 +519,8 @@ macro_rules! decl_attr_interface {
         }
         const _: () = {
             #[linkme::distributed_slice(pliron::attribute::ATTR_INTERFACE_DEPS)]
-            static ATTR_INTERFACE_DEP: once_cell::sync::Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>
-                = once_cell::sync::Lazy::new(|| {
+            static ATTR_INTERFACE_DEP: $crate::Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>
+                = $crate::Lazy::new(|| {
                     (std::any::TypeId::of::<dyn $intr_name>(), vec![$(std::any::TypeId::of::<dyn $dep>(),)*])
              });
         };

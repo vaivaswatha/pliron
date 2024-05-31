@@ -365,11 +365,6 @@ impl Operation {
         self.results.get_mut(idx)
     }
 
-    /// Get a reference to the opd_idx'th operand.
-    pub(crate) fn get_operand_ref(&self, opd_idx: usize) -> Option<&Operand<Value>> {
-        self.operands.get(opd_idx)
-    }
-
     /// Get a mutable reference to the opd_idx'th operand.
     pub(crate) fn get_operand_mut(&mut self, opd_idx: usize) -> Option<&mut Operand<Value>> {
         self.operands.get_mut(opd_idx)

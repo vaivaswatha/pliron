@@ -91,7 +91,7 @@ pub fn delimited_list_parser<Input: Stream<Token = char>, Output>(
 
 /// Parse an identifier into an SSA [Value]. Typically called to parse
 /// the SSA operands of an [Operation]. If the SSA value hasn't been defined yet,
-/// a [forward reference](crate::dialects::builtin::ops::ForwardRefOp) is returned.
+/// a [forward reference](crate::builtin::ops::ForwardRefOp) is returned.
 pub fn ssa_opd_parse<'a>(state_stream: &mut StateStream<'a>, _arg: ()) -> ParseResult<'a, Value> {
     Identifier::parser(())
         .parse_stream(state_stream)
@@ -106,7 +106,7 @@ pub fn ssa_opd_parse<'a>(state_stream: &mut StateStream<'a>, _arg: ()) -> ParseR
 
 /// A parser to parse an identifier into an SSA [Value]. Typically called to parse
 /// the SSA operands of an [Operation]. If the SSA value hasn't been defined yet,
-/// a [forward reference](crate::dialects::builtin::ops::ForwardRefOp) is returned.
+/// a [forward reference](crate::builtin::ops::ForwardRefOp) is returned.
 pub fn ssa_opd_parser<'a>(
 ) -> Box<dyn Parser<StateStream<'a>, Output = Value, PartialState = ()> + 'a> {
     combine::parser(move |parsable_state: &mut StateStream<'a>| ssa_opd_parse(parsable_state, ()))
@@ -168,8 +168,9 @@ mod test {
     use expect_test::expect;
 
     use crate::{
+        builtin,
         context::Context,
-        dialects, location,
+        location,
         parsable::{self, state_stream_from_iterator},
         printable::Printable,
     };
@@ -177,7 +178,7 @@ mod test {
     #[test]
     fn test_parse_type() {
         let mut ctx = Context::new();
-        dialects::builtin::register(&mut ctx);
+        builtin::register(&mut ctx);
 
         let state_stream = state_stream_from_iterator(
             "builtin.some".chars(),

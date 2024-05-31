@@ -5,19 +5,16 @@ use std::sync::Mutex;
 use expect_test::expect;
 use pliron::{
     attribute::Attribute,
+    builtin::{
+        attr_interfaces::TypedAttrInterface,
+        attributes::{IntegerAttr, StringAttr},
+        op_interfaces::{OneResultInterface, OneResultVerifyErr},
+        ops::ModuleOp,
+    },
     common_traits::Verify,
     context::{Context, Ptr},
     decl_attr_interface, decl_op_interface,
     dialect::{Dialect, DialectName},
-    dialects::{
-        builtin::{
-            attr_interfaces::TypedAttrInterface,
-            attributes::{IntegerAttr, StringAttr},
-            op_interfaces::{OneResultInterface, OneResultVerifyErr},
-            ops::ModuleOp,
-        },
-        llvm::ops::ReturnOp,
-    },
     error::{Error, ErrorKind, Result},
     identifier::Identifier,
     impl_attr_interface, impl_canonical_syntax, impl_op_interface, impl_verify_succ,
@@ -30,6 +27,7 @@ use pliron::{
     trait_cast::any_to_trait,
 };
 use pliron_derive::{def_attribute, def_op};
+use pliron_llvm::ops::ReturnOp;
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
 
@@ -91,7 +89,7 @@ fn check_intrf_verfiy_errs() {
         if err.is::<OneResultVerifyErr>()
     ))
 }
-use once_cell::sync::Lazy;
+use pliron::Lazy;
 static TEST_OP_VERIFIERS_OUTPUT: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("".into()));
 
 decl_op_interface! {

@@ -1,29 +1,21 @@
 //! [Op]s defined in the LLVM dialect
 
-use crate::{
+use pliron::{
     arg_err_noloc,
     basic_block::BasicBlock,
+    builtin::{
+        attr_interfaces::TypedAttrInterface,
+        attributes::TypeAttr,
+        op_interfaces::{
+            BranchOpInterface, IsTerminatorInterface, OneOpdInterface, OneResultInterface,
+            SameOperandsAndResultType, SameOperandsType, SameResultsType, ZeroResultInterface,
+            ZeroResultVerifyErr,
+        },
+        types::{IntegerType, Signedness},
+    },
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::Dialect,
-    dialects::{
-        builtin::{
-            attr_interfaces::TypedAttrInterface,
-            attributes::TypeAttr,
-            op_interfaces::{
-                BranchOpInterface, IsTerminatorInterface, OneOpdInterface, OneResultInterface,
-                SameOperandsAndResultType, SameOperandsType, SameResultsType, ZeroResultInterface,
-                ZeroResultVerifyErr,
-            },
-            types::{IntegerType, Signedness},
-        },
-        llvm::{
-            op_interfaces::{
-                BinArithOp, IntBinArithOp, IntBinArithOpWithOverflowFlag, PointerTypeResult,
-            },
-            types::{ArrayType, StructType},
-        },
-    },
     error::{Error, ErrorKind, Result},
     identifier::Identifier,
     impl_canonical_syntax, impl_op_interface, impl_verify_succ, input_err,
@@ -31,12 +23,17 @@ use crate::{
     location::{Located, Location},
     op::{Op, OpObj},
     operation::Operation,
-    parsable::{Parsable, ParseResult},
+    parsable::{self, Parsable, ParseResult},
     printable::{self, Printable},
     r#type::{TypeObj, TypePtr},
     use_def_lists::Value,
     vec_exns::VecExtns,
     verify_err,
+};
+
+use crate::{
+    op_interfaces::{BinArithOp, IntBinArithOp, IntBinArithOpWithOverflowFlag, PointerTypeResult},
+    types::{ArrayType, StructType},
 };
 
 use combine::parser::Parser;
@@ -78,7 +75,7 @@ impl Printable for ReturnOp {
             self.get_opid().disp(ctx),
             self.get_operation()
                 .deref(ctx)
-                .get_operand_ref(0)
+                .get_operand(0)
                 .unwrap()
                 .disp(ctx)
         )
@@ -91,7 +88,7 @@ impl Parsable for ReturnOp {
     type Arg = Vec<(Identifier, Location)>;
     type Parsed = OpObj;
     fn parse<'a>(
-        state_stream: &mut crate::parsable::StateStream<'a>,
+        state_stream: &mut parsable::StateStream<'a>,
         results: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
         if !results.is_empty() {
@@ -151,7 +148,7 @@ macro_rules! new_int_bin_op_with_overflow {
             ///
             /// | key | value | via Interface |
             /// |-----|-------| --------------
-            /// | [ATTR_KEY_INTEGER_OVERFLOW_FLAGS](super::op_interfaces::ATTR_KEY_INTEGER_OVERFLOW_FLAGS) | [StringAttr](pliron::dialects::builtin::attributes::StringAttr) | [IntBinArithOpWithOverflowFlag] |
+            /// | [ATTR_KEY_INTEGER_OVERFLOW_FLAGS](super::op_interfaces::ATTR_KEY_INTEGER_OVERFLOW_FLAGS) | [StringAttr](pliron::builtin::attributes::StringAttr) | [IntBinArithOpWithOverflowFlag] |
             $op_name,
             $op_id
         );
@@ -345,7 +342,7 @@ pub enum AllocaOpVerifyErr {
 ///
 /// | key | value | via Interface |
 /// |-----|-------| --------------|
-/// | [ATTR_KEY_ELEM_TYPE](AllocaOp::ATTR_KEY_ELEM_TYPE) | [TypeAttr](pliron::dialects::builtin::attributes::TypeAttr) | N/A |
+/// | [ATTR_KEY_ELEM_TYPE](AllocaOp::ATTR_KEY_ELEM_TYPE) | [TypeAttr](pliron::builtin::attributes::TypeAttr) | N/A |
 #[def_op("llvm.alloca")]
 pub struct AllocaOp {}
 impl_canonical_syntax!(AllocaOp);
@@ -789,7 +786,7 @@ impl Verify for StoreOp {
             return verify_err!(loc, StoreOpVerifyErr::NumOpdsErr);
         }
 
-        use crate::r#type::Typed;
+        use pliron::r#type::Typed;
         // Ensure correctness of the address operand.
         if !op
             .get_operand(1)

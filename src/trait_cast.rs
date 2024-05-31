@@ -10,7 +10,6 @@ use std::any::{Any, TypeId};
 use downcast_rs::Downcast;
 use dyn_clone::DynClone;
 use linkme::distributed_slice;
-use once_cell::sync::Lazy;
 use rustc_hash::FxHashMap;
 
 /// Cast a [dyn Any](Any) object to a `dyn Trait` object for any
@@ -58,15 +57,16 @@ dyn_clone::clone_trait_object!(ClonableAny);
 impl<T: Any + DynClone + Downcast> ClonableAny for T {}
 
 #[distributed_slice]
-pub static TRAIT_CASTERS: [Lazy<((TypeId, TypeId), Box<dyn ClonableAny + Sync + Send>)>];
+pub static TRAIT_CASTERS: [crate::Lazy<((TypeId, TypeId), Box<dyn ClonableAny + Sync + Send>)>];
 
-static TRAIT_CASTERS_MAP: Lazy<FxHashMap<(TypeId, TypeId), Box<dyn ClonableAny + Sync + Send>>> =
-    Lazy::new(|| {
-        TRAIT_CASTERS
-            .iter()
-            .map(|lazy_tuple| (**lazy_tuple).clone())
-            .collect()
-    });
+static TRAIT_CASTERS_MAP: crate::Lazy<
+    FxHashMap<(TypeId, TypeId), Box<dyn ClonableAny + Sync + Send>>,
+> = crate::Lazy::new(|| {
+    TRAIT_CASTERS
+        .iter()
+        .map(|lazy_tuple| (**lazy_tuple).clone())
+        .collect()
+});
 
 /// Specify that a type may be casted to a `dyn Trait` object. Use [any_to_trait] for the actual cast.
 /// Example:
@@ -94,10 +94,10 @@ macro_rules! type_to_trait {
         // The rust way to do an anonymous module.
         const _: () = {
             #[linkme::distributed_slice($crate::trait_cast::TRAIT_CASTERS)]
-            static CAST_TO_TRAIT: once_cell::sync::Lazy<(
+            static CAST_TO_TRAIT: $crate::Lazy<(
                 (std::any::TypeId, std::any::TypeId),
                 Box<dyn $crate::trait_cast::ClonableAny + Sync + Send>,
-            )> = once_cell::sync::Lazy::new(|| {
+            )> = $crate::Lazy::new(|| {
                 (
                     (
                         std::any::TypeId::of::<$ty_name>(),

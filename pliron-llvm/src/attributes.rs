@@ -3,7 +3,7 @@
 use combine::{between, choice, parser::char::string, token, Parser};
 use pliron_derive::def_attribute;
 
-use crate::{
+use pliron::{
     context::Context,
     impl_verify_succ,
     irfmt::{
@@ -189,7 +189,7 @@ impl Printable for GepIndicesAttr {
         write!(
             f,
             "[{}]",
-            list_with_sep(&self.0, crate::printable::ListSeparator::CharSpace(',')).disp(ctx)
+            list_with_sep(&self.0, pliron::printable::ListSeparator::CharSpace(',')).disp(ctx)
         )
     }
 }

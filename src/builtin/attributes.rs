@@ -486,15 +486,13 @@ mod tests {
 
     use crate::{
         attribute::{attr_cast, AttrObj},
-        context::Context,
-        dialects::{
+        builtin::{
             self,
-            builtin::{
-                attr_interfaces::TypedAttrInterface,
-                attributes::{IntegerAttr, StringAttr},
-                types::{IntegerType, Signedness},
-            },
+            attr_interfaces::TypedAttrInterface,
+            attributes::{IntegerAttr, StringAttr},
+            types::{IntegerType, Signedness},
         },
+        context::Context,
         irfmt::parsers::attr_parser,
         location,
         parsable::{self, state_stream_from_iterator},
@@ -505,7 +503,7 @@ mod tests {
     #[test]
     fn test_integer_attributes() {
         let mut ctx = Context::new();
-        dialects::builtin::register(&mut ctx);
+        builtin::register(&mut ctx);
 
         let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
 
@@ -549,7 +547,7 @@ mod tests {
     #[test]
     fn test_string_attributes() {
         let mut ctx = Context::new();
-        dialects::builtin::register(&mut ctx);
+        builtin::register(&mut ctx);
 
         let str_0_ptr: AttrObj = StringAttr::new("hello".to_string()).into();
         let str_1_ptr: AttrObj = StringAttr::new("world".to_string()).into();
@@ -643,7 +641,7 @@ mod tests {
     #[test]
     fn test_type_attributes() {
         let mut ctx = Context::new();
-        dialects::builtin::register(&mut ctx);
+        builtin::register(&mut ctx);
 
         let ty = IntegerType::get(&mut ctx, 64, Signedness::Signed).into();
         let ty_attr: AttrObj = TypeAttr::new(ty).into();

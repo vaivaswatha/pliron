@@ -1,26 +1,26 @@
 use apint::ApInt;
 use pliron::{
+    builtin::{
+        self,
+        attributes::IntegerAttr,
+        op_interfaces::OneResultInterface,
+        ops::{ConstantOp, FuncOp, ModuleOp},
+        types::{FunctionType, IntegerType, Signedness},
+    },
     common_traits::Verify,
     context::Context,
     debug_info::set_operation_result_name,
-    dialects::{
-        self,
-        builtin::{
-            attributes::IntegerAttr,
-            op_interfaces::OneResultInterface,
-            ops::{ConstantOp, FuncOp, ModuleOp},
-            types::{FunctionType, IntegerType, Signedness},
-        },
-        llvm::ops::ReturnOp,
-    },
     error::Result,
     op::Op,
 };
 
+use llvm::ops::ReturnOp;
+use pliron_llvm as llvm;
+
 pub fn setup_context_dialects() -> Context {
     let mut ctx = Context::new();
-    dialects::builtin::register(&mut ctx);
-    dialects::llvm::register(&mut ctx);
+    builtin::register(&mut ctx);
+    llvm::register(&mut ctx);
     ctx
 }
 

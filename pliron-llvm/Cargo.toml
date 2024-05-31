@@ -1,0 +1,21 @@
+[package]
+name = "pliron-llvm"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+pliron-derive = { path = "../pliron-derive" }
+pliron = { path = "../" }
+combine.workspace = true
+thiserror.workspace = true
+linkme.workspace = true
+
+[dev-dependencies]
+expect-test.workspace = true

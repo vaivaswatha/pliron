@@ -155,8 +155,9 @@ mod test {
     use expect_test::expect;
 
     use crate::{
+        builtin,
         context::Context,
-        dialects, location,
+        location,
         parsable::{self, state_stream_from_iterator, Parsable},
         printable::Printable,
     };
@@ -166,7 +167,7 @@ mod test {
     #[test]
     fn parse_dialect_name() {
         let mut ctx = Context::new();
-        dialects::builtin::register(&mut ctx);
+        builtin::register(&mut ctx);
 
         let state_stream = state_stream_from_iterator(
             "non_existant".chars(),

@@ -4,11 +4,11 @@ use std::collections::hash_map::Entry;
 
 use crate::{
     basic_block::BasicBlock,
-    context::{Context, Ptr},
-    dialects::builtin::{
+    builtin::{
         op_interfaces::{IsolatedFromAboveInterface, OneResultInterface},
         ops::ForwardRefOp,
     },
+    context::{Context, Ptr},
     error::{self, Result},
     identifier::Identifier,
     input_err,
