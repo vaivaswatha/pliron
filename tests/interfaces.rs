@@ -2,6 +2,7 @@ mod common;
 
 use std::sync::Mutex;
 
+use common::ReturnOp;
 use expect_test::expect;
 use pliron::{
     attribute::Attribute,
@@ -14,7 +15,6 @@ use pliron::{
     common_traits::Verify,
     context::{Context, Ptr},
     decl_attr_interface, decl_op_interface,
-    dialect::{Dialect, DialectName},
     error::{Error, ErrorKind, Result},
     identifier::Identifier,
     impl_attr_interface, impl_canonical_syntax, impl_op_interface, impl_verify_succ,
@@ -27,7 +27,6 @@ use pliron::{
     trait_cast::any_to_trait,
 };
 use pliron_derive::{def_attribute, def_op};
-use pliron_llvm::ops::ReturnOp;
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
 
@@ -72,8 +71,7 @@ impl ZeroResultOp {
 #[test]
 fn check_intrf_verfiy_errs() {
     let ctx = &mut setup_context_dialects();
-    let mut dialect = Dialect::new(DialectName::new("test"));
-    ZeroResultOp::register(ctx, &mut dialect, ZeroResultOp::parser_fn);
+    ZeroResultOp::register(ctx, ZeroResultOp::parser_fn);
 
     let zero_res_op = ZeroResultOp::new(ctx).get_operation();
     let (module_op, _, _, ret_op) = const_ret_in_mod(ctx).unwrap();
@@ -146,8 +144,7 @@ impl VerifyIntrOp {
 #[test]
 fn test_op_intr_verify_order() -> Result<()> {
     let ctx = &mut setup_context_dialects();
-    let mut dialect = Dialect::new(DialectName::new("test"));
-    VerifyIntrOp::register(ctx, &mut dialect, VerifyIntrOp::parser_fn);
+    VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
 
     let vio = VerifyIntrOp::new(ctx);
 
@@ -253,8 +250,7 @@ decl_attr_interface! {
 #[test]
 fn test_attr_intr_verify_order() -> Result<()> {
     let ctx = &mut setup_context_dialects();
-    let mut dialect = Dialect::new(DialectName::new("test"));
-    VerifyIntrOp::register(ctx, &mut dialect, VerifyIntrOp::parser_fn);
+    VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
 
     let vio = VerifyIntrAttr {};
     vio.verify_interfaces(ctx)?;

@@ -12,7 +12,6 @@ use crate::{
     attribute::{AttrObj, Attribute},
     common_traits::Verify,
     context::{Context, Ptr},
-    dialect::Dialect,
     error::Result,
     impl_attr_interface, impl_verify_succ, input_err,
     irfmt::{
@@ -470,13 +469,13 @@ impl_attr_interface!(
     }
 );
 
-pub fn register(dialect: &mut Dialect) {
-    StringAttr::register_attr_in_dialect(dialect, StringAttr::parser_fn);
-    IntegerAttr::register_attr_in_dialect(dialect, IntegerAttr::parser_fn);
-    SmallDictAttr::register_attr_in_dialect(dialect, SmallDictAttr::parser_fn);
-    VecAttr::register_attr_in_dialect(dialect, VecAttr::parser_fn);
-    UnitAttr::register_attr_in_dialect(dialect, UnitAttr::parser_fn);
-    TypeAttr::register_attr_in_dialect(dialect, TypeAttr::parser_fn);
+pub fn register(ctx: &mut Context) {
+    StringAttr::register_attr_in_dialect(ctx, StringAttr::parser_fn);
+    IntegerAttr::register_attr_in_dialect(ctx, IntegerAttr::parser_fn);
+    SmallDictAttr::register_attr_in_dialect(ctx, SmallDictAttr::parser_fn);
+    VecAttr::register_attr_in_dialect(ctx, VecAttr::parser_fn);
+    UnitAttr::register_attr_in_dialect(ctx, UnitAttr::parser_fn);
+    TypeAttr::register_attr_in_dialect(ctx, TypeAttr::parser_fn);
 }
 
 #[cfg(test)]

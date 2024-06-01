@@ -28,6 +28,12 @@ impl DialectName {
     }
 }
 
+impl From<&str> for DialectName {
+    fn from(value: &str) -> Self {
+        DialectName::new(value)
+    }
+}
+
 impl Printable for DialectName {
     fn fmt(
         &self,

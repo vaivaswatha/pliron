@@ -8,7 +8,6 @@ use crate::{
     builtin::op_interfaces::ZeroResultInterface,
     common_traits::{Named, Verify},
     context::{Context, Ptr},
-    dialect::Dialect,
     error::Result,
     identifier::Identifier,
     impl_op_interface, impl_verify_succ, input_err,
@@ -456,9 +455,9 @@ impl ForwardRefOp {
     }
 }
 
-pub fn register(ctx: &mut Context, dialect: &mut Dialect) {
-    ModuleOp::register(ctx, dialect, ModuleOp::parser_fn);
-    FuncOp::register(ctx, dialect, FuncOp::parser_fn);
-    ConstantOp::register(ctx, dialect, ConstantOp::parser_fn);
-    ForwardRefOp::register(ctx, dialect, ForwardRefOp::parser_fn);
+pub fn register(ctx: &mut Context) {
+    ModuleOp::register(ctx, ModuleOp::parser_fn);
+    FuncOp::register(ctx, FuncOp::parser_fn);
+    ConstantOp::register(ctx, ConstantOp::parser_fn);
+    ForwardRefOp::register(ctx, ForwardRefOp::parser_fn);
 }

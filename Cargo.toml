@@ -43,7 +43,6 @@ dyn-clone = "1.0.17"
 
 [dev-dependencies]
 expect-test.workspace = true
-pliron-llvm = { path = "./pliron-llvm" }
 
 [workspace.dependencies]
 expect-test = "1.5.0"

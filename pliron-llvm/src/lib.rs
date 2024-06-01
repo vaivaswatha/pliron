@@ -9,8 +9,8 @@ pub mod ops;
 pub mod types;
 
 pub fn register(ctx: &mut Context) {
-    let mut dialect = Dialect::new(DialectName::new("llvm"));
-    ops::register(ctx, &mut dialect);
-    types::register(&mut dialect);
+    let dialect = Dialect::new(DialectName::new("llvm"));
     dialect.register(ctx);
+    ops::register(ctx);
+    types::register(ctx);
 }

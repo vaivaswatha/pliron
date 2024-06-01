@@ -9,22 +9,17 @@ use pliron::{
         op_interfaces::{
             BranchOpInterface, IsTerminatorInterface, OneOpdInterface, OneResultInterface,
             SameOperandsAndResultType, SameOperandsType, SameResultsType, ZeroResultInterface,
-            ZeroResultVerifyErr,
         },
         types::{IntegerType, Signedness},
     },
     common_traits::Verify,
     context::{Context, Ptr},
-    dialect::Dialect,
     error::{Error, ErrorKind, Result},
-    identifier::Identifier,
-    impl_canonical_syntax, impl_op_interface, impl_verify_succ, input_err,
-    irfmt::parsers::ssa_opd_parser,
-    location::{Located, Location},
-    op::{Op, OpObj},
+    impl_canonical_syntax, impl_op_interface, impl_verify_succ,
+    location::Located,
+    op::Op,
     operation::Operation,
-    parsable::{self, Parsable, ParseResult},
-    printable::{self, Printable},
+    parsable::Parsable,
     r#type::{TypeObj, TypePtr},
     use_def_lists::Value,
     vec_exns::VecExtns,
@@ -54,57 +49,14 @@ use super::{
 /// | `arg` | any type |
 #[def_op("llvm.return")]
 pub struct ReturnOp {}
-
 impl ReturnOp {
     pub fn new(ctx: &mut Context, value: Value) -> Self {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![value], vec![], 0);
         ReturnOp { op }
     }
 }
-
-impl Printable for ReturnOp {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(
-            f,
-            "{} {}",
-            self.get_opid().disp(ctx),
-            self.get_operation()
-                .deref(ctx)
-                .get_operand(0)
-                .unwrap()
-                .disp(ctx)
-        )
-    }
-}
-
+impl_canonical_syntax!(ReturnOp);
 impl_verify_succ!(ReturnOp);
-
-impl Parsable for ReturnOp {
-    type Arg = Vec<(Identifier, Location)>;
-    type Parsed = OpObj;
-    fn parse<'a>(
-        state_stream: &mut parsable::StateStream<'a>,
-        results: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed> {
-        if !results.is_empty() {
-            input_err!(
-                state_stream.loc(),
-                ZeroResultVerifyErr(Self::get_opid_static().to_string())
-            )?
-        }
-
-        ssa_opd_parser()
-            .parse_stream(state_stream)
-            .map(|opd| -> OpObj { Box::new(Self::new(state_stream.state.ctx, opd)) })
-            .into()
-    }
-}
-
 impl_op_interface!(IsTerminatorInterface for ReturnOp {});
 
 macro_rules! new_int_bin_op {
@@ -803,27 +755,27 @@ impl Verify for StoreOp {
 impl_op_interface!(ZeroResultInterface for LoadOp {});
 
 /// Register ops in the LLVM dialect.
-pub fn register(ctx: &mut Context, dialect: &mut Dialect) {
-    AddOp::register(ctx, dialect, AddOp::parser_fn);
-    SubOp::register(ctx, dialect, SubOp::parser_fn);
-    MulOp::register(ctx, dialect, MulOp::parser_fn);
-    ShlOp::register(ctx, dialect, ShlOp::parser_fn);
-    UDivOp::register(ctx, dialect, UDivOp::parser_fn);
-    SDivOp::register(ctx, dialect, SDivOp::parser_fn);
-    URemOp::register(ctx, dialect, URemOp::parser_fn);
-    SRemOp::register(ctx, dialect, SRemOp::parser_fn);
-    AndOp::register(ctx, dialect, AndOp::parser_fn);
-    OrOp::register(ctx, dialect, OrOp::parser_fn);
-    XorOp::register(ctx, dialect, XorOp::parser_fn);
-    LShrOp::register(ctx, dialect, LShrOp::parser_fn);
-    AShrOp::register(ctx, dialect, AShrOp::parser_fn);
-    ICmpOp::register(ctx, dialect, ICmpOp::parser_fn);
-    AllocaOp::register(ctx, dialect, AllocaOp::parser_fn);
-    BitcastOp::register(ctx, dialect, BitcastOp::parser_fn);
-    BrOp::register(ctx, dialect, BrOp::parser_fn);
-    CondBrOp::register(ctx, dialect, CondBrOp::parser_fn);
-    GetElementPtrOp::register(ctx, dialect, GetElementPtrOp::parser_fn);
-    LoadOp::register(ctx, dialect, LoadOp::parser_fn);
-    StoreOp::register(ctx, dialect, StoreOp::parser_fn);
-    ReturnOp::register(ctx, dialect, ReturnOp::parser_fn);
+pub fn register(ctx: &mut Context) {
+    AddOp::register(ctx, AddOp::parser_fn);
+    SubOp::register(ctx, SubOp::parser_fn);
+    MulOp::register(ctx, MulOp::parser_fn);
+    ShlOp::register(ctx, ShlOp::parser_fn);
+    UDivOp::register(ctx, UDivOp::parser_fn);
+    SDivOp::register(ctx, SDivOp::parser_fn);
+    URemOp::register(ctx, URemOp::parser_fn);
+    SRemOp::register(ctx, SRemOp::parser_fn);
+    AndOp::register(ctx, AndOp::parser_fn);
+    OrOp::register(ctx, OrOp::parser_fn);
+    XorOp::register(ctx, XorOp::parser_fn);
+    LShrOp::register(ctx, LShrOp::parser_fn);
+    AShrOp::register(ctx, AShrOp::parser_fn);
+    ICmpOp::register(ctx, ICmpOp::parser_fn);
+    AllocaOp::register(ctx, AllocaOp::parser_fn);
+    BitcastOp::register(ctx, BitcastOp::parser_fn);
+    BrOp::register(ctx, BrOp::parser_fn);
+    CondBrOp::register(ctx, CondBrOp::parser_fn);
+    GetElementPtrOp::register(ctx, GetElementPtrOp::parser_fn);
+    LoadOp::register(ctx, LoadOp::parser_fn);
+    StoreOp::register(ctx, StoreOp::parser_fn);
+    ReturnOp::register(ctx, ReturnOp::parser_fn);
 }

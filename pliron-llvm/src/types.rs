@@ -4,7 +4,6 @@ use combine::{between, optional, parser::char::spaces, token, Parser};
 use pliron::{
     common_traits::Verify,
     context::{Context, Ptr},
-    dialect::Dialect,
     error::Result,
     identifier::Identifier,
     impl_verify_succ, input_err_noloc,
@@ -517,11 +516,11 @@ impl Parsable for FuncType {
     }
 }
 
-pub fn register(dialect: &mut Dialect) {
-    VoidType::register_type_in_dialect(dialect, VoidType::parser_fn);
-    StructType::register_type_in_dialect(dialect, StructType::parser_fn);
-    PointerType::register_type_in_dialect(dialect, PointerType::parser_fn);
-    FuncType::register_type_in_dialect(dialect, FuncType::parser_fn);
+pub fn register(ctx: &mut Context) {
+    VoidType::register_type_in_dialect(ctx, VoidType::parser_fn);
+    StructType::register_type_in_dialect(ctx, StructType::parser_fn);
+    PointerType::register_type_in_dialect(ctx, PointerType::parser_fn);
+    FuncType::register_type_in_dialect(ctx, FuncType::parser_fn);
 }
 
 #[cfg(test)]
@@ -540,7 +539,6 @@ mod tests {
         },
         common_traits::Verify,
         context::{Context, Ptr},
-        dialect::DialectName,
         error::{Error, ErrorKind, Result},
         impl_verify_succ,
         irfmt::parsers::{spaced, type_parser},
@@ -705,10 +703,7 @@ mod tests {
         let mut ctx = Context::new();
         builtin::register(&mut ctx);
         llvm::register(&mut ctx);
-        TypedPointerType::register_type_in_dialect(
-            &mut ctx.dialects.get_mut(&DialectName::new("llvm")).unwrap(),
-            TypedPointerType::parser_fn,
-        );
+        TypedPointerType::register_type_in_dialect(&mut ctx, TypedPointerType::parser_fn);
 
         let state_stream = state_stream_from_iterator(
             "llvm.typed_ptr <builtin.int <si64>>".chars(),
@@ -727,10 +722,7 @@ mod tests {
         let mut ctx = Context::new();
         builtin::register(&mut ctx);
         llvm::register(&mut ctx);
-        TypedPointerType::register_type_in_dialect(
-            &mut ctx.dialects.get_mut(&DialectName::new("llvm")).unwrap(),
-            TypedPointerType::parser_fn,
-        );
+        TypedPointerType::register_type_in_dialect(&mut ctx, TypedPointerType::parser_fn);
 
         let state_stream = state_stream_from_iterator(
             "llvm.struct<LinkedList { data: builtin.int<i64>, next: llvm.typed_ptr<llvm.struct<LinkedList>> }>".chars(),

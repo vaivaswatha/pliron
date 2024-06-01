@@ -10,11 +10,11 @@ use crate::{
 };
 
 pub fn register(ctx: &mut Context) {
-    let mut dialect = Dialect::new(DialectName::new("builtin"));
-    ops::register(ctx, &mut dialect);
-    types::register(&mut dialect);
-    attributes::register(&mut dialect);
+    let dialect = Dialect::new(DialectName::new("builtin"));
     dialect.register(ctx);
+    ops::register(ctx);
+    types::register(ctx);
+    attributes::register(ctx);
 }
 
 /// Key for debug info related attributes.

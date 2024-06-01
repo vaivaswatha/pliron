@@ -11,7 +11,7 @@
 
 use crate::common_traits::Verify;
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
-use crate::dialect::{Dialect, DialectName};
+use crate::dialect::DialectName;
 use crate::error::Result;
 use crate::identifier::Identifier;
 use crate::irfmt::parsers::spaced;
@@ -131,7 +131,7 @@ pub trait Type: Printable + Verify + Downcast + Sync + Debug {
         Self: Sized;
 
     /// Register this Type's [TypeId] in the dialect it belongs to.
-    fn register_type_in_dialect(dialect: &mut Dialect, parser: ParserFn<(), TypePtr<Self>>)
+    fn register_type_in_dialect(ctx: &mut Context, parser: ParserFn<(), TypePtr<Self>>)
     where
         Self: Sized,
     {
@@ -156,7 +156,12 @@ pub trait Type: Printable + Verify + Downcast + Sync + Debug {
             })
             .boxed()
         });
-        dialect.add_type(Self::get_type_id_static(), Box::new(ptr_parser));
+        let typeid = Self::get_type_id_static();
+        let dialect = ctx
+            .dialects
+            .get_mut(&typeid.dialect)
+            .unwrap_or_else(|| panic!("Unregistered dialect {}", &typeid.dialect));
+        dialect.add_type(typeid, Box::new(ptr_parser));
     }
 }
 impl_downcast!(Type);

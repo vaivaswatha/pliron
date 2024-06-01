@@ -42,7 +42,7 @@ use crate::{
     builtin::types::FunctionType,
     common_traits::Verify,
     context::{Context, Ptr},
-    dialect::{Dialect, DialectName},
+    dialect::DialectName,
     error::Result,
     identifier::Identifier,
     input_err,
@@ -182,18 +182,21 @@ pub trait Op: Downcast + Verify + Printable {
     /// Verify all interfaces implemented by this op.
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 
-    /// Register Op in Context and add it to dialect.
-    fn register(
-        ctx: &mut Context,
-        dialect: &mut Dialect,
-        op_parser: ParserFn<Vec<(Identifier, Location)>, OpObj>,
-    ) where
+    /// Register Op in Context and add it to its dialect.
+    fn register(ctx: &mut Context, op_parser: ParserFn<Vec<(Identifier, Location)>, OpObj>)
+    where
         Self: Sized,
     {
-        match ctx.ops.entry(Self::get_opid_static()) {
+        let opid = Self::get_opid_static();
+        let dialect = opid.dialect.clone();
+        match ctx.ops.entry(opid) {
             std::collections::hash_map::Entry::Occupied(_) => (),
             std::collections::hash_map::Entry::Vacant(v) => {
                 v.insert(Self::wrap_operation);
+                let dialect = ctx
+                    .dialects
+                    .get_mut(&dialect)
+                    .unwrap_or_else(|| panic!("Unregistered dialect {}", dialect));
                 dialect.add_op(Self::get_opid_static(), op_parser);
             }
         }

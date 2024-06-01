@@ -3,7 +3,6 @@ use pliron_derive::def_type;
 
 use crate::{
     context::{Context, Ptr},
-    dialect::Dialect,
     impl_verify_succ,
     irfmt::{
         parsers::{delimited_list_parser, spaced, type_parser, u64_parser},
@@ -225,10 +224,10 @@ impl Parsable for UnitType {
 
 impl_verify_succ!(UnitType);
 
-pub fn register(dialect: &mut Dialect) {
-    IntegerType::register_type_in_dialect(dialect, IntegerType::parser_fn);
-    FunctionType::register_type_in_dialect(dialect, FunctionType::parser_fn);
-    UnitType::register_type_in_dialect(dialect, UnitType::parser_fn);
+pub fn register(ctx: &mut Context) {
+    IntegerType::register_type_in_dialect(ctx, IntegerType::parser_fn);
+    FunctionType::register_type_in_dialect(ctx, FunctionType::parser_fn);
+    UnitType::register_type_in_dialect(ctx, UnitType::parser_fn);
 }
 
 #[cfg(test)]

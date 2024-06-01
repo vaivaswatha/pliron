@@ -43,7 +43,7 @@ use rustc_hash::FxHashMap;
 use crate::{
     common_traits::Verify,
     context::Context,
-    dialect::{Dialect, DialectName},
+    dialect::DialectName,
     error::Result,
     identifier::Identifier,
     input_err,
@@ -99,7 +99,7 @@ pub trait Attribute: Printable + Verify + Downcast + Sync + DynClone + Debug {
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 
     /// Register this attribute's [AttrId] in the dialect it belongs to.
-    fn register_attr_in_dialect<A: Attribute>(dialect: &mut Dialect, attr_parser: ParserFn<(), A>)
+    fn register_attr_in_dialect<A: Attribute>(ctx: &mut Context, attr_parser: ParserFn<(), A>)
     where
         Self: Sized,
     {
@@ -124,6 +124,11 @@ pub trait Attribute: Printable + Verify + Downcast + Sync + DynClone + Debug {
             })
             .boxed()
         });
+        let attrid = Self::get_attr_id_static();
+        let dialect = ctx
+            .dialects
+            .get_mut(&attrid.dialect)
+            .unwrap_or_else(|| panic!("Unregistered dialect {}", &attrid.dialect));
         dialect.add_attr(Self::get_attr_id_static(), Box::new(attr_parser));
     }
 }
