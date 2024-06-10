@@ -23,6 +23,13 @@ pub enum Source {
     InMemory,
 }
 
+impl Source {
+    /// Get a [Source] handle to the source specified by `path`.
+    pub fn new_from_file(ctx: &mut Context, path: PathBuf) -> Self {
+        Self::File(uniqued_any::save(ctx, path))
+    }
+}
+
 impl Printable for Source {
     fn fmt(
         &self,

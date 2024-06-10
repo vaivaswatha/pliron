@@ -82,7 +82,7 @@ impl AttributeDict {
 /// Basic functionality that every attribute in the IR must implement.
 ///
 /// See [module](crate::attribute) documentation for more information.
-pub trait Attribute: Printable + Verify + Downcast + Sync + DynClone + Debug {
+pub trait Attribute: Printable + Verify + Downcast + Sync + Send + DynClone + Debug {
     /// Is self equal to an other Attribute?
     fn eq_attr(&self, other: &dyn Attribute) -> bool;
 

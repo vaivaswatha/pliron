@@ -2,7 +2,11 @@
 
 use thiserror::Error;
 
-use crate::location::{Located, Location};
+use crate::{
+    context::Context,
+    location::{Located, Location},
+    printable::{Printable, State},
+};
 
 /// The kinds of errors we have during compilation.
 #[derive(Debug, Error)]
@@ -19,12 +23,30 @@ pub enum ErrorKind {
 }
 
 /// An error object that can hold any [std::error::Error].
+/// This does not print [Location]. Use [Printable::disp] for that.
 #[derive(Debug, Error)]
 #[error("Compilation error: {kind}.\n{err}")]
 pub struct Error {
     pub kind: ErrorKind,
     pub err: Box<dyn std::error::Error + Send + Sync>,
     pub loc: Location,
+}
+
+impl Printable for Error {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(
+            f,
+            "[{}] Compilation error: {}.\n{}",
+            self.loc.disp(ctx),
+            self.kind,
+            self.err
+        )
+    }
 }
 
 impl Located for Error {
@@ -328,5 +350,44 @@ macro_rules! arg_error_noloc {
 macro_rules! arg_err_noloc {
     ($($t:tt)*) => {
         $crate::create_err!($crate::location::Location::Unknown, $crate::result::ErrorKind::InvalidArgument, $($t)*)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use combine::stream::position::SourcePosition;
+    use expect_test::expect;
+    use thiserror::Error;
+
+    use crate::{
+        context::Context,
+        location::{Location, Source},
+        printable::Printable,
+    };
+
+    #[derive(Debug, Error)]
+    #[error("Test error")]
+    pub struct TestErr;
+
+    #[test]
+    fn wrapped_err() {
+        let ctx = &mut Context::new();
+
+        let res = input_error_noloc!(TestErr);
+        let wrapped_res = input_error!(
+            Location::SrcPos {
+                src: Source::new_from_file(ctx, "/tmp/test.pliron".into()),
+                pos: SourcePosition::default()
+            },
+            res
+        );
+        let expected_err_msg = expect![[r#"
+            [/tmp/test.pliron: line: 1, column: 1] Compilation error: invalid input program.
+            Compilation error: invalid input program.
+            Test error"#]];
+
+        let actual_err = wrapped_res.disp(ctx).to_string();
+        expected_err_msg.assert_eq(&actual_err);
     }
 }

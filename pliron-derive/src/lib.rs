@@ -117,8 +117,9 @@ pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> Tok
     TokenStream::from(tokens)
 }
 
-// Helper derive macro to accept internal attributes that we pass to Printable, Parsable and other
-// derive macros. The helper ensures that the injected attributes do not cause a compilation error if no other derive macro is used.
+// Helper derive macro to accept internal attributes that we pass to Printable,
+// Parsable and other derive macros. The helper ensures that the injected attributes
+// do not cause a compilation error if no other derive macro is used.
 #[doc(hidden)]
 #[proc_macro_derive(DeriveAttribAcceptor, attributes(ir_kind))]
 pub fn derive_attrib_dummy(_input: TokenStream) -> TokenStream {
