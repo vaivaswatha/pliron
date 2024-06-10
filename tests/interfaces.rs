@@ -15,7 +15,6 @@ use pliron::{
     common_traits::Verify,
     context::{Context, Ptr},
     decl_attr_interface, decl_op_interface,
-    error::{Error, ErrorKind, Result},
     identifier::Identifier,
     impl_attr_interface, impl_canonical_syntax, impl_op_interface, impl_verify_succ,
     location::Location,
@@ -24,6 +23,7 @@ use pliron::{
     parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::TypeObj,
+    result::{Error, ErrorKind, Result},
     trait_cast::any_to_trait,
 };
 use pliron_derive::{def_attribute, def_op};

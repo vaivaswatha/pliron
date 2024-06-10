@@ -44,13 +44,13 @@ use crate::{
     common_traits::Verify,
     context::Context,
     dialect::DialectName,
-    error::Result,
     identifier::Identifier,
     input_err,
     irfmt::parsers::spaced,
     location::Located,
     parsable::{Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
+    result::Result,
 };
 
 /// A dictionary of attributes, mapping keys to attribute objects.
@@ -352,7 +352,7 @@ pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 /// # use pliron::{
 /// #     decl_attr_interface,
 /// #     printable::{self, Printable},
-/// #     context::Context, error::Result, common_traits::Verify,
+/// #     context::Context, result::Result, common_traits::Verify,
 /// #     attribute::Attribute, impl_attr_interface
 /// # };
 /// # use pliron_derive::def_attribute;
@@ -472,7 +472,7 @@ pub static ATTR_INTERFACE_VERIFIERS_MAP: crate::Lazy<
 ///
 /// Example: Here `Super1` and `Super2` are super interfaces for the interface `MyAttrIntr`.
 /// ```
-/// # use pliron::{decl_attr_interface, attribute::Attribute, context::Context, error::Result};
+/// # use pliron::{decl_attr_interface, attribute::Attribute, context::Context, result::Result};
 /// decl_attr_interface!(
 ///     Super1 {
 ///         fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
@@ -535,7 +535,7 @@ macro_rules! decl_attr_interface {
 #[cfg(test)]
 mod tests {
 
-    use pliron::error::Result;
+    use pliron::result::Result;
     use rustc_hash::{FxHashMap, FxHashSet};
     use std::any::TypeId;
 

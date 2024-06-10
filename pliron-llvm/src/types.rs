@@ -4,7 +4,6 @@ use combine::{between, optional, parser::char::spaces, token, Parser};
 use pliron::{
     common_traits::Verify,
     context::{Context, Ptr},
-    error::Result,
     identifier::Identifier,
     impl_verify_succ, input_err_noloc,
     irfmt::{
@@ -15,6 +14,7 @@ use pliron::{
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, ListSeparator, Printable},
     r#type::{Type, TypeObj, TypePtr},
+    result::Result,
     verify_err_noloc,
 };
 use pliron_derive::def_type;
@@ -494,13 +494,13 @@ mod tests {
             types::{IntegerType, Signedness},
         },
         context::{Context, Ptr},
-        error::Result,
         impl_verify_succ,
         irfmt::parsers::{spaced, type_parser},
         location,
         parsable::{self, state_stream_from_iterator, Parsable, ParseResult, StateStream},
         printable::{self, Printable},
         r#type::{Type, TypeObj, TypePtr},
+        result::Result,
     };
 
     #[test]

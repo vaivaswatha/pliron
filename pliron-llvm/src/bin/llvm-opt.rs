@@ -1,4 +1,4 @@
-use pliron::error::Result;
+use pliron::result::Result;
 
 pub fn main() -> Result<()> {
     todo!()

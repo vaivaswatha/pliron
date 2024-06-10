@@ -12,12 +12,12 @@
 use crate::common_traits::Verify;
 use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
 use crate::dialect::DialectName;
-use crate::error::Result;
 use crate::identifier::Identifier;
 use crate::irfmt::parsers::spaced;
 use crate::location::Located;
 use crate::parsable::{Parsable, ParseResult, ParserFn, StateStream};
 use crate::printable::{self, Printable};
+use crate::result::Result;
 use crate::storage_uniquer::TypeValueHash;
 use crate::{arg_err_noloc, input_err};
 
@@ -38,7 +38,7 @@ use thiserror::Error;
 /// So, for example, if we have
 /// ```rust
 ///     # use pliron::{printable::Printable, context::Context,
-///     #   printable::State, impl_verify_succ, error::Result};
+///     #   printable::State, impl_verify_succ, result::Result};
 ///     # use pliron_derive::def_type;
 ///     # use std::fmt::{self, Formatter};
 ///     # impl_verify_succ!(IntType);

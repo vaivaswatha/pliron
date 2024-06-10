@@ -67,10 +67,10 @@ pub struct StringError(pub String);
 #[macro_export]
 macro_rules! create_err {
     ($loc: expr, $kind: expr, $str: literal $($t:tt)*) => {
-        $crate::create_err!($loc, $kind, $crate::error::StringError(format!($str $($t)*)))
+        $crate::create_err!($loc, $kind, $crate::result::StringError(format!($str $($t)*)))
     };
     ($loc: expr, $kind: expr, $err: expr) => {
-        Err($crate::error::Error {
+        Err($crate::result::Error {
             kind: $kind,
             err: Box::new($err),
             loc: $loc,
@@ -82,7 +82,7 @@ macro_rules! create_err {
 /// The macro also accepts [format!] like arguments to create one-off errors.
 /// ```rust
 /// use thiserror::Error;
-/// use pliron::{verify_err, error::{Result, ErrorKind, Error}, location::Location};
+/// use pliron::{verify_err, result::{Result, ErrorKind, Error}, location::Location};
 ///
 /// #[derive(Error, Debug)]
 /// #[error("sample error")]
@@ -107,7 +107,7 @@ macro_rules! create_err {
 #[macro_export]
 macro_rules! verify_err {
     ($loc: expr, $($t:tt)*) => {
-        $crate::create_err!($loc, $crate::error::ErrorKind::VerificationFailed, $($t)*)
+        $crate::create_err!($loc, $crate::result::ErrorKind::VerificationFailed, $($t)*)
     }
 }
 
@@ -115,7 +115,7 @@ macro_rules! verify_err {
 /// The macro also accepts [format!] like arguments to create one-off errors.
 /// ```rust
 /// use thiserror::Error;
-/// use pliron::{input_err, error::{Result, ErrorKind, Error}, location::Location};
+/// use pliron::{input_err, result::{Result, ErrorKind, Error}, location::Location};
 ///
 /// #[derive(Error, Debug)]
 /// #[error("sample error")]
@@ -140,7 +140,7 @@ macro_rules! verify_err {
 #[macro_export]
 macro_rules! input_err {
     ($loc: expr, $($t:tt)*) => {
-        $crate::create_err!($loc, $crate::error::ErrorKind::InvalidInput, $($t)*)
+        $crate::create_err!($loc, $crate::result::ErrorKind::InvalidInput, $($t)*)
     }
 }
 
@@ -148,7 +148,7 @@ macro_rules! input_err {
 /// The macro also accepts [format!] like arguments to create one-off errors.
 /// ```rust
 /// use thiserror::Error;
-/// use pliron::{arg_err, error::{Result, ErrorKind, Error}, location::Location};
+/// use pliron::{arg_err, result::{Result, ErrorKind, Error}, location::Location};
 ///
 /// #[derive(Error, Debug)]
 /// #[error("sample error")]
@@ -173,7 +173,7 @@ macro_rules! input_err {
 #[macro_export]
 macro_rules! arg_err {
     ($loc: expr, $($t:tt)*) => {
-        $crate::create_err!($loc, $crate::error::ErrorKind::InvalidArgument, $($t)*)
+        $crate::create_err!($loc, $crate::result::ErrorKind::InvalidArgument, $($t)*)
     }
 }
 
@@ -181,7 +181,7 @@ macro_rules! arg_err {
 #[macro_export]
 macro_rules! verify_err_noloc {
     ($($t:tt)*) => {
-        $crate::create_err!($crate::location::Location::Unknown, $crate::error::ErrorKind::VerificationFailed, $($t)*)
+        $crate::create_err!($crate::location::Location::Unknown, $crate::result::ErrorKind::VerificationFailed, $($t)*)
     }
 }
 
@@ -189,7 +189,7 @@ macro_rules! verify_err_noloc {
 #[macro_export]
 macro_rules! input_err_noloc {
     ($($t:tt)*) => {
-        $crate::create_err!($crate::location::Location::Unknown, $crate::error::ErrorKind::InvalidInput, $($t)*)
+        $crate::create_err!($crate::location::Location::Unknown, $crate::result::ErrorKind::InvalidInput, $($t)*)
     }
 }
 
@@ -197,6 +197,6 @@ macro_rules! input_err_noloc {
 #[macro_export]
 macro_rules! arg_err_noloc {
     ($($t:tt)*) => {
-        $crate::create_err!($crate::location::Location::Unknown, $crate::error::ErrorKind::InvalidArgument, $($t)*)
+        $crate::create_err!($crate::location::Location::Unknown, $crate::result::ErrorKind::InvalidArgument, $($t)*)
     }
 }

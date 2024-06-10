@@ -127,8 +127,8 @@ mod tests {
         common_traits::Verify,
         context::Context,
         debug_info::{get_block_arg_name, set_block_arg_name},
-        error::Result,
         op::Op,
+        result::Result,
     };
     use apint::ApInt;
 

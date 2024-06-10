@@ -8,7 +8,6 @@ use crate::{
     builtin::attributes::TypeAttr,
     context::{Context, Ptr},
     decl_op_interface,
-    error::Result,
     linked_list::ContainsLinkedList,
     location::{Located, Location},
     op::{op_cast, Op},
@@ -16,6 +15,7 @@ use crate::{
     printable::Printable,
     r#type::{TypeObj, TypePtr, Typed},
     region::Region,
+    result::Result,
     use_def_lists::Value,
     verify_err,
 };

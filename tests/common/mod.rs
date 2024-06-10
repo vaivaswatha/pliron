@@ -11,7 +11,6 @@ use pliron::{
     context::Context,
     debug_info::set_operation_result_name,
     dialect::{Dialect, DialectName},
-    error::Result,
     identifier::Identifier,
     impl_op_interface, impl_verify_succ, input_err,
     irfmt::parsers::ssa_opd_parser,
@@ -20,6 +19,7 @@ use pliron::{
     operation::Operation,
     parsable::{self, Parsable, ParseResult},
     printable::{self, Printable},
+    result::Result,
     use_def_lists::Value,
 };
 use pliron_derive::def_op;

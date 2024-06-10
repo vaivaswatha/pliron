@@ -8,7 +8,6 @@ use crate::{
     builtin::op_interfaces::ZeroResultInterface,
     common_traits::{Named, Verify},
     context::{Context, Ptr},
-    error::Result,
     identifier::Identifier,
     impl_op_interface, impl_verify_succ, input_err,
     irfmt::{
@@ -23,6 +22,7 @@ use crate::{
     printable::{self, Printable},
     r#type::{TypeObj, TypePtr, Typed},
     region::Region,
+    result::Result,
     verify_err,
 };
 

@@ -8,10 +8,9 @@ use thiserror::Error;
 use crate::{
     common_traits::Verify,
     context::Context,
-    error,
     parsable::{self, Parsable, ParseResult},
     printable::{self, Printable},
-    verify_err_noloc,
+    result, verify_err_noloc,
 };
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
@@ -67,7 +66,7 @@ impl Deref for Identifier {
 struct MalformedIdentifierErr(String);
 
 impl Verify for Identifier {
-    fn verify(&self, _ctx: &Context) -> error::Result<()> {
+    fn verify(&self, _ctx: &Context) -> result::Result<()> {
         let re = regex::Regex::new(r"[a-zA-Z_][a-zA-Z0-9_]*").unwrap();
         if !(re.is_match(&self.0)) {
             return verify_err_noloc!(MalformedIdentifierErr(self.0.clone()));

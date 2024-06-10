@@ -1,6 +1,6 @@
 //! Utility traits such as [Named], [Verify] etc.
 
-use crate::{context::Context, error::Result};
+use crate::{context::Context, result::Result};
 
 /// Check and ensure correctness.
 pub trait Verify {
@@ -21,7 +21,7 @@ pub trait Verify {
 macro_rules! impl_verify_succ {
     ($op_name:path) => {
         impl $crate::common_traits::Verify for $op_name {
-            fn verify(&self, _ctx: &$crate::context::Context) -> $crate::error::Result<()> {
+            fn verify(&self, _ctx: &$crate::context::Context) -> $crate::result::Result<()> {
                 Ok(())
             }
         }

@@ -12,7 +12,6 @@ use crate::{
     attribute::{AttrObj, Attribute},
     common_traits::Verify,
     context::{Context, Ptr},
-    error::Result,
     impl_attr_interface, impl_verify_succ, input_err,
     irfmt::{
         parsers::{delimited_list_parser, spaced, type_parser},
@@ -22,6 +21,7 @@ use crate::{
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::{TypeObj, TypePtr, Typed},
+    result::Result,
     verify_err_noloc,
 };
 

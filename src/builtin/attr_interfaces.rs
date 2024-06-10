@@ -2,8 +2,8 @@ use crate::{
     attribute::Attribute,
     context::{Context, Ptr},
     decl_attr_interface,
-    error::Result,
     r#type::TypeObj,
+    result::Result,
 };
 
 decl_attr_interface! {

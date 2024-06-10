@@ -10,7 +10,6 @@ use crate::{
     common_traits::{Named, Verify},
     context::{private::ArenaObj, ArenaCell, Context, Ptr},
     debug_info::{get_block_arg_name, set_block_arg_name},
-    error::Result,
     identifier::Identifier,
     indented_block,
     irfmt::{
@@ -24,6 +23,7 @@ use crate::{
     printable::{self, indented_nl, ListSeparator, Printable},
     r#type::{TypeObj, Typed},
     region::Region,
+    result::Result,
     use_def_lists::{DefNode, Value},
 };
 

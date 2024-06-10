@@ -3,12 +3,12 @@ use crate::{
     basic_block::BasicBlock,
     context::Ptr,
     debug_info::set_operation_result_name,
-    error::Result,
     identifier::Identifier,
     location::{Located, Location},
     operation::Operation,
     parsable::{Parsable, ParseResult, StateStream},
     r#type::TypeObj,
+    result::Result,
     use_def_lists::Value,
 };
 use combine::{

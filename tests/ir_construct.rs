@@ -5,7 +5,6 @@ use pliron::{
     common_traits::Verify,
     context::Context,
     debug_info::set_operation_result_name,
-    error::Result,
     irfmt::parsers::spaced,
     location,
     op::Op,
@@ -13,6 +12,7 @@ use pliron::{
     parsable::{self, state_stream_from_iterator, Parsable},
     printable::Printable,
     r#type::TypePtr,
+    result::Result,
     vec_exns::VecExtns,
     walkers::{
         self,

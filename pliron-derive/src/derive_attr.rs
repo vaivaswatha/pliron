@@ -109,7 +109,7 @@ impl ToTokens for ImplAttribute {
                     }
                 }
 
-                fn verify_interfaces(&self, ctx: &::pliron::context::Context) -> ::pliron::error::Result<()> {
+                fn verify_interfaces(&self, ctx: &::pliron::context::Context) -> ::pliron::result::Result<()> {
                     if let Some(interface_verifiers) =
                         ::pliron::attribute::ATTR_INTERFACE_VERIFIERS_MAP.get(&Self::get_attr_id_static())
                     {
@@ -162,7 +162,7 @@ mod tests {
                 fn verify_interfaces(
                     &self,
                     ctx: &::pliron::context::Context,
-                ) -> ::pliron::error::Result<()> {
+                ) -> ::pliron::result::Result<()> {
                     if let Some(interface_verifiers) = ::pliron::attribute::ATTR_INTERFACE_VERIFIERS_MAP
                         .get(&Self::get_attr_id_static())
                     {

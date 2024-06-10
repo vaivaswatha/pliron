@@ -9,12 +9,12 @@ use crate::{
         ops::ForwardRefOp,
     },
     context::{Context, Ptr},
-    error::{self, Result},
     identifier::Identifier,
     input_err,
     location::{self, Located, Location},
     op::op_impls,
     operation::Operation,
+    result::{self, Result},
     use_def_lists::Value,
 };
 use combine::{
@@ -204,8 +204,8 @@ impl<'a, T> IntoParseResult<'a, T> for Result<T> {
     }
 }
 
-impl<'a> From<error::Error> for ParseError<StateStream<'a>> {
-    fn from(value: error::Error) -> Self {
+impl<'a> From<result::Error> for ParseError<StateStream<'a>> {
+    fn from(value: result::Error) -> Self {
         let position = if let Location::SrcPos { pos, .. } = value.loc {
             pos
         } else {
@@ -215,10 +215,10 @@ impl<'a> From<error::Error> for ParseError<StateStream<'a>> {
     }
 }
 
-impl<'a> From<error::Error>
+impl<'a> From<result::Error>
     for combine::error::Commit<Tracked<Errors<char, char, SourcePosition>>>
 {
-    fn from(value: error::Error) -> Self {
+    fn from(value: result::Error) -> Self {
         let res: StdParseResult2<(), ParseError<StateStream<'a>>> =
             combine::ParseResult::CommitErr(value.into()).into();
         res.err().unwrap()

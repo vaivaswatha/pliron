@@ -43,7 +43,6 @@ use crate::{
     common_traits::Verify,
     context::{Context, Ptr},
     dialect::DialectName,
-    error::Result,
     identifier::Identifier,
     input_err,
     irfmt::{
@@ -58,6 +57,7 @@ use crate::{
     parsable::{IntoParseResult, Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
     r#type::Typed,
+    result::Result,
 };
 
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -257,7 +257,7 @@ pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<()>;
 /// # use pliron_derive::def_op;
 /// # use pliron::{
 /// #     op::Op, impl_op_interface,
-/// #     context::Context, error::Result,
+/// #     context::Context, result::Result,
 /// #     common_traits::Verify
 /// # };
 /// # pliron::impl_verify_succ!(MyOp);
@@ -373,7 +373,7 @@ pub static OP_INTERFACE_VERIFIERS_MAP: crate::Lazy<
 /// for the new interface `MyOpIntr`.
 /// ```
 /// # use pliron::builtin::op_interfaces::{SameOperandsAndResultType, SymbolOpInterface};
-/// # use pliron::{decl_op_interface, op::Op, context::Context, error::Result};
+/// # use pliron::{decl_op_interface, op::Op, context::Context, result::Result};
 /// decl_op_interface!(
 ///     /// MyOpIntr is my first op interface.
 ///     MyOpIntr: SameOperandsAndResultType, SymbolOpInterface {
@@ -567,7 +567,7 @@ macro_rules! impl_canonical_syntax {
 #[cfg(test)]
 mod tests {
 
-    use pliron::error::Result;
+    use pliron::result::Result;
     use rustc_hash::{FxHashMap, FxHashSet};
     use std::any::TypeId;
 

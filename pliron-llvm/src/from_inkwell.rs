@@ -15,10 +15,10 @@ use pliron::{
         types::{FunctionType, IntegerType},
     },
     context::{Context, Ptr},
-    error::{Error, ErrorKind, Result},
     input_err_noloc,
     op::Op,
     r#type::{TypeObj, TypePtr},
+    result::{Error, ErrorKind, Result},
     use_def_lists::Value,
 };
 use rustc_hash::FxHashMap;

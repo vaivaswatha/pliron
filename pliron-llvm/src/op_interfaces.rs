@@ -9,11 +9,11 @@ use pliron::{
     },
     context::{Context, Ptr},
     decl_op_interface,
-    error::Result,
     location::Located,
     op::{op_cast, Op},
     operation::Operation,
     r#type::{TypeObj, Typed},
+    result::Result,
     use_def_lists::Value,
     verify_err,
 };

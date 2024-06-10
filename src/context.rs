@@ -4,12 +4,12 @@ use crate::{
     basic_block::BasicBlock,
     common_traits::Verify,
     dialect::{Dialect, DialectName},
-    error::Result,
     op::{OpCreator, OpId},
     operation::Operation,
     printable::{self, Printable},
     r#type::TypeObj,
     region::Region,
+    result::Result,
     storage_uniquer::UniqueStore,
     uniqued_any::UniquedAny,
 };
