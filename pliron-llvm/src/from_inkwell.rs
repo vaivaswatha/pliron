@@ -15,10 +15,10 @@ use pliron::{
         types::{FunctionType, IntegerType},
     },
     context::{Context, Ptr},
-    input_err_noloc,
+    input_err_noloc, input_error_noloc,
     op::Op,
     r#type::{TypeObj, TypePtr},
-    result::{Error, ErrorKind, Result},
+    result::Result,
     use_def_lists::Value,
 };
 use rustc_hash::FxHashMap;
@@ -31,8 +31,7 @@ trait ToStr {
 
 impl ToStr for CStr {
     fn to_str_res(&self) -> Result<&str> {
-        self.to_str()
-            .map_err(|err| Error::from_std_error(err, ErrorKind::InvalidInput, None))
+        self.to_str().map_err(|err| input_error_noloc!(err))
     }
 }
 
