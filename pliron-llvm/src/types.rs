@@ -22,84 +22,44 @@ use thiserror::Error;
 
 use std::hash::Hash;
 
-/// A field in a [StructType].
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct StructField {
-    pub field_name: Identifier,
-    pub field_type: Ptr<TypeObj>,
-}
-
-impl Printable for StructField {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        state: &printable::State,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        write!(
-            f,
-            "{}: {}",
-            self.field_name,
-            self.field_type.print(ctx, state)
-        )
-    }
-}
-
-impl Parsable for StructField {
-    type Arg = ();
-    type Parsed = StructField;
-
-    fn parse<'a>(
-        state_stream: &mut StateStream<'a>,
-        _arg: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed> {
-        // Parse a single type annotated field.
-        (
-            spaced(Identifier::parser(())),
-            token(':'),
-            spaced(type_parser()),
-        )
-            .parse_stream(state_stream)
-            .map(|(field_name, _, field_type)| StructField {
-                field_name,
-                field_type,
-            })
-            .into()
-    }
-}
-
 /// Represents a c-like struct type.
 /// Limitations and warnings on its usage are similar to that in MLIR.
 /// `<https://mlir.llvm.org/docs/Dialects/LLVM/#structure-types>`
 ///   1. Anonymous (aka unnamed) structs cannot be recursive.
 ///   2. Named structs are uniqued *only* by name, and may be recursive.
-///      Call "set_fields" after creation to set recursive types.
 ///   3. LLVM calls anonymous structs as literal structs and
 ///      named structs as identified structs.
+///   4. Named structs may be opaque, i.e., no body specificed.
+///      Recursive types may be created by first creating an opaque struct
+///      and later setting its fields (body).
 #[def_type("llvm.struct")]
 #[derive(Debug)]
 pub struct StructType {
     name: Option<String>,
-    fields: Vec<StructField>,
-    finalized: bool,
+    fields: Option<Vec<Ptr<TypeObj>>>,
 }
 
 impl StructType {
-    /// Get or create a new named StructType.
-    /// If fields is None, it indicates an opaque (i.e., not finalized) struct.
-    /// Opaque structs must be finalized (by passing non-none `fields`) for verify() to succeed.
-    /// Opaque structs are an intermediary in creating recursive types.
-    /// Returns an error when the name is already registered but the fields don't match.
+    /// Get or create a named StructType.
+    /// If `fields` is `None`, it indicates an opaque struct.
+    /// A body can be added to opaque structs by calling this again later.
+    /// Returns an error if all of the below conditions are true:
+    ///   a. The name is already registered
+    ///   b. The body is already set (i.e, the struct is not oqaue)
+    ///   c. The fields provided here don't match with the existing body.
+    /// Since named structs only rely on the name for uniqueness,
+    /// It is not an error to provide `fields` as `None` even when
+    /// the named struct already exists and has its body set.
     pub fn get_named(
         ctx: &mut Context,
         name: &str,
-        fields: Option<Vec<StructField>>,
+        fields: Option<Vec<Ptr<TypeObj>>>,
     ) -> Result<TypePtr<Self>> {
         let self_ptr = Type::register_instance(
             StructType {
                 name: Some(name.to_string()),
-                fields: fields.clone().unwrap_or_default(),
-                finalized: fields.is_some(),
+                // Uniquing happens only on the name, so this doesn't matter.
+                fields: None,
             },
             ctx,
         );
@@ -108,11 +68,15 @@ impl StructType {
         let self_ref = self_ref.downcast_mut::<StructType>().unwrap();
         assert!(self_ref.name.as_ref().unwrap() == name);
         if let Some(fields) = fields {
-            if !self_ref.finalized {
-                self_ref.fields = fields;
-                self_ref.finalized = true;
-            } else if self_ref.fields != fields {
-                input_err_noloc!(StructErr::ExistingMismatch(name.into()))?
+            // We've been provided fields to be set.
+            if let Some(existing_fields) = &self_ref.fields {
+                // Fields were already set before, ensure they're same as the given ones.
+                if existing_fields != &fields {
+                    input_err_noloc!(StructErr::ExistingMismatch(name.into()))?
+                }
+            } else {
+                // Set the fields now.
+                self_ref.fields = Some(fields);
             }
         }
         Ok(self_ptr)
@@ -120,23 +84,14 @@ impl StructType {
 
     /// Get or create a new unnamed (anonymous) struct.
     /// These are finalized upon creation, and uniqued based on the fields.
-    pub fn get_unnamed(ctx: &mut Context, fields: Vec<StructField>) -> TypePtr<Self> {
+    pub fn get_unnamed(ctx: &mut Context, fields: Vec<Ptr<TypeObj>>) -> TypePtr<Self> {
         Type::register_instance(
             StructType {
                 name: None,
-                fields,
-                finalized: true,
+                fields: Some(fields),
             },
             ctx,
         )
-    }
-
-    /// Is this struct finalized? Returns false for non [StructType]s.
-    pub fn is_finalized(ctx: &Context, ty: Ptr<TypeObj>) -> bool {
-        ty.deref(ctx)
-            .downcast_ref::<StructType>()
-            .filter(|s| s.finalized)
-            .is_some()
     }
 
     /// If a named struct already exists, get a pointer to it.
@@ -145,55 +100,56 @@ impl StructType {
             StructType {
                 name: Some(name.to_string()),
                 // Named structs are uniqued only on the name.
-                fields: vec![],
-                finalized: false,
+                fields: None,
             },
             ctx,
         )
     }
 
     /// If an unnamed struct already exists, get a pointer to it.
-    pub fn get_existing_unnamed(ctx: &Context, fields: Vec<StructField>) -> Option<TypePtr<Self>> {
+    pub fn get_existing_unnamed(ctx: &Context, fields: Vec<Ptr<TypeObj>>) -> Option<TypePtr<Self>> {
         Type::get_instance(
             StructType {
                 name: None,
-                fields,
-                finalized: true,
+                fields: Some(fields),
             },
             ctx,
         )
     }
 
-    /// Get type of the idx'th field.
-    pub fn field_type(&self, field_idx: usize) -> Ptr<TypeObj> {
-        self.fields[field_idx].field_type
+    /// Does this struct not have its body set?
+    pub fn is_opaque(&self) -> bool {
+        self.fields.is_none()
     }
 
-    /// Get name of the idx'th field.
-    pub fn field_name(&self, field_idx: usize) -> Identifier {
-        self.fields[field_idx].field_name.clone()
+    /// Is this a named struct?
+    pub fn is_named(&self) -> bool {
+        self.name.is_some()
+    }
+
+    /// Get type of the idx'th field.
+    pub fn field_type(&self, field_idx: usize) -> Ptr<TypeObj> {
+        self.fields.as_ref().unwrap()[field_idx]
     }
 
     /// Get the number of fields this struct has
     pub fn num_fields(&self) -> usize {
-        self.fields.len()
+        self.fields.as_ref().unwrap().len()
     }
 }
 
 #[derive(Debug, Error)]
 pub enum StructErr {
-    #[error("struct {0} is not finalized")]
-    NotFinalized(String),
+    #[error("struct cannot be both opaque and anonymous")]
+    OpaqueAndAnonymousErr,
     #[error("struct {0} already exists and is different")]
     ExistingMismatch(String),
 }
 
 impl Verify for StructType {
     fn verify(&self, _ctx: &Context) -> Result<()> {
-        if !self.finalized {
-            return verify_err_noloc!(StructErr::NotFinalized(
-                self.name.clone().unwrap_or("<anonymous>".into())
-            ));
+        if self.name.is_none() && self.fields.is_none() {
+            verify_err_noloc!(StructErr::OpaqueAndAnonymousErr)?
         }
         Ok(())
     }
@@ -222,15 +178,20 @@ impl Printable for StructType {
                 return write!(f, "{}>", name.clone());
             }
             IN_PRINTING.with(|f| f.borrow_mut().push(name.clone()));
-            write!(f, "{name} ")?;
+            write!(f, "{name}")?;
+            if !self.is_opaque() {
+                write!(f, " ")?;
+            }
         }
 
-        enclosed(
-            "{ ",
-            " }",
-            list_with_sep(&self.fields, ListSeparator::CharSpace(',')),
-        )
-        .fmt(ctx, state, f)?;
+        if let Some(fields) = &self.fields {
+            enclosed(
+                "{ ",
+                " }",
+                list_with_sep(fields, ListSeparator::CharSpace(',')),
+            )
+            .fmt(ctx, state, f)?;
+        }
 
         // Done processing this struct. Remove it from the stack.
         if let Some(name) = &self.name {
@@ -245,15 +206,14 @@ impl Hash for StructType {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match &self.name {
             Some(name) => name.hash(state),
-            None => self.fields.iter().for_each(
-                |StructField {
-                     field_name,
-                     field_type,
-                 }| {
-                    field_name.hash(state);
+            None => self
+                .fields
+                .as_ref()
+                .expect("Anonymous struct must have its fields set")
+                .iter()
+                .for_each(|field_type| {
                     field_type.hash(state);
-                },
-            ),
+                }),
         }
     }
 }
@@ -262,12 +222,7 @@ impl PartialEq for StructType {
     fn eq(&self, other: &Self) -> bool {
         match (&self.name, &other.name) {
             (Some(name), Some(other_name)) => name == other_name,
-            (None, None) => {
-                self.fields.len() == other.fields.len()
-                    && self.fields.iter().zip(other.fields.iter()).all(|(f1, f2)| {
-                        f1.field_name == f2.field_name && f1.field_type == f2.field_type
-                    })
-            }
+            (None, None) => self.fields == other.fields,
             _ => false,
         }
     }
@@ -286,7 +241,7 @@ impl Parsable for StructType {
     {
         let body_parser = || {
             // Parse multiple type annotated fields separated by ',', all of it delimited by braces.
-            delimited_list_parser('{', '}', ',', StructField::parser(()))
+            delimited_list_parser('{', '}', ',', Ptr::<TypeObj>::parser(()))
         };
 
         let named = spaced((location(), Identifier::parser(())))
@@ -518,6 +473,7 @@ impl Parsable for FuncType {
 
 pub fn register(ctx: &mut Context) {
     VoidType::register_type_in_dialect(ctx, VoidType::parser_fn);
+    ArrayType::register_type_in_dialect(ctx, ArrayType::parser_fn);
     StructType::register_type_in_dialect(ctx, StructType::parser_fn);
     PointerType::register_type_in_dialect(ctx, PointerType::parser_fn);
     FuncType::register_type_in_dialect(ctx, FuncType::parser_fn);
@@ -531,15 +487,14 @@ mod tests {
     use expect_test::expect;
     use pliron_derive::def_type;
 
-    use crate::types::{FuncType, StructErr, StructField, StructType, VoidType};
+    use crate::types::{FuncType, StructType, VoidType};
     use pliron::{
         builtin::{
             self,
             types::{IntegerType, Signedness},
         },
-        common_traits::Verify,
         context::{Context, Ptr},
-        error::{Error, ErrorKind, Result},
+        error::Result,
         impl_verify_succ,
         irfmt::parsers::{spaced, type_parser},
         location,
@@ -554,22 +509,21 @@ mod tests {
         let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signless).into();
 
         // Create an opaque struct since we want a recursive type.
-        let list_struct = StructType::get_named(&mut ctx, "LinkedList", None)?.into();
-        assert!(!StructType::is_finalized(&ctx, list_struct));
+        let list_struct: Ptr<TypeObj> = StructType::get_named(&mut ctx, "LinkedList", None)?.into();
+        assert!(list_struct
+            .deref(&ctx)
+            .downcast_ref::<StructType>()
+            .unwrap()
+            .is_opaque());
         let list_struct_ptr = TypedPointerType::get(&mut ctx, list_struct).into();
-        let fields = vec![
-            StructField {
-                field_name: "data".into(),
-                field_type: int64_ptr,
-            },
-            StructField {
-                field_name: "next".into(),
-                field_type: list_struct_ptr,
-            },
-        ];
-        // Finalize the type now.
+        let fields = vec![int64_ptr, list_struct_ptr];
+        // Set the struct body now.
         StructType::get_named(&mut ctx, "LinkedList", Some(fields))?;
-        assert!(StructType::is_finalized(&ctx, list_struct));
+        assert!(!list_struct
+            .deref(&ctx)
+            .downcast_ref::<StructType>()
+            .unwrap()
+            .is_opaque());
 
         let list_struct_2 = StructType::get_existing_named(&ctx, "LinkedList")
             .unwrap()
@@ -579,37 +533,14 @@ mod tests {
 
         assert_eq!(
             list_struct.disp(&ctx).to_string(),
-            "llvm.struct<LinkedList { data: builtin.int<i64>, next: llvm.typed_ptr<llvm.struct<LinkedList>> }>"
+            "llvm.struct<LinkedList { builtin.int<i64>, llvm.typed_ptr<llvm.struct<LinkedList>> }>"
         );
 
-        let head_fields = vec![
-            StructField {
-                field_name: "len".into(),
-                field_type: int64_ptr,
-            },
-            StructField {
-                field_name: "first".into(),
-                field_type: list_struct_ptr,
-            },
-        ];
+        let head_fields = vec![int64_ptr, list_struct_ptr];
         let head_struct = StructType::get_unnamed(&mut ctx, head_fields.clone());
         let head_struct2 = StructType::get_existing_unnamed(&ctx, head_fields).unwrap();
         assert!(head_struct == head_struct2);
-        assert!(StructType::get_existing_unnamed(
-            &ctx,
-            vec![
-                StructField {
-                    field_name: "len".into(),
-                    field_type: int64_ptr
-                },
-                // The actual field is a LinkedList here, rather than a pointer type to it.
-                StructField {
-                    field_name: "first".into(),
-                    field_type: list_struct
-                },
-            ]
-        )
-        .is_none());
+        assert!(StructType::get_existing_unnamed(&ctx, vec![int64_ptr, list_struct]).is_none());
 
         Ok(())
     }
@@ -725,13 +656,44 @@ mod tests {
         TypedPointerType::register_type_in_dialect(&mut ctx, TypedPointerType::parser_fn);
 
         let state_stream = state_stream_from_iterator(
-            "llvm.struct<LinkedList { data: builtin.int<i64>, next: llvm.typed_ptr<llvm.struct<LinkedList>> }>".chars(),
+            "llvm.struct<LinkedList { builtin.int<i64>, llvm.typed_ptr<llvm.struct<LinkedList>> }>"
+                .chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
         let res = type_parser().parse(state_stream).unwrap().0;
-        assert_eq!(&res.disp(&ctx).to_string(),
-            "llvm.struct<LinkedList { data: builtin.int<i64>, next: llvm.typed_ptr<llvm.struct<LinkedList>> }>");
+        assert_eq!(
+            &res.disp(&ctx).to_string(),
+            "llvm.struct<LinkedList { builtin.int<i64>, llvm.typed_ptr<llvm.struct<LinkedList>> }>"
+        );
+
+        // Test parsing an opaque struct.
+        let test_string = "llvm.struct<ExternStruct>";
+        let state_stream = state_stream_from_iterator(
+            test_string.chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+        let res = type_parser().parse(state_stream).unwrap().0;
+        assert_eq!(&res.disp(&ctx).to_string(), test_string);
+        {
+            let res = res.deref(&ctx);
+            let res = res.downcast_ref::<StructType>().unwrap();
+            assert!(res.is_opaque() && res.is_named());
+        }
+
+        // Test parsing an unnamed struct.
+        let test_string = "llvm.struct<{ builtin.int<i8> }>";
+        let state_stream = state_stream_from_iterator(
+            test_string.chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+        let res = type_parser().parse(state_stream).unwrap().0;
+        assert_eq!(&res.disp(&ctx).to_string(), test_string);
+        {
+            let res = res.deref(&ctx);
+            let res = res.downcast_ref::<StructType>().unwrap();
+            assert!(!res.is_opaque() && !res.is_named());
+        }
     }
 
     #[test]
@@ -741,13 +703,13 @@ mod tests {
         llvm::register(&mut ctx);
 
         let state_stream = state_stream_from_iterator(
-            "llvm.struct < My1 { f1: builtin.int<i8> } >".chars(),
+            "llvm.struct < My1 { builtin.int<i8> } >".chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
         let _ = type_parser().parse(state_stream).unwrap().0;
 
         let state_stream = state_stream_from_iterator(
-            "llvm.struct < My1 { f1: builtin.int<i16> } >".chars(),
+            "llvm.struct < My1 { builtin.int<i16> } >".chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
@@ -759,17 +721,6 @@ mod tests {
             struct My1 already exists and is different
         "#]];
         expected_err_msg.assert_eq(&err_msg);
-
-        let state_stream = state_stream_from_iterator(
-            "llvm.struct < My2 >".chars(),
-            parsable::State::new(&mut ctx, location::Source::InMemory),
-        );
-        let res = type_parser().parse(state_stream).unwrap().0;
-        matches!(
-            &res.verify(&ctx),
-            Err (Error { kind: ErrorKind::VerificationFailed, err, loc: _ })
-                if err.is::<StructErr>()
-        );
     }
 
     #[test]

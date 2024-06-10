@@ -19,5 +19,3 @@ pub fn register(ctx: &mut Context) {
 
 /// Key for debug info related attributes.
 pub const ATTR_KEY_DEBUG_INFO: &str = "builtin.debug_info";
-/// Key for symbol name attribute, if the operation defines a symbol.
-pub const ATTR_KEY_SYM_NAME: &str = "builtin.sym_name";

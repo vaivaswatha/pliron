@@ -31,7 +31,8 @@ use super::{
     attributes::{FloatAttr, IntegerAttr, TypeAttr},
     op_interfaces::{
         self, IsolatedFromAboveInterface, OneRegionInterface, OneResultInterface,
-        OneResultVerifyErr, SingleBlockRegionInterface, SymbolOpInterface, ZeroOpdInterface,
+        OneResultVerifyErr, SingleBlockRegionInterface, SymbolOpInterface, SymbolTableInterface,
+        ZeroOpdInterface,
     },
     types::{FunctionType, UnitType},
 };
@@ -45,9 +46,9 @@ use super::{
 ///
 /// Attributes:
 ///
-/// | key | value |
-/// |-----|-------|
-/// | [ATTR_KEY_SYM_NAME](super::ATTR_KEY_SYM_NAME) | [StringAttr](super::attributes::StringAttr) |
+/// | key | value | via Interface |
+/// |-----|-------|-----|
+/// | [ATTR_KEY_SYM_NAME](super::op_interfaces::ATTR_KEY_SYM_NAME) | [StringAttr](super::attributes::StringAttr) | [SymbolOpInterface] |
 #[def_op("builtin.module")]
 pub struct ModuleOp {}
 
@@ -126,6 +127,7 @@ impl ModuleOp {
 
 impl_op_interface!(OneRegionInterface for ModuleOp {});
 impl_op_interface!(SingleBlockRegionInterface for ModuleOp {});
+impl_op_interface!(SymbolTableInterface for ModuleOp {});
 impl_op_interface!(SymbolOpInterface for ModuleOp {});
 impl_op_interface!(IsolatedFromAboveInterface for ModuleOp {});
 impl_op_interface!(ZeroOpdInterface for ModuleOp {});
@@ -136,10 +138,10 @@ impl_op_interface!(ZeroResultInterface for ModuleOp {});
 ///
 /// Attributes:
 ///
-/// | key | value |
-/// |-----|-------|
-/// | [ATTR_KEY_SYM_NAME](super::ATTR_KEY_SYM_NAME) | [StringAttr](super::attributes::StringAttr) |
-/// | [ATTR_KEY_FUNC_TYPE](FuncOp::ATTR_KEY_FUNC_TYPE) | [TypeAttr](super::attributes::TypeAttr) |
+/// | key | value | via Interface |
+/// |-----|-------|-----|
+/// | [ATTR_KEY_SYM_NAME](super::op_interfaces::ATTR_KEY_SYM_NAME) | [StringAttr](super::attributes::StringAttr) | [SymbolOpInterface] |
+/// | [ATTR_KEY_FUNC_TYPE](FuncOp::ATTR_KEY_FUNC_TYPE) | [TypeAttr](super::attributes::TypeAttr) | N/A |
 #[def_op("builtin.func")]
 pub struct FuncOp {}
 

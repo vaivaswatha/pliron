@@ -14,9 +14,12 @@ license.workspace = true
 [dependencies]
 pliron-derive = { path = "../pliron-derive", version = "0" }
 pliron = { path = "../", version = "0" }
+clap = "4.5"
 combine.workspace = true
 thiserror.workspace = true
 linkme.workspace = true
+inkwell = { version = "0", features = ["llvm17-0"] }
+rustc-hash.workspace = true
 
 [dev-dependencies]
 expect-test.workspace = true

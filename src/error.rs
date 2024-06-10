@@ -37,6 +37,21 @@ impl Located for Error {
     }
 }
 
+impl Error {
+    /// Convert any [std::error::Error] to [struct@Error]
+    pub fn from_std_error(
+        err: impl std::error::Error + Send + Sync + 'static,
+        kind: ErrorKind,
+        loc: Option<Location>,
+    ) -> Self {
+        Error {
+            kind,
+            err: Box::new(err),
+            loc: loc.unwrap_or(Location::Unknown),
+        }
+    }
+}
+
 /// Type alias for [std::result::Result] with the error type set to [struct@Error]
 pub type Result<T> = std::result::Result<T, Error>;
 

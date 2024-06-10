@@ -1,22 +1,26 @@
+use std::collections::hash_map;
+
+use rustc_hash::FxHashMap;
 use thiserror::Error;
 
 use crate::{
     basic_block::BasicBlock,
+    builtin::attributes::TypeAttr,
     context::{Context, Ptr},
     decl_op_interface,
     error::Result,
     linked_list::ContainsLinkedList,
-    location::Located,
+    location::{Located, Location},
     op::{op_cast, Op},
     operation::Operation,
     printable::Printable,
-    r#type::{TypeObj, Typed},
+    r#type::{TypeObj, TypePtr, Typed},
     region::Region,
     use_def_lists::Value,
     verify_err,
 };
 
-use super::attributes::StringAttr;
+use super::{attributes::StringAttr, types::FunctionType};
 
 decl_op_interface! {
     /// An [Op] implementing this interface is a block terminator.
@@ -189,13 +193,20 @@ decl_op_interface! {
     }
 }
 
+/// Key for symbol name attribute when the operation defines a symbol.
+pub const ATTR_KEY_SYM_NAME: &str = "builtin.sym_name";
+
+#[derive(Error, Debug)]
+#[error("Op implementing SymbolOpInterface does not have a symbol defined")]
+pub struct SymbolOpInterfaceErr;
+
 decl_op_interface! {
     /// [Op] that defines or declares a [symbol](https://mlir.llvm.org/docs/SymbolsAndSymbolTables/#symbol).
     SymbolOpInterface {
         // Get the name of the symbol defined by this operation.
         fn get_symbol_name(&self, ctx: &Context) -> String {
             let self_op = self.get_operation().deref(ctx);
-            let s_attr = self_op.attributes.get::<StringAttr>(super::ATTR_KEY_SYM_NAME).unwrap();
+            let s_attr = self_op.attributes.get::<StringAttr>(ATTR_KEY_SYM_NAME).unwrap();
             String::from(s_attr.clone())
         }
 
@@ -203,13 +214,56 @@ decl_op_interface! {
         fn set_symbol_name(&self, ctx: &mut Context, name: &str) {
             let name_attr = StringAttr::new(name.to_string());
             let mut self_op = self.get_operation().deref_mut(ctx);
-            self_op.attributes.set(super::ATTR_KEY_SYM_NAME, name_attr);
+            self_op.attributes.set(ATTR_KEY_SYM_NAME, name_attr);
         }
 
-        fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+        fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
         where
             Self: Sized,
         {
+            let self_op = op.get_operation().deref(ctx);
+            if self_op.attributes.get::<StringAttr>(ATTR_KEY_SYM_NAME).is_none() {
+                return verify_err!(op.get_operation().deref(ctx).loc(), SymbolOpInterfaceErr);
+            }
+            Ok(())
+        }
+    }
+}
+
+#[derive(Error, Debug)]
+// TODO: Add `Location` as another parameter so that previously defined location can be printed.
+#[error("Symbol {0} previously defined")]
+pub struct SymbolTableInterfaceErr(String);
+
+decl_op_interface! {
+    // Any [Op] that holds a symbol table.
+    SymbolTableInterface: SingleBlockRegionInterface, OneRegionInterface {
+        fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            // Check that every symbol is defined only once.
+            let mut seen = FxHashMap::<String, Location>::default();
+            let table_ops_block =
+                op_cast::<dyn SingleBlockRegionInterface>(op)
+                .unwrap()
+                .get_body(ctx, 0);
+            for op in table_ops_block.deref(ctx).iter(ctx) {
+                if let Some(sym_op) =
+                    op_cast::<dyn SymbolOpInterface>(&*Operation::get_op(op, ctx))
+                {
+                    let sym = sym_op.get_symbol_name(ctx);
+                    match seen.entry(sym.clone()) {
+                        hash_map::Entry::Occupied(_) => {
+                            return verify_err!(op.deref(ctx).loc(), SymbolTableInterfaceErr(sym));
+                        }
+                        hash_map::Entry::Vacant(vac) => {
+                            vac.insert(op.deref(ctx).loc());
+                        }
+                    }
+                }
+            }
+
             Ok(())
         }
     }
@@ -269,39 +323,6 @@ decl_op_interface! {
             Ok(())
         }
     }
-}
-
-decl_op_interface! {
-    /// An [Op] that calls a function
-    CallOpInterface {
-        /// Returns the symbol of the callee of this call [Op].
-        fn get_callee_sym(&self, ctx: &Context) -> String;
-
-        fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
-        where
-            Self: Sized,
-        {
-            Ok(())
-        }
-    }
-}
-
-/// Returns the symbols of the callees of all the call operations in this operation.
-pub fn get_callees_syms(ctx: &Context, op: Ptr<Operation>) -> Vec<String> {
-    let ref_op = op.deref(ctx);
-    let mut callees = Vec::new();
-    for region in &ref_op.regions {
-        for block in region.deref(ctx).iter(ctx) {
-            for op in block.deref(ctx).iter(ctx) {
-                if let Some(call_op) =
-                    op_cast::<dyn CallOpInterface>(Operation::get_op(op, ctx).as_ref())
-                {
-                    callees.push(call_op.get_callee_sym(ctx));
-                }
-            }
-        }
-    }
-    callees
 }
 
 #[derive(Error, Debug)]
@@ -498,6 +519,63 @@ decl_op_interface! {
             }
 
             Ok(())
+        }
+    }
+}
+
+/// A callable object is either a
+///   - direct callee, expressed as a symbol)
+///   - indirect callee, a [Value] pointing to the function to be called.
+pub enum CallOpCallable {
+    Direct(String),
+    Indirect(Value),
+}
+
+#[derive(Error, Debug)]
+pub enum CallOpInterfaceErr {
+    #[error("Callee type attribute not found")]
+    CalleeTypeAttrNotFoundErr,
+    #[error("Callee type attribute must be FunctionType")]
+    CalleeTypeAttrIncorrectTypeErr,
+}
+
+pub const ATTR_KEY_CALLEE_TYPE: &str = "llvm.callee_type";
+pub const ATTR_KEY_CALLEE: &str = "llvm.callee";
+
+decl_op_interface! {
+    /// A call-like op: Transfers control from one function to another.
+    /// See MLIR's [CallOpInterface](https://mlir.llvm.org/docs/Interfaces/#callinterfaces).
+    CallOpInterface {
+        fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            let op = op.get_operation().deref(ctx);
+            let Some(callee_type_attr) =
+                op.attributes.get::<TypeAttr>(ATTR_KEY_CALLEE_TYPE)
+            else {
+                return verify_err!(op.loc(), CallOpInterfaceErr::CalleeTypeAttrNotFoundErr);
+            };
+            if !callee_type_attr.get_type(ctx).deref(ctx).is::<FunctionType>() {
+                return verify_err!(op.loc(), CallOpInterfaceErr::CalleeTypeAttrIncorrectTypeErr);
+            }
+            Ok(())
+        }
+
+        /// Get the function that this call op is calling
+        ///   - A symbol if this is a direct call
+        ///   - A value if this is an indirect call
+        fn callee(&self, ctx: &Context) -> CallOpCallable;
+
+        /// Get arguments passed to callee
+        fn args(&self, ctx: &Context) -> Vec<Value>;
+
+        /// Type of the callee
+        fn callee_type(&self, ctx: &Context) -> TypePtr<FunctionType> {
+            let self_op = self.get_operation().deref(ctx);
+            let ty_attr = self_op.attributes.get::<TypeAttr>(ATTR_KEY_CALLEE_TYPE).unwrap();
+            TypePtr::from_ptr
+                (ty_attr.get_type(ctx), ctx).expect("Incorrect callee type, not a FunctionType")
         }
     }
 }

@@ -5,10 +5,11 @@ use pliron::{
     basic_block::BasicBlock,
     builtin::{
         attr_interfaces::TypedAttrInterface,
-        attributes::TypeAttr,
+        attributes::{StringAttr, TypeAttr},
         op_interfaces::{
-            BranchOpInterface, IsTerminatorInterface, OneOpdInterface, OneResultInterface,
-            SameOperandsAndResultType, SameOperandsType, SameResultsType, ZeroResultInterface,
+            BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
+            OneOpdInterface, OneResultInterface, SameOperandsAndResultType, SameOperandsType,
+            SameResultsType, ZeroResultInterface, ATTR_KEY_CALLEE,
         },
         types::{IntegerType, Signedness},
     },
@@ -753,6 +754,51 @@ impl Verify for StoreOp {
     }
 }
 impl_op_interface!(ZeroResultInterface for LoadOp {});
+
+/// Equivalent to LLVM's Store opcode.
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `callee_operands` | Optional function pointer followed by any number of parameters |
+///
+////// ### Result(s):
+///
+/// | result | description |
+/// |-----|-------|
+/// | `res` | LLVM type |
+///
+/// ### Attributes:
+/// | key | value | via Interface |
+/// |-----|-------| --------------|
+/// | [ATTR_KEY_CALLEE](pliron::builtin::op_interfaces::ATTR_KEY_CALLEE) | [StringAttr] | [CallOpInterface] |
+/// | [ATTR_KEY_CALLEE_TYPE](pliron::builtin::op_interfaces::ATTR_KEY_CALLEE_TYPE) | [TypeAttr] | [CallOpInterface] |
+///
+#[def_op("llvm.call")]
+pub struct CallOp {}
+impl CallOpInterface for CallOp {
+    fn callee(&self, ctx: &Context) -> CallOpCallable {
+        let op = self.op.deref(ctx);
+        if let Some(callee_sym) = op.attributes.get::<StringAttr>(ATTR_KEY_CALLEE) {
+            CallOpCallable::Direct(callee_sym.clone().into())
+        } else {
+            CallOpCallable::Indirect(
+                op.get_operand(0)
+                    .expect("Indirect call must have function pointer operand"),
+            )
+        }
+    }
+    fn args(&self, ctx: &Context) -> Vec<Value> {
+        let op = self.op.deref(ctx);
+        let skip = if op.attributes.get::<StringAttr>(ATTR_KEY_CALLEE).is_some() {
+            0
+        } else {
+            1
+        };
+        op.operands().skip(skip).collect()
+    }
+}
+impl_canonical_syntax!(CallOp);
+impl_verify_succ!(CallOp);
 
 /// Register ops in the LLVM dialect.
 pub fn register(ctx: &mut Context) {
