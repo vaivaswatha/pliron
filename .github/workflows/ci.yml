@@ -10,24 +10,17 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  llvm:
-    name: Install LLVM and Clang
-    runs-on: ubuntu-latest
-    steps:
-    - name: Install LLVM and Clang
-      uses: KyleMayes/install-llvm-action@v2
-      with:
-        version: "17.0"
-
   build:
     name: Build
     runs-on: ubuntu-latest
-    env:
-      LLVM_SYS_170_PREFIX: ~/pliron/llvm
-    needs: llvm
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
+    - name: Install LLVM
+      run:
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 17
     - run: RUSTFLAGS="-D warnings" cargo build --workspace --verbose
 
   tests:
