@@ -10,6 +10,12 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  llvm:
+    name: Install LLVM and Clang
+    uses: KyleMayes/install-llvm-action@v2.0.3
+    with:
+      version: "17.0"
+
   build:
     name: Build
     runs-on: ubuntu-latest
