@@ -11,7 +11,7 @@ env:
 
 jobs:
   build:
-    name: pliron CI
+    name: Build and Test
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -27,13 +27,13 @@ jobs:
     - name: Build
       run: RUSTFLAGS="-D warnings" cargo build --workspace --verbose
 
-    - name: Run tests
+    - name: Tests
       run: cargo test --workspace --verbose
 
     - name: Clippy
       run: cargo clippy --workspace -- -D warnings
 
-    - name: Code format
+    - name: Format
       run: cargo fmt --check
 
     - name: Documentation
