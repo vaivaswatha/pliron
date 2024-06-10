@@ -22,6 +22,8 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    env:
+      LLVM_SYS_170_PREFIX: ~/pliron/llvm
     needs: llvm
     steps:
     - uses: actions/checkout@v3
