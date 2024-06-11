@@ -23,7 +23,7 @@ use rustc_hash::FxHashMap;
 /// ```
 /// # use pliron::{type_to_trait, trait_cast::any_to_trait};
 /// # use std::any::Any;
-/// # use downcast_rs::{impl_downcast, Downcast};
+/// # use downcast_rs::Downcast;
 ///
 /// trait Trait1: Downcast {}
 /// trait Trait2 {}

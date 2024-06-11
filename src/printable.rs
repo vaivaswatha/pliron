@@ -83,13 +83,13 @@ macro_rules! indented_block {
 }
 
 /// An object that implements [Display].
-struct Displayable<'t, 'c, T: Printable> {
+struct Displayable<'t, 'c, T: Printable + ?Sized> {
     t: &'t T,
     ctx: &'c Context,
     state: State,
 }
 
-impl<'t, 'c, T: Printable> Display for Displayable<'t, 'c, T> {
+impl<'t, 'c, T: Printable + ?Sized> Display for Displayable<'t, 'c, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.t.fmt(self.ctx, &self.state, f)
     }
@@ -131,7 +131,6 @@ pub trait Printable {
     /// Get a [Display]'able object from the given [Context] and default [State].
     fn disp<'t, 'c>(&'t self, ctx: &'c Context) -> Box<dyn Display + 'c>
     where
-        Self: Sized + 'c,
         't: 'c,
     {
         self.print(ctx, &State::default())
@@ -140,7 +139,6 @@ pub trait Printable {
     /// Get a [Display]'able object from the given [Context] and [State].
     fn print<'t, 'c>(&'t self, ctx: &'c Context, state: &State) -> Box<dyn Display + 'c>
     where
-        Self: Sized + 'c,
         't: 'c,
     {
         Box::new(Displayable {
