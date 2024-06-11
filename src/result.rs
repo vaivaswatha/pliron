@@ -39,13 +39,18 @@ impl Printable for Error {
         _state: &State,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        write!(
+        writeln!(
             f,
-            "[{}] Compilation error: {}.\n{}",
+            "[{}] Compilation error: {}.",
             self.loc.disp(ctx),
             self.kind,
-            self.err
-        )
+        )?;
+
+        if let Some(self_val) = self.err.downcast_ref::<Error>() {
+            write!(f, "{}", self_val.disp(ctx))
+        } else {
+            write!(f, "{}", self.err)
+        }
     }
 }
 
@@ -356,7 +361,7 @@ macro_rules! arg_err_noloc {
 #[cfg(test)]
 mod tests {
 
-    use combine::stream::position::SourcePosition;
+    use combine::stream::position::{Positioner, SourcePosition};
     use expect_test::expect;
     use thiserror::Error;
 
@@ -373,18 +378,20 @@ mod tests {
     #[test]
     fn wrapped_err() {
         let ctx = &mut Context::new();
+        let src = Source::new_from_file(ctx, "/tmp/test.pliron".into());
 
-        let res = input_error_noloc!(TestErr);
-        let wrapped_res = input_error!(
-            Location::SrcPos {
-                src: Source::new_from_file(ctx, "/tmp/test.pliron".into()),
-                pos: SourcePosition::default()
-            },
-            res
-        );
+        let pos1 = SourcePosition::default();
+        let loc1 = Location::SrcPos { src, pos: pos1 };
+
+        let mut pos2 = SourcePosition::default();
+        pos2.update(&' ');
+        let loc2 = Location::SrcPos { pos: pos2, src };
+
+        let res = input_error!(loc2, TestErr);
+        let wrapped_res = input_error!(loc1, res);
         let expected_err_msg = expect![[r#"
             [/tmp/test.pliron: line: 1, column: 1] Compilation error: invalid input program.
-            Compilation error: invalid input program.
+            [/tmp/test.pliron: line: 1, column: 2] Compilation error: invalid input program.
             Test error"#]];
 
         let actual_err = wrapped_res.disp(ctx).to_string();
