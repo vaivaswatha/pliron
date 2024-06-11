@@ -28,43 +28,26 @@ use crate::{
 };
 
 /// Argument to a [BasicBlock]
-pub struct BlockArgument {
+pub(crate) struct BlockArgument {
     /// The def containing the list of this argument's uses.
     pub(crate) def: DefNode<Value>,
     /// A [Ptr] to the [BasicBlock] of which this is an argument.
-    def_block: Ptr<BasicBlock>,
+    pub(crate) def_block: Ptr<BasicBlock>,
     /// Index of this argument in the block's list of arguments.
-    arg_idx: usize,
+    pub(crate) arg_idx: usize,
     /// The [Type](crate::type::Type) of this argument.
-    ty: Ptr<TypeObj>,
-}
-
-impl BlockArgument {
-    /// A [Ptr] to the [BasicBlock] of which this is an argument.
-    pub fn get_def_block(&self) -> Ptr<BasicBlock> {
-        self.def_block
-    }
-
-    /// Index of this argument in the block's list of arguments.
-    pub fn get_arg_idx(&self) -> usize {
-        self.arg_idx
-    }
-
-    /// Get the [Type](crate::type::Type) of this block argument.
-    pub fn get_type(&self) -> Ptr<TypeObj> {
-        self.ty
-    }
+    pub(crate) ty: Ptr<TypeObj>,
 }
 
 impl Typed for BlockArgument {
-    fn get_type(&self, _cfg: &Context) -> Ptr<TypeObj> {
+    fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
         self.ty
     }
 }
 
 impl Named for BlockArgument {
     fn given_name(&self, ctx: &Context) -> Option<String> {
-        get_block_arg_name(ctx, self.get_def_block(), self.arg_idx)
+        get_block_arg_name(ctx, self.def_block, self.arg_idx)
     }
     fn id(&self, ctx: &Context) -> String {
         format!("{}_arg{}", self.def_block.deref(ctx).id(ctx), self.arg_idx)
@@ -87,7 +70,7 @@ impl Printable for BlockArgument {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{}:{}", self.unique_name(ctx), self.get_type().disp(ctx))
+        write!(f, "{}:{}", self.unique_name(ctx), self.ty.disp(ctx))
     }
 }
 
@@ -109,7 +92,7 @@ struct RegionLinks {
     prev_block: Option<Ptr<BasicBlock>>,
 }
 
-/// A basic block contains a list of [Operation]s. It may have [arguments](BlockArgument).
+/// A basic block contains a list of [Operation]s. It may have [arguments](Value::BlockArgument).
 pub struct BasicBlock {
     pub(crate) self_ptr: Ptr<BasicBlock>,
     pub(crate) label: Option<Identifier>,

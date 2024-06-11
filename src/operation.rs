@@ -498,6 +498,9 @@ impl Verify for Operation {
         for opd in &self.operands {
             opd.verify(ctx)?;
         }
+        for opd in &self.successors {
+            opd.verify(ctx)?;
+        }
         for region in &self.regions {
             region.verify(ctx)?;
         }

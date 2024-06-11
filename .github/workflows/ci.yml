@@ -21,8 +21,7 @@ jobs:
       run: |
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
-        sudo ./llvm.sh 17
-        sudo apt-get install libpolly-17-dev
+        sudo ./llvm.sh 17 all
 
     - name: Build
       run: RUSTFLAGS="-D warnings" cargo build --workspace --verbose

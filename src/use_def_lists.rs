@@ -166,7 +166,7 @@ impl Typed for Value {
                 .deref(ctx)
                 .get_argument_ref(*arg_idx)
                 .unwrap()
-                .get_type(),
+                .get_type(ctx),
         }
     }
 }
