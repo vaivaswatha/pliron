@@ -13,7 +13,6 @@ use pliron::{
     printable::Printable,
     r#type::TypePtr,
     result::Result,
-    vec_exns::VecExtns,
     walkers::{
         self,
         interruptible::{self, walk_advance, walk_break},
@@ -302,7 +301,7 @@ fn test_preorder_forward_walk() {
         module_op,
         |_ctx, state, node| {
             if let IRNode::Operation(op) = node {
-                state.push_back(op);
+                state.push(op);
             }
         },
     );
@@ -344,7 +343,7 @@ fn test_postorder_forward_walk() {
         module_op,
         |_ctx, state, node| {
             if let IRNode::Operation(op) = node {
-                state.push_back(op);
+                state.push(op);
             }
         },
     );

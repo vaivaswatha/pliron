@@ -25,6 +25,7 @@ use crate::{
     region::Region,
     result::Result,
     use_def_lists::{DefNode, Value},
+    vec_exns::VecExtns,
 };
 
 /// Argument to a [BasicBlock]
@@ -151,6 +152,16 @@ impl BasicBlock {
     /// Get idx'th argument as a Value.
     pub fn get_argument(&self, arg_idx: usize) -> Option<Value> {
         self.args.get(arg_idx).map(|arg| arg.into())
+    }
+
+    /// Add a new argument with specified type. Returns idx at which it was added.
+    pub fn add_argument(&mut self, ty: Ptr<TypeObj>) -> usize {
+        self.args.push_back_with(|arg_idx| BlockArgument {
+            def: DefNode::new(),
+            def_block: self.self_ptr,
+            arg_idx,
+            ty,
+        })
     }
 
     /// Get a reference to the idx'th argument.

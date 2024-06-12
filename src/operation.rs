@@ -327,12 +327,12 @@ impl Operation {
         // The operands cease to be a use of their definitions.
         let operands = std::mem::take(&mut (ptr.deref_mut(ctx).operands));
         for opd in operands {
-            opd.drop(ctx);
+            opd.drop_use(ctx);
         }
         // The successors cease to be a use of their definitions.
         let successors = std::mem::take(&mut (ptr.deref_mut(ctx).successors));
         for succ in successors {
-            succ.drop(ctx);
+            succ.drop_use(ctx);
         }
 
         let regions = ptr.deref(ctx).regions.clone();
@@ -412,8 +412,8 @@ impl<T: DefUseParticipant + DefTrait> Operand<T> {
         self.r#use.get_def()
     }
 
-    /// Drop this use, removing self from list of its definition's uses.
-    fn drop(&self, ctx: &Context) {
+    /// Drop this use, removing self from its definition's uses list.
+    fn drop_use(&self, ctx: &Context) {
         self.get_def().get_defnode_mut(ctx).remove_use(self.into());
     }
 
@@ -421,7 +421,7 @@ impl<T: DefUseParticipant + DefTrait> Operand<T> {
     fn replace(&mut self, ctx: &Context, other: T) {
         let user_op = self.user_op;
         let opd_idx = self.opd_idx;
-        self.drop(ctx);
+        self.drop_use(ctx);
         *self = Self::new(ctx, other, user_op, opd_idx);
     }
 
