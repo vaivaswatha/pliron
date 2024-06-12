@@ -6,7 +6,6 @@ use combine::{token, Parser};
 use thiserror::Error;
 
 use crate::{
-    common_traits::Verify,
     context::Context,
     parsable::{self, Parsable, ParseResult},
     printable::{self, Printable},
@@ -35,15 +34,23 @@ impl Display for Identifier {
     }
 }
 
-impl From<String> for Identifier {
-    fn from(value: String) -> Self {
-        Identifier(value)
+impl TryFrom<String> for Identifier {
+    type Error = result::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let re = regex::Regex::new(r"[a-zA-Z_][a-zA-Z0-9_]*").unwrap();
+        if !(re.is_match(&value)) {
+            return verify_err_noloc!(MalformedIdentifierErr(value.clone()));
+        }
+        Ok(Identifier(value))
     }
 }
 
-impl From<&str> for Identifier {
-    fn from(value: &str) -> Self {
-        Identifier(value.to_string())
+impl TryFrom<&str> for Identifier {
+    type Error = result::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        TryFrom::<String>::try_from(value.to_string())
     }
 }
 
@@ -65,16 +72,6 @@ impl Deref for Identifier {
 #[error("Malformed identifier {0}")]
 struct MalformedIdentifierErr(String);
 
-impl Verify for Identifier {
-    fn verify(&self, _ctx: &Context) -> result::Result<()> {
-        let re = regex::Regex::new(r"[a-zA-Z_][a-zA-Z0-9_]*").unwrap();
-        if !(re.is_match(&self.0)) {
-            return verify_err_noloc!(MalformedIdentifierErr(self.0.clone()));
-        }
-        Ok(())
-    }
-}
-
 impl Parsable for Identifier {
     type Arg = ();
     type Parsed = Identifier;
@@ -89,7 +86,10 @@ impl Parsable for Identifier {
             .map(|(c, rest)| c.to_string() + &rest);
 
         parser
-            .map(|str| str.into())
+            .map(|str| {
+                str.try_into()
+                    .expect("Something is wrong in our Identifier parser")
+            })
             .parse_stream(state_stream)
             .into()
     }

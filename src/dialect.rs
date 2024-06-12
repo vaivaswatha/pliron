@@ -24,7 +24,7 @@ pub struct DialectName(Identifier);
 impl DialectName {
     /// Create a new DialectName
     pub fn new(name: &str) -> DialectName {
-        DialectName(name.into())
+        DialectName(name.try_into().expect("Invalid Identifier for DialectName"))
     }
 }
 

@@ -218,7 +218,7 @@ pub struct TypeName(Identifier);
 impl TypeName {
     /// Create a new TypeName.
     pub fn new(name: &str) -> TypeName {
-        TypeName(name.into())
+        TypeName(name.try_into().expect("Invalid Identifier for TypeName"))
     }
 }
 

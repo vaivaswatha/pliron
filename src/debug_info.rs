@@ -154,7 +154,11 @@ mod tests {
         builtin::register(&mut ctx);
 
         let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
-        let block = BasicBlock::new(&mut ctx, Some("entry".into()), vec![i64_ty.into()]);
+        let block = BasicBlock::new(
+            &mut ctx,
+            Some("entry".try_into().unwrap()),
+            vec![i64_ty.into()],
+        );
         set_block_arg_name(&ctx, block, 0, "foo".to_string());
         assert!(get_block_arg_name(&ctx, block, 0).unwrap() == "foo");
         block.deref(&ctx).verify(&ctx)?;
