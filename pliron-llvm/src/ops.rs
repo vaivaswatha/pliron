@@ -9,9 +9,9 @@ use pliron::{
         op_interfaces::{
             BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
             OneOpdInterface, OneResultInterface, SameOperandsAndResultType, SameOperandsType,
-            SameResultsType, ZeroResultInterface, ATTR_KEY_CALLEE,
+            SameResultsType, ZeroResultInterface, ATTR_KEY_CALLEE_TYPE,
         },
-        types::{IntegerType, Signedness},
+        types::{FunctionType, IntegerType, Signedness},
     },
     common_traits::Verify,
     context::{Context, Ptr},
@@ -370,6 +370,22 @@ impl_canonical_syntax!(BitcastOp);
 impl_verify_succ!(BitcastOp);
 impl_op_interface!(OneResultInterface for BitcastOp {});
 impl_op_interface!(OneOpdInterface for BitcastOp {});
+
+impl BitcastOp {
+    /// Create a new [BitcastOp].
+    pub fn new(ctx: &mut Context, res_ty: Ptr<TypeObj>, arg: Value) -> Self {
+        BitcastOp {
+            op: Operation::new(
+                ctx,
+                Self::get_opid_static(),
+                vec![res_ty],
+                vec![arg],
+                vec![],
+                0,
+            ),
+        }
+    }
+}
 
 // Equivalent to LLVM's Unconditional Branch.
 /// ### Operands
@@ -770,15 +786,45 @@ impl_op_interface!(ZeroResultInterface for LoadOp {});
 /// ### Attributes:
 /// | key | value | via Interface |
 /// |-----|-------| --------------|
-/// | [ATTR_KEY_CALLEE](pliron::builtin::op_interfaces::ATTR_KEY_CALLEE) | [StringAttr] | [CallOpInterface] |
+/// | [ATTR_KEY_CALLEE](Self::ATTR_KEY_CALLEE) | [StringAttr] | N/A |
 /// | [ATTR_KEY_CALLEE_TYPE](pliron::builtin::op_interfaces::ATTR_KEY_CALLEE_TYPE) | [TypeAttr] | [CallOpInterface] |
 ///
 #[def_op("llvm.call")]
 pub struct CallOp {}
+
+impl CallOp {
+    pub const ATTR_KEY_CALLEE: &'static str = "llvm.callee";
+    pub fn new(
+        ctx: &mut Context,
+        callee: CallOpCallable,
+        callee_ty: TypePtr<FunctionType>,
+        mut args: Vec<Value>,
+    ) -> Self {
+        let res_ty = callee_ty.deref(ctx).get_results()[0];
+        let op = match callee {
+            CallOpCallable::Direct(cval) => {
+                let op =
+                    Operation::new(ctx, Self::get_opid_static(), vec![res_ty], args, vec![], 0);
+                op.deref_mut(ctx)
+                    .attributes
+                    .set(Self::ATTR_KEY_CALLEE, StringAttr::new(cval));
+                op
+            }
+            CallOpCallable::Indirect(csym) => {
+                args.insert(0, csym);
+                Operation::new(ctx, Self::get_opid_static(), vec![res_ty], args, vec![], 0)
+            }
+        };
+        op.deref_mut(ctx)
+            .attributes
+            .set(ATTR_KEY_CALLEE_TYPE, TypeAttr::new(callee_ty.into()));
+        CallOp { op }
+    }
+}
 impl CallOpInterface for CallOp {
     fn callee(&self, ctx: &Context) -> CallOpCallable {
         let op = self.op.deref(ctx);
-        if let Some(callee_sym) = op.attributes.get::<StringAttr>(ATTR_KEY_CALLEE) {
+        if let Some(callee_sym) = op.attributes.get::<StringAttr>(Self::ATTR_KEY_CALLEE) {
             CallOpCallable::Direct(callee_sym.clone().into())
         } else {
             CallOpCallable::Indirect(
@@ -789,7 +835,11 @@ impl CallOpInterface for CallOp {
     }
     fn args(&self, ctx: &Context) -> Vec<Value> {
         let op = self.op.deref(ctx);
-        let skip = if op.attributes.get::<StringAttr>(ATTR_KEY_CALLEE).is_some() {
+        let skip = if op
+            .attributes
+            .get::<StringAttr>(Self::ATTR_KEY_CALLEE)
+            .is_some()
+        {
             0
         } else {
             1
@@ -823,5 +873,6 @@ pub fn register(ctx: &mut Context) {
     GetElementPtrOp::register(ctx, GetElementPtrOp::parser_fn);
     LoadOp::register(ctx, LoadOp::parser_fn);
     StoreOp::register(ctx, StoreOp::parser_fn);
+    CallOp::register(ctx, CallOp::parser_fn);
     ReturnOp::register(ctx, ReturnOp::parser_fn);
 }

@@ -9,13 +9,25 @@ use crate::{
     context::Context,
     parsable::{self, Parsable, ParseResult},
     printable::{self, Printable},
-    result, verify_err_noloc,
+    result::{self, Result},
+    verify_err_noloc,
 };
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 /// An [Identifier] must satisfy the regex `[a-zA-Z_][a-zA-Z0-9_]*`.
 /// Also see [module description](module@crate::identifier).
 pub struct Identifier(String);
+
+impl Identifier {
+    /// Attempt to construct a new [Identifier] from a [String].
+    pub fn try_new(value: String) -> Result<Self> {
+        let re = regex::Regex::new(r"[a-zA-Z_][a-zA-Z0-9_]*").unwrap();
+        if !(re.is_match(&value)) {
+            return verify_err_noloc!(MalformedIdentifierErr(value.clone()));
+        }
+        Ok(Identifier(value))
+    }
+}
 
 impl Printable for Identifier {
     fn fmt(
@@ -37,20 +49,16 @@ impl Display for Identifier {
 impl TryFrom<String> for Identifier {
     type Error = result::Error;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        let re = regex::Regex::new(r"[a-zA-Z_][a-zA-Z0-9_]*").unwrap();
-        if !(re.is_match(&value)) {
-            return verify_err_noloc!(MalformedIdentifierErr(value.clone()));
-        }
-        Ok(Identifier(value))
+    fn try_from(value: String) -> std::result::Result<Self, Self::Error> {
+        Self::try_new(value)
     }
 }
 
 impl TryFrom<&str> for Identifier {
     type Error = result::Error;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        TryFrom::<String>::try_from(value.to_string())
+    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+        Self::try_new(value.to_string())
     }
 }
 

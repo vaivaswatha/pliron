@@ -540,7 +540,6 @@ pub enum CallOpInterfaceErr {
 }
 
 pub const ATTR_KEY_CALLEE_TYPE: &str = "llvm.callee_type";
-pub const ATTR_KEY_CALLEE: &str = "llvm.callee";
 
 decl_op_interface! {
     /// A call-like op: Transfers control from one function to another.
