@@ -8,6 +8,7 @@ use crate::{
     builtin::attributes::TypeAttr,
     context::{Context, Ptr},
     decl_op_interface,
+    identifier::Identifier,
     linked_list::ContainsLinkedList,
     location::{Located, Location},
     op::{op_cast, Op},
@@ -194,7 +195,8 @@ decl_op_interface! {
 }
 
 /// Key for symbol name attribute when the operation defines a symbol.
-pub const ATTR_KEY_SYM_NAME: &str = "builtin.sym_name";
+pub static ATTR_KEY_SYM_NAME: crate::Lazy<Identifier> =
+    crate::Lazy::new(|| "builtin_sym_name".try_into().unwrap());
 
 #[derive(Error, Debug)]
 #[error("Op implementing SymbolOpInterface does not have a symbol defined")]
@@ -206,7 +208,7 @@ decl_op_interface! {
         // Get the name of the symbol defined by this operation.
         fn get_symbol_name(&self, ctx: &Context) -> String {
             let self_op = self.get_operation().deref(ctx);
-            let s_attr = self_op.attributes.get::<StringAttr>(ATTR_KEY_SYM_NAME).unwrap();
+            let s_attr = self_op.attributes.get::<StringAttr>(&ATTR_KEY_SYM_NAME).unwrap();
             String::from(s_attr.clone())
         }
 
@@ -214,7 +216,7 @@ decl_op_interface! {
         fn set_symbol_name(&self, ctx: &mut Context, name: &str) {
             let name_attr = StringAttr::new(name.to_string());
             let mut self_op = self.get_operation().deref_mut(ctx);
-            self_op.attributes.set(ATTR_KEY_SYM_NAME, name_attr);
+            self_op.attributes.set(ATTR_KEY_SYM_NAME.clone(), name_attr);
         }
 
         fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
@@ -222,7 +224,7 @@ decl_op_interface! {
             Self: Sized,
         {
             let self_op = op.get_operation().deref(ctx);
-            if self_op.attributes.get::<StringAttr>(ATTR_KEY_SYM_NAME).is_none() {
+            if self_op.attributes.get::<StringAttr>(&ATTR_KEY_SYM_NAME).is_none() {
                 return verify_err!(op.get_operation().deref(ctx).loc(), SymbolOpInterfaceErr);
             }
             Ok(())
@@ -539,7 +541,8 @@ pub enum CallOpInterfaceErr {
     CalleeTypeAttrIncorrectTypeErr,
 }
 
-pub const ATTR_KEY_CALLEE_TYPE: &str = "llvm.callee_type";
+pub static ATTR_KEY_CALLEE_TYPE: crate::Lazy<Identifier> =
+    crate::Lazy::new(|| "builtin_callee_type".try_into().unwrap());
 
 decl_op_interface! {
     /// A call-like op: Transfers control from one function to another.
@@ -551,7 +554,7 @@ decl_op_interface! {
         {
             let op = op.get_operation().deref(ctx);
             let Some(callee_type_attr) =
-                op.attributes.get::<TypeAttr>(ATTR_KEY_CALLEE_TYPE)
+                op.attributes.get::<TypeAttr>(&ATTR_KEY_CALLEE_TYPE)
             else {
                 return verify_err!(op.loc(), CallOpInterfaceErr::CalleeTypeAttrNotFoundErr);
             };
@@ -572,7 +575,7 @@ decl_op_interface! {
         /// Type of the callee
         fn callee_type(&self, ctx: &Context) -> TypePtr<FunctionType> {
             let self_op = self.get_operation().deref(ctx);
-            let ty_attr = self_op.attributes.get::<TypeAttr>(ATTR_KEY_CALLEE_TYPE).unwrap();
+            let ty_attr = self_op.attributes.get::<TypeAttr>(&ATTR_KEY_CALLEE_TYPE).unwrap();
             TypePtr::from_ptr
                 (ty_attr.get_type(ctx), ctx).expect("Incorrect callee type, not a FunctionType")
         }

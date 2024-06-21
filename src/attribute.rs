@@ -34,7 +34,7 @@ use std::{
     ops::Deref,
 };
 
-use combine::{parser, Parser};
+use combine::{between, parser, token, Parser};
 use downcast_rs::{impl_downcast, Downcast};
 use dyn_clone::DynClone;
 use linkme::distributed_slice;
@@ -46,35 +46,118 @@ use crate::{
     dialect::DialectName,
     identifier::Identifier,
     input_err,
-    irfmt::parsers::spaced,
+    irfmt::{
+        parsers::{attr_parser, delimited_list_parser, spaced},
+        printers::iter_with_sep,
+    },
     location::Located,
     parsable::{Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
     result::Result,
 };
 
+#[derive(Clone)]
+struct AttributeDictKeyVal {
+    key: Identifier,
+    val: AttrObj,
+}
+impl Printable for AttributeDictKeyVal {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(f, "({}: {})", self.key, self.val.disp(ctx))
+    }
+}
+
+impl Parsable for AttributeDictKeyVal {
+    type Arg = ();
+
+    type Parsed = Self;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        between(
+            token('('),
+            token(')'),
+            (Identifier::parser(()), spaced(token(':')), attr_parser()),
+        )
+        .map(|(key, _, val)| AttributeDictKeyVal { key, val })
+        .parse_stream(state_stream)
+        .into_result()
+    }
+}
+
+impl Printable for AttributeDict {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(
+            f,
+            "[{}]",
+            iter_with_sep(
+                self.0.iter().map(|(key, val)| AttributeDictKeyVal {
+                    key: key.clone(),
+                    val: val.clone()
+                }),
+                printable::ListSeparator::CharSpace(','),
+            )
+            .disp(ctx)
+        )
+    }
+}
+
+impl Parsable for AttributeDict {
+    type Arg = ();
+    type Parsed = Self;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        delimited_list_parser('[', ']', ',', AttributeDictKeyVal::parser(()))
+            .map(|key_vals| {
+                AttributeDict(
+                    key_vals
+                        .into_iter()
+                        .map(|key_val| (key_val.key, key_val.val))
+                        .collect(),
+                )
+            })
+            .parse_stream(state_stream)
+            .into_result()
+    }
+}
+
 /// A dictionary of attributes, mapping keys to attribute objects.
-#[derive(Default)]
-pub struct AttributeDict(pub FxHashMap<&'static str, AttrObj>);
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct AttributeDict(pub FxHashMap<Identifier, AttrObj>);
 
 impl AttributeDict {
     /// Get reference to attribute value that is mapped to key `k`.
-    pub fn get<T: Attribute>(&self, k: &'static str) -> Option<&T> {
+    pub fn get<T: Attribute>(&self, k: &Identifier) -> Option<&T> {
         self.0.get(k).and_then(|ao| ao.downcast_ref::<T>())
     }
 
     /// Get mutable reference to attribute value that is mapped to key `k`.
-    pub fn get_mut<T: Attribute>(&mut self, k: &'static str) -> Option<&mut T> {
+    pub fn get_mut<T: Attribute>(&mut self, k: &Identifier) -> Option<&mut T> {
         self.0.get_mut(k).and_then(|ao| ao.downcast_mut::<T>())
     }
 
     /// Reference to the attribute value (that is mapped to key `k`) as an interface reference.
-    pub fn get_as<T: ?Sized + Attribute>(&self, k: &'static str) -> Option<&T> {
+    pub fn get_as<T: ?Sized + Attribute>(&self, k: &Identifier) -> Option<&T> {
         self.0.get(k).and_then(|ao| attr_cast::<T>(&**ao))
     }
 
     /// Set the attribute value for key `k`.
-    pub fn set<T: Attribute>(&mut self, k: &'static str, v: T) {
+    pub fn set<T: Attribute>(&mut self, k: Identifier, v: T) {
         self.0.insert(k, Box::new(v));
     }
 }

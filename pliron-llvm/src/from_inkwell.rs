@@ -119,12 +119,23 @@ pub fn convert_ipredicate(ipred: IntPredicate) -> ICmpPredicateAttr {
 }
 
 /// Mapping from inkwell entities to pliron entities.
-#[derive(Default)]
-struct ConversionMaps<'ctx> {
+struct ConversionContext<'ctx> {
     // A map from inkwell's Values to pliron's Values.
     value_map: FxHashMap<AnyValueEnum<'ctx>, Value>,
     // A map from inkwell's basic blocks to plirons'.
     block_map: FxHashMap<IWBasicBlock<'ctx>, Ptr<BasicBlock>>,
+    // Entry block of the function we're processing.
+    _entry_block: Ptr<BasicBlock>,
+}
+
+impl<'ctx> ConversionContext<'ctx> {
+    fn new(entry_block: Ptr<BasicBlock>) -> Self {
+        Self {
+            value_map: FxHashMap::default(),
+            block_map: FxHashMap::default(),
+            _entry_block: entry_block,
+        }
+    }
 }
 
 /// Get the successors of an inkwell block.
@@ -201,22 +212,23 @@ pub enum ConversionErr {
 }
 
 fn convert_operands(
-    cmap: &ConversionMaps,
+    cctx: &ConversionContext,
     inst: InstructionValue,
 ) -> Result<(Vec<Value>, Vec<Ptr<BasicBlock>>)> {
     let mut opds = vec![];
     let mut succs = vec![];
     for opd in inst.get_operands().flatten() {
         if let Some(val) = opd.left() {
-            let Some(m_val) = cmap.value_map.get(&val.as_any_value_enum()) else {
+            if let Some(m_val) = cctx.value_map.get(&val.as_any_value_enum()) {
+                opds.push(*m_val);
+            } else {
                 return input_err_noloc!(ConversionErr::UndefinedValue(
                     val.as_any_value_enum().print_to_string().to_string()
                 ));
-            };
-            opds.push(*m_val);
+            }
         } else {
             let block = opd.right().unwrap();
-            let Some(m_block) = cmap.block_map.get(&block) else {
+            let Some(m_block) = cctx.block_map.get(&block) else {
                 return input_err_noloc!(ConversionErr::UndefinedBlock(
                     block.get_name().to_str_res().unwrap().to_string()
                 ));
@@ -235,7 +247,7 @@ fn get_operand<T: Clone>(opds: &[T], idx: usize) -> Result<T> {
 
 /// Compute the arguments to be passed when branching from `src` to `dest`.
 fn convert_branch_args(
-    cmap: &ConversionMaps,
+    cctx: &ConversionContext,
     src_block: IWBasicBlock,
     dst_block: IWBasicBlock,
 ) -> Result<Vec<Value>> {
@@ -249,7 +261,7 @@ fn convert_branch_args(
                     src_block.get_name().to_str_res().unwrap().to_string()
                 ));
             };
-            let Some(m_incoming_val) = cmap.value_map.get(&incoming_val.as_any_value_enum()) else {
+            let Some(m_incoming_val) = cctx.value_map.get(&incoming_val.as_any_value_enum()) else {
                 return input_err_noloc!(ConversionErr::UndefinedValue(
                     incoming_val
                         .as_any_value_enum()
@@ -268,10 +280,10 @@ fn convert_branch_args(
 
 fn convert_instruction(
     ctx: &mut Context,
-    cmap: &ConversionMaps,
+    cctx: &ConversionContext,
     inst: InstructionValue,
 ) -> Result<Ptr<Operation>> {
-    let (ref opds, ref succs) = convert_operands(cmap, inst)?;
+    let (ref opds, ref succs) = convert_operands(cctx, inst)?;
     match inst.get_opcode() {
         InstructionOpcode::Add => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
@@ -306,12 +318,12 @@ fn convert_instruction(
                     "Conditional branch must have two successors"
                 );
                 let true_dest_opds = convert_branch_args(
-                    cmap,
+                    cctx,
                     inst.get_parent().unwrap(),
                     inst.get_operand(1).unwrap().unwrap_right(),
                 )?;
                 let false_dest_opds = convert_branch_args(
-                    cmap,
+                    cctx,
                     inst.get_parent().unwrap(),
                     inst.get_operand(2).unwrap().unwrap_right(),
                 )?;
@@ -326,7 +338,7 @@ fn convert_instruction(
                 .get_operation())
             } else {
                 let dest_opds = convert_branch_args(
-                    cmap,
+                    cctx,
                     inst.get_parent().unwrap(),
                     inst.get_operand(0).unwrap().unwrap_right(),
                 )?;
@@ -444,7 +456,7 @@ fn convert_instruction(
 // Convert inkwell `block` to pliron's `m_block`.
 fn convert_block<'ctx>(
     ctx: &mut Context,
-    cmap: &mut ConversionMaps<'ctx>,
+    cctx: &mut ConversionContext<'ctx>,
     block: IWBasicBlock<'ctx>,
     m_block: Ptr<BasicBlock>,
 ) -> Result<()> {
@@ -453,14 +465,14 @@ fn convert_block<'ctx>(
         if inst_val.is_phi_value() {
             let ty = convert_type(ctx, &inst.get_type().as_any_type_enum())?;
             let arg_idx = m_block.deref_mut(ctx).add_argument(ty);
-            cmap.value_map
+            cctx.value_map
                 .insert(inst_val, m_block.deref(ctx).get_argument(arg_idx).unwrap());
         } else {
-            let m_inst = convert_instruction(ctx, cmap, inst)?;
+            let m_inst = convert_instruction(ctx, cctx, inst)?;
             m_inst.insert_at_back(m_block, ctx);
             // LLVM instructions have at most one result.
             if let Some(res) = m_inst.deref(ctx).get_result(0) {
-                cmap.value_map.insert(inst_val, res);
+                cctx.value_map.insert(inst_val, res);
             }
         }
     }
@@ -475,7 +487,7 @@ fn convert_function(ctx: &mut Context, function: FunctionValue) -> Result<FuncOp
     let m_func = FuncOp::new(ctx, name, fn_ty);
     let m_func_reg = m_func.get_region(ctx);
 
-    let cmap = &mut ConversionMaps::default();
+    let cctx = &mut ConversionContext::new(m_func.get_entry_block(ctx));
     let blocks = rpo(function);
     // Map entry block
     let mut blocks_iter = blocks.iter();
@@ -483,22 +495,22 @@ fn convert_function(ctx: &mut Context, function: FunctionValue) -> Result<FuncOp
         return Ok(m_func);
     };
 
-    cmap.block_map.insert(*entry, m_func.get_entry_block(ctx));
+    cctx.block_map.insert(*entry, m_func.get_entry_block(ctx));
     // Create, place and map rest of the blocks.
     for block in blocks_iter {
         let label = block.get_name().to_str_res()?.try_into().ok();
         let m_block = BasicBlock::new(ctx, label, vec![]);
         m_block.insert_at_back(m_func_reg, ctx);
-        cmap.block_map.insert(*block, m_block);
+        cctx.block_map.insert(*block, m_block);
     }
 
     // Finally, convert all blocks
     for block in blocks {
-        let m_block = *cmap
+        let m_block = *cctx
             .block_map
             .get(&block)
             .expect("We have an unmapped block !");
-        convert_block(ctx, cmap, block, m_block)?;
+        convert_block(ctx, cctx, block, m_block)?;
     }
 
     Ok(m_func)

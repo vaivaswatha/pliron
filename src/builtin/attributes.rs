@@ -1,17 +1,16 @@
 use apint::ApInt;
 use combine::{
     any, between, many, many1, none_of,
-    parser::char::{hex_digit, string},
+    parser::char::{self, hex_digit, string},
     token, Parser,
 };
 use pliron_derive::def_attribute;
-use sorted_vector_map::SortedVectorMap;
-use thiserror::Error;
 
 use crate::{
-    attribute::{AttrObj, Attribute},
+    attribute::{AttrObj, Attribute, AttributeDict},
     common_traits::Verify,
     context::{Context, Ptr},
+    identifier::Identifier,
     impl_attr_interface, impl_verify_succ, input_err,
     irfmt::{
         parsers::{delimited_list_parser, spaced, type_parser},
@@ -22,7 +21,6 @@ use crate::{
     printable::{self, Printable},
     r#type::{TypeObj, TypePtr, Typed},
     result::Result,
-    verify_err_noloc,
 };
 
 use super::{attr_interfaces::TypedAttrInterface, types::IntegerType};
@@ -242,45 +240,26 @@ impl Parsable for FloatAttr {
     }
 }
 
-/// An attribute that is a small dictionary of other attributes.
-/// Implemented as a key-sorted list of key value pairs.
-/// Efficient only for small number of keys.
+/// An attribute that is a dictionary of other attributes.
 /// Similar to MLIR's [DictionaryAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#dictionaryattr),
-#[def_attribute("builtin.small_dict")]
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub struct SmallDictAttr(SortedVectorMap<&'static str, AttrObj>);
+#[def_attribute("builtin.dict")]
+#[derive(PartialEq, Clone, Eq, Debug)]
+pub struct DictAttr(AttributeDict);
 
-impl Printable for SmallDictAttr {
+impl Printable for DictAttr {
     fn fmt(
         &self,
-        _ctx: &Context,
+        ctx: &Context,
         _state: &printable::State,
-        _f: &mut core::fmt::Formatter<'_>,
+        f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        todo!()
+        write!(f, "{}", self.0.disp(ctx))
     }
 }
 
-#[derive(Error, Debug)]
-#[error("SmallDictAttr keys are not sorted")]
-struct SmallDictAttrVerifyErr;
-impl Verify for SmallDictAttr {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        for (str1, str2) in self
-            .0
-            .iter()
-            .map(|(&key, _)| key)
-            .zip(self.0.iter().skip(1).map(|(&key, _)| key))
-        {
-            if str1 > str2 {
-                return verify_err_noloc!(SmallDictAttrVerifyErr);
-            }
-        }
-        Ok(())
-    }
-}
+impl_verify_succ!(DictAttr);
 
-impl Parsable for SmallDictAttr {
+impl Parsable for DictAttr {
     type Arg = ();
     type Parsed = Self;
 
@@ -292,34 +271,34 @@ impl Parsable for SmallDictAttr {
     }
 }
 
-impl SmallDictAttr {
-    /// Create a new [SmallDictAttr].
-    pub fn new(value: Vec<(&'static str, AttrObj)>) -> Self {
-        let mut dict = SortedVectorMap::with_capacity(value.len());
+impl DictAttr {
+    /// Create a new [DictAttr].
+    pub fn new(value: Vec<(Identifier, AttrObj)>) -> Self {
+        let mut dict = AttributeDict::default();
         for (name, val) in value {
-            dict.insert(name, val);
+            dict.0.insert(name, val);
         }
-        SmallDictAttr(dict)
+        DictAttr(dict)
     }
 
     /// Add an entry to the dictionary.
-    pub fn insert(&mut self, key: &'static str, val: AttrObj) {
-        self.0.insert(key, val);
+    pub fn insert(&mut self, key: &Identifier, val: AttrObj) {
+        self.0 .0.insert(key.clone(), val);
     }
 
     /// Remove an entry from the dictionary.
-    pub fn remove(&mut self, key: &'static str) {
-        self.0.remove(key);
+    pub fn remove(&mut self, key: &Identifier) {
+        self.0 .0.remove(key);
     }
 
     /// Lookup a name in the dictionary.
-    pub fn lookup<'a>(&'a self, key: &'static str) -> Option<&'a AttrObj> {
-        self.0.get(key)
+    pub fn lookup<'a>(&'a self, key: &Identifier) -> Option<&'a AttrObj> {
+        self.0 .0.get(key)
     }
 
     /// Lookup a name in the dictionary, get a mutable reference.
-    pub fn lookup_mut<'a>(&'a mut self, key: &'static str) -> Option<&'a mut AttrObj> {
-        self.0.get_mut(key)
+    pub fn lookup_mut<'a>(&'a mut self, key: &Identifier) -> Option<&'a mut AttrObj> {
+        self.0 .0.get_mut(key)
     }
 }
 
@@ -472,7 +451,7 @@ impl_attr_interface!(
 pub fn register(ctx: &mut Context) {
     StringAttr::register_attr_in_dialect(ctx, StringAttr::parser_fn);
     IntegerAttr::register_attr_in_dialect(ctx, IntegerAttr::parser_fn);
-    SmallDictAttr::register_attr_in_dialect(ctx, SmallDictAttr::parser_fn);
+    DictAttr::register_attr_in_dialect(ctx, DictAttr::parser_fn);
     VecAttr::register_attr_in_dialect(ctx, VecAttr::parser_fn);
     UnitAttr::register_attr_in_dialect(ctx, UnitAttr::parser_fn);
     TypeAttr::register_attr_in_dialect(ctx, TypeAttr::parser_fn);
@@ -492,13 +471,14 @@ mod tests {
             types::{IntegerType, Signedness},
         },
         context::Context,
+        identifier::Identifier,
         irfmt::parsers::attr_parser,
         location,
         parsable::{self, state_stream_from_iterator},
         printable::Printable,
     };
 
-    use super::{SmallDictAttr, TypeAttr, VecAttr};
+    use super::{DictAttr, TypeAttr, VecAttr};
     #[test]
     fn test_integer_attributes() {
         let mut ctx = Context::new();
@@ -599,31 +579,39 @@ mod tests {
         let hello_attr: AttrObj = StringAttr::new("hello".to_string()).into();
         let world_attr: AttrObj = StringAttr::new("world".to_string()).into();
 
-        let mut dict1: AttrObj = SmallDictAttr::new(vec![
-            ("hello", hello_attr.clone()),
-            ("world", world_attr.clone()),
+        let hello_id: Identifier = "hello".try_into().unwrap();
+        let world_id: Identifier = "world".try_into().unwrap();
+
+        let mut dict1: AttrObj = DictAttr::new(vec![
+            (hello_id.clone(), hello_attr.clone()),
+            (world_id.clone(), world_attr.clone()),
         ])
         .into();
-        let mut dict2 =
-            SmallDictAttr::new(vec![("hello", StringAttr::new("hello".to_string()).into())]).into();
-        let dict1_rev = SmallDictAttr::new(vec![
-            ("world", world_attr.clone()),
-            ("hello", hello_attr.clone()),
+        let mut dict2 = DictAttr::new(vec![(
+            hello_id.clone(),
+            StringAttr::new("hello".to_string()).into(),
+        )])
+        .into();
+        let dict1_rev = DictAttr::new(vec![
+            (world_id.clone(), world_attr.clone()),
+            (hello_id.clone(), hello_attr.clone()),
         ])
         .into();
         assert!(&dict1 != &dict2);
         assert!(dict1 == dict1_rev);
 
-        let dict1_attr = dict1.as_mut().downcast_mut::<SmallDictAttr>().unwrap();
-        let dict2_attr = dict2.as_mut().downcast_mut::<SmallDictAttr>().unwrap();
-        assert!(dict1_attr.lookup("hello").unwrap() == &hello_attr);
-        assert!(dict1_attr.lookup("world").unwrap() == &world_attr);
-        assert!(dict1_attr.lookup("hello world").is_none());
-        dict2_attr.insert("world", world_attr);
+        let dict1_attr = dict1.as_mut().downcast_mut::<DictAttr>().unwrap();
+        let dict2_attr = dict2.as_mut().downcast_mut::<DictAttr>().unwrap();
+        assert!(dict1_attr.lookup(&hello_id).unwrap() == &hello_attr);
+        assert!(dict1_attr.lookup(&world_id).unwrap() == &world_attr);
+        assert!(dict1_attr
+            .lookup(&"hello_world".try_into().unwrap())
+            .is_none());
+        dict2_attr.insert(&world_id, world_attr);
         assert!(dict1_attr == dict2_attr);
 
-        dict1_attr.remove("hello");
-        dict2_attr.remove("hello");
+        dict1_attr.remove(&hello_id);
+        dict2_attr.remove(&hello_id);
         assert!(&dict1 == &dict2);
     }
 

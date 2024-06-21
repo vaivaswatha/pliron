@@ -3,7 +3,6 @@ use pliron_derive::def_op;
 use thiserror::Error;
 
 use crate::{
-    attribute::{attr_cast, AttrObj},
     basic_block::BasicBlock,
     builtin::op_interfaces::ZeroResultInterface,
     common_traits::{Named, Verify},
@@ -11,14 +10,14 @@ use crate::{
     identifier::Identifier,
     impl_op_interface, impl_verify_succ, input_err,
     irfmt::{
-        parsers::{attr_parser, process_parsed_ssa_defs, spaced, type_parser},
+        parsers::{spaced, type_parser},
         printers::op::{region, symb_op_header, typed_symb_op_header},
     },
     linked_list::ContainsLinkedList,
     location::{Located, Location},
     op::{Op, OpObj},
     operation::Operation,
-    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
+    parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::{TypeObj, TypePtr, Typed},
     region::Region,
@@ -28,11 +27,10 @@ use crate::{
 
 use super::{
     attr_interfaces::TypedAttrInterface,
-    attributes::{FloatAttr, IntegerAttr, TypeAttr},
+    attributes::TypeAttr,
     op_interfaces::{
         self, IsolatedFromAboveInterface, OneRegionInterface, OneResultInterface,
-        OneResultVerifyErr, SingleBlockRegionInterface, SymbolOpInterface, SymbolTableInterface,
-        ZeroOpdInterface,
+        SingleBlockRegionInterface, SymbolOpInterface, SymbolTableInterface, ZeroOpdInterface,
     },
     types::{FunctionType, UnitType},
 };
@@ -141,14 +139,18 @@ impl_op_interface!(ZeroResultInterface for ModuleOp {});
 /// | key | value | via Interface |
 /// |-----|-------|-----|
 /// | [ATTR_KEY_SYM_NAME](super::op_interfaces::ATTR_KEY_SYM_NAME) | [StringAttr](super::attributes::StringAttr) | [SymbolOpInterface] |
-/// | [ATTR_KEY_FUNC_TYPE](FuncOp::ATTR_KEY_FUNC_TYPE) | [TypeAttr](super::attributes::TypeAttr) | N/A |
+/// | [ATTR_KEY_FUNC_TYPE](func_op::ATTR_KEY_FUNC_TYPE) | [TypeAttr](super::attributes::TypeAttr) | N/A |
 #[def_op("builtin.func")]
 pub struct FuncOp {}
 
-impl FuncOp {
-    /// Attribute key for the constant value.
-    pub const ATTR_KEY_FUNC_TYPE: &'static str = "func.type";
+pub mod func_op {
+    use super::*;
+    /// Attribute key for the function type.
+    pub static ATTR_KEY_FUNC_TYPE: crate::Lazy<Identifier> =
+        crate::Lazy::new(|| "builtin_func_type".try_into().unwrap());
+}
 
+impl FuncOp {
     /// Create a new [FuncOp].
     /// The returned function has a single region with an empty `entry` block.
     pub fn new(ctx: &mut Context, name: &str, ty: TypePtr<FunctionType>) -> Self {
@@ -163,7 +165,9 @@ impl FuncOp {
         {
             let opref = &mut *op.deref_mut(ctx);
             // Set function type attributes.
-            opref.attributes.set(Self::ATTR_KEY_FUNC_TYPE, ty_attr);
+            opref
+                .attributes
+                .set(func_op::ATTR_KEY_FUNC_TYPE.clone(), ty_attr);
         }
         let opop = FuncOp { op };
         opop.set_symbol_name(ctx, name);
@@ -176,7 +180,7 @@ impl FuncOp {
         let opref = self.get_operation().deref(ctx);
         opref
             .attributes
-            .get_as::<dyn TypedAttrInterface>(Self::ATTR_KEY_FUNC_TYPE)
+            .get_as::<dyn TypedAttrInterface>(&func_op::ATTR_KEY_FUNC_TYPE)
             .unwrap()
             .get_type()
     }
@@ -257,7 +261,9 @@ impl Parsable for FuncOp {
                     let ty_attr = TypeAttr::new(fty);
                     let opref = &mut *op.deref_mut(ctx);
                     // Set function type attributes.
-                    opref.attributes.set(Self::ATTR_KEY_FUNC_TYPE, ty_attr);
+                    opref
+                        .attributes
+                        .set(func_op::ATTR_KEY_FUNC_TYPE.clone(), ty_attr);
                 }
                 let opop = Box::new(FuncOp { op });
                 opop.set_symbol_name(ctx, &fname);
@@ -284,111 +290,6 @@ impl Verify for FuncOp {
 
 impl_op_interface!(ZeroOpdInterface for FuncOp {});
 impl_op_interface!(ZeroResultInterface for FuncOp {});
-
-/// Numeric constant.
-/// See MLIR's [arith.constant](https://mlir.llvm.org/docs/Dialects/ArithOps/#arithconstant-mlirarithconstantop).
-///
-/// Attributes:
-///
-/// | key | value |
-/// |-----|-------|
-/// |[ATTR_KEY_VALUE](ConstantOp::ATTR_KEY_VALUE) | [IntegerAttr] or [FloatAttr] |
-///
-/// Results:
-///
-/// | result | description |
-/// |-----|-------|
-/// | `result` | any type |
-#[def_op("builtin.constant")]
-pub struct ConstantOp {}
-
-impl ConstantOp {
-    /// Attribute key for the constant value.
-    pub const ATTR_KEY_VALUE: &'static str = "constant.value";
-    /// Get the constant value that this Op defines.
-    pub fn get_value(&self, ctx: &Context) -> AttrObj {
-        let op = self.get_operation().deref(ctx);
-        op.attributes.0.get(Self::ATTR_KEY_VALUE).unwrap().clone()
-    }
-
-    /// Create a new [ConstantOp].
-    pub fn new(ctx: &mut Context, value: AttrObj) -> Self {
-        let result_type = attr_cast::<dyn TypedAttrInterface>(&*value)
-            .expect("ConstantOp const value must provide TypedAttrInterface")
-            .get_type();
-        let op = Operation::new(
-            ctx,
-            Self::get_opid_static(),
-            vec![result_type],
-            vec![],
-            vec![],
-            0,
-        );
-        op.deref_mut(ctx)
-            .attributes
-            .0
-            .insert(Self::ATTR_KEY_VALUE, value);
-        ConstantOp { op }
-    }
-}
-
-impl Printable for ConstantOp {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(
-            f,
-            "{} = {} {}",
-            self.get_result(ctx).disp(ctx),
-            self.get_opid().disp(ctx),
-            self.get_value(ctx).disp(ctx)
-        )
-    }
-}
-
-impl Parsable for ConstantOp {
-    type Arg = Vec<(Identifier, Location)>;
-    type Parsed = OpObj;
-
-    fn parse<'a>(
-        state_stream: &mut StateStream<'a>,
-        results: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed> {
-        let loc = state_stream.loc();
-
-        if results.len() != 1 {
-            input_err!(loc, OneResultVerifyErr(Self::get_opid_static().to_string()))?
-        }
-
-        let attr = attr_parser().parse_stream(state_stream).into_result()?.0;
-
-        let op = Box::new(Self::new(state_stream.state.ctx, attr));
-        process_parsed_ssa_defs(state_stream, &results, op.get_operation())?;
-
-        Ok(op as OpObj).into_parse_result()
-    }
-}
-
-#[derive(Error, Debug)]
-#[error("{}: Unexpected type", ConstantOp::get_opid_static())]
-pub struct ConstantOpVerifyErr;
-
-impl Verify for ConstantOp {
-    fn verify(&self, ctx: &Context) -> Result<()> {
-        let loc = self.get_operation().deref(ctx).loc();
-        let value = self.get_value(ctx);
-        if !(value.is::<IntegerAttr>() || value.is::<FloatAttr>()) {
-            return verify_err!(loc, ConstantOpVerifyErr);
-        }
-        Ok(())
-    }
-}
-
-impl_op_interface! (ZeroOpdInterface for ConstantOp {});
-impl_op_interface! (OneResultInterface for ConstantOp {});
 
 /// A placeholder during parsing to refer to yet undefined operations.
 /// MLIR [uses](https://github.com/llvm/llvm-project/blob/185b81e034ba60081023b6e59504dfffb560f3e3/mlir/lib/AsmParser/Parser.cpp#L1075)
@@ -460,6 +361,5 @@ impl ForwardRefOp {
 pub fn register(ctx: &mut Context) {
     ModuleOp::register(ctx, ModuleOp::parser_fn);
     FuncOp::register(ctx, FuncOp::parser_fn);
-    ConstantOp::register(ctx, ConstantOp::parser_fn);
     ForwardRefOp::register(ctx, ForwardRefOp::parser_fn);
 }

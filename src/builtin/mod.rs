@@ -7,6 +7,7 @@ pub mod types;
 use crate::{
     context::Context,
     dialect::{Dialect, DialectName},
+    identifier::Identifier,
 };
 
 pub fn register(ctx: &mut Context) {
@@ -18,4 +19,5 @@ pub fn register(ctx: &mut Context) {
 }
 
 /// Key for debug info related attributes.
-pub const ATTR_KEY_DEBUG_INFO: &str = "builtin.debug_info";
+pub static ATTR_KEY_DEBUG_INFO: crate::Lazy<Identifier> =
+    crate::Lazy::new(|| "builtin_debug_info".try_into().unwrap());

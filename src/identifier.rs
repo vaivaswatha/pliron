@@ -13,16 +13,27 @@ use crate::{
     verify_err_noloc,
 };
 
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug, PartialOrd, Ord)]
 /// An [Identifier] must satisfy the regex `[a-zA-Z_][a-zA-Z0-9_]*`.
 /// Also see [module description](module@crate::identifier).
 pub struct Identifier(String);
 
+static IDENTIFIER_REGEX: crate::Lazy<regex::Regex> =
+    crate::Lazy::new(|| regex::Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$").unwrap());
+
 impl Identifier {
     /// Attempt to construct a new [Identifier] from a [String].
+    /// Examples:
+    /// ```
+    /// use pliron::identifier::Identifier;
+    /// let _: Identifier = "hi12".try_into().expect("Identifier creation error");
+    /// let _: Identifier = "A12ab".try_into().expect("Identifier creation error");
+    /// TryInto::<Identifier>::try_into("hi12.").expect_err("Malformed identifier not caught");
+    /// TryInto::<Identifier>::try_into("12ab").expect_err("Malformed identifier not caught");
+    /// TryInto::<Identifier>::try_into(".a12ab").expect_err("Malformed identifier not caught");
+    /// ```
     pub fn try_new(value: String) -> Result<Self> {
-        let re = regex::Regex::new(r"[a-zA-Z_][a-zA-Z0-9_]*").unwrap();
-        if !(re.is_match(&value)) {
+        if !(IDENTIFIER_REGEX.is_match(&value)) {
             return verify_err_noloc!(MalformedIdentifierErr(value.clone()));
         }
         Ok(Identifier(value))

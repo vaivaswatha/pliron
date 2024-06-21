@@ -9,6 +9,7 @@ use pliron::{
     },
     context::{Context, Ptr},
     decl_op_interface,
+    identifier::Identifier,
     location::Located,
     op::{op_cast, Op},
     operation::Operation,
@@ -86,7 +87,8 @@ decl_op_interface! {
 }
 
 /// Attribute key for integer overflow flags.
-pub const ATTR_KEY_INTEGER_OVERFLOW_FLAGS: &str = "llvm.integer_overflow_flags";
+pub static ATTR_KEY_INTEGER_OVERFLOW_FLAGS: pliron::Lazy<Identifier> =
+    pliron::Lazy::new(|| "llvm_integer_overflow_flags".try_into().unwrap());
 
 #[derive(Error, Debug)]
 #[error("IntegerOverflowFlag missing on Op")]
@@ -103,7 +105,7 @@ decl_op_interface! {
             self.get_operation()
                 .deref(ctx)
                 .attributes
-                .get::<IntegerOverflowFlagsAttr>(ATTR_KEY_INTEGER_OVERFLOW_FLAGS)
+                .get::<IntegerOverflowFlagsAttr>(&ATTR_KEY_INTEGER_OVERFLOW_FLAGS)
                 .expect("Integer overflow flag missing or is of incorrect type")
                 .clone()
         }
@@ -116,7 +118,7 @@ decl_op_interface! {
             self.get_operation()
                 .deref_mut(ctx)
                 .attributes
-                .set(ATTR_KEY_INTEGER_OVERFLOW_FLAGS, flag);
+                .set(ATTR_KEY_INTEGER_OVERFLOW_FLAGS.clone(), flag);
         }
 
         fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
@@ -125,7 +127,7 @@ decl_op_interface! {
         {
             let op = op.get_operation().deref(ctx);
             if op.attributes.get::<IntegerOverflowFlagsAttr>
-                (ATTR_KEY_INTEGER_OVERFLOW_FLAGS).is_none()
+                (&ATTR_KEY_INTEGER_OVERFLOW_FLAGS).is_none()
             {
                 return verify_err!(op.loc(), IntBinArithOpWithOverflowFlagErr);
             }

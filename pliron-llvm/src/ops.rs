@@ -2,19 +2,21 @@
 
 use pliron::{
     arg_err_noloc,
+    attribute::{attr_cast, AttrObj},
     basic_block::BasicBlock,
     builtin::{
         attr_interfaces::TypedAttrInterface,
-        attributes::{StringAttr, TypeAttr},
+        attributes::{FloatAttr, IntegerAttr, StringAttr, TypeAttr},
         op_interfaces::{
             BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
             OneOpdInterface, OneResultInterface, SameOperandsAndResultType, SameOperandsType,
-            SameResultsType, ZeroResultInterface, ATTR_KEY_CALLEE_TYPE,
+            SameResultsType, ZeroOpdInterface, ZeroResultInterface, ATTR_KEY_CALLEE_TYPE,
         },
         types::{FunctionType, IntegerType, Signedness},
     },
     common_traits::Verify,
     context::{Context, Ptr},
+    identifier::Identifier,
     impl_canonical_syntax, impl_op_interface, impl_verify_succ,
     location::Located,
     op::Op,
@@ -212,12 +214,18 @@ pub enum ICmpOpVerifyErr {
 ///
 /// | key | value | via Interface |
 /// |-----|-------| --------------|
-/// | [ATTR_KEY_PREDICATE](ICmpOp::ATTR_KEY_PREDICATE) | [ICmpPredicateAttr](ICmpPredicateAttr) | N/A |
+/// | [ATTR_KEY_PREDICATE](icmp_op::ATTR_KEY_PREDICATE) | [ICmpPredicateAttr](ICmpPredicateAttr) | N/A |
 #[def_op("llvm.icmp")]
 pub struct ICmpOp {}
 
+pub mod icmp_op {
+    use super::*;
+
+    pub static ATTR_KEY_PREDICATE: pliron::Lazy<Identifier> =
+        pliron::Lazy::new(|| "llvm_icmp_predicate".try_into().unwrap());
+}
+
 impl ICmpOp {
-    pub const ATTR_KEY_PREDICATE: &'static str = "llvm.icmp_predicate";
     /// Create a new [ICmpOp]
     pub fn new(ctx: &mut Context, pred: ICmpPredicateAttr, lhs: Value, rhs: Value) -> Self {
         let bool_ty = IntegerType::get(ctx, 1, Signedness::Signless);
@@ -231,7 +239,7 @@ impl ICmpOp {
         );
         op.deref_mut(ctx)
             .attributes
-            .set(Self::ATTR_KEY_PREDICATE, pred);
+            .set(icmp_op::ATTR_KEY_PREDICATE.clone(), pred);
         ICmpOp { op }
     }
 }
@@ -243,7 +251,7 @@ impl Verify for ICmpOp {
 
         if op
             .attributes
-            .get::<ICmpPredicateAttr>(Self::ATTR_KEY_PREDICATE)
+            .get::<ICmpPredicateAttr>(&icmp_op::ATTR_KEY_PREDICATE)
             .is_none()
         {
             verify_err!(op.loc(), ICmpOpVerifyErr::PredAttrErr)?
@@ -295,7 +303,7 @@ pub enum AllocaOpVerifyErr {
 ///
 /// | key | value | via Interface |
 /// |-----|-------| --------------|
-/// | [ATTR_KEY_ELEM_TYPE](AllocaOp::ATTR_KEY_ELEM_TYPE) | [TypeAttr](pliron::builtin::attributes::TypeAttr) | N/A |
+/// | [ATTR_KEY_ELEM_TYPE](alloca_op::ATTR_KEY_ELEM_TYPE) | [TypeAttr](pliron::builtin::attributes::TypeAttr) | N/A |
 #[def_op("llvm.alloca")]
 pub struct AllocaOp {}
 impl_canonical_syntax!(AllocaOp);
@@ -310,7 +318,7 @@ impl Verify for AllocaOp {
         // Ensure correctness of element type.
         if op
             .attributes
-            .get::<TypeAttr>(Self::ATTR_KEY_ELEM_TYPE)
+            .get::<TypeAttr>(&alloca_op::ATTR_KEY_ELEM_TYPE)
             .is_none()
         {
             verify_err!(op.loc(), AllocaOpVerifyErr::ElemTypeAttr)?
@@ -326,15 +334,19 @@ impl_op_interface!(PointerTypeResult for AllocaOp {
         self.op
         .deref(ctx)
         .attributes
-        .get::<TypeAttr>(Self::ATTR_KEY_ELEM_TYPE)
+        .get::<TypeAttr>(&alloca_op::ATTR_KEY_ELEM_TYPE)
         .expect("AllocaOp missing or incorrect type for elem_type attribute")
         .get_type()
     }
 });
 
-impl AllocaOp {
-    pub const ATTR_KEY_ELEM_TYPE: &'static str = "llvm.element_type";
+pub mod alloca_op {
+    use super::*;
+    pub static ATTR_KEY_ELEM_TYPE: pliron::Lazy<Identifier> =
+        pliron::Lazy::new(|| "llvm_alloca_element_type".try_into().unwrap());
+}
 
+impl AllocaOp {
     /// Create a new [AllocaOp]
     pub fn new(ctx: &mut Context, elem_type: Ptr<TypeObj>, size: Value) -> Self {
         let ptr_ty = PointerType::get(ctx).into();
@@ -346,9 +358,10 @@ impl AllocaOp {
             vec![],
             0,
         );
-        op.deref_mut(ctx)
-            .attributes
-            .set(Self::ATTR_KEY_ELEM_TYPE, TypeAttr::new(elem_type));
+        op.deref_mut(ctx).attributes.set(
+            alloca_op::ATTR_KEY_ELEM_TYPE.clone(),
+            TypeAttr::new(elem_type),
+        );
         AllocaOp { op }
     }
 }
@@ -503,8 +516,8 @@ pub enum GetElementPtrOpErr {
 ///
 /// | key | value | via Interface |
 /// |-----|-------| --------------|
-/// | [ATTR_KEY_INDICES](GetElementPtrOp::ATTR_KEY_INDICES) | [GepIndicesAttr](super::attributes::GepIndicesAttr)> | N/A |
-/// | [ATTR_KEY_SRC_ELEM_TYPE](GetElementPtrOp::ATTR_KEY_SRC_ELEM_TYPE) | [TypeAttr] | N/A |
+/// | [ATTR_KEY_INDICES](gep_op::ATTR_KEY_INDICES) | [GepIndicesAttr](super::attributes::GepIndicesAttr)> | N/A |
+/// | [ATTR_KEY_SRC_ELEM_TYPE](gep_op::ATTR_KEY_SRC_ELEM_TYPE) | [TypeAttr] | N/A |
 ///
 /// ### Operands
 /// | operand | description |
@@ -532,7 +545,7 @@ impl Verify for GetElementPtrOp {
         // Ensure that we have the indices as an attribute.
         if op
             .attributes
-            .get::<GepIndicesAttr>(Self::ATTR_KEY_INDICES)
+            .get::<GepIndicesAttr>(&gep_op::ATTR_KEY_INDICES)
             .is_none()
         {
             verify_err!(op.loc(), GetElementPtrOpErr::IndicesAttrErr)?
@@ -552,10 +565,17 @@ impl Verify for GetElementPtrOp {
     }
 }
 
-impl GetElementPtrOp {
+pub mod gep_op {
+    use super::*;
     /// [Attribute](pliron::attribute::Attribute) to get the indices vector.
-    pub const ATTR_KEY_INDICES: &'static str = "llvm.gep_indices";
-    pub const ATTR_KEY_SRC_ELEM_TYPE: &'static str = "llvm.gep_src_elem_type";
+    pub static ATTR_KEY_INDICES: pliron::Lazy<Identifier> =
+        pliron::Lazy::new(|| "llvm_gep_indices".try_into().unwrap());
+    /// [Attribute](pliron::attribute::Attribute) to get the source element type.
+    pub static ATTR_KEY_SRC_ELEM_TYPE: pliron::Lazy<Identifier> =
+        pliron::Lazy::new(|| "llvm_gep_src_elem_type".try_into().unwrap());
+}
+
+impl GetElementPtrOp {
     /// Create a new [GetElementPtrOp]
     pub fn new(
         ctx: &mut Context,
@@ -578,10 +598,10 @@ impl GetElementPtrOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], opds, vec![], 0);
         op.deref_mut(ctx)
             .attributes
-            .set(Self::ATTR_KEY_INDICES, GepIndicesAttr(attr));
+            .set(gep_op::ATTR_KEY_INDICES.clone(), GepIndicesAttr(attr));
         op.deref_mut(ctx)
             .attributes
-            .set(Self::ATTR_KEY_SRC_ELEM_TYPE, elem_type);
+            .set(gep_op::ATTR_KEY_SRC_ELEM_TYPE.clone(), elem_type);
         GetElementPtrOp { op }
     }
 
@@ -590,7 +610,7 @@ impl GetElementPtrOp {
         self.op
             .deref(ctx)
             .attributes
-            .get::<TypeAttr>(Self::ATTR_KEY_SRC_ELEM_TYPE)
+            .get::<TypeAttr>(&gep_op::ATTR_KEY_SRC_ELEM_TYPE)
             .expect("GetElementPtrOp missing or has incorrect src_elem_type attribute type")
             .get_type()
     }
@@ -604,7 +624,7 @@ impl GetElementPtrOp {
     pub fn indices(&self, ctx: &Context) -> Vec<GepIndex> {
         let op = &*self.op.deref(ctx);
         op.attributes
-            .get::<GepIndicesAttr>(Self::ATTR_KEY_INDICES)
+            .get::<GepIndicesAttr>(&gep_op::ATTR_KEY_INDICES)
             .unwrap()
             .0
             .iter()
@@ -786,14 +806,20 @@ impl_op_interface!(ZeroResultInterface for LoadOp {});
 /// ### Attributes:
 /// | key | value | via Interface |
 /// |-----|-------| --------------|
-/// | [ATTR_KEY_CALLEE](Self::ATTR_KEY_CALLEE) | [StringAttr] | N/A |
+/// | [ATTR_KEY_CALLEE](call_op::ATTR_KEY_CALLEE) | [StringAttr] | N/A |
 /// | [ATTR_KEY_CALLEE_TYPE](pliron::builtin::op_interfaces::ATTR_KEY_CALLEE_TYPE) | [TypeAttr] | [CallOpInterface] |
 ///
 #[def_op("llvm.call")]
 pub struct CallOp {}
 
+pub mod call_op {
+    use super::*;
+    pub static ATTR_KEY_CALLEE: pliron::Lazy<Identifier> =
+        pliron::Lazy::new(|| "llvm_call_callee".try_into().unwrap());
+}
+
 impl CallOp {
-    pub const ATTR_KEY_CALLEE: &'static str = "llvm.callee";
+    /// Get a new [CallOp].
     pub fn new(
         ctx: &mut Context,
         callee: CallOpCallable,
@@ -807,7 +833,7 @@ impl CallOp {
                     Operation::new(ctx, Self::get_opid_static(), vec![res_ty], args, vec![], 0);
                 op.deref_mut(ctx)
                     .attributes
-                    .set(Self::ATTR_KEY_CALLEE, StringAttr::new(cval));
+                    .set(call_op::ATTR_KEY_CALLEE.clone(), StringAttr::new(cval));
                 op
             }
             CallOpCallable::Indirect(csym) => {
@@ -815,16 +841,17 @@ impl CallOp {
                 Operation::new(ctx, Self::get_opid_static(), vec![res_ty], args, vec![], 0)
             }
         };
-        op.deref_mut(ctx)
-            .attributes
-            .set(ATTR_KEY_CALLEE_TYPE, TypeAttr::new(callee_ty.into()));
+        op.deref_mut(ctx).attributes.set(
+            ATTR_KEY_CALLEE_TYPE.clone(),
+            TypeAttr::new(callee_ty.into()),
+        );
         CallOp { op }
     }
 }
 impl CallOpInterface for CallOp {
     fn callee(&self, ctx: &Context) -> CallOpCallable {
         let op = self.op.deref(ctx);
-        if let Some(callee_sym) = op.attributes.get::<StringAttr>(Self::ATTR_KEY_CALLEE) {
+        if let Some(callee_sym) = op.attributes.get::<StringAttr>(&call_op::ATTR_KEY_CALLEE) {
             CallOpCallable::Direct(callee_sym.clone().into())
         } else {
             CallOpCallable::Indirect(
@@ -837,7 +864,7 @@ impl CallOpInterface for CallOp {
         let op = self.op.deref(ctx);
         let skip = if op
             .attributes
-            .get::<StringAttr>(Self::ATTR_KEY_CALLEE)
+            .get::<StringAttr>(&call_op::ATTR_KEY_CALLEE)
             .is_some()
         {
             0
@@ -849,6 +876,81 @@ impl CallOpInterface for CallOp {
 }
 impl_canonical_syntax!(CallOp);
 impl_verify_succ!(CallOp);
+
+/// Numeric constant.
+/// See MLIR's [llvm.mlir.constant](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmlirconstant-llvmconstantop).
+///
+/// Attributes:
+///
+/// | key | value |
+/// |-----|-------|
+/// |[ATTR_KEY_VALUE](constant_op::ATTR_KEY_VALUE) | [IntegerAttr] or [FloatAttr] |
+///
+/// Results:
+///
+/// | result | description |
+/// |-----|-------|
+/// | `result` | any type |
+#[def_op("llvm.constant")]
+pub struct ConstantOp {}
+
+pub mod constant_op {
+    use super::*;
+    /// Attribute key for the constant value.
+    pub static ATTR_KEY_VALUE: pliron::Lazy<Identifier> =
+        pliron::Lazy::new(|| "llvm_constant_value".try_into().unwrap());
+}
+
+impl ConstantOp {
+    /// Get the constant value that this Op defines.
+    pub fn get_value(&self, ctx: &Context) -> AttrObj {
+        let op = self.get_operation().deref(ctx);
+        op.attributes
+            .0
+            .get(&constant_op::ATTR_KEY_VALUE)
+            .unwrap()
+            .clone()
+    }
+
+    /// Create a new [ConstantOp].
+    pub fn new(ctx: &mut Context, value: AttrObj) -> Self {
+        let result_type = attr_cast::<dyn TypedAttrInterface>(&*value)
+            .expect("ConstantOp const value must provide TypedAttrInterface")
+            .get_type();
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![result_type],
+            vec![],
+            vec![],
+            0,
+        );
+        op.deref_mut(ctx)
+            .attributes
+            .0
+            .insert(constant_op::ATTR_KEY_VALUE.clone(), value);
+        ConstantOp { op }
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("{}: Unexpected type", ConstantOp::get_opid_static())]
+pub struct ConstantOpVerifyErr;
+
+impl Verify for ConstantOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        let loc = self.get_operation().deref(ctx).loc();
+        let value = self.get_value(ctx);
+        if !(value.is::<IntegerAttr>() || value.is::<FloatAttr>()) {
+            return verify_err!(loc, ConstantOpVerifyErr);
+        }
+        Ok(())
+    }
+}
+
+impl_canonical_syntax!(ConstantOp);
+impl_op_interface! (ZeroOpdInterface for ConstantOp {});
+impl_op_interface! (OneResultInterface for ConstantOp {});
 
 /// Register ops in the LLVM dialect.
 pub fn register(ctx: &mut Context) {
@@ -874,5 +976,6 @@ pub fn register(ctx: &mut Context) {
     LoadOp::register(ctx, LoadOp::parser_fn);
     StoreOp::register(ctx, StoreOp::parser_fn);
     CallOp::register(ctx, CallOp::parser_fn);
+    ConstantOp::register(ctx, ConstantOp::parser_fn);
     ReturnOp::register(ctx, ReturnOp::parser_fn);
 }

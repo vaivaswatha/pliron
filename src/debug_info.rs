@@ -6,16 +6,18 @@ use crate::{
     attribute::{AttrObj, AttributeDict},
     basic_block::BasicBlock,
     builtin::{
-        attributes::{SmallDictAttr, StringAttr, UnitAttr, VecAttr},
+        attributes::{DictAttr, StringAttr, UnitAttr, VecAttr},
         ATTR_KEY_DEBUG_INFO,
     },
     context::{Context, Ptr},
+    identifier::Identifier,
     operation::Operation,
     vec_exns::VecExtns,
 };
 
 /// Key into a debug info's variable name.
-const DEBUG_INFO_KEY_NAME: &str = "debug_info.name";
+pub static DEBUG_INFO_KEY_NAME: pliron::Lazy<Identifier> =
+    pliron::Lazy::new(|| "debug_info_name".try_into().unwrap());
 
 fn set_name_from_attr_map(
     attributes: &mut AttributeDict,
@@ -24,12 +26,12 @@ fn set_name_from_attr_map(
     name: String,
 ) {
     let name_attr: AttrObj = StringAttr::new(name).into();
-    match attributes.0.entry(ATTR_KEY_DEBUG_INFO) {
+    match attributes.0.entry(ATTR_KEY_DEBUG_INFO.clone()) {
         hash_map::Entry::Occupied(mut occupied) => {
-            let di_dict = occupied.get_mut().downcast_mut::<SmallDictAttr>().unwrap();
+            let di_dict = occupied.get_mut().downcast_mut::<DictAttr>().unwrap();
             let expect_msg = "Existing attribute entry for result names incorrect";
             let names = di_dict
-                .lookup_mut(DEBUG_INFO_KEY_NAME)
+                .lookup_mut(&DEBUG_INFO_KEY_NAME)
                 .expect(expect_msg)
                 .downcast_mut::<VecAttr>()
                 .expect(expect_msg);
@@ -39,7 +41,11 @@ fn set_name_from_attr_map(
             let mut names = Vec::new_init(max_idx, |_idx| UnitAttr::new().into());
             names[idx] = name_attr;
             vacant.insert(
-                SmallDictAttr::new(vec![(DEBUG_INFO_KEY_NAME, VecAttr::new(names).into())]).into(),
+                DictAttr::new(vec![(
+                    DEBUG_INFO_KEY_NAME.clone(),
+                    VecAttr::new(names).into(),
+                )])
+                .into(),
             );
         }
     }
@@ -51,9 +57,9 @@ fn get_name_from_attr_map(
     panic_msg: &str,
 ) -> Option<String> {
     attributes
-        .get::<SmallDictAttr>(ATTR_KEY_DEBUG_INFO)
+        .get::<DictAttr>(&ATTR_KEY_DEBUG_INFO)
         .and_then(|di_dict| {
-            di_dict.lookup(DEBUG_INFO_KEY_NAME).and_then(|names| {
+            di_dict.lookup(&DEBUG_INFO_KEY_NAME).and_then(|names| {
                 let names = names.downcast_ref::<VecAttr>().expect(panic_msg);
                 names.0.get(idx).and_then(|name| {
                     name.downcast_ref::<StringAttr>()
@@ -116,34 +122,61 @@ pub fn get_block_arg_name(ctx: &Context, block: Ptr<BasicBlock>, arg_idx: usize)
 
 #[cfg(test)]
 mod tests {
+    use pliron_derive::def_op;
+
     use crate::{
         basic_block::BasicBlock,
         builtin::{
             self,
-            attributes::IntegerAttr,
-            ops::ConstantOp,
+            op_interfaces::{OneResultInterface, ZeroOpdInterface},
             types::{IntegerType, Signedness},
         },
         common_traits::Verify,
         context::Context,
         debug_info::{get_block_arg_name, set_block_arg_name},
+        dialect::{Dialect, DialectName},
+        impl_canonical_syntax, impl_op_interface, impl_verify_succ,
         op::Op,
+        operation::Operation,
+        parsable::Parsable,
         result::Result,
     };
-    use apint::ApInt;
+
+    #[def_op("test.zero")]
+    struct ZeroOp;
+    impl_canonical_syntax!(ZeroOp);
+    impl_verify_succ!(ZeroOp);
+    impl_op_interface! (ZeroOpdInterface for ZeroOp {});
+    impl_op_interface! (OneResultInterface for ZeroOp {});
+    impl ZeroOp {
+        pub fn new(ctx: &mut Context) -> Self {
+            let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
+            ZeroOp {
+                op: Operation::new(
+                    ctx,
+                    Self::get_opid_static(),
+                    vec![i64_ty.into()],
+                    vec![],
+                    vec![],
+                    0,
+                ),
+            }
+        }
+    }
 
     use super::{get_operation_result_name, set_operation_result_name};
 
     #[test]
     fn test_op_result_name() -> Result<()> {
         let mut ctx = Context::new();
-        builtin::register(&mut ctx);
+        let test_dialect = Dialect::new(DialectName::new("test"));
+        test_dialect.register(&mut ctx);
+        ZeroOp::register(&mut ctx, ZeroOp::parser_fn);
 
-        let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
-        let cop = ConstantOp::new(&mut ctx, IntegerAttr::new(i64_ty, ApInt::from(0)).into());
+        let cop = ZeroOp::new(&mut ctx);
         let op = cop.get_operation();
         set_operation_result_name(&ctx, op, 0, "foo".to_string());
-        assert!(get_operation_result_name(&ctx, op, 0).unwrap() == "foo");
+        assert_eq!(get_operation_result_name(&ctx, op, 0).unwrap(), "foo");
         op.deref(&ctx).verify(&ctx)?;
         Ok(())
     }

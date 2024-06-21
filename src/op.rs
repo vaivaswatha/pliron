@@ -39,6 +39,7 @@ use std::{
 use thiserror::Error;
 
 use crate::{
+    attribute::AttributeDict,
     builtin::types::FunctionType,
     common_traits::Verify,
     context::{Context, Ptr},
@@ -413,8 +414,9 @@ macro_rules! decl_op_interface {
 }
 
 /// Printer for an [Op] in canonical syntax.
-/// `res_1: type_1, res_2: type_2, ... res_n: type_n = op_id (opd_1, opd_2, ... opd_n) [succ_1, succ_2, ... succ_n] : function-type`
-/// TODO: Handle operations with regions, attributes.
+/// `res_1: type_1, res_2: type_2, ... res_n: type_n =
+///      op_id (opd_1, opd_2, ... opd_n) [succ_1, succ_2, ... succ_n] [attr-dic]: function-type`
+/// TODO: Handle operations with regions.
 pub fn canonical_syntax_fmt(
     op: OpObj,
     ctx: &Context,
@@ -436,10 +438,11 @@ pub fn canonical_syntax_fmt(
     }
     let ret = write!(
         f,
-        "{} ({}) [{}] : {}",
+        "{} ({}) [{}] {}: {}",
         op.get_opid().disp(ctx),
         operands.disp(ctx),
         successors.disp(ctx),
+        op.attributes.disp(ctx),
         op_type.disp(ctx),
     );
     ret
@@ -463,48 +466,52 @@ pub fn canonical_syntax_parse<'a>(
     // Results and opid have already been parsed. Continue after that.
     delimited_list_parser('(', ')', ',', ssa_opd_parser())
         .and(spaces().with(delimited_list_parser('[', ']', ',', block_opd_parser())))
+        .and(spaces().with(AttributeDict::parser(())))
         .skip(spaced(token(':')))
         .and((location(), FunctionType::parser(())))
-        .then(move |((operands, successors), (fty_loc, fty))| {
-            let opid = opid.clone();
-            let results = results.clone();
-            let fty_loc = fty_loc.clone();
-            combine::parser(move |parsable_state: &mut StateStream<'a>| {
+        .then(
+            move |(((operands, successors), attr_dict), (fty_loc, fty))| {
+                let opid = opid.clone();
                 let results = results.clone();
-                let ctx = &mut parsable_state.state.ctx;
-                let results_types = fty.deref(ctx).get_results().to_vec();
-                let operands_types = fty.deref(ctx).get_inputs().to_vec();
-                if results_types.len() != results.len() {
-                    input_err!(
-                        fty_loc.clone(),
-                        CanonicalSyntaxParseError::ResultsMismatch {
-                            num_res_ty: results_types.len(),
-                            num_res: results.len()
-                        }
-                    )?
-                }
-                if operands.len() != operands_types.len() {
-                    input_err!(
-                        fty_loc.clone(),
-                        CanonicalSyntaxParseError::OperandsMismatch {
-                            num_opd_ty: operands_types.len(),
-                            num_opd: operands.len()
-                        }
-                    )?
-                }
-                let opr = Operation::new(
-                    ctx,
-                    opid.clone(),
-                    results_types,
-                    operands.clone(),
-                    successors.clone(),
-                    0,
-                );
-                let op = from_operation(ctx, opr);
-                process_parsed_ssa_defs(parsable_state, &results, opr)?;
-                Ok(op).into_parse_result()
-            })
-        })
+                let fty_loc = fty_loc.clone();
+                combine::parser(move |parsable_state: &mut StateStream<'a>| {
+                    let results = results.clone();
+                    let ctx = &mut parsable_state.state.ctx;
+                    let results_types = fty.deref(ctx).get_results().to_vec();
+                    let operands_types = fty.deref(ctx).get_inputs().to_vec();
+                    if results_types.len() != results.len() {
+                        input_err!(
+                            fty_loc.clone(),
+                            CanonicalSyntaxParseError::ResultsMismatch {
+                                num_res_ty: results_types.len(),
+                                num_res: results.len()
+                            }
+                        )?
+                    }
+                    if operands.len() != operands_types.len() {
+                        input_err!(
+                            fty_loc.clone(),
+                            CanonicalSyntaxParseError::OperandsMismatch {
+                                num_opd_ty: operands_types.len(),
+                                num_opd: operands.len()
+                            }
+                        )?
+                    }
+                    let opr = Operation::new(
+                        ctx,
+                        opid.clone(),
+                        results_types,
+                        operands.clone(),
+                        successors.clone(),
+                        0,
+                    );
+                    opr.deref_mut(ctx).attributes = attr_dict.clone();
+                    let op = from_operation(ctx, opr);
+                    process_parsed_ssa_defs(parsable_state, &results, opr)?;
+                    Ok(op).into_parse_result()
+                })
+            },
+        )
         .parse_stream(state_stream)
         .into()
 }

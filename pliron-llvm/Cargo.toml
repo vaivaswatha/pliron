@@ -1,6 +1,6 @@
 [package]
 name = "pliron-llvm"
-description = "Derive macros for pliron"
+description = "LLVM dialect for pliron"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -14,7 +14,7 @@ license.workspace = true
 [dependencies]
 pliron-derive = { path = "../pliron-derive", version = "0" }
 pliron = { path = "../", version = "0" }
-clap = "4.5"
+clap = { version = "4.5", features = ["derive"] }
 combine.workspace = true
 thiserror.workspace = true
 linkme.workspace = true
