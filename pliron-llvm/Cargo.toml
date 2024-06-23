@@ -14,6 +14,7 @@ license.workspace = true
 [dependencies]
 pliron-derive = { path = "../pliron-derive", version = "0" }
 pliron = { path = "../", version = "0" }
+apint.workspace = true
 clap = { version = "4.5", features = ["derive"] }
 combine.workspace = true
 thiserror.workspace = true

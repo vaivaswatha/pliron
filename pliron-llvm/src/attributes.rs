@@ -7,7 +7,7 @@ use pliron::{
     context::Context,
     impl_verify_succ,
     irfmt::{
-        parsers::{delimited_list_parser, u64_parser},
+        parsers::{delimited_list_parser, int_parser},
         printers::list_with_sep,
     },
     parsable::{self, Parsable},
@@ -161,13 +161,13 @@ impl Parsable for GepIndexAttr {
         _arg: Self::Arg,
     ) -> parsable::ParseResult<'a, Self> {
         choice((string("c"), string("opd")))
-            .and(between(token('('), token(')'), u64_parser()))
+            .and(between(token('('), token(')'), int_parser::<usize>()))
             .parse_stream(state_stream)
             .map(|(gidxt, i)| {
                 if gidxt == "c" {
                     GepIndexAttr::Constant(i.try_into().unwrap())
                 } else {
-                    GepIndexAttr::OperandIdx(i as usize)
+                    GepIndexAttr::OperandIdx(i)
                 }
             })
             .into()

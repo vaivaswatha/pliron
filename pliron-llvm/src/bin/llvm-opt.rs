@@ -43,6 +43,9 @@ fn run(cli: Cli, ctx: &mut Context) -> Result<()> {
 pub fn main() -> ExitCode {
     let cli = Cli::parse();
     let ctx = &mut Context::default();
+    pliron::builtin::register(ctx);
+    pliron_llvm::register(ctx);
+
     match run(cli, ctx) {
         Ok(_) => ExitCode::SUCCESS,
         Err(e) => {

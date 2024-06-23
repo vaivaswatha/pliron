@@ -5,7 +5,7 @@ use crate::{
     context::{Context, Ptr},
     impl_verify_succ,
     irfmt::{
-        parsers::{delimited_list_parser, spaced, type_parser, u64_parser},
+        parsers::{delimited_list_parser, int_parser, spaced, type_parser},
         printers::{functional_type, list_with_sep},
     },
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
@@ -23,26 +23,26 @@ pub enum Signedness {
 #[def_type("builtin.int")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct IntegerType {
-    width: u64,
+    width: u32,
     signedness: Signedness,
 }
 
 impl IntegerType {
     /// Get or create a new integer type.
-    pub fn get(ctx: &mut Context, width: u64, signedness: Signedness) -> TypePtr<Self> {
+    pub fn get(ctx: &mut Context, width: u32, signedness: Signedness) -> TypePtr<Self> {
         Type::register_instance(IntegerType { width, signedness }, ctx)
     }
     /// Get, if it already exists, an integer type.
     pub fn get_existing(
         ctx: &Context,
-        width: u64,
+        width: u32,
         signedness: Signedness,
     ) -> Option<TypePtr<Self>> {
         Type::get_instance(IntegerType { width, signedness }, ctx)
     }
 
     /// Get width.
-    pub fn get_width(&self) -> u64 {
+    pub fn get_width(&self) -> u32 {
         self.width
     }
 
@@ -70,7 +70,7 @@ impl Parsable for IntegerType {
         ));
 
         // followed by an integer.
-        let parser = choicer.and(u64_parser());
+        let parser = choicer.and(int_parser());
 
         let mut parser = between(token('<'), token('>'), spaced(parser));
         parser

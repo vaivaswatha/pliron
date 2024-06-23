@@ -41,7 +41,7 @@ use thiserror::Error;
 use crate::{
     attribute::AttributeDict,
     builtin::types::FunctionType,
-    common_traits::Verify,
+    common_traits::{Named, Verify},
     context::{Context, Ptr},
     dialect::DialectName,
     identifier::Identifier,
@@ -426,10 +426,10 @@ pub fn canonical_syntax_fmt(
     let sep = printable::ListSeparator::CharSpace(',');
     let op = op.get_operation().deref(ctx);
     let operands = iter_with_sep(op.operands(), sep);
-    let successors = iter_with_sep(op.successors(), sep);
+    let successors = iter_with_sep(op.successors().map(|succ| succ.unique_name(ctx)), sep);
     let op_type = functional_type(
-        iter_with_sep(op.results().map(|res| res.get_type(ctx)), sep),
         iter_with_sep(op.operands().map(|opd| opd.get_type(ctx)), sep),
+        iter_with_sep(op.results().map(|res| res.get_type(ctx)), sep),
     );
 
     if op.get_num_results() != 0 {

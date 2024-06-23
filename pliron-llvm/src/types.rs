@@ -7,7 +7,7 @@ use pliron::{
     identifier::Identifier,
     impl_verify_succ, input_err_noloc,
     irfmt::{
-        parsers::{delimited_list_parser, location, spaced, type_parser, u64_parser},
+        parsers::{delimited_list_parser, int_parser, location, spaced, type_parser},
         printers::{enclosed, list_with_sep},
     },
     location::Located,
@@ -372,10 +372,10 @@ impl Parsable for ArrayType {
         combine::between(
             token('['),
             token(']'),
-            spaced((u64_parser(), spaced(token('x')), type_parser())),
+            spaced((int_parser::<usize>(), spaced(token('x')), type_parser())),
         )
         .parse_stream(state_stream)
-        .map(|(size, _, elem)| ArrayType::get(state_stream.state.ctx, elem, size as usize))
+        .map(|(size, _, elem)| ArrayType::get(state_stream.state.ctx, elem, size))
         .into()
     }
 }

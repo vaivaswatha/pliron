@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::{
     attribute::AttrObj,
     basic_block::BasicBlock,
@@ -54,15 +56,26 @@ pub fn type_parser<'a>(
     Ptr::<TypeObj>::parser(())
 }
 
-pub fn u64_parse<'a>(state_stream: &mut StateStream<'a>, _arg: ()) -> ParseResult<'a, u64> {
+/// A parser to parse any Rust integer type.
+pub fn int_parse<'a, IntT>(state_stream: &mut StateStream<'a>, _arg: ()) -> ParseResult<'a, IntT>
+where
+    IntT: FromStr,
+    IntT::Err: std::error::Error + Send + Sync + 'static,
+{
     many1::<String, _, _>(digit())
-        .and_then(|digits| digits.parse::<u64>())
+        .and_then(|digits| digits.parse::<IntT>())
         .parse_stream(state_stream)
         .into()
 }
 
-pub fn u64_parser<'a>() -> Box<dyn Parser<StateStream<'a>, Output = u64, PartialState = ()> + 'a> {
-    combine::parser(move |parsable_state: &mut StateStream<'a>| u64_parse(parsable_state, ()))
+/// Get a parser combinator that can parse any Rust integer type.
+pub fn int_parser<'a, IntT>(
+) -> Box<dyn Parser<StateStream<'a>, Output = IntT, PartialState = ()> + 'a>
+where
+    IntT: FromStr,
+    IntT::Err: std::error::Error + Send + Sync + 'static,
+{
+    combine::parser(move |parsable_state: &mut StateStream<'a>| int_parse(parsable_state, ()))
         .boxed()
 }
 

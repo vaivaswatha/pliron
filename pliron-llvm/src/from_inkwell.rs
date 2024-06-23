@@ -2,21 +2,24 @@
 
 use std::ffi::CStr;
 
+use apint::ApInt;
 use inkwell::{
     basic_block::BasicBlock as IWBasicBlock,
     module::Module as IWModule,
     types::{AnyType, AnyTypeEnum},
     values::{
-        AnyValue, AnyValueEnum, FunctionValue, InstructionOpcode, InstructionValue, PhiValue,
+        AnyValue, AnyValueEnum, BasicValueEnum, FunctionValue, InstructionOpcode, InstructionValue,
+        PhiValue,
     },
     IntPredicate,
 };
 use pliron::{
     basic_block::BasicBlock,
     builtin::{
-        op_interfaces::{OneRegionInterface, SingleBlockRegionInterface},
+        attributes::IntegerAttr,
+        op_interfaces::{OneRegionInterface, OneResultInterface, SingleBlockRegionInterface},
         ops::{FuncOp, ModuleOp},
-        types::{FunctionType, IntegerType},
+        types::{FunctionType, IntegerType, Signedness},
     },
     context::{Context, Ptr},
     input_err_noloc, input_error_noloc,
@@ -33,8 +36,9 @@ use crate::{
     attributes::ICmpPredicateAttr,
     op_interfaces::BinArithOp,
     ops::{
-        AShrOp, AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CondBrOp, ICmpOp, LShrOp, LoadOp, MulOp,
-        OrOp, ReturnOp, SDivOp, SRemOp, ShlOp, StoreOp, SubOp, UDivOp, URemOp, XorOp,
+        AShrOp, AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CondBrOp, ConstantOp, ICmpOp, LShrOp,
+        LoadOp, MulOp, OrOp, ReturnOp, SDivOp, SRemOp, ShlOp, StoreOp, SubOp, UDivOp, URemOp,
+        XorOp,
     },
     types::{ArrayType, PointerType, StructErr, StructType, VoidType},
 };
@@ -70,11 +74,11 @@ pub fn convert_type(ctx: &mut Context, ty: &AnyTypeEnum) -> Result<Ptr<TypeObj>>
                 .unwrap_or(Ok(VoidType::get(ctx).into()))?;
             // TODO: Use llvm::types::FuncType.
             // Not already doing it because we don't have a corresponding llvm::ops::FuncOp.
-            Ok(FunctionType::get(ctx, vec![return_type], param_types).into())
+            Ok(FunctionType::get(ctx, param_types, vec![return_type]).into())
         }
         AnyTypeEnum::IntType(ity) => Ok(IntegerType::get(
             ctx,
-            ity.get_bit_width() as u64,
+            ity.get_bit_width(),
             pliron::builtin::types::Signedness::Signless,
         )
         .into()),
@@ -125,7 +129,7 @@ struct ConversionContext<'ctx> {
     // A map from inkwell's basic blocks to plirons'.
     block_map: FxHashMap<IWBasicBlock<'ctx>, Ptr<BasicBlock>>,
     // Entry block of the function we're processing.
-    _entry_block: Ptr<BasicBlock>,
+    entry_block: Ptr<BasicBlock>,
 }
 
 impl<'ctx> ConversionContext<'ctx> {
@@ -133,7 +137,7 @@ impl<'ctx> ConversionContext<'ctx> {
         Self {
             value_map: FxHashMap::default(),
             block_map: FxHashMap::default(),
-            _entry_block: entry_block,
+            entry_block,
         }
     }
 }
@@ -211,14 +215,50 @@ pub enum ConversionErr {
     UndefinedBlock(String),
 }
 
-fn convert_operands(
-    cctx: &ConversionContext,
-    inst: InstructionValue,
+/// Checks if a constant has been processed already, and if not
+/// converts it and puts it in the [ConversionContext::value_map].
+fn process_constant<'ctx>(
+    ctx: &mut Context,
+    cctx: &mut ConversionContext<'ctx>,
+    val: BasicValueEnum<'ctx>,
+) -> Result<()> {
+    let any_val = val.as_any_value_enum();
+    if cctx.value_map.contains_key(&any_val) {
+        return Ok(());
+    }
+    match val {
+        BasicValueEnum::ArrayValue(av) if av.is_const() => todo!(),
+        BasicValueEnum::IntValue(iv) if iv.is_constant_int() => {
+            // TODO: Zero extend or sign extend?
+            let u64 = iv.get_zero_extended_constant().unwrap();
+            let u64_ty = IntegerType::get(ctx, iv.get_type().get_bit_width(), Signedness::Signless);
+            let val_attr = IntegerAttr::new(u64_ty, ApInt::from_u64(u64));
+            let const_op = ConstantOp::new(ctx, Box::new(val_attr));
+            // Insert at the beginning of the entry block.
+            const_op
+                .get_operation()
+                .insert_at_front(cctx.entry_block, ctx);
+            cctx.value_map.insert(any_val, const_op.get_result(ctx));
+        }
+        BasicValueEnum::FloatValue(fv) if fv.is_const() => todo!(),
+        BasicValueEnum::PointerValue(pv) if pv.is_const() => todo!(),
+        BasicValueEnum::StructValue(_sv) => todo!(),
+        BasicValueEnum::VectorValue(vv) if vv.is_const() => todo!(),
+        _ => (),
+    }
+    Ok(())
+}
+
+fn convert_operands<'ctx>(
+    ctx: &mut Context,
+    cctx: &mut ConversionContext<'ctx>,
+    inst: InstructionValue<'ctx>,
 ) -> Result<(Vec<Value>, Vec<Ptr<BasicBlock>>)> {
     let mut opds = vec![];
     let mut succs = vec![];
     for opd in inst.get_operands().flatten() {
         if let Some(val) = opd.left() {
+            process_constant(ctx, cctx, val)?;
             if let Some(m_val) = cctx.value_map.get(&val.as_any_value_enum()) {
                 opds.push(*m_val);
             } else {
@@ -278,12 +318,12 @@ fn convert_branch_args(
     Ok(args)
 }
 
-fn convert_instruction(
+fn convert_instruction<'ctx>(
     ctx: &mut Context,
-    cctx: &ConversionContext,
-    inst: InstructionValue,
+    cctx: &mut ConversionContext<'ctx>,
+    inst: InstructionValue<'ctx>,
 ) -> Result<Ptr<Operation>> {
-    let (ref opds, ref succs) = convert_operands(cctx, inst)?;
+    let (ref opds, ref succs) = convert_operands(ctx, cctx, inst)?;
     match inst.get_opcode() {
         InstructionOpcode::Add => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
@@ -487,7 +527,8 @@ fn convert_function(ctx: &mut Context, function: FunctionValue) -> Result<FuncOp
     let m_func = FuncOp::new(ctx, name, fn_ty);
     let m_func_reg = m_func.get_region(ctx);
 
-    let cctx = &mut ConversionContext::new(m_func.get_entry_block(ctx));
+    let m_entry_block = m_func.get_entry_block(ctx);
+    let cctx = &mut ConversionContext::new(m_entry_block);
     let blocks = rpo(function);
     // Map entry block
     let mut blocks_iter = blocks.iter();
@@ -495,7 +536,19 @@ fn convert_function(ctx: &mut Context, function: FunctionValue) -> Result<FuncOp
         return Ok(m_func);
     };
 
-    cctx.block_map.insert(*entry, m_func.get_entry_block(ctx));
+    cctx.block_map.insert(*entry, m_entry_block);
+    {
+        let val_map = &mut cctx.value_map;
+        let m_entry_block_ref = m_entry_block.deref(ctx);
+        // Map function args to entry block args.
+        for (arg_idx, arg) in function.get_param_iter().enumerate() {
+            val_map.insert(
+                arg.as_any_value_enum(),
+                m_entry_block_ref.get_argument(arg_idx).unwrap(),
+            );
+        }
+    }
+
     // Create, place and map rest of the blocks.
     for block in blocks_iter {
         let label = block.get_name().to_str_res()?.try_into().ok();
