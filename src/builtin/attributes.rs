@@ -118,11 +118,7 @@ impl Printable for IntegerAttr {
     }
 }
 
-impl Verify for IntegerAttr {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        Ok(())
-    }
-}
+impl_verify_succ!(IntegerAttr);
 
 impl IntegerAttr {
     /// Create a new [IntegerAttr].
@@ -371,12 +367,7 @@ impl Printable for UnitAttr {
         write!(f, "()")
     }
 }
-
-impl Verify for UnitAttr {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        Ok(())
-    }
-}
+impl_verify_succ!(UnitAttr);
 
 impl Parsable for UnitAttr {
     type Arg = ();
@@ -428,11 +419,7 @@ impl Parsable for TypeAttr {
     }
 }
 
-impl Verify for TypeAttr {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        Ok(())
-    }
-}
+impl_verify_succ!(TypeAttr);
 
 impl Typed for TypeAttr {
     fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {

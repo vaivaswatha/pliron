@@ -16,7 +16,7 @@
 //! and [Interfaces](https://mlir.llvm.org/docs/Interfaces/).
 //! Interfaces must all implement an associated function named `verify` with
 //! the type [AttrInterfaceVerifier].
-//! New attributes must be specified via [decl_attr_interface](pliron::decl_attr_interface)
+//! New interfaces must be specified via [decl_attr_interface](pliron::decl_attr_interface)
 //! for proper verification.
 //!
 //! [Attribute]s that implement an interface must do so using the
@@ -27,7 +27,8 @@
 //! is [implemented](attr_impls)) with ease.
 //!
 //! [AttrObj]s can be downcasted to their concrete types using
-/// [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
+//! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
+
 use std::{
     fmt::{Debug, Display},
     hash::Hash,
