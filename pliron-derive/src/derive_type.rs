@@ -110,6 +110,17 @@ impl ToTokens for ImplType {
                         dialect: ::pliron::dialect::DialectName::new(#dialect),
                     }
                 }
+
+                fn verify_interfaces(&self, ctx: &::pliron::context::Context) -> ::pliron::result::Result<()> {
+                    if let Some(interface_verifiers) =
+                        ::pliron::r#type::TYPE_INTERFACE_VERIFIERS_MAP.get(&Self::get_type_id_static())
+                    {
+                        for (_, verifier) in interface_verifiers {
+                            verifier(self, ctx)?;
+                        }
+                    }
+                    Ok(())
+                }
             }
         });
     }
@@ -151,6 +162,19 @@ mod tests {
                         name: ::pliron::r#type::TypeName::new("simple_type"),
                         dialect: ::pliron::dialect::DialectName::new("testing"),
                     }
+                }
+                fn verify_interfaces(
+                    &self,
+                    ctx: &::pliron::context::Context,
+                ) -> ::pliron::result::Result<()> {
+                    if let Some(interface_verifiers) = ::pliron::r#type::TYPE_INTERFACE_VERIFIERS_MAP
+                        .get(&Self::get_type_id_static())
+                    {
+                        for (_, verifier) in interface_verifiers {
+                            verifier(self, ctx)?;
+                        }
+                    }
+                    Ok(())
                 }
             }
         "##]]

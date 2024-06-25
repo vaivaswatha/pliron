@@ -11,22 +11,24 @@ use pliron::{
         attributes::{IntegerAttr, StringAttr},
         op_interfaces::{OneResultInterface, OneResultVerifyErr},
         ops::ModuleOp,
+        types::{IntegerType, UnitType},
     },
     common_traits::Verify,
     context::{Context, Ptr},
-    decl_attr_interface, decl_op_interface,
+    decl_attr_interface, decl_op_interface, decl_type_interface,
     identifier::Identifier,
-    impl_attr_interface, impl_canonical_syntax, impl_op_interface, impl_verify_succ,
+    impl_attr_interface, impl_canonical_syntax, impl_op_interface, impl_type_interface,
+    impl_verify_succ,
     location::Location,
     op::{op_cast, Op, OpObj},
     operation::Operation,
     parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::TypeObj,
+    r#type::{Type, TypeObj},
     result::{Error, ErrorKind, Result},
     trait_cast::any_to_trait,
 };
-use pliron_derive::{def_attribute, def_op};
+use pliron_derive::{def_attribute, def_op, def_type};
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
 
@@ -260,5 +262,79 @@ fn test_attr_intr_verify_order() -> Result<()> {
         TestAttrInterface2 verified
     "#]]
     .assert_eq(&TEST_ATTR_VERIFIERS_OUTPUT.lock().unwrap());
+    Ok(())
+}
+
+decl_type_interface! {
+    TestTypeInterfaceX {
+        fn verify(_op: &dyn Type, _ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            Ok(())
+        }
+    }
+}
+
+impl_type_interface!(TestTypeInterfaceX for UnitType {});
+impl_type_interface!(TestTypeInterfaceX for IntegerType {});
+
+static TEST_TYPE_VERIFIERS_OUTPUT: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("".into()));
+
+#[def_type("test.verify_intr_type")]
+#[derive(PartialEq, Clone, Debug, Hash)]
+struct VerifyIntrType {}
+impl_verify_succ!(VerifyIntrType);
+impl_type_interface!(TestTypeInterface for VerifyIntrType {});
+impl_type_interface!(TestTypeInterface2 for VerifyIntrType {});
+
+impl Printable for VerifyIntrType {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "VerifyIntType")
+    }
+}
+
+decl_type_interface! {
+    TestTypeInterface {
+        fn verify(_op: &dyn Type, _ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            *TEST_TYPE_VERIFIERS_OUTPUT.lock().unwrap() += "TestTypeInterface verified\n";
+            Ok(())
+        }
+    }
+}
+
+decl_type_interface! {
+    TestTypeInterface2: TestTypeInterface {
+        fn verify(_op: &dyn Type, _ctx: &Context) -> Result<()>
+        where
+            Self: Sized,
+        {
+            *TEST_TYPE_VERIFIERS_OUTPUT.lock().unwrap() += "TestTypeInterface2 verified\n";
+            Ok(())
+        }
+    }
+}
+
+#[test]
+fn test_type_intr_verify_order() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
+
+    let vio = VerifyIntrType {};
+    vio.verify_interfaces(ctx)?;
+
+    expect![[r#"
+        TestTypeInterface verified
+        TestTypeInterface2 verified
+    "#]]
+    .assert_eq(&TEST_TYPE_VERIFIERS_OUTPUT.lock().unwrap());
     Ok(())
 }
