@@ -17,14 +17,14 @@ use crate::{
         printers::{iter_with_sep, list_with_sep},
     },
     linked_list::{private, ContainsLinkedList, LinkedList},
-    location::Located,
+    location::{Located, Location},
     operation::Operation,
     parsable::{self, IntoParseResult, Parsable, ParseResult},
     printable::{self, indented_nl, ListSeparator, Printable},
     r#type::{TypeObj, Typed},
     region::Region,
     result::Result,
-    use_def_lists::{DefNode, Value},
+    use_def_lists::{DefNode, Use, Value},
     vec_exns::VecExtns,
 };
 
@@ -105,6 +105,7 @@ pub struct BasicBlock {
     region_links: RegionLinks,
     /// A dictionary of attributes.
     pub attributes: AttributeDict,
+    loc: Location,
 }
 
 impl Named for BasicBlock {
@@ -131,6 +132,7 @@ impl BasicBlock {
             preds: DefNode::new(),
             region_links: RegionLinks::default(),
             attributes: AttributeDict::default(),
+            loc: Location::Unknown,
         };
         let newblock = Self::alloc(ctx, f);
         // Let's update the args of the new block. Easier to do it here than during creation.
@@ -152,6 +154,11 @@ impl BasicBlock {
     /// Get idx'th argument as a Value.
     pub fn get_argument(&self, arg_idx: usize) -> Option<Value> {
         self.args.get(arg_idx).map(|arg| arg.into())
+    }
+
+    /// Get an iterator over the arguments
+    pub fn arguments(&self) -> impl Iterator<Item = Value> + '_ {
+        self.args.iter().map(Into::into)
     }
 
     /// Add a new argument with specified type. Returns idx at which it was added.
@@ -189,6 +196,63 @@ impl BasicBlock {
         self.preds.num_uses()
     }
 
+    /// Get all predecessors of this block.
+    pub fn preds(&self, ctx: &Context) -> Vec<Ptr<BasicBlock>> {
+        self.preds
+            .uses()
+            .map(|r#use| {
+                r#use
+                    .op
+                    .deref(ctx)
+                    .get_container()
+                    .expect("Terminator branching to this block is not in any basic block")
+            })
+            .collect()
+    }
+
+    /// Checks whether self is a successor of `pred`.
+    /// O(n) in the number of successors of `pred`.
+    pub fn is_succ_of(&self, ctx: &Context, pred: Ptr<BasicBlock>) -> bool {
+        let self_ptr = self.get_self_ptr(ctx);
+        // We do not check [Self::get_defnode_ref].uses here because
+        // we'd have to go through them all. We do not have a Use<_>
+        // object to directly check membership.
+        pred.deref(ctx).get_tail().map_or(false, |pred_term| {
+            pred_term
+                .deref(ctx)
+                .successors()
+                .any(|succ| self_ptr == succ)
+        })
+    }
+
+    /// Retarget predecessors (that satisfy pred) to `other`.
+    pub fn retarget_some_preds_to<P: Fn(&Context, Ptr<BasicBlock>) -> bool>(
+        &mut self,
+        ctx: &Context,
+        pred: P,
+        other: Ptr<BasicBlock>,
+    ) {
+        let predicate = |ctx: &Context, r#use: &Use<Ptr<BasicBlock>>| {
+            let pred_block = r#use
+                .op
+                .deref(ctx)
+                .get_container()
+                .expect("Predecessor block must be in a Region");
+            pred(ctx, pred_block)
+        };
+
+        self.preds.replace_some_uses_with(ctx, predicate, &other);
+    }
+
+    /// Get all successors of this block.
+    pub fn succs(&self, ctx: &Context) -> Vec<Ptr<BasicBlock>> {
+        self.get_tail()
+            .expect("A well formed BasicBlock must have a terminator")
+            .deref(ctx)
+            .successors()
+            .collect()
+    }
+
     /// Drop all uses that this block holds.
     pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &Context) {
         let ops: Vec<_> = ptr.deref(ctx).iter(ctx).collect();
@@ -213,6 +277,16 @@ impl BasicBlock {
             ptr.unlink(ctx);
         }
         ArenaObj::dealloc(ptr, ctx);
+    }
+}
+
+impl Located for BasicBlock {
+    fn loc(&self) -> Location {
+        self.loc.clone()
+    }
+
+    fn set_loc(&mut self, loc: Location) {
+        self.loc = loc;
     }
 }
 

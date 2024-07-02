@@ -3,8 +3,10 @@ use std::{path::PathBuf, process::ExitCode};
 use inkwell::{context::Context as IWContext, module::Module as IWModule};
 
 use clap::Parser;
-use pliron::{arg_error_noloc, context::Context, printable::Printable, result::Result};
-use pliron_llvm::from_inkwell;
+use pliron::{
+    arg_error_noloc, context::Context, printable::Printable, result::Result, verify_error_noloc,
+};
+use pliron_llvm::{from_inkwell, to_inkwell};
 
 #[derive(Parser)]
 #[command(version, about="LLVM Optimizer", long_about = None)]
@@ -29,6 +31,12 @@ fn run(cli: Cli, ctx: &mut Context) -> Result<()> {
 
     let pliron_module = from_inkwell::convert_module(ctx, &module)?;
     println!("{}", pliron_module.disp(ctx));
+
+    let iwctx = &IWContext::create();
+    let module = to_inkwell::convert_module(ctx, iwctx, pliron_module)?;
+    module
+        .verify()
+        .map_err(|err| verify_error_noloc!("{}", err.to_string()))?;
 
     if cli.text_output {
         module

@@ -53,9 +53,27 @@ use super::{
 #[def_op("llvm.return")]
 pub struct ReturnOp {}
 impl ReturnOp {
-    pub fn new(ctx: &mut Context, value: Value) -> Self {
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![value], vec![], 0);
+    /// Create a new [ReturnOp]
+    pub fn new(ctx: &mut Context, value: Option<Value>) -> Self {
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![],
+            value.into_iter().collect(),
+            vec![],
+            0,
+        );
         ReturnOp { op }
+    }
+
+    /// Get the returned value, if it exists.
+    pub fn retval(&self, ctx: &Context) -> Option<Value> {
+        let op = &*self.get_operation().deref(ctx);
+        if op.get_num_operands() == 1 {
+            op.get_operand(0)
+        } else {
+            None
+        }
     }
 }
 impl_canonical_syntax!(ReturnOp);
@@ -242,6 +260,16 @@ impl ICmpOp {
             .set(icmp_op::ATTR_KEY_PREDICATE.clone(), pred);
         ICmpOp { op }
     }
+
+    /// Get the predicate
+    pub fn predicate(&self, ctx: &Context) -> ICmpPredicateAttr {
+        self.get_operation()
+            .deref(ctx)
+            .attributes
+            .get::<ICmpPredicateAttr>(&icmp_op::ATTR_KEY_PREDICATE)
+            .unwrap()
+            .clone()
+    }
 }
 
 impl Verify for ICmpOp {
@@ -330,7 +358,7 @@ impl Verify for AllocaOp {
 impl_op_interface!(OneResultInterface for AllocaOp {});
 impl_op_interface!(OneOpdInterface for AllocaOp {});
 impl_op_interface!(PointerTypeResult for AllocaOp {
-    fn result_pointee_type(&self,ctx: &Context) -> Ptr<TypeObj> {
+    fn result_pointee_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         self.op
         .deref(ctx)
         .attributes
@@ -477,6 +505,11 @@ impl CondBrOp {
                 0,
             ),
         }
+    }
+
+    /// Get the condition value for the branch.
+    pub fn condition(&self, ctx: &Context) -> Value {
+        self.op.deref(ctx).get_operand(0).unwrap()
     }
 }
 impl_canonical_syntax!(CondBrOp);
@@ -655,7 +688,7 @@ impl GetElementPtrOp {
                 let GepIndex::Constant(i) = idx else {
                     return arg_err_noloc!(GetElementPtrOpErr::IndicesErr);
                 };
-                if i as usize >= st.num_fields() {
+                if st.is_opaque() || i as usize >= st.num_fields() {
                     return arg_err_noloc!(GetElementPtrOpErr::IndicesErr);
                 }
                 indexed_type_inner(ctx, st.field_type(i as usize), idx_itr)
@@ -877,6 +910,35 @@ impl CallOpInterface for CallOp {
 impl_canonical_syntax!(CallOp);
 impl_verify_succ!(CallOp);
 
+/// Undefined value of a type.
+/// See MLIR's [llvm.mlir.undef](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmlirundef-llvmundefop).
+///
+/// Results:
+///
+/// | result | description |
+/// |-----|-------|
+/// | `result` | any type |
+#[def_op("llvm.undef")]
+pub struct UndefOp {}
+impl_canonical_syntax!(UndefOp);
+impl_verify_succ!(UndefOp);
+impl_op_interface!(OneResultInterface for UndefOp {});
+
+impl UndefOp {
+    /// Create a new [UndefOp].
+    pub fn new(ctx: &mut Context, result_ty: Ptr<TypeObj>) -> Self {
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![result_ty],
+            vec![],
+            vec![],
+            0,
+        );
+        UndefOp { op }
+    }
+}
+
 /// Numeric constant.
 /// See MLIR's [llvm.mlir.constant](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmlirconstant-llvmconstantop).
 ///
@@ -977,5 +1039,6 @@ pub fn register(ctx: &mut Context) {
     StoreOp::register(ctx, StoreOp::parser_fn);
     CallOp::register(ctx, CallOp::parser_fn);
     ConstantOp::register(ctx, ConstantOp::parser_fn);
+    UndefOp::register(ctx, UndefOp::parser_fn);
     ReturnOp::register(ctx, ReturnOp::parser_fn);
 }

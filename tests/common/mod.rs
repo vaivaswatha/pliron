@@ -5,8 +5,8 @@ use pliron::{
         self,
         attributes::IntegerAttr,
         op_interfaces::{
-            IsTerminatorInterface, OneResultInterface, OneResultVerifyErr, ZeroOpdInterface,
-            ZeroResultVerifyErr,
+            IsTerminatorInterface, OneResultInterface, OneResultVerifyErr,
+            SingleBlockRegionInterface, ZeroOpdInterface, ZeroResultVerifyErr,
         },
         ops::{FuncOp, ModuleOp},
         types::{FunctionType, IntegerType, Signedness},
@@ -180,7 +180,7 @@ pub fn const_ret_in_mod(ctx: &mut Context) -> Result<(ModuleOp, FuncOp, Constant
     // Our function is going to have type () -> ().
     let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
     let func = FuncOp::new(ctx, "foo", func_ty);
-    module.add_operation(ctx, func.get_operation());
+    module.append_operation(ctx, func.get_operation(), 0);
     let bb = func.get_entry_block(ctx);
 
     // Create a `const 0` op and add it to bb.

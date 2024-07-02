@@ -9,6 +9,7 @@ pub mod attributes;
 pub mod from_inkwell;
 pub mod op_interfaces;
 pub mod ops;
+pub mod to_inkwell;
 pub mod types;
 
 /// Register LLVM dialect, its ops, types and attributes into context.

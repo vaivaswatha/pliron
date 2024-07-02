@@ -116,11 +116,6 @@ impl ModuleOp {
 
         opop
     }
-
-    /// Add an [Operation] into this module.
-    pub fn add_operation(&self, ctx: &mut Context, op: Ptr<Operation>) {
-        self.append_operation(ctx, op, 0)
-    }
 }
 
 impl_op_interface!(OneRegionInterface for ModuleOp {});

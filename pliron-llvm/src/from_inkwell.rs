@@ -8,8 +8,8 @@ use inkwell::{
     module::Module as IWModule,
     types::{AnyType, AnyTypeEnum},
     values::{
-        AnyValue, AnyValueEnum, BasicValueEnum, FunctionValue, InstructionOpcode, InstructionValue,
-        PhiValue,
+        AnyValue, AnyValueEnum, BasicValue, BasicValueEnum, FunctionValue, InstructionOpcode,
+        InstructionValue, PhiValue,
     },
     IntPredicate,
 };
@@ -19,9 +19,10 @@ use pliron::{
         attributes::IntegerAttr,
         op_interfaces::{OneRegionInterface, OneResultInterface, SingleBlockRegionInterface},
         ops::{FuncOp, ModuleOp},
-        types::{FunctionType, IntegerType, Signedness},
+        types::{FunctionType, IntegerType},
     },
     context::{Context, Ptr},
+    identifier::Identifier,
     input_err_noloc, input_error_noloc,
     op::Op,
     operation::Operation,
@@ -38,7 +39,7 @@ use crate::{
     ops::{
         AShrOp, AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CondBrOp, ConstantOp, ICmpOp, LShrOp,
         LoadOp, MulOp, OrOp, ReturnOp, SDivOp, SRemOp, ShlOp, StoreOp, SubOp, UDivOp, URemOp,
-        XorOp,
+        UndefOp, XorOp,
     },
     types::{ArrayType, PointerType, StructErr, StructType, VoidType},
 };
@@ -57,7 +58,7 @@ pub fn convert_type(ctx: &mut Context, ty: &AnyTypeEnum) -> Result<Ptr<TypeObj>>
     match ty {
         AnyTypeEnum::ArrayType(aty) => {
             let elem = convert_type(ctx, &aty.get_element_type().as_any_type_enum())?;
-            Ok(ArrayType::get(ctx, elem, aty.len() as usize).into())
+            Ok(ArrayType::get(ctx, elem, aty.len() as u64).into())
         }
         AnyTypeEnum::FloatType(_fty) => {
             todo!()
@@ -89,14 +90,16 @@ pub fn convert_type(ctx: &mut Context, ty: &AnyTypeEnum) -> Result<Ptr<TypeObj>>
                 let Some(name) = sty.get_name() else {
                     return input_err_noloc!(StructErr::OpaqueAndAnonymousErr);
                 };
-                Ok(StructType::get_named(ctx, name.to_str_res()?, None)?.into())
+                let name: Identifier = name.to_str_res()?.try_into()?;
+                Ok(StructType::get_named(ctx, name, None)?.into())
             } else {
                 let field_types: Vec<_> = sty
                     .get_field_types_iter()
                     .map(|ty| convert_type(ctx, &ty.as_any_type_enum()))
                     .collect::<Result<_>>()?;
                 if let Some(name) = sty.get_name() {
-                    Ok(StructType::get_named(ctx, name.to_str_res()?, Some(field_types))?.into())
+                    let name: Identifier = name.to_str_res()?.try_into()?;
+                    Ok(StructType::get_named(ctx, name, Some(field_types))?.into())
                 } else {
                     Ok(StructType::get_unnamed(ctx, field_types).into())
                 }
@@ -231,14 +234,26 @@ fn process_constant<'ctx>(
         BasicValueEnum::IntValue(iv) if iv.is_constant_int() => {
             // TODO: Zero extend or sign extend?
             let u64 = iv.get_zero_extended_constant().unwrap();
-            let u64_ty = IntegerType::get(ctx, iv.get_type().get_bit_width(), Signedness::Signless);
-            let val_attr = IntegerAttr::new(u64_ty, ApInt::from_u64(u64));
+            let int_ty = TypePtr::<IntegerType>::from_ptr(
+                convert_type(ctx, &iv.get_type().as_any_type_enum())?,
+                ctx,
+            )?;
+            let val_attr = IntegerAttr::new(int_ty, ApInt::from_u64(u64));
             let const_op = ConstantOp::new(ctx, Box::new(val_attr));
             // Insert at the beginning of the entry block.
             const_op
                 .get_operation()
                 .insert_at_front(cctx.entry_block, ctx);
             cctx.value_map.insert(any_val, const_op.get_result(ctx));
+        }
+        BasicValueEnum::IntValue(iv) if iv.is_undef() => {
+            let int_ty = convert_type(ctx, &iv.get_type().as_any_type_enum())?;
+            let undef_op = UndefOp::new(ctx, int_ty);
+            // Insert at the beginning of the entry block.
+            undef_op
+                .get_operation()
+                .insert_at_front(cctx.entry_block, ctx);
+            cctx.value_map.insert(any_val, undef_op.get_result(ctx));
         }
         BasicValueEnum::FloatValue(fv) if fv.is_const() => todo!(),
         BasicValueEnum::PointerValue(pv) if pv.is_const() => todo!(),
@@ -286,10 +301,11 @@ fn get_operand<T: Clone>(opds: &[T], idx: usize) -> Result<T> {
 }
 
 /// Compute the arguments to be passed when branching from `src` to `dest`.
-fn convert_branch_args(
-    cctx: &ConversionContext,
-    src_block: IWBasicBlock,
-    dst_block: IWBasicBlock,
+fn convert_branch_args<'ctx>(
+    ctx: &mut Context,
+    cctx: &mut ConversionContext<'ctx>,
+    src_block: IWBasicBlock<'ctx>,
+    dst_block: IWBasicBlock<'ctx>,
 ) -> Result<Vec<Value>> {
     let mut args = vec![];
     for inst in dst_block.get_instructions() {
@@ -301,6 +317,7 @@ fn convert_branch_args(
                     src_block.get_name().to_str_res().unwrap().to_string()
                 ));
             };
+            process_constant(ctx, cctx, incoming_val.as_basic_value_enum())?;
             let Some(m_incoming_val) = cctx.value_map.get(&incoming_val.as_any_value_enum()) else {
                 return input_err_noloc!(ConversionErr::UndefinedValue(
                     incoming_val
@@ -358,26 +375,29 @@ fn convert_instruction<'ctx>(
                     "Conditional branch must have two successors"
                 );
                 let true_dest_opds = convert_branch_args(
-                    cctx,
-                    inst.get_parent().unwrap(),
-                    inst.get_operand(1).unwrap().unwrap_right(),
-                )?;
-                let false_dest_opds = convert_branch_args(
+                    ctx,
                     cctx,
                     inst.get_parent().unwrap(),
                     inst.get_operand(2).unwrap().unwrap_right(),
                 )?;
+                let false_dest_opds = convert_branch_args(
+                    ctx,
+                    cctx,
+                    inst.get_parent().unwrap(),
+                    inst.get_operand(1).unwrap().unwrap_right(),
+                )?;
                 Ok(CondBrOp::new(
                     ctx,
                     get_operand(opds, 0)?,
-                    get_operand(succs, 0)?,
-                    true_dest_opds,
                     get_operand(succs, 1)?,
+                    true_dest_opds,
+                    get_operand(succs, 0)?,
                     false_dest_opds,
                 )
                 .get_operation())
             } else {
                 let dest_opds = convert_branch_args(
+                    ctx,
                     cctx,
                     inst.get_parent().unwrap(),
                     inst.get_operand(0).unwrap().unwrap_right(),
@@ -445,7 +465,14 @@ fn convert_instruction<'ctx>(
         }
         InstructionOpcode::PtrToInt => todo!(),
         InstructionOpcode::Resume => todo!(),
-        InstructionOpcode::Return => Ok(ReturnOp::new(ctx, get_operand(opds, 0)?).get_operation()),
+        InstructionOpcode::Return => {
+            let retval = if inst.get_num_operands() == 1 {
+                Some(get_operand(opds, 0)?)
+            } else {
+                None
+            };
+            Ok(ReturnOp::new(ctx, retval).get_operation())
+        }
         InstructionOpcode::SDiv => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             Ok(SDivOp::new(ctx, lhs, rhs).get_operation())
@@ -502,7 +529,7 @@ fn convert_block<'ctx>(
 ) -> Result<()> {
     for inst in block.get_instructions() {
         let inst_val = inst.as_any_value_enum();
-        if inst_val.is_phi_value() {
+        if inst.get_opcode() == InstructionOpcode::Phi {
             let ty = convert_type(ctx, &inst.get_type().as_any_type_enum())?;
             let arg_idx = m_block.deref_mut(ctx).add_argument(ty);
             cctx.value_map

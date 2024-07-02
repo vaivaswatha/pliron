@@ -350,7 +350,8 @@ impl NameTracker {
         match scope.entry(id.0.clone()) {
             Entry::Occupied(mut occ) => match occ.get_mut() {
                 LabelRef::ForwardRef(fref) => {
-                    fref.retarget_some_preds_to(ctx, |_, _| true, block);
+                    fref.deref_mut(ctx)
+                        .retarget_some_preds_to(ctx, |_, _| true, block);
                     BasicBlock::erase(*fref, ctx);
                     occ.insert(LabelRef::Defined(block));
                 }

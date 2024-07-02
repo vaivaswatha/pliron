@@ -35,7 +35,7 @@ use std::hash::Hash;
 #[def_type("llvm.struct")]
 #[derive(Debug)]
 pub struct StructType {
-    name: Option<String>,
+    name: Option<Identifier>,
     fields: Option<Vec<Ptr<TypeObj>>>,
 }
 
@@ -52,12 +52,12 @@ impl StructType {
     /// the named struct already exists and has its body set.
     pub fn get_named(
         ctx: &mut Context,
-        name: &str,
+        name: Identifier,
         fields: Option<Vec<Ptr<TypeObj>>>,
     ) -> Result<TypePtr<Self>> {
         let self_ptr = Type::register_instance(
             StructType {
-                name: Some(name.to_string()),
+                name: Some(name.clone()),
                 // Uniquing happens only on the name, so this doesn't matter.
                 fields: None,
             },
@@ -66,7 +66,7 @@ impl StructType {
         // Verify that we created a new or equivalent existing type.
         let mut self_ref = self_ptr.to_ptr().deref_mut(ctx);
         let self_ref = self_ref.downcast_mut::<StructType>().unwrap();
-        assert!(self_ref.name.as_ref().unwrap() == name);
+        assert!(self_ref.name.as_ref().unwrap() == &name);
         if let Some(fields) = fields {
             // We've been provided fields to be set.
             if let Some(existing_fields) = &self_ref.fields {
@@ -95,10 +95,10 @@ impl StructType {
     }
 
     /// If a named struct already exists, get a pointer to it.
-    pub fn get_existing_named(ctx: &Context, name: &str) -> Option<TypePtr<Self>> {
+    pub fn get_existing_named(ctx: &Context, name: &Identifier) -> Option<TypePtr<Self>> {
         Type::get_instance(
             StructType {
-                name: Some(name.to_string()),
+                name: Some(name.clone()),
                 // Named structs are uniqued only on the name.
                 fields: None,
             },
@@ -127,14 +127,33 @@ impl StructType {
         self.name.is_some()
     }
 
+    /// Get this struct's name, if it has one.
+    pub fn name(&self) -> Option<Identifier> {
+        self.name.clone()
+    }
+
     /// Get type of the idx'th field.
     pub fn field_type(&self, field_idx: usize) -> Ptr<TypeObj> {
-        self.fields.as_ref().unwrap()[field_idx]
+        self.fields
+            .as_ref()
+            .expect("field_type shouldn't be called on opaque types")[field_idx]
     }
 
     /// Get the number of fields this struct has
     pub fn num_fields(&self) -> usize {
-        self.fields.as_ref().unwrap().len()
+        self.fields
+            .as_ref()
+            .expect("num_fields shouldn't be called on opaque types")
+            .len()
+    }
+
+    /// Get an iterator over the fields of this struct
+    pub fn fields(&self) -> impl Iterator<Item = Ptr<TypeObj>> + '_ {
+        self.fields
+            .as_ref()
+            .expect("fields shouldn't be called on opaque types")
+            .iter()
+            .cloned()
     }
 }
 
@@ -170,7 +189,7 @@ impl Printable for StructType {
         thread_local! {
             // We use a vec instead of a HashMap hoping that this isn't
             // going to be large, in which case vec would be faster.
-            static IN_PRINTING: RefCell<Vec<String>>  = const { RefCell::new(vec![]) };
+            static IN_PRINTING: RefCell<Vec<Identifier>>  = const { RefCell::new(vec![]) };
         }
         if let Some(name) = &self.name {
             let in_printing = IN_PRINTING.with(|f| f.borrow().contains(name));
@@ -256,7 +275,7 @@ impl Parsable for StructType {
         let (loc, name_opt, body_opt) = struct_parser.parse_stream(state_stream).into_result()?.0;
         let ctx = &mut state_stream.state.ctx;
         if let Some(name) = name_opt {
-            StructType::get_named(ctx, &name, body_opt)
+            StructType::get_named(ctx, name, body_opt)
                 .map_err(|mut err| {
                     err.set_loc(loc);
                     err
@@ -323,16 +342,16 @@ impl_verify_succ!(PointerType);
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct ArrayType {
     elem: Ptr<TypeObj>,
-    size: usize,
+    size: u64,
 }
 
 impl ArrayType {
     /// Get or create a new array type.
-    pub fn get(ctx: &mut Context, elem: Ptr<TypeObj>, size: usize) -> TypePtr<Self> {
+    pub fn get(ctx: &mut Context, elem: Ptr<TypeObj>, size: u64) -> TypePtr<Self> {
         Type::register_instance(ArrayType { elem, size }, ctx)
     }
     /// Get, if it already exists, an array type.
-    pub fn get_existing(ctx: &Context, elem: Ptr<TypeObj>, size: usize) -> Option<TypePtr<Self>> {
+    pub fn get_existing(ctx: &Context, elem: Ptr<TypeObj>, size: u64) -> Option<TypePtr<Self>> {
         Type::get_instance(ArrayType { elem, size }, ctx)
     }
 
@@ -342,7 +361,7 @@ impl ArrayType {
     }
 
     /// Get array size.
-    pub fn size(&self) -> usize {
+    pub fn size(&self) -> u64 {
         self.size
     }
 }
@@ -372,7 +391,7 @@ impl Parsable for ArrayType {
         combine::between(
             token('['),
             token(']'),
-            spaced((int_parser::<usize>(), spaced(token('x')), type_parser())),
+            spaced((int_parser::<u64>(), spaced(token('x')), type_parser())),
         )
         .parse_stream(state_stream)
         .map(|(size, _, elem)| ArrayType::get(state_stream.state.ctx, elem, size))
@@ -494,6 +513,7 @@ mod tests {
             types::{IntegerType, Signedness},
         },
         context::{Context, Ptr},
+        identifier::Identifier,
         impl_verify_succ,
         irfmt::parsers::{spaced, type_parser},
         location,
@@ -507,9 +527,12 @@ mod tests {
     fn test_struct() -> Result<()> {
         let mut ctx = Context::new();
         let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signless).into();
+        let linked_list_id = Identifier::try_new("LinkedList".into()).unwrap();
+        let linked_list_2_id = Identifier::try_new("LinkedList2".into()).unwrap();
 
         // Create an opaque struct since we want a recursive type.
-        let list_struct: Ptr<TypeObj> = StructType::get_named(&mut ctx, "LinkedList", None)?.into();
+        let list_struct: Ptr<TypeObj> =
+            StructType::get_named(&mut ctx, linked_list_id.clone(), None)?.into();
         assert!(list_struct
             .deref(&ctx)
             .downcast_ref::<StructType>()
@@ -518,18 +541,18 @@ mod tests {
         let list_struct_ptr = TypedPointerType::get(&mut ctx, list_struct).into();
         let fields = vec![int64_ptr, list_struct_ptr];
         // Set the struct body now.
-        StructType::get_named(&mut ctx, "LinkedList", Some(fields))?;
+        StructType::get_named(&mut ctx, linked_list_id.clone(), Some(fields))?;
         assert!(!list_struct
             .deref(&ctx)
             .downcast_ref::<StructType>()
             .unwrap()
             .is_opaque());
 
-        let list_struct_2 = StructType::get_existing_named(&ctx, "LinkedList")
+        let list_struct_2 = StructType::get_existing_named(&ctx, &linked_list_id)
             .unwrap()
             .into();
         assert!(list_struct == list_struct_2);
-        assert!(StructType::get_existing_named(&ctx, "LinkedList2").is_none());
+        assert!(StructType::get_existing_named(&ctx, &linked_list_2_id).is_none());
 
         assert_eq!(
             list_struct.disp(&ctx).to_string(),

@@ -19,7 +19,6 @@ use crate::{
     basic_block::BasicBlock,
     common_traits::Named,
     context::{Context, Ptr},
-    linked_list::{ContainsLinkedList, LinkedList},
     operation::Operation,
     printable::Printable,
     r#type::{TypeObj, Typed},
@@ -60,8 +59,8 @@ impl<T: DefUseParticipant> DefNode<T> {
     }
 
     /// Get a reference to all [Use]es.
-    pub(crate) fn get_uses(&self) -> Vec<Use<T>> {
-        self.uses.iter().cloned().collect()
+    pub(crate) fn uses(&self) -> impl Iterator<Item = Use<T>> + '_ {
+        self.uses.iter().cloned()
     }
 
     /// This definition has a new use. Track it and return a corresponding [Use].
@@ -84,7 +83,7 @@ impl<T: DefUseParticipant> DefNode<T> {
     pub(crate) fn replace_some_uses_with<P: Fn(&Context, &Use<T>) -> bool>(
         &mut self,
         ctx: &Context,
-        pred: P,
+        predicate: P,
         other: &T,
     ) where
         T: DefTrait + UseTrait,
@@ -92,12 +91,12 @@ impl<T: DefUseParticipant> DefNode<T> {
         if std::ptr::eq(self, &*other.get_defnode_ref(ctx)) {
             return;
         }
-        for r#use in self.uses.iter().filter(|r#use| pred(ctx, r#use)) {
+        for r#use in self.uses.iter().filter(|r#use| predicate(ctx, r#use)) {
             let mut use_mut = T::get_usenode_mut(r#use, ctx);
             *use_mut = other.get_defnode_mut(ctx).add_use(*other, *r#use);
         }
         // self will no longer have these uses.
-        self.uses.retain(|r#use| !pred(ctx, r#use));
+        self.uses.retain(|r#use| !predicate(ctx, r#use));
     }
 }
 
@@ -136,12 +135,12 @@ impl Value {
 
     /// Get all uses of this value.
     pub fn get_uses(&self, ctx: &Context) -> Vec<Use<Value>> {
-        self.get_defnode_ref(ctx).get_uses()
+        self.get_defnode_ref(ctx).uses().collect()
     }
 
     /// Does this definition have any [Use]?
     pub fn has_use(&self, ctx: &Context) -> bool {
-        !self.get_defnode_ref(ctx).has_use()
+        self.get_defnode_ref(ctx).has_use()
     }
 
     /// Replace uses of the underlying definition, that satisfy `pred`, with `other`.
@@ -257,58 +256,6 @@ impl Named for Ptr<BasicBlock> {
     }
     fn id(&self, ctx: &Context) -> String {
         self.deref(ctx).id(ctx)
-    }
-}
-
-impl Ptr<BasicBlock> {
-    /// How many predecessors does this block have?
-    pub fn num_preds(&self, ctx: &Context) -> usize {
-        self.get_defnode_ref(ctx).num_uses()
-    }
-
-    /// Get all predecessors of this value.
-    pub fn get_preds(&self, ctx: &Context) -> Vec<Ptr<BasicBlock>> {
-        self.get_defnode_ref(ctx)
-            .get_uses()
-            .iter()
-            .map(|r#use| r#use.op.deref(ctx).get_successor(r#use.opd_idx).unwrap())
-            .collect()
-    }
-
-    /// Does this [BasicBlock] have any predecessor?
-    pub fn has_pred(&self, ctx: &Context) -> bool {
-        !self.get_defnode_ref(ctx).has_use()
-    }
-
-    /// Checks whether self is a successor of `pred`.
-    /// O(n) in the number of successors of `pred`.
-    pub fn is_succ_of(&self, ctx: &Context, pred: Ptr<BasicBlock>) -> bool {
-        // We do not check [Self::get_defnode_ref].uses here because
-        // we'd have to go through them all. We do not have a Use<_>
-        // object to directly check membership.
-        pred.deref(ctx).get_tail().map_or(false, |pred_term| {
-            pred_term.deref(ctx).successors().any(|succ| self == &succ)
-        })
-    }
-
-    /// Retarget predecessors (that satisfy pred) to `other`.
-    pub fn retarget_some_preds_to<P: Fn(&Context, Ptr<BasicBlock>) -> bool>(
-        &self,
-        ctx: &Context,
-        pred: P,
-        other: Ptr<BasicBlock>,
-    ) {
-        let pred = |ctx: &Context, r#use: &Use<Ptr<BasicBlock>>| {
-            let pred_block = r#use
-                .op
-                .deref(ctx)
-                .get_container()
-                .expect("Predecessor block must be in a Region");
-            pred(ctx, pred_block)
-        };
-
-        self.get_defnode_mut(ctx)
-            .replace_some_uses_with(ctx, pred, &other);
     }
 }
 
