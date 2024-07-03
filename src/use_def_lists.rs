@@ -314,14 +314,14 @@ impl Ptr<BasicBlock> {
         }
     }
 
-    /// Retarget the given pred of `this` [`Ptr<BasicBlock>`] to `other`.
+    /// Retarget the given pred (`block_use`) of `this` [`Ptr<BasicBlock>`] to `other`.
     pub fn retarget_pred_to(
         &self,
         ctx: &Context,
-        r#use: Use<Ptr<BasicBlock>>,
+        block_use: Use<Ptr<BasicBlock>>,
         other: Ptr<BasicBlock>,
     ) {
-        DefNode::replace_use_with(ctx, self, &r#use, &other);
+        DefNode::replace_use_with(ctx, self, &block_use, &other);
     }
 }
 
