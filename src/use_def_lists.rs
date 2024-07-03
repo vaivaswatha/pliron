@@ -81,22 +81,36 @@ impl<T: DefUseParticipant> DefNode<T> {
 
     /// Replace some uses of the underlying definition with `other`.
     pub(crate) fn replace_some_uses_with<P: Fn(&Context, &Use<T>) -> bool>(
-        &mut self,
         ctx: &Context,
         predicate: P,
+        this: &T,
         other: &T,
     ) where
         T: DefTrait + UseTrait,
     {
-        if std::ptr::eq(self, &*other.get_defnode_ref(ctx)) {
+        if std::ptr::eq(&*this.get_defnode_ref(ctx), &*other.get_defnode_ref(ctx)) {
             return;
         }
-        for r#use in self.uses.iter().filter(|r#use| predicate(ctx, r#use)) {
-            let mut use_mut = T::get_usenode_mut(r#use, ctx);
-            *use_mut = other.get_defnode_mut(ctx).add_use(*other, *r#use);
+
+        // We collect because we don't want to keep the defnode locked up.
+        let touched_uses: FxHashSet<_> = this
+            .get_defnode_ref(ctx)
+            .uses
+            .iter()
+            .filter(|r#use| predicate(ctx, r#use))
+            .cloned()
+            .collect();
+
+        // Add each [Use] as a use of `other`, replacing the [UseNode] subsequently.
+        for r#use in &touched_uses {
+            let new_use_node = other.get_defnode_mut(ctx).add_use(*other, *r#use);
+            *T::get_usenode_mut(r#use, ctx) = new_use_node;
         }
-        // self will no longer have these uses.
-        self.uses.retain(|r#use| !predicate(ctx, r#use));
+
+        // `this` will no longer have the touched uses.
+        this.get_defnode_mut(ctx)
+            .uses
+            .retain(|r#use| !touched_uses.contains(r#use));
     }
 }
 
@@ -150,8 +164,7 @@ impl Value {
         pred: P,
         other: &Value,
     ) {
-        self.get_defnode_mut(ctx)
-            .replace_some_uses_with(ctx, pred, other);
+        DefNode::replace_some_uses_with(ctx, pred, self, other);
     }
 }
 

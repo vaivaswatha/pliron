@@ -1,10 +1,15 @@
-use common::ConstantOp;
+use common::{ConstantOp, ReturnOp};
 use expect_test::{expect, Expect};
 use pliron::{
-    builtin::op_interfaces::OneResultInterface,
+    basic_block::BasicBlock,
+    builtin::{
+        op_interfaces::OneResultInterface,
+        types::{IntegerType, Signedness},
+    },
     common_traits::Verify,
     context::Context,
     debug_info::set_operation_result_name,
+    impl_canonical_syntax, impl_verify_succ,
     irfmt::parsers::spaced,
     location,
     op::Op,
@@ -19,6 +24,7 @@ use pliron::{
         WALKCONFIG_PREORDER_FORWARD,
     },
 };
+use pliron_derive::def_op;
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
 use combine::parser::Parser;
@@ -120,6 +126,79 @@ fn replace_c0_with_c1_operand() -> Result<()> {
     module_op.get_operation().verify(ctx)?;
 
     Ok(())
+}
+
+#[def_op("test.dual_def")]
+struct DualDefOp {}
+impl_verify_succ!(DualDefOp);
+impl_canonical_syntax!(DualDefOp);
+
+/// If an Op has multiple results, or a block multiple args,
+/// replacing all uses of one with the other should work.
+/// (since our RefCell is at the Op or block level, we shouldn't
+/// end up with a multiple borrow panic).
+#[test]
+fn test_replace_within_same_def_site() {
+    let ctx = &mut setup_context_dialects();
+    DualDefOp::register(ctx, DualDefOp::parser_fn);
+
+    let u64_ty = IntegerType::get(ctx, 64, Signedness::Signed).into();
+
+    let dual_def_op = Operation::new(
+        ctx,
+        DualDefOp::get_opid_static(),
+        vec![u64_ty, u64_ty],
+        vec![],
+        vec![],
+        0,
+    );
+    let (res1, res2) = (
+        dual_def_op.deref(ctx).get_result(0).unwrap(),
+        dual_def_op.deref(ctx).get_result(1).unwrap(),
+    );
+    let (module_op, func_op, const_op, ret_op) = const_ret_in_mod(ctx).unwrap();
+    dual_def_op.insert_before(ctx, ret_op.get_operation());
+    const_op
+        .get_result(ctx)
+        .replace_some_uses_with(ctx, |_, _| true, &res1);
+    res1.replace_some_uses_with(ctx, |_, _| true, &res2);
+    let printed = format!("{}", module_op.disp(ctx));
+    expect![[r#"
+        builtin.module @bar {
+          ^block_1v1():
+            builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
+              ^entry_block_2v1():
+                c0_op_4v1_res0 = test.constant builtin.integer <0x0: builtin.int<si64>>;
+                op_1v1_res0, op_1v1_res1 = test.dual_def () [] []: <() -> (builtin.int<si64>, builtin.int<si64>)>;
+                test.return op_1v1_res1
+            }
+        }"#]]
+    .assert_eq(&printed);
+
+    let dual_arg_block = BasicBlock::new(ctx, None, vec![u64_ty, u64_ty]);
+    let (arg1, arg2) = (
+        dual_arg_block.deref(ctx).get_argument(0).unwrap(),
+        dual_arg_block.deref(ctx).get_argument(1).unwrap(),
+    );
+    dual_arg_block.insert_after(ctx, func_op.get_entry_block(ctx));
+    let ret_op = ReturnOp::new(ctx, arg1);
+    ret_op.get_operation().insert_at_back(dual_arg_block, ctx);
+    arg1.replace_some_uses_with(ctx, |_, _| true, &arg2);
+
+    let printed = format!("{}", module_op.disp(ctx));
+    expect![[r#"
+        builtin.module @bar {
+          ^block_1v1():
+            builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
+              ^entry_block_2v1():
+                c0_op_4v1_res0 = test.constant builtin.integer <0x0: builtin.int<si64>>;
+                op_1v1_res0, op_1v1_res1 = test.dual_def () [] []: <() -> (builtin.int<si64>, builtin.int<si64>)>;
+                test.return op_1v1_res1
+              ^block_3v1(block_3v1_arg0:builtin.int<si64>,block_3v1_arg1:builtin.int<si64>):
+                test.return block_3v1_arg1
+            }
+        }"#]]
+    .assert_eq(&printed);
 }
 
 #[test]

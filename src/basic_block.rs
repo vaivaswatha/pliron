@@ -241,7 +241,7 @@ impl BasicBlock {
             pred(ctx, pred_block)
         };
 
-        self.preds.replace_some_uses_with(ctx, predicate, &other);
+        DefNode::replace_some_uses_with(ctx, predicate, &self.self_ptr, &other);
     }
 
     /// Get all successors of this block.
