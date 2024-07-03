@@ -110,7 +110,7 @@ impl ModuleOp {
         opop.set_symbol_name(ctx, name);
 
         // Create an empty block.
-        let region = op.deref_mut(ctx).get_region(0).unwrap();
+        let region = op.deref_mut(ctx).get_region(0);
         let block = BasicBlock::new(ctx, None, vec![]);
         block.insert_at_front(region, ctx);
 
@@ -154,7 +154,7 @@ impl FuncOp {
 
         // Create an empty entry block.
         let arg_types = ty.deref(ctx).get_inputs().clone();
-        let region = op.deref_mut(ctx).get_region(0).unwrap();
+        let region = op.deref_mut(ctx).get_region(0);
         let body = BasicBlock::new(ctx, Some("entry".try_into().unwrap()), arg_types);
         body.insert_at_front(region, ctx);
         {

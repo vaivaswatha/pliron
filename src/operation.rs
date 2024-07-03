@@ -215,8 +215,11 @@ impl Operation {
     }
 
     /// Get idx'th result as a Value.
-    pub fn get_result(&self, idx: usize) -> Option<Value> {
-        self.results.get(idx).map(|res| res.into())
+    pub fn get_result(&self, idx: usize) -> Value {
+        self.results
+            .get(idx)
+            .map(|res| res.into())
+            .unwrap_or_else(|| panic!("Result index {} out of bounds", idx))
     }
 
     /// Get an iterator over the results of this operation.
@@ -237,8 +240,11 @@ impl Operation {
     }
 
     /// Get type of the idx'th result.
-    pub fn get_type(&self, idx: usize) -> Option<Ptr<TypeObj>> {
-        self.results.get(idx).map(|res| res.ty)
+    pub fn get_type(&self, idx: usize) -> Ptr<TypeObj> {
+        self.results
+            .get(idx)
+            .map(|res| res.ty)
+            .unwrap_or_else(|| panic!("Result index {} out of bounds", idx))
     }
 
     /// Get number of operands.
@@ -247,8 +253,11 @@ impl Operation {
     }
 
     /// Get a reference to the opd_idx'th operand.
-    pub fn get_operand(&self, opd_idx: usize) -> Option<Value> {
-        self.operands.get(opd_idx).map(|opd| opd.get_def())
+    pub fn get_operand(&self, opd_idx: usize) -> Value {
+        self.operands
+            .get(opd_idx)
+            .map(|opd| opd.get_def())
+            .unwrap_or_else(|| panic!("Operand index {} out of bounds", opd_idx))
     }
 
     /// Get an iterator over the results of this operation.
@@ -260,7 +269,7 @@ impl Operation {
     pub fn replace_operand(&mut self, ctx: &Context, opd_idx: usize, other: Value) {
         self.operands
             .get_mut(opd_idx)
-            .unwrap_or_else(|| panic!("No operand at index {}", opd_idx))
+            .unwrap_or_else(|| panic!("Operand index {} out of bounds", opd_idx))
             .replace(ctx, other);
     }
 
@@ -270,15 +279,18 @@ impl Operation {
     }
 
     /// Get a reference to the opd_idx'th successor.
-    pub fn get_successor(&self, succ_idx: usize) -> Option<Ptr<BasicBlock>> {
-        self.successors.get(succ_idx).map(|succ| succ.get_def())
+    pub fn get_successor(&self, succ_idx: usize) -> Ptr<BasicBlock> {
+        self.successors
+            .get(succ_idx)
+            .map(|succ| succ.get_def())
+            .unwrap_or_else(|| panic!("Successor index {} out of bounds", succ_idx))
     }
 
     /// Replace opd_idx'th successor with `other`.
     pub fn replace_successor(&mut self, ctx: &Context, succ_idx: usize, other: Ptr<BasicBlock>) {
         self.successors
             .get_mut(succ_idx)
-            .unwrap_or_else(|| panic!("No successor at index {}", succ_idx))
+            .unwrap_or_else(|| panic!("Successor index {} out of bounds", succ_idx))
             .replace(ctx, other);
     }
 
@@ -293,8 +305,11 @@ impl Operation {
     }
 
     /// Get a [Ptr] to the `reg_idx`th region.
-    pub fn get_region(&self, reg_idx: usize) -> Option<Ptr<Region>> {
-        self.regions.get(reg_idx).cloned()
+    pub fn get_region(&self, reg_idx: usize) -> Ptr<Region> {
+        self.regions
+            .get(reg_idx)
+            .cloned()
+            .unwrap_or_else(|| panic!("Region index {} out of bounds", reg_idx))
     }
 
     /// Number of regions.
@@ -356,26 +371,31 @@ impl Operation {
     }
 
     /// Get a reference to the idx'th result.
-    pub(crate) fn get_result_ref(&self, idx: usize) -> Option<&OpResult> {
-        self.results.get(idx)
+    pub(crate) fn get_result_ref(&self, idx: usize) -> &OpResult {
+        self.results
+            .get(idx)
+            .unwrap_or_else(|| panic!("Result index {} out of bounds", idx))
     }
 
     /// Get a mutable reference to the idx'th result.
-    pub(crate) fn get_result_mut(&mut self, idx: usize) -> Option<&mut OpResult> {
-        self.results.get_mut(idx)
+    pub(crate) fn get_result_mut(&mut self, idx: usize) -> &mut OpResult {
+        self.results
+            .get_mut(idx)
+            .unwrap_or_else(|| panic!("Result index {} out of bounds", idx))
     }
 
     /// Get a mutable reference to the opd_idx'th operand.
-    pub(crate) fn get_operand_mut(&mut self, opd_idx: usize) -> Option<&mut Operand<Value>> {
-        self.operands.get_mut(opd_idx)
+    pub(crate) fn get_operand_mut(&mut self, opd_idx: usize) -> &mut Operand<Value> {
+        self.operands
+            .get_mut(opd_idx)
+            .unwrap_or_else(|| panic!("Operand index {} out of bounds", opd_idx))
     }
 
     /// Get a mutable reference to the opd_idx'th successor.
-    pub(crate) fn get_successor_mut(
-        &mut self,
-        opd_idx: usize,
-    ) -> Option<&mut Operand<Ptr<BasicBlock>>> {
-        self.successors.get_mut(opd_idx)
+    pub(crate) fn get_successor_mut(&mut self, succ_idx: usize) -> &mut Operand<Ptr<BasicBlock>> {
+        self.successors
+            .get_mut(succ_idx)
+            .unwrap_or_else(|| panic!("Successor index {} out of bounds", succ_idx))
     }
 }
 

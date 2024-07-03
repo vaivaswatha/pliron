@@ -124,7 +124,7 @@ decl_op_interface! {
         where
             Self: Sized,
         {
-            *TEST_OP_VERIFIERS_OUTPUT.lock().unwrap() += "TestOpInterface2 verified\n";"TestOpInterface2 verified\n";
+            *TEST_OP_VERIFIERS_OUTPUT.lock().unwrap() += "TestOpInterface2 verified\n";
             Ok(())
         }
     }

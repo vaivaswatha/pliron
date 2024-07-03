@@ -70,7 +70,7 @@ impl ReturnOp {
     pub fn retval(&self, ctx: &Context) -> Option<Value> {
         let op = &*self.get_operation().deref(ctx);
         if op.get_num_operands() == 1 {
-            op.get_operand(0)
+            Some(op.get_operand(0))
         } else {
             None
         }
@@ -509,7 +509,7 @@ impl CondBrOp {
 
     /// Get the condition value for the branch.
     pub fn condition(&self, ctx: &Context) -> Value {
-        self.op.deref(ctx).get_operand(0).unwrap()
+        self.op.deref(ctx).get_operand(0)
     }
 }
 impl_canonical_syntax!(CondBrOp);
@@ -518,7 +518,7 @@ impl_op_interface!(IsTerminatorInterface for CondBrOp {});
 impl_op_interface!(BranchOpInterface for CondBrOp {
     fn successor_operands(&self, ctx: &Context, succ_idx: usize) -> Vec<Value> {
         assert!(succ_idx == 0 || succ_idx == 1, "CondBrOp has exactly two successors");
-        let num_opds_succ0 = self.get_operation().deref(ctx).get_successor(0).unwrap().deref(ctx).get_num_arguments();
+        let num_opds_succ0 = self.get_operation().deref(ctx).get_successor(0).deref(ctx).get_num_arguments();
         if succ_idx == 0 {
             // Skip `condition` operand and take num_opds_succ0 operands after that.
             self.get_operation().deref(ctx).operands().skip(1).take(num_opds_succ0).collect()
@@ -650,7 +650,7 @@ impl GetElementPtrOp {
 
     /// Get the base (source) pointer of this GEP.
     pub fn src_ptr(&self, ctx: &Context) -> Value {
-        self.get_operation().deref(ctx).get_operand(0).unwrap()
+        self.get_operation().deref(ctx).get_operand(0)
     }
 
     /// Get the indices of this GEP.
@@ -663,7 +663,7 @@ impl GetElementPtrOp {
             .iter()
             .map(|index| match index {
                 GepIndexAttr::Constant(c) => GepIndex::Constant(*c),
-                GepIndexAttr::OperandIdx(i) => GepIndex::Value(op.get_operand(*i).unwrap()),
+                GepIndexAttr::OperandIdx(i) => GepIndex::Value(op.get_operand(*i)),
             })
             .collect()
     }
@@ -790,12 +790,12 @@ impl StoreOp {
 
     /// Get the value operand
     pub fn value_opd(&self, ctx: &Context) -> Value {
-        self.op.deref(ctx).get_operand(0).unwrap()
+        self.op.deref(ctx).get_operand(0)
     }
 
     /// Get the address operand
     pub fn address_opd(&self, ctx: &Context) -> Value {
-        self.op.deref(ctx).get_operand(1).unwrap()
+        self.op.deref(ctx).get_operand(1)
     }
 }
 impl_canonical_syntax!(StoreOp);
@@ -812,7 +812,6 @@ impl Verify for StoreOp {
         // Ensure correctness of the address operand.
         if !op
             .get_operand(1)
-            .unwrap()
             .get_type(ctx)
             .deref(ctx)
             .is::<PointerType>()
@@ -887,10 +886,11 @@ impl CallOpInterface for CallOp {
         if let Some(callee_sym) = op.attributes.get::<StringAttr>(&call_op::ATTR_KEY_CALLEE) {
             CallOpCallable::Direct(callee_sym.clone().into())
         } else {
-            CallOpCallable::Indirect(
-                op.get_operand(0)
-                    .expect("Indirect call must have function pointer operand"),
-            )
+            assert!(
+                op.get_num_operands() > 0,
+                "Indirect call must have function pointer operand"
+            );
+            CallOpCallable::Indirect(op.get_operand(0))
         }
     }
     fn args(&self, ctx: &Context) -> Vec<Value> {

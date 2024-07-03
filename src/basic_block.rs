@@ -24,7 +24,7 @@ use crate::{
     r#type::{TypeObj, Typed},
     region::Region,
     result::Result,
-    use_def_lists::{DefNode, Use, Value},
+    use_def_lists::{DefNode, Value},
     vec_exns::VecExtns,
 };
 
@@ -152,8 +152,11 @@ impl BasicBlock {
     }
 
     /// Get idx'th argument as a Value.
-    pub fn get_argument(&self, arg_idx: usize) -> Option<Value> {
-        self.args.get(arg_idx).map(|arg| arg.into())
+    pub fn get_argument(&self, arg_idx: usize) -> Value {
+        self.args
+            .get(arg_idx)
+            .map(|arg| arg.into())
+            .unwrap_or_else(|| panic!("Block argument index {} out of bounds", arg_idx))
     }
 
     /// Get an iterator over the arguments
@@ -172,76 +175,22 @@ impl BasicBlock {
     }
 
     /// Get a reference to the idx'th argument.
-    pub(crate) fn get_argument_ref(&self, arg_idx: usize) -> Option<&BlockArgument> {
-        self.args.get(arg_idx)
+    pub(crate) fn get_argument_ref(&self, arg_idx: usize) -> &BlockArgument {
+        self.args
+            .get(arg_idx)
+            .unwrap_or_else(|| panic!("Block argument index {} out of bounds", arg_idx))
     }
 
     /// Get a mutable reference to the idx'th argument.
-    pub(crate) fn get_argument_mut(&mut self, arg_idx: usize) -> Option<&mut BlockArgument> {
-        self.args.get_mut(arg_idx)
+    pub(crate) fn get_argument_mut(&mut self, arg_idx: usize) -> &mut BlockArgument {
+        self.args
+            .get_mut(arg_idx)
+            .unwrap_or_else(|| panic!("Block argument index {} out of bounds", arg_idx))
     }
 
     /// Get the number of arguments.
     pub fn get_num_arguments(&self) -> usize {
         self.args.len()
-    }
-
-    /// Does this block a predecessor?
-    pub fn has_pred(&self) -> bool {
-        self.preds.has_use()
-    }
-
-    /// Number of predecessors to this block.
-    pub fn num_preds(&self) -> usize {
-        self.preds.num_uses()
-    }
-
-    /// Get all predecessors of this block.
-    pub fn preds(&self, ctx: &Context) -> Vec<Ptr<BasicBlock>> {
-        self.preds
-            .uses()
-            .map(|r#use| {
-                r#use
-                    .op
-                    .deref(ctx)
-                    .get_container()
-                    .expect("Terminator branching to this block is not in any basic block")
-            })
-            .collect()
-    }
-
-    /// Checks whether self is a successor of `pred`.
-    /// O(n) in the number of successors of `pred`.
-    pub fn is_succ_of(&self, ctx: &Context, pred: Ptr<BasicBlock>) -> bool {
-        let self_ptr = self.get_self_ptr(ctx);
-        // We do not check [Self::get_defnode_ref].uses here because
-        // we'd have to go through them all. We do not have a Use<_>
-        // object to directly check membership.
-        pred.deref(ctx).get_tail().map_or(false, |pred_term| {
-            pred_term
-                .deref(ctx)
-                .successors()
-                .any(|succ| self_ptr == succ)
-        })
-    }
-
-    /// Retarget predecessors (that satisfy pred) to `other`.
-    pub fn retarget_some_preds_to<P: Fn(&Context, Ptr<BasicBlock>) -> bool>(
-        &mut self,
-        ctx: &Context,
-        pred: P,
-        other: Ptr<BasicBlock>,
-    ) {
-        let predicate = |ctx: &Context, r#use: &Use<Ptr<BasicBlock>>| {
-            let pred_block = r#use
-                .op
-                .deref(ctx)
-                .get_container()
-                .expect("Predecessor block must be in a Region");
-            pred(ctx, pred_block)
-        };
-
-        DefNode::replace_some_uses_with(ctx, predicate, &self.self_ptr, &other);
     }
 
     /// Get all successors of this block.
@@ -266,7 +215,7 @@ impl BasicBlock {
     pub fn erase(ptr: Ptr<Self>, ctx: &mut Context) {
         Self::drop_all_uses(ptr, ctx);
         assert!(
-            !ptr.deref(ctx).has_pred(),
+            !ptr.has_pred(ctx),
             "BasicBlock with predecessor(s) being erased"
         );
 

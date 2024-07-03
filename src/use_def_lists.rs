@@ -19,6 +19,7 @@ use crate::{
     basic_block::BasicBlock,
     common_traits::Named,
     context::{Context, Ptr},
+    linked_list::{ContainsLinkedList, LinkedList},
     operation::Operation,
     printable::Printable,
     r#type::{TypeObj, Typed},
@@ -148,7 +149,7 @@ impl Value {
     }
 
     /// Get all uses of this value.
-    pub fn get_uses(&self, ctx: &Context) -> Vec<Use<Value>> {
+    pub fn uses(&self, ctx: &Context) -> Vec<Use<Value>> {
         self.get_defnode_ref(ctx).uses().collect()
     }
 
@@ -171,14 +172,10 @@ impl Value {
 impl Typed for Value {
     fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         match self {
-            Value::OpResult { op, res_idx } => {
-                op.deref(ctx).get_result_ref(*res_idx).unwrap().get_type()
+            Value::OpResult { op, res_idx } => op.deref(ctx).get_result_ref(*res_idx).get_type(),
+            Value::BlockArgument { block, arg_idx } => {
+                block.deref(ctx).get_argument_ref(*arg_idx).get_type(ctx)
             }
-            Value::BlockArgument { block, arg_idx } => block
-                .deref(ctx)
-                .get_argument_ref(*arg_idx)
-                .unwrap()
-                .get_type(ctx),
         }
     }
 }
@@ -186,26 +183,20 @@ impl Typed for Value {
 impl Named for Value {
     fn given_name(&self, ctx: &Context) -> Option<String> {
         match self {
-            Value::OpResult { op, res_idx } => op
-                .deref(ctx)
-                .get_result_ref(*res_idx)
-                .unwrap()
-                .given_name(ctx),
-            Value::BlockArgument { block, arg_idx } => block
-                .deref(ctx)
-                .get_argument_ref(*arg_idx)
-                .unwrap()
-                .given_name(ctx),
+            Value::OpResult { op, res_idx } => {
+                op.deref(ctx).get_result_ref(*res_idx).given_name(ctx)
+            }
+            Value::BlockArgument { block, arg_idx } => {
+                block.deref(ctx).get_argument_ref(*arg_idx).given_name(ctx)
+            }
         }
     }
 
     fn id(&self, ctx: &Context) -> String {
         match self {
-            Value::OpResult { op, res_idx } => {
-                op.deref(ctx).get_result_ref(*res_idx).unwrap().id(ctx)
-            }
+            Value::OpResult { op, res_idx } => op.deref(ctx).get_result_ref(*res_idx).id(ctx),
             Value::BlockArgument { block, arg_idx } => {
-                block.deref(ctx).get_argument_ref(*arg_idx).unwrap().id(ctx)
+                block.deref(ctx).get_argument_ref(*arg_idx).id(ctx)
             }
         }
     }
@@ -227,13 +218,11 @@ impl DefTrait for Value {
         match self {
             Self::OpResult { op, res_idx } => {
                 let op = op.deref(ctx);
-                Ref::map(op, |opref| &opref.get_result_ref(*res_idx).unwrap().def)
+                Ref::map(op, |opref| &opref.get_result_ref(*res_idx).def)
             }
             Self::BlockArgument { block, arg_idx } => {
                 let block = block.deref(ctx);
-                Ref::map(block, |blockref| {
-                    &blockref.get_argument_ref(*arg_idx).unwrap().def
-                })
+                Ref::map(block, |blockref| &blockref.get_argument_ref(*arg_idx).def)
             }
         }
     }
@@ -242,12 +231,12 @@ impl DefTrait for Value {
         match self {
             Self::OpResult { op, res_idx } => {
                 let op = op.deref_mut(ctx);
-                RefMut::map(op, |opref| &mut opref.get_result_mut(*res_idx).unwrap().def)
+                RefMut::map(op, |opref| &mut opref.get_result_mut(*res_idx).def)
             }
             Self::BlockArgument { block, arg_idx } => {
                 let block = block.deref_mut(ctx);
                 RefMut::map(block, |blockref| {
-                    &mut blockref.get_argument_mut(*arg_idx).unwrap().def
+                    &mut blockref.get_argument_mut(*arg_idx).def
                 })
             }
         }
@@ -257,9 +246,63 @@ impl DefTrait for Value {
 impl UseTrait for Value {
     fn get_usenode_mut<'a>(r#use: &Use<Self>, ctx: &'a Context) -> RefMut<'a, UseNode<Value>> {
         let op = r#use.op.deref_mut(ctx);
-        RefMut::map(op, |opref| {
-            &mut opref.get_operand_mut(r#use.opd_idx).unwrap().r#use
+        RefMut::map(op, |opref| &mut opref.get_operand_mut(r#use.opd_idx).r#use)
+    }
+}
+
+impl Ptr<BasicBlock> {
+    /// Does this block a predecessor?
+    pub fn has_pred(&self, ctx: &Context) -> bool {
+        self.deref(ctx).preds.has_use()
+    }
+
+    /// Number of predecessors to this block.
+    pub fn num_preds(&self, ctx: &Context) -> usize {
+        self.deref(ctx).preds.num_uses()
+    }
+
+    /// Get all predecessors of this block.
+    pub fn preds(&self, ctx: &Context) -> Vec<Ptr<BasicBlock>> {
+        self.deref(ctx)
+            .preds
+            .uses()
+            .map(|r#use| {
+                r#use
+                    .op
+                    .deref(ctx)
+                    .get_container()
+                    .expect("Terminator branching to this block is not in any basic block")
+            })
+            .collect()
+    }
+
+    /// Checks whether self is a successor of `pred`.
+    /// O(n) in the number of successors of `pred`.
+    pub fn is_succ_of(&self, ctx: &Context, pred: Ptr<BasicBlock>) -> bool {
+        // We do not check [Self::get_defnode_ref].uses here because
+        // we'd have to go through them all. We do not have a Use<_>
+        // object to directly check membership.
+        pred.deref(ctx).get_tail().map_or(false, |pred_term| {
+            pred_term.deref(ctx).successors().any(|succ| self == &succ)
         })
+    }
+    /// Retarget predecessors (that satisfy pred) to `other`.
+    pub fn retarget_some_preds_to<P: Fn(&Context, Ptr<BasicBlock>) -> bool>(
+        &self,
+        ctx: &Context,
+        pred: P,
+        other: Ptr<BasicBlock>,
+    ) {
+        let predicate = |ctx: &Context, r#use: &Use<Ptr<BasicBlock>>| {
+            let pred_block = r#use
+                .op
+                .deref(ctx)
+                .get_container()
+                .expect("Predecessor block must be in a Region");
+            pred(ctx, pred_block)
+        };
+
+        DefNode::replace_some_uses_with(ctx, predicate, self, &other);
     }
 }
 
@@ -291,7 +334,7 @@ impl UseTrait for Ptr<BasicBlock> {
     ) -> RefMut<'a, UseNode<Ptr<BasicBlock>>> {
         let op = r#use.op.deref_mut(ctx);
         RefMut::map(op, |opref| {
-            &mut opref.get_successor_mut(r#use.opd_idx).unwrap().r#use
+            &mut opref.get_successor_mut(r#use.opd_idx).r#use
         })
     }
 }

@@ -153,8 +153,8 @@ fn test_replace_within_same_def_site() {
         0,
     );
     let (res1, res2) = (
-        dual_def_op.deref(ctx).get_result(0).unwrap(),
-        dual_def_op.deref(ctx).get_result(1).unwrap(),
+        dual_def_op.deref(ctx).get_result(0),
+        dual_def_op.deref(ctx).get_result(1),
     );
     let (module_op, func_op, const_op, ret_op) = const_ret_in_mod(ctx).unwrap();
     dual_def_op.insert_before(ctx, ret_op.get_operation());
@@ -177,8 +177,8 @@ fn test_replace_within_same_def_site() {
 
     let dual_arg_block = BasicBlock::new(ctx, None, vec![u64_ty, u64_ty]);
     let (arg1, arg2) = (
-        dual_arg_block.deref(ctx).get_argument(0).unwrap(),
-        dual_arg_block.deref(ctx).get_argument(1).unwrap(),
+        dual_arg_block.deref(ctx).get_argument(0),
+        dual_arg_block.deref(ctx).get_argument(1),
     );
     dual_arg_block.insert_after(ctx, func_op.get_entry_block(ctx));
     let ret_op = ReturnOp::new(ctx, arg1);

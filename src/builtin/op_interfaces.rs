@@ -77,7 +77,7 @@ decl_op_interface! {
                     );
                 }
                 for (idx, operand) in operands.iter().enumerate() {
-                    let block_arg = succ.get_argument(idx).unwrap();
+                    let block_arg = succ.get_argument(idx);
                     if operand.get_type(ctx) != block_arg.get_type(ctx) {
                         return verify_err!(
                             op.get_operation().deref(ctx).loc(),
@@ -135,7 +135,6 @@ decl_op_interface! {
             self.get_operation()
                 .deref(ctx)
                 .get_region(0)
-                .expect("Expected OneRegion Op to contain a region")
         }
 
         /// Checks that the operation has exactly one region.
@@ -164,7 +163,6 @@ decl_op_interface! {
             self.get_operation()
                 .deref(ctx)
                 .get_region(region_idx)
-                .expect("Expected SingleBlockRegion Op to contain a region")
                 .deref(ctx)
                 .get_head()
                 .expect("Expected SingleBlockRegion Op to contain a block")
@@ -283,7 +281,6 @@ decl_op_interface! {
             self.get_operation()
                 .deref(ctx)
                 .get_result(0)
-                .unwrap_or_else(|| panic!("{} must have exactly one result", self.get_opid().disp(ctx)))
         }
 
         /// Get the type of the single result defined by this [Op].
@@ -291,7 +288,6 @@ decl_op_interface! {
             self.get_operation()
                 .deref(ctx)
                 .get_type(0)
-                .unwrap_or_else(|| panic!("{} must have exactly one result", self.get_opid().disp(ctx)))
         }
 
         fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
@@ -359,12 +355,6 @@ decl_op_interface! {
             self.get_operation()
                 .deref(ctx)
                 .get_operand(0)
-                .unwrap_or_else(|| {
-                    panic!(
-                        "{} must have exactly one operand",
-                        self.get_opid().disp(ctx)
-                    )
-                })
         }
 
         /// Get the type of the single operand used by this [Op].
@@ -420,7 +410,6 @@ decl_op_interface! {
             self.get_operation()
                 .deref(ctx)
                 .get_operand(0)
-                .expect("Expected at least one operand")
                 .get_type(ctx)
         }
 
@@ -463,7 +452,6 @@ decl_op_interface! {
             self.get_operation()
                 .deref(ctx)
                 .get_result(0)
-                .expect("Expected at least one result")
                 .get_type(ctx)
         }
 

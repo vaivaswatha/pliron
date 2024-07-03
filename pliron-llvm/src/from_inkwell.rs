@@ -533,13 +533,14 @@ fn convert_block<'ctx>(
             let ty = convert_type(ctx, &inst.get_type().as_any_type_enum())?;
             let arg_idx = m_block.deref_mut(ctx).add_argument(ty);
             cctx.value_map
-                .insert(inst_val, m_block.deref(ctx).get_argument(arg_idx).unwrap());
+                .insert(inst_val, m_block.deref(ctx).get_argument(arg_idx));
         } else {
             let m_inst = convert_instruction(ctx, cctx, inst)?;
             m_inst.insert_at_back(m_block, ctx);
+            let m_inst_ref = &*m_inst.deref(ctx);
             // LLVM instructions have at most one result.
-            if let Some(res) = m_inst.deref(ctx).get_result(0) {
-                cctx.value_map.insert(inst_val, res);
+            if m_inst_ref.get_num_results() == 1 {
+                cctx.value_map.insert(inst_val, m_inst_ref.get_result(0));
             }
         }
     }
@@ -571,7 +572,7 @@ fn convert_function(ctx: &mut Context, function: FunctionValue) -> Result<FuncOp
         for (arg_idx, arg) in function.get_param_iter().enumerate() {
             val_map.insert(
                 arg.as_any_value_enum(),
-                m_entry_block_ref.get_argument(arg_idx).unwrap(),
+                m_entry_block_ref.get_argument(arg_idx),
             );
         }
     }

@@ -349,8 +349,7 @@ macro_rules! to_llvm_value_int_bin_op {
                 cctx: &mut ConversionContext<'ctx>,
             ) -> Result<AnyValueEnum<'ctx>> {
                 let op = self.get_operation().deref(ctx);
-                let lhs = op.get_operand(0).unwrap();
-                let rhs = op.get_operand(1).unwrap();
+                let (lhs, rhs) = (op.get_operand(0), op.get_operand(1));
                 let lhs: IntValue = convert_value_operand(cctx, ctx, &lhs)?
                     .try_into()
                     .map_err(|_err| input_error_noloc!(ToLLVMErr::IntOpValueErr))?;
@@ -464,7 +463,7 @@ impl_op_interface! (ToLLVMValue for BrOp {
         cctx: &mut ConversionContext<'ctx>,
     ) -> Result<AnyValueEnum<'ctx>> {
         let op = self.get_operation().deref(ctx);
-        let succ = op.get_successor(0).unwrap();
+        let succ = op.get_successor(0);
         let succ_iw = convert_block_operand(cctx, ctx, succ)?;
         let branch_op = cctx
             .builder
@@ -492,9 +491,8 @@ impl_op_interface! (ToLLVMValue for CondBrOp {
         cctx: &mut ConversionContext<'ctx>,
     ) -> Result<AnyValueEnum<'ctx>> {
         let op = self.get_operation().deref(ctx);
-        let true_succ = op.get_successor(0).unwrap();
+        let (true_succ, false_succ) = (op.get_successor(0), op.get_successor(1));
         let true_succ_iw = convert_block_operand(cctx, ctx, true_succ)?;
-        let false_succ = op.get_successor(1).unwrap();
         let false_succ_iw = convert_block_operand(cctx, ctx, false_succ)?;
         let cond: IntValue = convert_value_operand(cctx, ctx, &self.condition(ctx))?
             .try_into()
@@ -578,10 +576,10 @@ impl_op_interface! (ToLLVMValue for ICmpOp {
     ) -> Result<AnyValueEnum<'ctx>> {
         let op = self.get_operation().deref(ctx);
         let predicate = convert_ipredicate(self.predicate(ctx));
-        let lhs: IntValue = convert_value_operand(cctx, ctx, &op.get_operand(0).unwrap())?
+        let lhs: IntValue = convert_value_operand(cctx, ctx, &op.get_operand(0))?
             .try_into()
             .map_err(|_err| input_error!(op.loc(), ToLLVMErr::ICmpOpOpdNotInt))?;
-        let rhs: IntValue = convert_value_operand(cctx, ctx, &op.get_operand(1).unwrap())?
+        let rhs: IntValue = convert_value_operand(cctx, ctx, &op.get_operand(1))?
             .try_into()
             .map_err(|_err| input_error!(op.loc(), ToLLVMErr::ICmpOpOpdNotInt))?;
         let icmp_op = cctx
@@ -679,9 +677,10 @@ fn convert_block<'ctx>(
             );
         };
         let op_iw = op_conv.convert(ctx, iwctx, cctx)?;
+        let op_ref = &*op.get_operation().deref(ctx);
         // LLVM instructions have at most one result.
-        if let Some(res) = op.get_operation().deref(ctx).get_result(0) {
-            cctx.value_map.insert(res, op_iw);
+        if op_ref.get_num_results() == 1 {
+            cctx.value_map.insert(op_ref.get_result(0), op_iw);
         }
     }
 

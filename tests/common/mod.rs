@@ -47,11 +47,7 @@ impl Printable for ReturnOp {
             f,
             "{} {}",
             self.get_opid().disp(ctx),
-            self.get_operation()
-                .deref(ctx)
-                .get_operand(0)
-                .unwrap()
-                .disp(ctx)
+            self.get_operation().deref(ctx).get_operand(0).disp(ctx)
         )
     }
 }

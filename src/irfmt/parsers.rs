@@ -167,7 +167,7 @@ pub fn process_parsed_ssa_defs(
 
     let name_tracker = &mut state_stream.state.name_tracker;
     for (idx, name_loc) in results.iter().enumerate() {
-        let res = op.deref(ctx).get_result(idx).unwrap();
+        let res = op.deref(ctx).get_result(idx);
         name_tracker.ssa_def(ctx, name_loc, res)?;
         set_operation_result_name(ctx, op, idx, name_loc.0.to_string());
     }

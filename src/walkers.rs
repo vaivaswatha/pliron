@@ -145,10 +145,14 @@ pub mod interruptible {
         };
 
         for reg_idx in range {
-            let region = root
-                .deref(ctx)
-                .get_region(reg_idx)
-                .expect("Region deleted during walk");
+            let region = {
+                let root_ref = &*root.deref(ctx);
+                assert!(
+                    reg_idx < root_ref.num_regions(),
+                    "Region deleted during walk"
+                );
+                root_ref.get_region(reg_idx)
+            };
             walk_region(ctx, state, config, region, callback)?;
         }
 
