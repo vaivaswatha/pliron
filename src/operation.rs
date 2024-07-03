@@ -252,7 +252,7 @@ impl Operation {
         self.operands.len()
     }
 
-    /// Get a reference to the opd_idx'th operand.
+    /// Get opd_idx'th operand of this [Operation]
     pub fn get_operand(&self, opd_idx: usize) -> Value {
         self.operands
             .get(opd_idx)
@@ -260,17 +260,26 @@ impl Operation {
             .unwrap_or_else(|| panic!("Operand index {} out of bounds", opd_idx))
     }
 
+    /// Get opd_idx'th operand as a [`Use<Value>`].
+    pub fn get_operand_as_use(&self, opd_idx: usize) -> Use<Value> {
+        self.get_operand_ref(opd_idx).into()
+    }
+
     /// Get an iterator over the results of this operation.
     pub fn operands(&self) -> impl Iterator<Item = Value> + Clone + '_ {
         self.operands.iter().map(Operand::get_def)
     }
 
-    /// Replace opd_idx'th operand with `other`.
-    pub fn replace_operand(&mut self, ctx: &Context, opd_idx: usize, other: Value) {
-        self.operands
-            .get_mut(opd_idx)
-            .unwrap_or_else(|| panic!("Operand index {} out of bounds", opd_idx))
-            .replace(ctx, other);
+    /// Replace opd_idx'th operand of `this` with `other`.
+    pub fn replace_operand(this: Ptr<Operation>, ctx: &Context, opd_idx: usize, other: Value) {
+        let (cur_def, cur_use) = {
+            let this_ref = this.deref(ctx);
+            (
+                this_ref.get_operand(opd_idx),
+                this_ref.get_operand_as_use(opd_idx),
+            )
+        };
+        cur_def.replace_use_with(ctx, cur_use, &other);
     }
 
     /// Get number of successors
@@ -278,7 +287,7 @@ impl Operation {
         self.successors.len()
     }
 
-    /// Get a reference to the opd_idx'th successor.
+    /// Get the opd_idx'th successor of this [Operation]
     pub fn get_successor(&self, succ_idx: usize) -> Ptr<BasicBlock> {
         self.successors
             .get(succ_idx)
@@ -286,12 +295,26 @@ impl Operation {
             .unwrap_or_else(|| panic!("Successor index {} out of bounds", succ_idx))
     }
 
-    /// Replace opd_idx'th successor with `other`.
-    pub fn replace_successor(&mut self, ctx: &Context, succ_idx: usize, other: Ptr<BasicBlock>) {
-        self.successors
-            .get_mut(succ_idx)
-            .unwrap_or_else(|| panic!("Successor index {} out of bounds", succ_idx))
-            .replace(ctx, other);
+    /// Get the opd_idx'th successor as a [`Use<Ptr<BasicBlock>>`].
+    pub fn get_successor_as_use(&self, succ_idx: usize) -> Use<Ptr<BasicBlock>> {
+        self.get_successor_ref(succ_idx).into()
+    }
+
+    /// Replace opd_idx'th successor of `this` with `other`.
+    pub fn replace_successor(
+        this: Ptr<Operation>,
+        ctx: &Context,
+        succ_idx: usize,
+        other: Ptr<BasicBlock>,
+    ) {
+        let (cur_target, cur_block_use) = {
+            let this_ref = this.deref(ctx);
+            (
+                this_ref.get_successor(succ_idx),
+                this_ref.get_successor_as_use(succ_idx),
+            )
+        };
+        cur_target.retarget_pred_to(ctx, cur_block_use, other);
     }
 
     /// Get an iterator on the successors.
@@ -384,11 +407,25 @@ impl Operation {
             .unwrap_or_else(|| panic!("Result index {} out of bounds", idx))
     }
 
+    /// Get a reference to the opd_idx'th operand.
+    pub(crate) fn get_operand_ref(&self, opd_idx: usize) -> &Operand<Value> {
+        self.operands
+            .get(opd_idx)
+            .unwrap_or_else(|| panic!("Operand index {} out of bounds", opd_idx))
+    }
+
     /// Get a mutable reference to the opd_idx'th operand.
     pub(crate) fn get_operand_mut(&mut self, opd_idx: usize) -> &mut Operand<Value> {
         self.operands
             .get_mut(opd_idx)
             .unwrap_or_else(|| panic!("Operand index {} out of bounds", opd_idx))
+    }
+
+    /// Get a reference to the succ_idx'th successor.
+    pub(crate) fn get_successor_ref(&self, succ_idx: usize) -> &Operand<Ptr<BasicBlock>> {
+        self.successors
+            .get(succ_idx)
+            .unwrap_or_else(|| panic!("Successor index {} out of bounds", succ_idx))
     }
 
     /// Get a mutable reference to the opd_idx'th successor.
@@ -435,14 +472,6 @@ impl<T: DefUseParticipant + DefTrait> Operand<T> {
     /// Drop this use, removing self from its definition's uses list.
     fn drop_use(&self, ctx: &Context) {
         self.get_def().get_defnode_mut(ctx).remove_use(self.into());
-    }
-
-    /// Replace this operand to use another definition.
-    fn replace(&mut self, ctx: &Context, other: T) {
-        let user_op = self.user_op;
-        let opd_idx = self.opd_idx;
-        self.drop_use(ctx);
-        *self = Self::new(ctx, other, user_op, opd_idx);
     }
 
     /// As `user_op`'s `opd_idx`'th operand, create a new Operand.

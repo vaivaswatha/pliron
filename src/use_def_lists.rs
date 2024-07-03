@@ -80,38 +80,21 @@ impl<T: DefUseParticipant> DefNode<T> {
         }
     }
 
-    /// Replace some uses of the underlying definition with `other`.
-    pub(crate) fn replace_some_uses_with<P: Fn(&Context, &Use<T>) -> bool>(
-        ctx: &Context,
-        predicate: P,
-        this: &T,
-        other: &T,
-    ) where
+    /// Replace the given use of the underlying definition `this` with `other`.
+    pub(crate) fn replace_use_with(ctx: &Context, this: &T, r#use: &Use<T>, other: &T)
+    where
         T: DefTrait + UseTrait,
     {
         if std::ptr::eq(&*this.get_defnode_ref(ctx), &*other.get_defnode_ref(ctx)) {
             return;
         }
 
-        // We collect because we don't want to keep the defnode locked up.
-        let touched_uses: FxHashSet<_> = this
-            .get_defnode_ref(ctx)
-            .uses
-            .iter()
-            .filter(|r#use| predicate(ctx, r#use))
-            .cloned()
-            .collect();
+        // Add r#use as a use of `other` and replace the [UseNode].
+        let new_use_node = other.get_defnode_mut(ctx).add_use(*other, *r#use);
+        *T::get_usenode_mut(r#use, ctx) = new_use_node;
 
-        // Add each [Use] as a use of `other`, replacing the [UseNode] subsequently.
-        for r#use in &touched_uses {
-            let new_use_node = other.get_defnode_mut(ctx).add_use(*other, *r#use);
-            *T::get_usenode_mut(r#use, ctx) = new_use_node;
-        }
-
-        // `this` will no longer have the touched uses.
-        this.get_defnode_mut(ctx)
-            .uses
-            .retain(|r#use| !touched_uses.contains(r#use));
+        // `this` will no longer have r#use as a use.
+        this.get_defnode_mut(ctx).uses.remove(r#use);
     }
 }
 
@@ -162,10 +145,25 @@ impl Value {
     pub fn replace_some_uses_with<P: Fn(&Context, &Use<Value>) -> bool>(
         &self,
         ctx: &Context,
-        pred: P,
+        predicate: P,
         other: &Value,
     ) {
-        DefNode::replace_some_uses_with(ctx, pred, self, other);
+        // We collect because we don't want to keep the defnode locked up.
+        let touched_uses: FxHashSet<_> = self
+            .get_defnode_ref(ctx)
+            .uses
+            .iter()
+            .filter(|r#use| predicate(ctx, r#use))
+            .cloned()
+            .collect();
+        for r#use in &touched_uses {
+            DefNode::replace_use_with(ctx, self, r#use, other);
+        }
+    }
+
+    /// Replace the given use of `this` [Value] with `other`.
+    pub fn replace_use_with(&self, ctx: &Context, r#use: Use<Value>, other: &Value) {
+        DefNode::replace_use_with(ctx, self, &r#use, other);
     }
 }
 
@@ -290,7 +288,7 @@ impl Ptr<BasicBlock> {
     pub fn retarget_some_preds_to<P: Fn(&Context, Ptr<BasicBlock>) -> bool>(
         &self,
         ctx: &Context,
-        pred: P,
+        predicate: P,
         other: Ptr<BasicBlock>,
     ) {
         let predicate = |ctx: &Context, r#use: &Use<Ptr<BasicBlock>>| {
@@ -299,10 +297,31 @@ impl Ptr<BasicBlock> {
                 .deref(ctx)
                 .get_container()
                 .expect("Predecessor block must be in a Region");
-            pred(ctx, pred_block)
+            predicate(ctx, pred_block)
         };
 
-        DefNode::replace_some_uses_with(ctx, predicate, self, &other);
+        // We collect because we don't want to keep the defnode locked up.
+        let touched_uses: FxHashSet<_> = self
+            .get_defnode_ref(ctx)
+            .uses
+            .iter()
+            .filter(|r#use| predicate(ctx, r#use))
+            .cloned()
+            .collect();
+
+        for r#use in &touched_uses {
+            DefNode::replace_use_with(ctx, self, r#use, &other);
+        }
+    }
+
+    /// Retarget the given pred of `this` [`Ptr<BasicBlock>`] to `other`.
+    pub fn retarget_pred_to(
+        &self,
+        ctx: &Context,
+        r#use: Use<Ptr<BasicBlock>>,
+        other: Ptr<BasicBlock>,
+    ) {
+        DefNode::replace_use_with(ctx, self, &r#use, &other);
     }
 }
 

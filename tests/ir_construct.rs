@@ -105,10 +105,7 @@ fn replace_c0_with_c1_operand() -> Result<()> {
         }"#]]
     .assert_eq(&printed);
 
-    ret_op
-        .get_operation()
-        .deref_mut(ctx)
-        .replace_operand(ctx, 0, const1_op.get_result(ctx));
+    Operation::replace_operand(ret_op.get_operation(), ctx, 0, const1_op.get_result(ctx));
     Operation::erase(const_op.get_operation(), ctx);
 
     let printed = format!("{}", module_op.disp(ctx));
