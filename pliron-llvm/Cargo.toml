@@ -15,14 +15,14 @@ license.workspace = true
 pliron-derive = { path = "../pliron-derive", version = "0" }
 pliron = { path = "../", version = "0" }
 apint.workspace = true
-clap = { version = "4.5", features = ["derive"] }
+clap.workspace = true
 combine.workspace = true
 thiserror.workspace = true
 linkme.workspace = true
-inkwell = { version = "0", features = ["llvm17-0"] }
 rustc-hash.workspace = true
-assert_cmd = { version = "2" }
+inkwell = { version = "0", features = ["llvm17-0"] }
 
 [dev-dependencies]
 expect-test.workspace = true
 tempfile.workspace = true
+assert_cmd.workspace = true
