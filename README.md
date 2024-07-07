@@ -16,14 +16,18 @@ and written in safe Rust.
   It should print something like:
   ```mlir
   builtin.module @bar {
-    block_0_0():
-      builtin.func @foo: builtin.function <() -> (builtin.integer <si64>)> {
-        entry():
-          c0_op_2_0_res0 = builtin.constant 0x0: builtin.integer <si64>;
-          llvm.return c0_op_2_0_res0
+    ^block_1v1():
+      builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
+        ^entry_block_2v1():
+          c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int<si64>>;
+          test.return c0_op_3v1_res0
       }
   }
   ```
+
+* `pliron` provide an [`llvm-opt` tool](pliron-llvm/README.md) that
+can parse LLVM-IR bitcode into the LLVM dialct and output LLVM-IR
+bitcode.
 
 ## Using the Library
 `pliron` is currently in a nascent stage and not yet useful for
@@ -32,7 +36,8 @@ a dependence to the [crate](https://crates.io/crates/pliron)
 in your Rust project.
 
 ## Documentation
-* Some key design decisions are explained in the
-  [introductory blog article](https://github.com/vaivaswatha/pliron/wiki/Introducing-pliron).
+* Introduction and motivation are covered in the [introductory wiki article](https://github.com/vaivaswatha/pliron/wiki/Introduction).
+* The wiki also has a [comparison](https://github.com/vaivaswatha/pliron/wiki/Comparison-with-other-compiler-frameworks) of `pliron`
+with other compiler projects, touching upon some design decisions.
 * Code documentation can be found on
   [docs.rs](https://docs.rs/pliron/latest/pliron/).
