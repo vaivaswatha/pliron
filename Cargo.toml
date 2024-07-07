@@ -44,6 +44,8 @@ expect-test.workspace = true
 
 [workspace.dependencies]
 apint = "0.2.0"
+assert_cmd = "2"
+clap = { version = "4.5", features = ["derive"] }
 expect-test = "1.5.0"
 proc-macro2 = "1.0.84"
 quote = "1.0.36"
@@ -53,4 +55,4 @@ syn = { version = "2.0.66", features = ["derive"] }
 combine = "4.6.7"
 thiserror = "1.0.61"
 linkme = "0.3"
-
+tempfile = "3"
