@@ -1,10 +1,10 @@
 [package]
 name = "pliron-llvm"
 description = "LLVM dialect for pliron"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
-readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 license.workspace = true
