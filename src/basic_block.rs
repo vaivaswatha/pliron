@@ -25,7 +25,7 @@ use crate::{
     region::Region,
     result::Result,
     use_def_lists::{DefNode, Value},
-    vec_exns::VecExtns,
+    utils::vec_exns::VecExtns,
 };
 
 /// Argument to a [BasicBlock]

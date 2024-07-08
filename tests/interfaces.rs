@@ -26,7 +26,7 @@ use pliron::{
     printable::{self, Printable},
     r#type::{Type, TypeObj},
     result::{Error, ErrorKind, Result},
-    trait_cast::any_to_trait,
+    utils::trait_cast::any_to_trait,
 };
 use pliron_derive::{def_attribute, def_op, def_type};
 

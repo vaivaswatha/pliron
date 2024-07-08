@@ -299,7 +299,7 @@ impl Verify for AttrObj {
 
 /// Cast reference to an [Attribute] object to an interface reference.
 pub fn attr_cast<T: ?Sized + Attribute>(attr: &dyn Attribute) -> Option<&T> {
-    crate::trait_cast::any_to_trait::<T>(attr.as_any())
+    crate::utils::trait_cast::any_to_trait::<T>(attr.as_any())
 }
 
 /// Does this [Attribute] object implement interface T?

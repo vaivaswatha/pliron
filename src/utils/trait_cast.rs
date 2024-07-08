@@ -21,7 +21,7 @@ use rustc_hash::FxHashMap;
 /// and then use [any_to_trait] to cast to `dyn Trait2`.
 /// Example:
 /// ```
-/// # use pliron::{type_to_trait, trait_cast::any_to_trait};
+/// # use pliron::{type_to_trait, utils::trait_cast::any_to_trait};
 /// # use std::any::Any;
 /// # use downcast_rs::Downcast;
 ///
@@ -71,7 +71,7 @@ static TRAIT_CASTERS_MAP: crate::Lazy<
 /// Specify that a type may be casted to a `dyn Trait` object. Use [any_to_trait] for the actual cast.
 /// Example:
 /// ```
-/// # use pliron::{type_to_trait, trait_cast::any_to_trait};
+/// # use pliron::{type_to_trait, utils::trait_cast::any_to_trait};
 /// # use std::any::Any;
 /// trait Trait {}
 /// struct S1;
@@ -93,10 +93,10 @@ macro_rules! type_to_trait {
     ($ty_name:ty, $to_trait_name:path) => {
         // The rust way to do an anonymous module.
         const _: () = {
-            #[linkme::distributed_slice($crate::trait_cast::TRAIT_CASTERS)]
+            #[linkme::distributed_slice($crate::utils::trait_cast::TRAIT_CASTERS)]
             static CAST_TO_TRAIT: $crate::Lazy<(
                 (std::any::TypeId, std::any::TypeId),
-                Box<dyn $crate::trait_cast::ClonableAny + Sync + Send>,
+                Box<dyn $crate::utils::trait_cast::ClonableAny + Sync + Send>,
             )> = $crate::Lazy::new(|| {
                 (
                     (

@@ -218,7 +218,7 @@ pub type OpObj = Box<dyn Op>;
 
 /// Cast reference to an [Op] object to an interface reference.
 pub fn op_cast<T: ?Sized + Op>(op: &dyn Op) -> Option<&T> {
-    crate::trait_cast::any_to_trait::<T>(op.as_any())
+    crate::utils::trait_cast::any_to_trait::<T>(op.as_any())
 }
 
 /// Does this [Op] object implement interface T?

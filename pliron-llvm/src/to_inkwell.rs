@@ -14,8 +14,10 @@ use pliron::{
     },
     common_traits::Named,
     context::{Context, Ptr},
-    decl_op_interface, decl_type_interface, impl_op_interface, impl_type_interface, input_err,
-    input_err_noloc, input_error, input_error_noloc,
+    decl_op_interface, decl_type_interface,
+    graph::traversals::region::topological_order,
+    impl_op_interface, impl_type_interface, input_err, input_err_noloc, input_error,
+    input_error_noloc,
     linked_list::{ContainsLinkedList, LinkedList},
     location::Located,
     op::{op_cast, Op},
@@ -23,7 +25,6 @@ use pliron::{
     r#type::{type_cast, Type, TypeObj, TypePtr, Typed},
     result::Result,
     use_def_lists::Value,
-    utils::traversals::region::topological_order,
 };
 
 use inkwell::{

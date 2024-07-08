@@ -25,7 +25,7 @@ use pliron::{
     r#type::{TypeObj, TypePtr},
     result::{Error, ErrorKind, Result},
     use_def_lists::Value,
-    vec_exns::VecExtns,
+    utils::vec_exns::VecExtns,
     verify_err,
 };
 

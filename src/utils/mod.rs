@@ -1,4 +1,4 @@
-//! Utilities: Data structures and algorithms
+//! Independent support tools / utilities
 
-pub mod traversals;
-pub mod walkers;
+pub mod trait_cast;
+pub mod vec_exns;

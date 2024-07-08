@@ -9,6 +9,12 @@ use pliron::{
     common_traits::Verify,
     context::Context,
     debug_info::set_operation_result_name,
+    graph::walkers::{
+        self,
+        interruptible::{self, walk_advance, walk_break},
+        IRNode, WALKCONFIG_POSTORDER_FORWARD, WALKCONFIG_POSTORDER_REVERSE,
+        WALKCONFIG_PREORDER_FORWARD,
+    },
     impl_canonical_syntax, impl_verify_succ,
     irfmt::parsers::spaced,
     location,
@@ -17,12 +23,6 @@ use pliron::{
     parsable::{self, state_stream_from_iterator, Parsable},
     printable::Printable,
     result::Result,
-    utils::walkers::{
-        self,
-        interruptible::{self, walk_advance, walk_break},
-        IRNode, WALKCONFIG_POSTORDER_FORWARD, WALKCONFIG_POSTORDER_REVERSE,
-        WALKCONFIG_PREORDER_FORWARD,
-    },
 };
 use pliron_derive::def_op;
 

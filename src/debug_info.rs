@@ -12,7 +12,7 @@ use crate::{
     context::{Context, Ptr},
     identifier::Identifier,
     operation::Operation,
-    vec_exns::VecExtns,
+    utils::vec_exns::VecExtns,
 };
 
 /// Key into a debug info's variable name.

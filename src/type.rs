@@ -536,7 +536,7 @@ impl<T: Type> Verify for TypePtr<T> {
 
 /// Cast reference to a [Type] object to an interface reference.
 pub fn type_cast<T: ?Sized + Type>(ty: &dyn Type) -> Option<&T> {
-    crate::trait_cast::any_to_trait::<T>(ty.as_any())
+    crate::utils::trait_cast::any_to_trait::<T>(ty.as_any())
 }
 
 /// Does this [Type] object implement interface T?
