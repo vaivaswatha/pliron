@@ -1,3 +1,5 @@
+//! Builtin dialect: [Op](crate::op::Op)s, [Type](crate::type::Type)s and [Attribute](crate::attribute::Attribute)s
+
 pub mod attr_interfaces;
 pub mod attributes;
 pub mod op_interfaces;

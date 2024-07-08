@@ -1,4 +1,4 @@
-//! Utility functions for various graph traversals
+//! Control-flow-graph traversals
 
 /// Region traversal utilities
 pub mod region {

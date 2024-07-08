@@ -17,7 +17,7 @@ use pliron::{
     parsable::{self, state_stream_from_iterator, Parsable},
     printable::Printable,
     result::Result,
-    walkers::{
+    utils::walkers::{
         self,
         interruptible::{self, walk_advance, walk_break},
         IRNode, WALKCONFIG_POSTORDER_FORWARD, WALKCONFIG_POSTORDER_REVERSE,
