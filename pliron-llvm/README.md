@@ -10,14 +10,14 @@ which requires LLVM to be installed on your system.
 
 We currently support LLVM-17, and hence LLVM-17 needs to be on your computer.
 On Ubuntu, this means, you require the `libllvm17` and `libpolly-17-dev`
-[packages](https://thedan64.github.io/inkwell/).
+[packages](https://apt.llvm.org/).
 
 ## llvm-opt tool
 The `llvm-opt` binary is provided to enable parsing LLVM bitcode binaries
 into `pliron`'s LLVM dialect and to emit LLVM bitcode back from the dialect.
 
 Example usage:
-1. Compile `fib.c` into LLVM-IR:
+1. Compile [fib.c](tests/resources/fib.c) into LLVM-IR:
   
     `$clang-17 -c -emit-llvm -o /tmp/fib.bc tests/resources/fib.c `
 
@@ -27,8 +27,8 @@ directory must be in $PATH):
 
     `$llvm-opt -S -i /tmp/fib.bc -o /tmp/fib.opt.ll`
 
-3. Compile the output fibonacci LLVM-IR, along with a main function
-into a binary:
+3. Compile the output fibonacci LLVM-IR, along with a
+[main function](tests/resources/fib-main.c) into a binary:
 
     `$clang-17 -o /tmp/fib /tmp/fib.out.ll tests/resources/fib-main.c`
 

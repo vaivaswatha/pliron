@@ -26,7 +26,7 @@ and written in safe Rust.
   ```
 
 * `pliron` provide an [`llvm-opt` tool](pliron-llvm/README.md) that
-can parse LLVM-IR bitcode into the LLVM dialct and output LLVM-IR
+can parse LLVM-IR bitcode into the LLVM dialect and output LLVM-IR
 bitcode.
 
 ## Using the Library
