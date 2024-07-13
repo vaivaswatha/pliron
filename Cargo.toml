@@ -28,31 +28,31 @@ keywords = ["pliron", "llvm", "mlir", "compiler"]
 pliron-derive = { path = "./pliron-derive", version = "0" }
 
 apint.workspace = true
-slotmap = "1.0.7"
-downcast-rs = "1.2.1"
+slotmap = "1"
+downcast-rs = "1"
 rustc-hash.workspace = true
 thiserror.workspace = true
 linkme.workspace = true
-once_cell = "1.19.0"
-paste = "1.0"
+once_cell = "1"
+paste = "1"
 combine.workspace = true
-regex = "1.10.4"
-dyn-clone = "1.0.17"
+regex = "1"
+dyn-clone = "1"
 
 [dev-dependencies]
 expect-test.workspace = true
 
 [workspace.dependencies]
-apint = "0.2.0"
+apint = "0"
 assert_cmd = "2"
-clap = { version = "4.5", features = ["derive"] }
-expect-test = "1.5.0"
-proc-macro2 = "1.0.84"
-quote = "1.0.36"
-prettyplease = "0.2.20"
-rustc-hash = "1.0"
-syn = { version = "2.0.66", features = ["derive"] }
-combine = "4.6.7"
-thiserror = "1.0.61"
-linkme = "0.3"
+clap = { version = "4", features = ["derive"] }
+expect-test = "1"
+proc-macro2 = "1"
+quote = "1"
+prettyplease = "0"
+rustc-hash = "1"
+syn = { version = "2", features = ["derive"] }
+combine = "4"
+thiserror = "1"
+linkme = "0"
 tempfile = "3"
