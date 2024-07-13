@@ -18,7 +18,7 @@ use crate::{
     region::Region,
     result::Result,
     use_def_lists::Value,
-    verify_err,
+    verify_err, verify_error,
 };
 
 use super::{attributes::StringAttr, types::FunctionType};
@@ -231,13 +231,29 @@ decl_op_interface! {
 }
 
 #[derive(Error, Debug)]
-// TODO: Add `Location` as another parameter so that previously defined location can be printed.
-#[error("Symbol {0} previously defined")]
-pub struct SymbolTableInterfaceErr(String);
+pub enum SymbolTableInterfaceErr {
+    #[error("Multiple definitions of Symbol {0}")]
+    SymbolRedefined(String),
+}
 
 decl_op_interface! {
     // Any [Op] that holds a symbol table.
     SymbolTableInterface: SingleBlockRegionInterface, OneRegionInterface {
+
+        /// Lookup a symbol in this symbol table op. Linear search.
+        fn lookup(&self, ctx: &Context, sym: String) -> Option<Ptr<Operation>> {
+            for op in self.get_body(ctx, 0).deref(ctx).iter(ctx) {
+                if let Some(sym_op) =
+                    op_cast::<dyn SymbolOpInterface>(&*Operation::get_op(op, ctx))
+                {
+                    if sym_op.get_symbol_name(ctx) == sym {
+                        return Some(op)
+                    }
+                }
+            }
+            None
+        }
+
         fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
         where
             Self: Sized,
@@ -254,8 +270,13 @@ decl_op_interface! {
                 {
                     let sym = sym_op.get_symbol_name(ctx);
                     match seen.entry(sym.clone()) {
-                        hash_map::Entry::Occupied(_) => {
-                            return verify_err!(op.deref(ctx).loc(), SymbolTableInterfaceErr(sym));
+                        hash_map::Entry::Occupied(prev_loc) => {
+                            return verify_err!(
+                                op.deref(ctx).loc(),
+                                verify_error!(
+                                    prev_loc.get().clone(),
+                                    SymbolTableInterfaceErr::SymbolRedefined(sym)
+                                ));
                         }
                         hash_map::Entry::Vacant(vac) => {
                             vac.insert(op.deref(ctx).loc());
