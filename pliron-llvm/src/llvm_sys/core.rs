@@ -1,6 +1,9 @@
 //! Safe wrappers around llvm_sys::core.
 
-use std::{mem::{forget, MaybeUninit}, ptr};
+use std::{
+    mem::{forget, MaybeUninit},
+    ptr,
+};
 
 use llvm_sys::{
     analysis::LLVMVerifyModule,
@@ -1293,10 +1296,7 @@ impl LLVMModule {
     }
 
     /// Parse IR in file given by filename into a [LLVMModule]
-    pub fn from_ir_in_file(
-        context: LLVMContext,
-        filename: &str,
-    ) -> Result<LLVMModule, String> {
+    pub fn from_ir_in_file(context: LLVMContext, filename: &str) -> Result<LLVMModule, String> {
         let memory_buffer = LLVMMemoryBuffer::from_file_name(filename)?;
         Self::from_ir_in_memory_buffer(context, memory_buffer)
     }

@@ -214,7 +214,7 @@ impl Printable for StructType {
 
         // Done processing this struct. Remove it from the stack.
         if let Some(name) = &self.name {
-            debug_assert!(IN_PRINTING.with(|f| f.borrow().last().unwrap() == name));
+            assert!(IN_PRINTING.with(|f| f.borrow().last().unwrap() == name));
             IN_PRINTING.with(|f| f.borrow_mut().pop());
         }
         write!(f, ">")

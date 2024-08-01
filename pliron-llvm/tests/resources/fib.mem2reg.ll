@@ -5,7 +5,7 @@ target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: noinline nounwind uwtable
 define dso_local i32 @fib(i32 noundef %0) #0 {
-  %2 = icmp eq i32 %0, 1
+  %2 = icmp sle i32 %0, 1
   br i1 %2, label %3, label %4
 
 3:                                                ; preds = %1

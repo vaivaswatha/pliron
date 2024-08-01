@@ -123,14 +123,14 @@ where
     pub fn insert_after(&self, ctx: &Context, mark: Ptr<T>) {
         {
             let node = self.deref(ctx);
-            debug_assert!(
+            assert!(
                 node.get_prev().is_none()
                     && node.get_next().is_none()
                     && node.get_container().is_none(),
                 "LinkedList node must be unlinked before relinking"
             );
             let mark = mark.deref(ctx);
-            debug_assert!(
+            assert!(
                 mark.get_container().is_some(),
                 "insert_after: Mark node itself is unlinked"
             );
@@ -144,11 +144,11 @@ where
             next = mark_ref.get_next();
             match next {
                 Some(next) => {
-                    debug_assert!(next.deref(ctx).get_prev().unwrap() == mark);
+                    assert!(next.deref(ctx).get_prev().unwrap() == mark);
                     next.deref_mut(ctx).set_prev(Some(*self));
                 }
                 None => {
-                    debug_assert!(container.deref(ctx).get_tail().unwrap() == mark);
+                    assert!(container.deref(ctx).get_tail().unwrap() == mark);
                     private::ContainsLinkedList::set_tail(
                         &mut (*container.deref_mut(ctx)),
                         Some(*self),
@@ -168,14 +168,14 @@ where
     pub fn insert_before(&self, ctx: &Context, mark: Ptr<T>) {
         {
             let node = self.deref(ctx);
-            debug_assert!(
+            assert!(
                 node.get_prev().is_none()
                     && node.get_next().is_none()
                     && node.get_container().is_none(),
                 "LinkedList node must be unlinked before relinking"
             );
             let mark = mark.deref(ctx);
-            debug_assert!(
+            assert!(
                 mark.get_container().is_some(),
                 "insert_before: Mark node itself is unlinked"
             );
@@ -190,11 +190,11 @@ where
             prev = mark_ref.get_prev();
             match prev {
                 Some(prev) => {
-                    debug_assert!(prev.deref(ctx).get_next().unwrap() == mark);
+                    assert!(prev.deref(ctx).get_next().unwrap() == mark);
                     prev.deref_mut(ctx).set_next(Some(*self));
                 }
                 None => {
-                    debug_assert!(container.deref(ctx).get_head().unwrap() == mark);
+                    assert!(container.deref(ctx).get_head().unwrap() == mark);
                     private::ContainsLinkedList::set_head(
                         &mut (*container.deref_mut(ctx)),
                         Some(*self),
@@ -213,7 +213,7 @@ where
     /// Insert self as the head of the list.
     pub fn insert_at_front(&self, container: Ptr<T::ContainerType>, ctx: &Context) {
         let mut node = self.deref_mut(ctx);
-        debug_assert!(
+        assert!(
             node.get_prev().is_none()
                 && node.get_next().is_none()
                 && node.get_container().is_none(),
@@ -223,7 +223,7 @@ where
         let head = container_ref.get_head();
         match head {
             Some(head) => {
-                debug_assert!(head.deref(ctx).get_prev().is_none());
+                assert!(head.deref(ctx).get_prev().is_none());
                 head.deref_mut(ctx).set_prev(Some(*self))
             }
             None => {
@@ -238,7 +238,7 @@ where
     /// Insert self as the tail of the list.
     pub fn insert_at_back(&self, container: Ptr<T::ContainerType>, ctx: &Context) {
         let mut node = self.deref_mut(ctx);
-        debug_assert!(
+        assert!(
             node.get_prev().is_none()
                 && node.get_next().is_none()
                 && node.get_container().is_none(),
@@ -248,7 +248,7 @@ where
         let tail = container_ref.get_tail();
         match tail {
             Some(tail) => {
-                debug_assert!(tail.deref(ctx).get_next().is_none());
+                assert!(tail.deref(ctx).get_next().is_none());
                 tail.deref_mut(ctx).set_next(Some(*self));
             }
             None => {
@@ -263,7 +263,7 @@ where
     /// Is this node part of a linked list?
     pub fn is_linked(&self, ctx: &Context) -> bool {
         let has_container = self.deref(ctx).get_container().is_some();
-        debug_assert!(
+        assert!(
             has_container
                 || self.deref(ctx).get_next().is_none() && self.deref(ctx).get_prev().is_none(),
             "LinkedList node has no container, but has next/prev node"
@@ -274,7 +274,7 @@ where
     /// Unlink self from list.
     pub fn unlink(&self, ctx: &Context) {
         let container = self.deref(ctx).get_container();
-        debug_assert!(
+        assert!(
             container.is_some(),
             "LinkedList: Attempt to remove unlinked node"
         );

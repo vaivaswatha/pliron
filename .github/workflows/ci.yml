@@ -26,8 +26,11 @@ jobs:
     - name: Build
       run: RUSTFLAGS="-D warnings" cargo build --workspace --verbose
 
-    - name: Tests
+    - name: Tests (Debug)
       run: cargo test --workspace --verbose
+
+    - name: Tests (Release)
+      run: cargo test --release --workspace --verbose
 
     - name: Clippy
       run: cargo clippy --workspace -- -D warnings
