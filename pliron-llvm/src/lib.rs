@@ -6,10 +6,11 @@ use pliron::{
 };
 
 pub mod attributes;
-pub mod from_inkwell;
+pub mod from_llvm_ir;
+pub mod llvm_sys;
 pub mod op_interfaces;
 pub mod ops;
-pub mod to_inkwell;
+pub mod to_llvm_ir;
 pub mod types;
 
 /// Register LLVM dialect, its ops, types and attributes into context.

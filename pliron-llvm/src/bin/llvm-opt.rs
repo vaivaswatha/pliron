@@ -1,12 +1,14 @@
 use std::{path::PathBuf, process::ExitCode};
 
-use inkwell::{context::Context as IWContext, module::Module as IWModule};
-
 use clap::Parser;
 use pliron::{
     arg_error_noloc, context::Context, printable::Printable, result::Result, verify_error_noloc,
 };
-use pliron_llvm::{from_inkwell, to_inkwell};
+use pliron_llvm::{
+    from_llvm_ir,
+    llvm_sys::core::{llvm_context_create, LLVMModule},
+    to_llvm_ir,
+};
 
 #[derive(Parser)]
 #[command(version, about="LLVM Optimizer", long_about = None)]
@@ -25,25 +27,26 @@ struct Cli {
 }
 
 fn run(cli: Cli, ctx: &mut Context) -> Result<()> {
-    let context = IWContext::create();
-    let module = IWModule::parse_bitcode_from_path(cli.input, &context)
+    let llvm_context = llvm_context_create();
+    let module = LLVMModule::from_bitcode_in_file(llvm_context, cli.input.to_str().unwrap())
         .map_err(|err| arg_error_noloc!("{}", err))?;
 
-    let pliron_module = from_inkwell::convert_module(ctx, &module)?;
+    let pliron_module = from_llvm_ir::convert_module(ctx, &module)?;
     println!("{}", pliron_module.disp(ctx));
 
-    let iwctx = &IWContext::create();
-    let module = to_inkwell::convert_module(ctx, iwctx, pliron_module)?;
+    let module = to_llvm_ir::convert_module(ctx, llvm_context, pliron_module)?;
     module
         .verify()
         .map_err(|err| verify_error_noloc!("{}", err.to_string()))?;
 
     if cli.text_output {
         module
-            .print_to_file(&cli.output)
+            .ir_to_file(cli.output.to_str().unwrap())
             .map_err(|err| arg_error_noloc!("{}", err.to_string()))?;
     } else {
-        module.write_bitcode_to_path(&cli.output);
+        module
+            .bitcode_to_file(cli.output.to_str().unwrap())
+            .map_err(|_err| arg_error_noloc!("{}", "Error writing bitcode to file"))?;
     }
     Ok(())
 }
