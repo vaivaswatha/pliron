@@ -1,6 +1,6 @@
 //! Safe wrappers around llvm_sys::core.
 
-use std::{mem::MaybeUninit, ptr};
+use std::{mem::{forget, MaybeUninit}, ptr};
 
 use llvm_sys::{
     analysis::LLVMVerifyModule,
@@ -33,6 +33,7 @@ use llvm_sys::{
         LLVMStructTypeInContext, LLVMTypeIsSized, LLVMTypeOf, LLVMValueAsBasicBlock,
         LLVMValueIsBasicBlock, LLVMVoidTypeInContext,
     },
+    ir_reader::LLVMParseIRInContext,
     prelude::{
         LLVMBasicBlockRef, LLVMBuilderRef, LLVMContextRef, LLVMMemoryBufferRef, LLVMModuleRef,
         LLVMTypeRef, LLVMValueRef,
@@ -1246,6 +1247,42 @@ impl LLVMModule {
         }
     }
 
+    /// Parse IR in memory buffer to [LLVMModule]
+    pub fn from_ir_in_memory_buffer(
+        context: LLVMContext,
+        memory_buffer: LLVMMemoryBuffer,
+    ) -> Result<LLVMModule, String> {
+        let mut module_ref = MaybeUninit::uninit();
+        let mut err_string = MaybeUninit::uninit();
+
+        let success = unsafe {
+            LLVMParseIRInContext(
+                context.into(),
+                memory_buffer.memory_buffer_ref,
+                module_ref.as_mut_ptr(),
+                err_string.as_mut_ptr(),
+            )
+        };
+
+        // LLVMParseIRInContext consumes the memory buffer.
+        forget(memory_buffer);
+
+        if success != 0 {
+            unsafe {
+                let err_str = err_string.assume_init();
+                let err_string = cstr_to_string(err_str).unwrap();
+                LLVMDisposeMessage(err_str);
+                return Err(err_string);
+            }
+        }
+
+        unsafe {
+            Ok(LLVMModule {
+                module_ref: module_ref.assume_init(),
+            })
+        }
+    }
+
     /// Parse bitcode in file given by filename into a [LLVMModule]
     pub fn from_bitcode_in_file(
         context: LLVMContext,
@@ -1255,8 +1292,17 @@ impl LLVMModule {
         Self::from_bitcode_in_memory_buffer(context, &memory_buffer)
     }
 
+    /// Parse IR in file given by filename into a [LLVMModule]
+    pub fn from_ir_in_file(
+        context: LLVMContext,
+        filename: &str,
+    ) -> Result<LLVMModule, String> {
+        let memory_buffer = LLVMMemoryBuffer::from_file_name(filename)?;
+        Self::from_ir_in_memory_buffer(context, memory_buffer)
+    }
+
     /// Print this Module to a file
-    pub fn ir_to_file(&self, filename: &str) -> Result<(), String> {
+    pub fn to_ir_file(&self, filename: &str) -> Result<(), String> {
         let mut err_string = MaybeUninit::uninit();
         let return_code = unsafe {
             LLVMPrintModuleToFile(
@@ -1279,7 +1325,7 @@ impl LLVMModule {
     }
 
     /// Print this [LLVMModule] bitcode to file
-    pub fn bitcode_to_file(&self, filename: &str) -> Result<(), String> {
+    pub fn to_bitcode_file(&self, filename: &str) -> Result<(), String> {
         unsafe {
             if LLVMWriteBitcodeToFile(self.module_ref, to_c_str(filename).as_ptr()) == 0 {
                 Ok(())

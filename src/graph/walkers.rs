@@ -22,7 +22,7 @@
 //!    Node additions: A node can be inserted into its parent only when the
 //!        parent is visited in a PreOrder walk, before any child is processed.
 //!        This ensures that the new node gets visited.
-//!    Other graph modifications such as changing the order b/w siblings are unsafe.
+//!    Other graph modifications such as changing the order b/w siblings are not safe.
 //!        (i.e., doing so may lead to multiple visits of the same node or
 //!         some nodes remaining unvisited).
 //!    Non-graph modifications are safe.
