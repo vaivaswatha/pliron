@@ -389,7 +389,7 @@ decl_op_interface! {
         {
             let op = &*op.get_operation().deref(ctx);
             if op.get_num_operands() != 1 {
-                return verify_err!(op.loc(), ZeroOpdVerifyErr(op.get_opid().to_string()));
+                return verify_err!(op.loc(), OneOpdVerifyErr(op.get_opid().to_string()));
             }
             Ok(())
         }

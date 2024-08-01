@@ -1,7 +1,10 @@
-//! Walk the IR graph. At each node:
+//! Walk the IR graph.
+//!
+//! At each node:
 //! - Call a callback to process the node.
 //! - Walk over the children.
-//! The relative orders of performing the above is configurable.
+//!
+//!  The relative orders of performing the above is configurable.
 //!
 //! Throughout this module, only parent-child relations are considered,
 //!   i.e., operations->regions, region->blocks and block->operations.

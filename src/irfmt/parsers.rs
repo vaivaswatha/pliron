@@ -1,3 +1,5 @@
+//! Utilities for parsing.
+
 use std::str::FromStr;
 
 use crate::{
@@ -21,11 +23,11 @@ use combine::{
 
 /// Parse from `parser`, ignoring whitespace(s) before and after.
 /// > **Warning**: Do not use this inside inside repeating combiners, such as [combine::many].
-///     After successfully parsing one instance, if spaces are consumed to parse
-///     the next one, but the next one doesn't exist, it is treated as a failure
-///     that consumed some input. This messes things up. So spaces must be consumed
-///     after a successfull parse, and not prior to an upcoming one.
-///     A possibly right way to, for example, parse a comma separated list of [Identifier]s:
+/// >   After successfully parsing one instance, if spaces are consumed to parse
+/// >   the next one, but the next one doesn't exist, it is treated as a failure
+/// >   that consumed some input. This messes things up. So spaces must be consumed
+/// >   after a successfull parse, and not prior to an upcoming one.
+/// >   A possibly right way to, for example, parse a comma separated list of [Identifier]s:
 ///
 ///```
 ///     # use combine::{parser::char::spaces, Parser};

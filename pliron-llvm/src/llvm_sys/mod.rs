@@ -6,6 +6,7 @@
 //!    checks that `phi_node` is indeed a C++ `PHINode`.
 //! 2. `core::llvm_count_param_types(ty: LLVMTypeRef)`
 //!    checks that `ty` is a function type.
+//!
 //! This ensures that there are no undefined behavior / invalid memory accesses.
 //! We do not check for invalid IR that is caught by the verifier.
 //! As a general guideline, ensure that the C-Types (which are C++ base classes)
