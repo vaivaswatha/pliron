@@ -29,5 +29,3 @@ pub mod r#type;
 pub mod uniqued_any;
 pub mod use_def_lists;
 pub mod utils;
-
-pub use once_cell::sync::Lazy;

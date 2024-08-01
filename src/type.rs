@@ -50,6 +50,7 @@ use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::sync::LazyLock;
 use thiserror::Error;
 
 /// Basic functionality that every type in the IR must implement.
@@ -596,10 +597,10 @@ macro_rules! impl_type_interface {
         }
         const _: () = {
             #[linkme::distributed_slice(pliron::r#type::TYPE_INTERFACE_VERIFIERS)]
-            static INTERFACE_VERIFIER: $crate::Lazy<
+            static INTERFACE_VERIFIER: std::sync::LazyLock<
                 (pliron::r#type::TypeId, (std::any::TypeId, pliron::r#type::TypeInterfaceVerifier))
             > =
-            $crate::Lazy::new(||
+            std::sync::LazyLock::new(||
                 ($type_name::get_type_id_static(), (std::any::TypeId::of::<dyn $intr_name>(),
                      <$type_name as $intr_name>::verify))
             );
@@ -609,20 +610,20 @@ macro_rules! impl_type_interface {
 
 /// [Type]s paired with every interface it implements (and the verifier for that interface).
 #[distributed_slice]
-pub static TYPE_INTERFACE_VERIFIERS: [crate::Lazy<(
+pub static TYPE_INTERFACE_VERIFIERS: [LazyLock<(
     TypeId,
     (std::any::TypeId, TypeInterfaceVerifier),
 )>];
 
 /// All interfaces mapped to their super-interfaces
 #[distributed_slice]
-pub static TYPE_INTERFACE_DEPS: [crate::Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>];
+pub static TYPE_INTERFACE_DEPS: [LazyLock<(std::any::TypeId, Vec<std::any::TypeId>)>];
 
 /// A map from every [Type] to its ordered (as per interface deps) list of interface verifiers.
 /// An interface's super-interfaces are to be verified before it itself is.
-pub static TYPE_INTERFACE_VERIFIERS_MAP: crate::Lazy<
+pub static TYPE_INTERFACE_VERIFIERS_MAP: LazyLock<
     FxHashMap<TypeId, Vec<(std::any::TypeId, TypeInterfaceVerifier)>>,
-> = crate::Lazy::new(|| {
+> = LazyLock::new(|| {
     use std::any::TypeId;
     // Collect TYPE_INTERFACE_VERIFIERS into a [TypeId] indexed map.
     let mut type_intr_verifiers = FxHashMap::default();
@@ -748,8 +749,8 @@ macro_rules! decl_type_interface {
         }
         const _: () = {
             #[linkme::distributed_slice(pliron::r#type::TYPE_INTERFACE_DEPS)]
-            static TYPE_INTERFACE_DEP: $crate::Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>
-                = $crate::Lazy::new(|| {
+            static TYPE_INTERFACE_DEP: std::sync::LazyLock<(std::any::TypeId, Vec<std::any::TypeId>)>
+                = std::sync::LazyLock::new(|| {
                     (std::any::TypeId::of::<dyn $intr_name>(), vec![$(std::any::TypeId::of::<dyn $dep>(),)*])
              });
         };

@@ -1,6 +1,6 @@
 //! [Identifier]s are strings used to name entities in programming languages.
 
-use std::{fmt::Display, ops::Deref};
+use std::{fmt::Display, ops::Deref, sync::LazyLock};
 
 use combine::{token, Parser};
 use thiserror::Error;
@@ -18,8 +18,8 @@ use crate::{
 /// Also see [module description](module@crate::identifier).
 pub struct Identifier(String);
 
-static IDENTIFIER_REGEX: crate::Lazy<regex::Regex> =
-    crate::Lazy::new(|| regex::Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$").unwrap());
+static IDENTIFIER_REGEX: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$").unwrap());
 
 impl Identifier {
     /// Attempt to construct a new [Identifier] from a [String].

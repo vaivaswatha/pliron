@@ -35,6 +35,7 @@ use rustc_hash::FxHashMap;
 use std::{
     fmt::{self, Display},
     ops::Deref,
+    sync::LazyLock,
 };
 use thiserror::Error;
 
@@ -272,10 +273,10 @@ macro_rules! impl_op_interface {
         }
         const _: () = {
             #[linkme::distributed_slice(pliron::op::OP_INTERFACE_VERIFIERS)]
-            static INTERFACE_VERIFIER: $crate::Lazy<
+            static INTERFACE_VERIFIER: std::sync::LazyLock<
                 (pliron::op::OpId, (std::any::TypeId, pliron::op::OpInterfaceVerifier))
             > =
-            $crate::Lazy::new(||
+            std::sync::LazyLock::new(||
                 ($op_name::get_opid_static(), (std::any::TypeId::of::<dyn $intr_name>(),
                      <$op_name as $intr_name>::verify))
             );
@@ -285,20 +286,17 @@ macro_rules! impl_op_interface {
 
 /// [Op]s paired with every interface it implements (and the verifier for that interface).
 #[distributed_slice]
-pub static OP_INTERFACE_VERIFIERS: [crate::Lazy<(
-    OpId,
-    (std::any::TypeId, OpInterfaceVerifier),
-)>];
+pub static OP_INTERFACE_VERIFIERS: [LazyLock<(OpId, (std::any::TypeId, OpInterfaceVerifier))>];
 
 /// All interfaces mapped to their super-interfaces
 #[distributed_slice]
-pub static OP_INTERFACE_DEPS: [crate::Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>];
+pub static OP_INTERFACE_DEPS: [LazyLock<(std::any::TypeId, Vec<std::any::TypeId>)>];
 
 /// A map from every [Op] to its ordered (as per interface deps) list of interface verifiers.
 /// An interface's super-interfaces are to be verified before it itself is.
-pub static OP_INTERFACE_VERIFIERS_MAP: crate::Lazy<
+pub static OP_INTERFACE_VERIFIERS_MAP: LazyLock<
     FxHashMap<OpId, Vec<(std::any::TypeId, OpInterfaceVerifier)>>,
-> = crate::Lazy::new(|| {
+> = LazyLock::new(|| {
     use std::any::TypeId;
     // Collect OP_INTERFACE_VERIFIERS into an [OpId] indexed map.
     let mut op_intr_verifiers = FxHashMap::default();
@@ -405,8 +403,8 @@ macro_rules! decl_op_interface {
         }
         const _: () = {
             #[linkme::distributed_slice(pliron::op::OP_INTERFACE_DEPS)]
-            static INTERFACE_DEP: $crate::Lazy<(std::any::TypeId, Vec<std::any::TypeId>)>
-                = $crate::Lazy::new(|| {
+            static INTERFACE_DEP: std::sync::LazyLock<(std::any::TypeId, Vec<std::any::TypeId>)>
+                = std::sync::LazyLock::new(|| {
                     (std::any::TypeId::of::<dyn $intr_name>(), vec![$(std::any::TypeId::of::<dyn $dep>(),)*])
              });
         };

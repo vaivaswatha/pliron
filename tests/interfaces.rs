@@ -1,6 +1,6 @@
 mod common;
 
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
 use common::ReturnOp;
 use expect_test::expect;
@@ -89,8 +89,8 @@ fn check_intrf_verfiy_errs() {
         if err.is::<OneResultVerifyErr>()
     ))
 }
-use pliron::Lazy;
-static TEST_OP_VERIFIERS_OUTPUT: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("".into()));
+
+static TEST_OP_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new("".into()));
 
 decl_op_interface! {
     TestOpInterfaceX {
@@ -205,7 +205,8 @@ impl_attr_interface!(TypedAttrInterface for MyAttr {
     }
 });
 
-static TEST_ATTR_VERIFIERS_OUTPUT: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("".into()));
+static TEST_ATTR_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
+    LazyLock::new(|| Mutex::new("".into()));
 
 #[def_attribute("test.verify_intr_attr")]
 #[derive(PartialEq, Clone, Debug)]
@@ -279,7 +280,8 @@ decl_type_interface! {
 impl_type_interface!(TestTypeInterfaceX for UnitType {});
 impl_type_interface!(TestTypeInterfaceX for IntegerType {});
 
-static TEST_TYPE_VERIFIERS_OUTPUT: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("".into()));
+static TEST_TYPE_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
+    LazyLock::new(|| Mutex::new("".into()));
 
 #[def_type("test.verify_intr_type")]
 #[derive(PartialEq, Clone, Debug, Hash)]

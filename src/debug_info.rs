@@ -1,6 +1,6 @@
 //! Utilities for attaching / retrieving debug info to / from the IR.
 
-use std::collections::hash_map;
+use std::{collections::hash_map, sync::LazyLock};
 
 use crate::{
     attribute::{AttrObj, AttributeDict},
@@ -16,8 +16,8 @@ use crate::{
 };
 
 /// Key into a debug info's variable name.
-pub static DEBUG_INFO_KEY_NAME: pliron::Lazy<Identifier> =
-    pliron::Lazy::new(|| "debug_info_name".try_into().unwrap());
+pub static DEBUG_INFO_KEY_NAME: LazyLock<Identifier> =
+    LazyLock::new(|| "debug_info_name".try_into().unwrap());
 
 fn set_name_from_attr_map(
     attributes: &mut AttributeDict,

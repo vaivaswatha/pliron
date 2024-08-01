@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use apint::ApInt;
 use pliron::{
     attribute::AttrObj,
@@ -81,8 +83,8 @@ impl_verify_succ!(ConstantOp);
 impl_op_interface! (ZeroOpdInterface for ConstantOp {});
 impl_op_interface! (OneResultInterface for ConstantOp {});
 impl ConstantOp {
-    pub const ATTR_KEY_VALUE: pliron::Lazy<Identifier> =
-        pliron::Lazy::new(|| "constant_value".try_into().unwrap());
+    pub const ATTR_KEY_VALUE: LazyLock<Identifier> =
+        LazyLock::new(|| "constant_value".try_into().unwrap());
 
     pub fn new(ctx: &mut Context, value: u64) -> Self {
         let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);

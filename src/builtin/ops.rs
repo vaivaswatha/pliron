@@ -139,10 +139,12 @@ impl_op_interface!(ZeroResultInterface for ModuleOp {});
 pub struct FuncOp {}
 
 pub mod func_op {
+    use std::sync::LazyLock;
+
     use super::*;
     /// Attribute key for the function type.
-    pub static ATTR_KEY_FUNC_TYPE: crate::Lazy<Identifier> =
-        crate::Lazy::new(|| "builtin_func_type".try_into().unwrap());
+    pub static ATTR_KEY_FUNC_TYPE: LazyLock<Identifier> =
+        LazyLock::new(|| "builtin_func_type".try_into().unwrap());
 }
 
 impl FuncOp {

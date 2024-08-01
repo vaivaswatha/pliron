@@ -237,10 +237,12 @@ pub enum ICmpOpVerifyErr {
 pub struct ICmpOp {}
 
 pub mod icmp_op {
+    use std::sync::LazyLock;
+
     use super::*;
 
-    pub static ATTR_KEY_PREDICATE: pliron::Lazy<Identifier> =
-        pliron::Lazy::new(|| "llvm_icmp_predicate".try_into().unwrap());
+    pub static ATTR_KEY_PREDICATE: LazyLock<Identifier> =
+        LazyLock::new(|| "llvm_icmp_predicate".try_into().unwrap());
 }
 
 impl ICmpOp {
@@ -369,9 +371,11 @@ impl_op_interface!(PointerTypeResult for AllocaOp {
 });
 
 pub mod alloca_op {
+    use std::sync::LazyLock;
+
     use super::*;
-    pub static ATTR_KEY_ELEM_TYPE: pliron::Lazy<Identifier> =
-        pliron::Lazy::new(|| "llvm_alloca_element_type".try_into().unwrap());
+    pub static ATTR_KEY_ELEM_TYPE: LazyLock<Identifier> =
+        LazyLock::new(|| "llvm_alloca_element_type".try_into().unwrap());
 }
 
 impl AllocaOp {
@@ -599,13 +603,15 @@ impl Verify for GetElementPtrOp {
 }
 
 pub mod gep_op {
+    use std::sync::LazyLock;
+
     use super::*;
     /// [Attribute](pliron::attribute::Attribute) to get the indices vector.
-    pub static ATTR_KEY_INDICES: pliron::Lazy<Identifier> =
-        pliron::Lazy::new(|| "llvm_gep_indices".try_into().unwrap());
+    pub static ATTR_KEY_INDICES: LazyLock<Identifier> =
+        LazyLock::new(|| "llvm_gep_indices".try_into().unwrap());
     /// [Attribute](pliron::attribute::Attribute) to get the source element type.
-    pub static ATTR_KEY_SRC_ELEM_TYPE: pliron::Lazy<Identifier> =
-        pliron::Lazy::new(|| "llvm_gep_src_elem_type".try_into().unwrap());
+    pub static ATTR_KEY_SRC_ELEM_TYPE: LazyLock<Identifier> =
+        LazyLock::new(|| "llvm_gep_src_elem_type".try_into().unwrap());
 }
 
 impl GetElementPtrOp {
@@ -845,9 +851,11 @@ impl_op_interface!(ZeroResultInterface for LoadOp {});
 pub struct CallOp {}
 
 pub mod call_op {
+    use std::sync::LazyLock;
+
     use super::*;
-    pub static ATTR_KEY_CALLEE: pliron::Lazy<Identifier> =
-        pliron::Lazy::new(|| "llvm_call_callee".try_into().unwrap());
+    pub static ATTR_KEY_CALLEE: LazyLock<Identifier> =
+        LazyLock::new(|| "llvm_call_callee".try_into().unwrap());
 }
 
 impl CallOp {
@@ -957,10 +965,12 @@ impl UndefOp {
 pub struct ConstantOp {}
 
 pub mod constant_op {
+    use std::sync::LazyLock;
+
     use super::*;
     /// Attribute key for the constant value.
-    pub static ATTR_KEY_VALUE: pliron::Lazy<Identifier> =
-        pliron::Lazy::new(|| "llvm_constant_value".try_into().unwrap());
+    pub static ATTR_KEY_VALUE: LazyLock<Identifier> =
+        LazyLock::new(|| "llvm_constant_value".try_into().unwrap());
 }
 
 impl ConstantOp {

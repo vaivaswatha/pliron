@@ -1,13 +1,12 @@
 //! Tests that compile code and run it.
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::LazyLock};
 
 use assert_cmd::Command;
 use expect_test::expect;
-use pliron::Lazy;
 use tempfile::tempdir;
 
-static RESOURCES_DIR: pliron::Lazy<PathBuf> = Lazy::new(|| {
+static RESOURCES_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     [env!("CARGO_MANIFEST_DIR"), "tests", "resources"]
         .iter()
         .collect()

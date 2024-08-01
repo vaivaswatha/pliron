@@ -1,5 +1,7 @@
 //! [Op] Interfaces defined in the LLVM dialect.
 
+use std::sync::LazyLock;
+
 use thiserror::Error;
 
 use pliron::{
@@ -87,8 +89,8 @@ decl_op_interface! {
 }
 
 /// Attribute key for integer overflow flags.
-pub static ATTR_KEY_INTEGER_OVERFLOW_FLAGS: pliron::Lazy<Identifier> =
-    pliron::Lazy::new(|| "llvm_integer_overflow_flags".try_into().unwrap());
+pub static ATTR_KEY_INTEGER_OVERFLOW_FLAGS: LazyLock<Identifier> =
+    LazyLock::new(|| "llvm_integer_overflow_flags".try_into().unwrap());
 
 #[derive(Error, Debug)]
 #[error("IntegerOverflowFlag missing on Op")]

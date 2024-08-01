@@ -6,6 +6,8 @@ pub mod op_interfaces;
 pub mod ops;
 pub mod types;
 
+use std::sync::LazyLock;
+
 use crate::{
     context::Context,
     dialect::{Dialect, DialectName},
@@ -21,5 +23,5 @@ pub fn register(ctx: &mut Context) {
 }
 
 /// Key for debug info related attributes.
-pub static ATTR_KEY_DEBUG_INFO: crate::Lazy<Identifier> =
-    crate::Lazy::new(|| "builtin_debug_info".try_into().unwrap());
+pub static ATTR_KEY_DEBUG_INFO: LazyLock<Identifier> =
+    LazyLock::new(|| "builtin_debug_info".try_into().unwrap());

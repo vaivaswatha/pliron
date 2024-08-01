@@ -1,4 +1,4 @@
-use std::collections::hash_map;
+use std::{collections::hash_map, sync::LazyLock};
 
 use rustc_hash::FxHashMap;
 use thiserror::Error;
@@ -193,8 +193,8 @@ decl_op_interface! {
 }
 
 /// Key for symbol name attribute when the operation defines a symbol.
-pub static ATTR_KEY_SYM_NAME: crate::Lazy<Identifier> =
-    crate::Lazy::new(|| "builtin_sym_name".try_into().unwrap());
+pub static ATTR_KEY_SYM_NAME: LazyLock<Identifier> =
+    LazyLock::new(|| "builtin_sym_name".try_into().unwrap());
 
 #[derive(Error, Debug)]
 #[error("Op implementing SymbolOpInterface does not have a symbol defined")]
@@ -550,8 +550,8 @@ pub enum CallOpInterfaceErr {
     CalleeTypeAttrIncorrectTypeErr,
 }
 
-pub static ATTR_KEY_CALLEE_TYPE: crate::Lazy<Identifier> =
-    crate::Lazy::new(|| "builtin_callee_type".try_into().unwrap());
+pub static ATTR_KEY_CALLEE_TYPE: LazyLock<Identifier> =
+    LazyLock::new(|| "builtin_callee_type".try_into().unwrap());
 
 decl_op_interface! {
     /// A call-like op: Transfers control from one function to another.

@@ -5,7 +5,10 @@
 //! a trait and needs to be casted to it, and then use [any_to_trait]
 //! to do the actual cast. See their documentation for details and examples.
 
-use std::any::{Any, TypeId};
+use std::{
+    any::{Any, TypeId},
+    sync::LazyLock,
+};
 
 use downcast_rs::Downcast;
 use dyn_clone::DynClone;
@@ -57,11 +60,11 @@ dyn_clone::clone_trait_object!(ClonableAny);
 impl<T: Any + DynClone + Downcast> ClonableAny for T {}
 
 #[distributed_slice]
-pub static TRAIT_CASTERS: [crate::Lazy<((TypeId, TypeId), Box<dyn ClonableAny + Sync + Send>)>];
+pub static TRAIT_CASTERS: [LazyLock<((TypeId, TypeId), Box<dyn ClonableAny + Sync + Send>)>];
 
-static TRAIT_CASTERS_MAP: crate::Lazy<
+static TRAIT_CASTERS_MAP: LazyLock<
     FxHashMap<(TypeId, TypeId), Box<dyn ClonableAny + Sync + Send>>,
-> = crate::Lazy::new(|| {
+> = LazyLock::new(|| {
     TRAIT_CASTERS
         .iter()
         .map(|lazy_tuple| (**lazy_tuple).clone())
@@ -94,10 +97,10 @@ macro_rules! type_to_trait {
         // The rust way to do an anonymous module.
         const _: () = {
             #[linkme::distributed_slice($crate::utils::trait_cast::TRAIT_CASTERS)]
-            static CAST_TO_TRAIT: $crate::Lazy<(
+            static CAST_TO_TRAIT: std::sync::LazyLock<(
                 (std::any::TypeId, std::any::TypeId),
                 Box<dyn $crate::utils::trait_cast::ClonableAny + Sync + Send>,
-            )> = $crate::Lazy::new(|| {
+            )> = std::sync::LazyLock::new(|| {
                 (
                     (
                         std::any::TypeId::of::<$ty_name>(),
