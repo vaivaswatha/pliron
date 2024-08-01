@@ -18,9 +18,9 @@ use llvm_sys::{
         LLVMClearInsertionPosition, LLVMConstInt, LLVMConstIntGetZExtValue, LLVMContextCreate,
         LLVMCountIncoming, LLVMCountParamTypes, LLVMCountParams, LLVMCountStructElementTypes,
         LLVMCreateBuilderInContext, LLVMCreateMemoryBufferWithContentsOfFile,
-        LLVMDisposeMemoryBuffer, LLVMDisposeMessage, LLVMDisposeModule, LLVMFunctionType,
-        LLVMGetAllocatedType, LLVMGetArrayLength2, LLVMGetBasicBlockName,
-        LLVMGetBasicBlockTerminator, LLVMGetConstOpcode, LLVMGetElementType,
+        LLVMDisposeMemoryBuffer, LLVMDisposeMessage, LLVMDisposeModule, LLVMDumpModule,
+        LLVMDumpType, LLVMDumpValue, LLVMFunctionType, LLVMGetAllocatedType, LLVMGetArrayLength2,
+        LLVMGetBasicBlockName, LLVMGetBasicBlockTerminator, LLVMGetConstOpcode, LLVMGetElementType,
         LLVMGetFirstBasicBlock, LLVMGetFirstFunction, LLVMGetFirstInstruction, LLVMGetFirstParam,
         LLVMGetICmpPredicate, LLVMGetIncomingBlock, LLVMGetIncomingValue, LLVMGetInsertBlock,
         LLVMGetInstructionOpcode, LLVMGetInstructionParent, LLVMGetIntTypeWidth,
@@ -151,6 +151,21 @@ pub fn llvm_get_module_identifier(module: &LLVMModule) -> Option<String> {
         return None;
     }
     sized_cstr_to_string(buf_ptr, len)
+}
+
+/// LLVMDumpValue
+pub fn llvm_dump_value(val: LLVMValue) {
+    unsafe { LLVMDumpValue(val.into()) }
+}
+
+/// LLVMDumpType
+pub fn llvm_dump_type(ty: LLVMType) {
+    unsafe { LLVMDumpType(ty.into()) }
+}
+
+/// LLVMDumpModule
+pub fn llvm_dump_module(module: &LLVMModule) {
+    unsafe { LLVMDumpModule(module.module_ref) }
 }
 
 /// The family of LLVMIsA* functions for Value
