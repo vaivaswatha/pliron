@@ -7,8 +7,8 @@ use pliron::{
     builtin::{
         attributes::{FloatAttr, IntegerAttr},
         op_interfaces::{
-            BranchOpInterface, OneOpdInterface, OneRegionInterface, OneResultInterface,
-            SingleBlockRegionInterface, SymbolOpInterface,
+            BranchOpInterface, CallOpCallable, CallOpInterface, OneOpdInterface,
+            OneRegionInterface, OneResultInterface, SingleBlockRegionInterface, SymbolOpInterface,
         },
         ops::{FuncOp, ModuleOp},
         types::{FunctionType, IntegerType},
@@ -17,6 +17,7 @@ use pliron::{
     context::{Context, Ptr},
     decl_op_interface, decl_type_interface,
     graph::traversals::region::topological_order,
+    identifier::Identifier,
     impl_op_interface, impl_type_interface, input_err, input_err_noloc, input_error_noloc,
     linked_list::{ContainsLinkedList, LinkedList},
     location::Located,
@@ -35,41 +36,51 @@ use crate::{
     llvm_sys::core::{
         instruction_iter, llvm_add_function, llvm_add_incoming, llvm_append_basic_block_in_context,
         llvm_array_type2, llvm_build_add, llvm_build_and, llvm_build_array_alloca,
-        llvm_build_bitcast, llvm_build_br, llvm_build_cond_br, llvm_build_icmp, llvm_build_load2,
-        llvm_build_mul, llvm_build_or, llvm_build_phi, llvm_build_ret, llvm_build_ret_void,
-        llvm_build_sdiv, llvm_build_shl, llvm_build_srem, llvm_build_store, llvm_build_sub,
-        llvm_build_udiv, llvm_build_urem, llvm_build_xor, llvm_const_int,
-        llvm_create_builder_in_context, llvm_function_type, llvm_get_param, llvm_get_undef,
-        llvm_int_type_in_context, llvm_is_a, llvm_pointer_type_in_context,
+        llvm_build_bitcast, llvm_build_br, llvm_build_call2, llvm_build_cond_br, llvm_build_icmp,
+        llvm_build_load2, llvm_build_mul, llvm_build_or, llvm_build_phi, llvm_build_ret,
+        llvm_build_ret_void, llvm_build_sdiv, llvm_build_shl, llvm_build_srem, llvm_build_store,
+        llvm_build_sub, llvm_build_udiv, llvm_build_urem, llvm_build_xor,
+        llvm_clear_insertion_position, llvm_const_int, llvm_function_type, llvm_get_param,
+        llvm_get_undef, llvm_int_type_in_context, llvm_is_a, llvm_pointer_type_in_context,
         llvm_position_builder_at_end, llvm_struct_create_named, llvm_struct_set_body,
         llvm_struct_type_in_context, llvm_void_type_in_context, LLVMBasicBlock, LLVMBuilder,
         LLVMContext, LLVMModule, LLVMType, LLVMValue,
     },
     op_interfaces::PointerTypeResult,
     ops::{
-        AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CondBrOp, ConstantOp, ICmpOp, LoadOp, MulOp, OrOp,
-        ReturnOp, SDivOp, SRemOp, ShlOp, StoreOp, SubOp, UDivOp, URemOp, UndefOp, XorOp,
+        AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp, ICmpOp, LoadOp,
+        MulOp, OrOp, ReturnOp, SDivOp, SRemOp, ShlOp, StoreOp, SubOp, UDivOp, URemOp, UndefOp,
+        XorOp,
     },
     types::{ArrayType, PointerType, StructType, VoidType},
 };
 
 /// Mapping from pliron entities to LLVM entities.
 pub struct ConversionContext {
-    // A map from LLVM Values to pliron's Values.
+    // A map from pliron Values to LLVM Values.
     value_map: FxHashMap<Value, LLVMValue>,
-    // A map from LLVM basic blocks to plirons'.
+    // A map from pliron basic blocks to LLVM.
     block_map: FxHashMap<Ptr<BasicBlock>, LLVMBasicBlock>,
+    // A map from pliron functions to LLVM functions.
+    function_map: FxHashMap<Identifier, LLVMValue>,
     // The active LLVM builder.
     builder: LLVMBuilder,
 }
 
 impl ConversionContext {
-    pub fn new(llvm_ctx: LLVMContext) -> Self {
+    pub fn new(llvm_ctx: &LLVMContext) -> Self {
         Self {
             value_map: FxHashMap::default(),
             block_map: FxHashMap::default(),
-            builder: llvm_create_builder_in_context(llvm_ctx),
+            function_map: FxHashMap::default(),
+            builder: LLVMBuilder::new(llvm_ctx),
         }
+    }
+
+    pub fn clear_per_function_data(&mut self) {
+        self.value_map.clear();
+        self.block_map.clear();
+        llvm_clear_insertion_position(&self.builder);
     }
 }
 
@@ -79,8 +90,6 @@ pub enum ToLLVMErr {
     MissingTypeConversion(String),
     #[error("Operation {0} does not have a conversion to LLVM instruction implemented")]
     MissingOpConversion(String),
-    #[error("FuncOp must implement ToLLVMType and have FunctionType")]
-    FuncOpTypeErr,
     #[error("Definition for value {0} not seen yet")]
     UndefinedValue(String),
     #[error("Block definition {0} not seen yet")]
@@ -113,7 +122,7 @@ decl_type_interface! {
         fn convert(
             &self,
             ctx: &Context,
-            llvm_ctx: LLVMContext) -> Result<LLVMType>;
+            llvm_ctx: &LLVMContext) -> Result<LLVMType>;
 
         fn verify(_type: &dyn Type, _ctx: &Context) -> Result<()>
         where Self: Sized,
@@ -129,7 +138,7 @@ decl_op_interface! {
         /// Convert from pliron [Op] to [LLVMValue].
         fn convert(
             &self, ctx: &Context,
-            llvm_ctx: LLVMContext,
+            llvm_ctx: &LLVMContext,
             cctx: &mut ConversionContext) -> Result<LLVMValue>;
 
         fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
@@ -145,7 +154,7 @@ impl_type_interface!(
         fn convert(
             &self,
             _ctx: &Context,
-            llvm_ctx: LLVMContext) -> Result<LLVMType>
+            llvm_ctx: &LLVMContext) -> Result<LLVMType>
         {
             Ok(llvm_int_type_in_context(llvm_ctx, self.get_width()))
         }
@@ -157,7 +166,7 @@ impl_type_interface!(
         fn convert(
             &self,
             ctx: &Context,
-            llvm_ctx: LLVMContext) -> Result<LLVMType>
+            llvm_ctx: &LLVMContext) -> Result<LLVMType>
         {
             let elem_ty = convert_type(ctx, llvm_ctx, self.elem_type())?;
             Ok(llvm_array_type2(elem_ty, self.size()))
@@ -170,7 +179,7 @@ impl_type_interface!(
         fn convert(
             &self,
             ctx: &Context,
-            llvm_ctx: LLVMContext) -> Result<LLVMType>
+            llvm_ctx: &LLVMContext) -> Result<LLVMType>
         {
             let args_tys: Vec<_> =
                 self.get_inputs()
@@ -192,7 +201,7 @@ impl_type_interface!(
         fn convert(
             &self,
             _ctx: &Context,
-            llvm_ctx: LLVMContext) -> Result<LLVMType>
+            llvm_ctx: &LLVMContext) -> Result<LLVMType>
         {
             Ok(llvm_void_type_in_context(llvm_ctx))
         }
@@ -204,7 +213,7 @@ impl_type_interface!(
         fn convert(
             &self,
             _ctx: &Context,
-            llvm_ctx: LLVMContext) -> Result<LLVMType>
+            llvm_ctx: &LLVMContext) -> Result<LLVMType>
         {
             Ok(llvm_pointer_type_in_context(llvm_ctx, 0))
         }
@@ -216,7 +225,7 @@ impl_type_interface!(
         fn convert(
             &self,
             ctx: &Context,
-            llvm_ctx: LLVMContext) -> Result<LLVMType>
+            llvm_ctx: &LLVMContext) -> Result<LLVMType>
         {
             if self.is_opaque() {
                 let name = self.name().expect("Opaqaue struct must have a name");
@@ -241,7 +250,7 @@ impl_type_interface!(
 );
 
 /// Convert a pliron [Type] to [LLVMType].
-pub fn convert_type(ctx: &Context, llvm_ctx: LLVMContext, ty: Ptr<TypeObj>) -> Result<LLVMType> {
+pub fn convert_type(ctx: &Context, llvm_ctx: &LLVMContext, ty: Ptr<TypeObj>) -> Result<LLVMType> {
     if let Some(converter) = type_cast::<dyn ToLLVMType>(&**ty.deref(ctx)) {
         return converter.convert(ctx, llvm_ctx);
     }
@@ -258,7 +267,7 @@ fn convert_value_operand(
     match cctx.value_map.get(value) {
         Some(v) => Ok(*v),
         None => {
-            input_err_noloc!(ToLLVMErr::UndefinedValue(value.unique_name(ctx)))
+            input_err_noloc!(ToLLVMErr::UndefinedValue(value.unique_name(ctx).into()))
         }
     }
 }
@@ -271,7 +280,7 @@ fn convert_block_operand(
     match cctx.block_map.get(&block) {
         Some(v) => Ok(*v),
         None => {
-            input_err_noloc!(ToLLVMErr::UndefinedBlock(block.unique_name(ctx)))
+            input_err_noloc!(ToLLVMErr::UndefinedBlock(block.unique_name(ctx).into()))
         }
     }
 }
@@ -284,14 +293,14 @@ macro_rules! to_llvm_value_int_bin_op {
             fn convert(
                 &self,
                 ctx: &Context,
-                _llvm_ctx: LLVMContext,
+                _llvm_ctx:&LLVMContext,
                 cctx: &mut ConversionContext,
             ) -> Result<LLVMValue> {
                 let op = self.get_operation().deref(ctx);
                 let (lhs, rhs) = (op.get_operand(0), op.get_operand(1));
                 let lhs = convert_value_operand(cctx, ctx, &lhs)?;
                 let rhs = convert_value_operand(cctx, ctx, &rhs)?;
-                Ok($builder_function(cctx.builder, lhs, rhs, &self.get_result(ctx).unique_name(ctx)))
+                Ok($builder_function(&cctx.builder, lhs, rhs, &self.get_result(ctx).unique_name(ctx)))
             }
         });
     };
@@ -313,12 +322,12 @@ impl_op_interface! (ToLLVMValue for AllocaOp {
     fn convert(
         &self,
         ctx: &Context,
-        llvm_ctx: LLVMContext,
+        llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let ty = convert_type(ctx, llvm_ctx, self.result_pointee_type(ctx))?;
         let size = convert_value_operand(cctx, ctx, &self.get_operand(ctx))?;
-        let alloca_op = llvm_build_array_alloca(cctx
+        let alloca_op = llvm_build_array_alloca(&cctx
             .builder, ty, size, &self.get_result(ctx).unique_name(ctx));
         Ok(alloca_op)
     }
@@ -328,12 +337,12 @@ impl_op_interface! (ToLLVMValue for BitcastOp {
     fn convert(
         &self,
         ctx: &Context,
-        llvm_ctx: LLVMContext,
+        llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let arg = convert_value_operand(cctx, ctx, &self.get_operand(ctx))?;
         let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
-        let bitcast_op = llvm_build_bitcast(cctx.builder, arg, ty,&self.get_result(ctx).unique_name(ctx));
+        let bitcast_op = llvm_build_bitcast(&cctx.builder, arg, ty,&self.get_result(ctx).unique_name(ctx));
         Ok(bitcast_op)
     }
 });
@@ -373,13 +382,13 @@ impl_op_interface! (ToLLVMValue for BrOp {
     fn convert(
         &self,
         ctx: &Context,
-        _llvm_ctx: LLVMContext,
+        _llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
         let succ = op.get_successor(0);
         let succ_llvm = convert_block_operand(cctx, ctx, succ)?;
-        let branch_op = llvm_build_br(cctx.builder, succ_llvm);
+        let branch_op = llvm_build_br(&cctx.builder, succ_llvm);
 
         // Link the arguments we pass to the block with the PHIs there.
         link_succ_operands_with_phis(
@@ -398,7 +407,7 @@ impl_op_interface! (ToLLVMValue for CondBrOp {
     fn convert(
         &self,
         ctx: &Context,
-        _llvm_ctx: LLVMContext,
+        _llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
@@ -407,7 +416,7 @@ impl_op_interface! (ToLLVMValue for CondBrOp {
         let false_succ_llvm = convert_block_operand(cctx, ctx, false_succ)?;
         let cond = convert_value_operand(cctx, ctx, &self.condition(ctx))?;
 
-        let branch_op = llvm_build_cond_br(cctx
+        let branch_op = llvm_build_cond_br(&cctx
             .builder, cond, true_succ_llvm, false_succ_llvm);
 
         // Link the arguments we pass to the block with the PHIs there.
@@ -434,12 +443,12 @@ impl_op_interface! (ToLLVMValue for LoadOp {
     fn convert(
         &self,
         ctx: &Context,
-        llvm_ctx: LLVMContext,
+        llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let pointee_ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
         let ptr = convert_value_operand(cctx, ctx, &self.get_operand(ctx))?;
-        let load_op = llvm_build_load2(cctx
+        let load_op = llvm_build_load2(&cctx
             .builder, pointee_ty, ptr, &self.get_result(ctx).unique_name(ctx));
         Ok(load_op)
     }
@@ -449,12 +458,12 @@ impl_op_interface! (ToLLVMValue for StoreOp {
     fn convert(
         &self,
         ctx: &Context,
-        _llvm_ctx: LLVMContext,
+        _llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let value = convert_value_operand(cctx, ctx, &self.value_opd(ctx))?;
         let ptr = convert_value_operand(cctx, ctx, &self.address_opd(ctx))?;
-        let store_op = llvm_build_store(cctx.builder, value, ptr);
+        let store_op = llvm_build_store(&cctx.builder, value, ptr);
         Ok(store_op)
     }
 });
@@ -463,7 +472,7 @@ impl_op_interface! (ToLLVMValue for ICmpOp {
     fn convert(
         &self,
         ctx: &Context,
-        _llvm_ctx: LLVMContext,
+        _llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
@@ -471,7 +480,7 @@ impl_op_interface! (ToLLVMValue for ICmpOp {
         let lhs= convert_value_operand(cctx, ctx, &op.get_operand(0))?;
         let rhs= convert_value_operand(cctx, ctx, &op.get_operand(1))?;
         let icmp_op = llvm_build_icmp
-            (cctx.builder, predicate, lhs, rhs, &self.get_result(ctx).unique_name(ctx));
+            (&cctx.builder, predicate, lhs, rhs, &self.get_result(ctx).unique_name(ctx));
         Ok(icmp_op)
     }
 });
@@ -480,15 +489,15 @@ impl_op_interface! (ToLLVMValue for ReturnOp {
     fn convert(
         &self,
         ctx: &Context,
-        _llvm_ctx: LLVMContext,
+        _llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let ret_op =
             if let Some(retval) = self.retval(ctx) {
                 let retval = convert_value_operand(cctx, ctx, &retval)?;
-                llvm_build_ret(cctx.builder, retval)
+                llvm_build_ret(&cctx.builder, retval)
             } else {
-                llvm_build_ret_void(cctx.builder)
+                llvm_build_ret_void(&cctx.builder)
             };
         Ok(ret_op)
     }
@@ -498,7 +507,7 @@ impl_op_interface! (ToLLVMValue for ConstantOp {
     fn convert(
         &self,
         ctx: &Context,
-        llvm_ctx: LLVMContext,
+        llvm_ctx: &LLVMContext,
         _cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
@@ -521,7 +530,7 @@ impl_op_interface! (ToLLVMValue for UndefOp {
     fn convert(
         &self,
         ctx: &Context,
-        llvm_ctx: LLVMContext,
+        llvm_ctx: &LLVMContext,
         _cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
@@ -529,15 +538,40 @@ impl_op_interface! (ToLLVMValue for UndefOp {
     }
 });
 
+impl_op_interface! (ToLLVMValue for CallOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        if let CallOpCallable::Direct(callee_sym) = self.callee(ctx) {
+            let callee = *cctx.function_map.get(&callee_sym).ok_or_else(||
+                input_error_noloc!(
+                    ToLLVMErr::UndefinedValue(callee_sym.to_string())
+                ))?;
+            let args: Vec<_> = self
+                .args(ctx)
+                .into_iter()
+                .map(|v|convert_value_operand(cctx, ctx, &v)).collect::<Result<_>>()?;
+            let ty = convert_type(ctx, llvm_ctx, self.callee_type(ctx).into())?;
+            let call_val = llvm_build_call2(&cctx.builder, ty, callee, &args, &self.get_result(ctx).unique_name(ctx));
+            Ok(call_val)
+        } else {
+            todo!()
+        }
+    }
+});
+
 /// Conver a pliron [BasicBlock] to [LLVMBasicBlock].
 fn convert_block(
     ctx: &Context,
-    llvm_ctx: LLVMContext,
+    llvm_ctx: &LLVMContext,
     cctx: &mut ConversionContext,
     block: Ptr<BasicBlock>,
 ) -> Result<()> {
     let block_llvm = cctx.block_map[&block];
-    llvm_position_builder_at_end(cctx.builder, block_llvm);
+    llvm_position_builder_at_end(&cctx.builder, block_llvm);
 
     for (op, loc) in block
         .deref(ctx)
@@ -564,16 +598,12 @@ fn convert_block(
 /// Convert a pliron [FuncOp] to [LLVMValue]
 fn convert_function(
     ctx: &Context,
-    llvm_ctx: LLVMContext,
-    module_llvm: &LLVMModule,
+    llvm_ctx: &LLVMContext,
+    cctx: &mut ConversionContext,
     func_op: FuncOp,
 ) -> Result<LLVMValue> {
-    let func_ty = func_op.get_type(ctx).deref(ctx);
-    let func_ty_to_llvm = type_cast::<dyn ToLLVMType>(&**func_ty)
-        .ok_or(input_error_noloc!(ToLLVMErr::FuncOpTypeErr))?;
-    let fn_ty_llvm = func_ty_to_llvm.convert(ctx, llvm_ctx)?;
-    let cctx = &mut ConversionContext::new(llvm_ctx);
-    let func_llvm = llvm_add_function(module_llvm, &func_op.get_symbol_name(ctx), fn_ty_llvm);
+    cctx.clear_per_function_data();
+    let func_llvm = cctx.function_map[&func_op.get_symbol_name(ctx)];
 
     // Map all blocks, staring with entry.
     let mut block_iter = func_op.get_region(ctx).deref(ctx).iter(ctx);
@@ -598,11 +628,10 @@ fn convert_function(
             func_llvm,
             &block.deref(ctx).unique_name(ctx),
         );
-        let builder = llvm_create_builder_in_context(llvm_ctx);
-        llvm_position_builder_at_end(builder, llvm_block);
+        llvm_position_builder_at_end(&cctx.builder, llvm_block);
         for arg in block.deref(ctx).arguments() {
             let arg_type = convert_type(ctx, llvm_ctx, arg.get_type(ctx))?;
-            let phi = llvm_build_phi(builder, arg_type, &arg.unique_name(ctx));
+            let phi = llvm_build_phi(&cctx.builder, arg_type, &arg.unique_name(ctx));
             cctx.value_map.insert(arg, phi);
         }
         cctx.block_map.insert(block, llvm_block);
@@ -619,15 +648,33 @@ fn convert_function(
 /// Convert pliron [ModuleOp] to [LLVMModule].
 pub fn convert_module(
     ctx: &Context,
-    llvm_ctx: LLVMContext,
+    llvm_ctx: &LLVMContext,
     module: ModuleOp,
 ) -> Result<LLVMModule> {
     let mod_name = module.get_symbol_name(ctx);
     let llvm_module = LLVMModule::new(&mod_name, llvm_ctx);
+    let cctx = &mut ConversionContext::new(llvm_ctx);
+
+    // Create new functions and map them.
+    for op in module.get_body(ctx, 0).deref(ctx).iter(ctx) {
+        if let Some(func_op) = Operation::get_op(op, ctx).downcast_ref::<FuncOp>() {
+            let func_ty = func_op.get_type(ctx).deref(ctx);
+            let func_ty_to_llvm =
+                type_cast::<dyn ToLLVMType>(&**func_ty).ok_or(input_error_noloc!(
+                    ToLLVMErr::MissingOpConversion(func_ty.disp(ctx).to_string())
+                ))?;
+            let fn_ty_llvm = func_ty_to_llvm.convert(ctx, llvm_ctx)?;
+            let func_llvm =
+                llvm_add_function(&llvm_module, &func_op.get_symbol_name(ctx), fn_ty_llvm);
+            cctx.function_map
+                .insert(func_op.get_symbol_name(ctx), func_llvm);
+        }
+        // TODO: Globals?
+    }
 
     for op in module.get_body(ctx, 0).deref(ctx).iter(ctx) {
         if let Some(func_op) = Operation::get_op(op, ctx).downcast_ref::<FuncOp>() {
-            convert_function(ctx, llvm_ctx, &llvm_module, *func_op)?;
+            convert_function(ctx, llvm_ctx, cctx, *func_op)?;
         }
         // TODO: Globals
     }

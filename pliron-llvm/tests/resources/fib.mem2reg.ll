@@ -4,44 +4,50 @@ target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16
 target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: noinline nounwind uwtable
+define dso_local i32 @id(i32 noundef %0) #0 {
+  ret i32 %0
+}
+
+; Function Attrs: noinline nounwind uwtable
 define dso_local i32 @fib(i32 noundef %0) #0 {
   %2 = icmp sle i32 %0, 1
   br i1 %2, label %3, label %4
 
 3:                                                ; preds = %1
-  br label %15
+  br label %16
 
 4:                                                ; preds = %1
   %5 = icmp eq i32 %0, 2
   br i1 %5, label %6, label %7
 
 6:                                                ; preds = %4
-  br label %15
+  br label %16
 
 7:                                                ; preds = %4
   br label %8
 
-8:                                                ; preds = %12, %7
-  %.04 = phi i32 [ undef, %7 ], [ %11, %12 ]
-  %.03 = phi i32 [ 1, %7 ], [ %11, %12 ]
-  %.02 = phi i32 [ 0, %7 ], [ %.03, %12 ]
-  %.01 = phi i32 [ 3, %7 ], [ %13, %12 ]
+8:                                                ; preds = %13, %7
+  %.04 = phi i32 [ undef, %7 ], [ %11, %13 ]
+  %.03 = phi i32 [ 1, %7 ], [ %12, %13 ]
+  %.02 = phi i32 [ 0, %7 ], [ %.03, %13 ]
+  %.01 = phi i32 [ 3, %7 ], [ %14, %13 ]
   %9 = icmp sle i32 %.01, %0
-  br i1 %9, label %10, label %14
+  br i1 %9, label %10, label %15
 
 10:                                               ; preds = %8
   %11 = add nsw i32 %.03, %.02
-  br label %12
+  %12 = call i32 @id(i32 noundef %11)
+  br label %13
 
-12:                                               ; preds = %10
-  %13 = add nsw i32 %.01, 1
+13:                                               ; preds = %10
+  %14 = add nsw i32 %.01, 1
   br label %8, !llvm.loop !6
 
-14:                                               ; preds = %8
-  br label %15
+15:                                               ; preds = %8
+  br label %16
 
-15:                                               ; preds = %14, %6, %3
-  %.0 = phi i32 [ 0, %3 ], [ 1, %6 ], [ %.04, %14 ]
+16:                                               ; preds = %15, %6, %3
+  %.0 = phi i32 [ 0, %3 ], [ 1, %6 ], [ %.04, %15 ]
   ret i32 %.0
 }
 

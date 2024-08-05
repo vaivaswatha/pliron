@@ -6,7 +6,7 @@ use crate::{
     attribute::{AttrObj, AttributeDict},
     basic_block::BasicBlock,
     builtin::{
-        attributes::{DictAttr, StringAttr, UnitAttr, VecAttr},
+        attributes::{DictAttr, IdentifierAttr, UnitAttr, VecAttr},
         ATTR_KEY_DEBUG_INFO,
     },
     context::{Context, Ptr},
@@ -23,9 +23,9 @@ fn set_name_from_attr_map(
     attributes: &mut AttributeDict,
     idx: usize,
     max_idx: usize,
-    name: String,
+    name: Identifier,
 ) {
-    let name_attr: AttrObj = StringAttr::new(name).into();
+    let name_attr: AttrObj = IdentifierAttr::new(name).into();
     match attributes.0.entry(ATTR_KEY_DEBUG_INFO.clone()) {
         hash_map::Entry::Occupied(mut occupied) => {
             let di_dict = occupied.get_mut().downcast_mut::<DictAttr>().unwrap();
@@ -55,15 +55,15 @@ fn get_name_from_attr_map(
     attributes: &AttributeDict,
     idx: usize,
     panic_msg: &str,
-) -> Option<String> {
+) -> Option<Identifier> {
     attributes
         .get::<DictAttr>(&ATTR_KEY_DEBUG_INFO)
         .and_then(|di_dict| {
             di_dict.lookup(&DEBUG_INFO_KEY_NAME).and_then(|names| {
                 let names = names.downcast_ref::<VecAttr>().expect(panic_msg);
                 names.0.get(idx).and_then(|name| {
-                    name.downcast_ref::<StringAttr>()
-                        .map(|name_attr| String::from(name_attr.clone()))
+                    name.downcast_ref::<IdentifierAttr>()
+                        .map(|name_attr| name_attr.clone().into())
                 })
             })
         })
@@ -74,9 +74,14 @@ fn get_name_from_attr_map(
 //  Names for the result are stored in an [Operation] as follows:
 //      dict = op.attributes\[[ATTR_KEY_DEBUG_INFO]\] is a [SmallDictAttr]
 //      dict\[[DEBUG_INFO_NAME]\] is a [VecAttr] with [UnitAttr] entries
-//      for unknown names and [StringAttr] for known names. The length of
+//      for unknown names and [IdentiferAttr] for known names. The length of
 //      this array is always the same as the number of results.
-pub fn set_operation_result_name(ctx: &Context, op: Ptr<Operation>, res_idx: usize, name: String) {
+pub fn set_operation_result_name(
+    ctx: &Context,
+    op: Ptr<Operation>,
+    res_idx: usize,
+    name: Identifier,
+) {
     let op = &mut *op.deref_mut(ctx);
     let num_results = op.get_num_results();
     assert!(res_idx < num_results);
@@ -90,7 +95,7 @@ pub fn get_operation_result_name(
     ctx: &Context,
     op: Ptr<Operation>,
     res_idx: usize,
-) -> Option<String> {
+) -> Option<Identifier> {
     let op = &*op.deref(ctx);
     let expect_msg = "Incorrect attribute for result names";
 
@@ -102,9 +107,9 @@ pub fn get_operation_result_name(
 //  Names for the arguments are stored in a [BasicBlock] as follows:
 //      dict = block.attributes\[[ATTR_KEY_DEBUG_INFO]\] is a [SmallDictAttr]
 //      dict\[[DEBUG_INFO_NAME]\] is a [VecAttr] with [UnitAttr] entries
-//      for unknown names and [StringAttr] for known names. The length of
+//      for unknown names and [IdentiferAttr] for known names. The length of
 //      this array is always the same as the number of arguments.
-pub fn set_block_arg_name(ctx: &Context, block: Ptr<BasicBlock>, arg_idx: usize, name: String) {
+pub fn set_block_arg_name(ctx: &Context, block: Ptr<BasicBlock>, arg_idx: usize, name: Identifier) {
     let block = &mut *block.deref_mut(ctx);
     let num_args = block.get_num_arguments();
     assert!(arg_idx < num_args);
@@ -114,7 +119,11 @@ pub fn set_block_arg_name(ctx: &Context, block: Ptr<BasicBlock>, arg_idx: usize,
 
 /// Get name for an argument in a [BasicBlock].
 //  See [set_block_arg_name] for attribute storage convention.
-pub fn get_block_arg_name(ctx: &Context, block: Ptr<BasicBlock>, arg_idx: usize) -> Option<String> {
+pub fn get_block_arg_name(
+    ctx: &Context,
+    block: Ptr<BasicBlock>,
+    arg_idx: usize,
+) -> Option<Identifier> {
     let block = &*block.deref(ctx);
     let expect_msg = "Incorrect attribute for block arg names";
     get_name_from_attr_map(&block.attributes, arg_idx, expect_msg)
@@ -175,8 +184,11 @@ mod tests {
 
         let cop = ZeroOp::new(&mut ctx);
         let op = cop.get_operation();
-        set_operation_result_name(&ctx, op, 0, "foo".to_string());
-        assert_eq!(get_operation_result_name(&ctx, op, 0).unwrap(), "foo");
+        set_operation_result_name(&ctx, op, 0, "foo".try_into().unwrap());
+        assert_eq!(
+            get_operation_result_name(&ctx, op, 0).unwrap(),
+            "foo".try_into().unwrap()
+        );
         op.deref(&ctx).verify(&ctx)?;
         Ok(())
     }
@@ -192,8 +204,8 @@ mod tests {
             Some("entry".try_into().unwrap()),
             vec![i64_ty.into()],
         );
-        set_block_arg_name(&ctx, block, 0, "foo".to_string());
-        assert!(get_block_arg_name(&ctx, block, 0).unwrap() == "foo");
+        set_block_arg_name(&ctx, block, 0, "foo".try_into().unwrap());
+        assert!(get_block_arg_name(&ctx, block, 0).unwrap() == "foo".try_into().unwrap());
         block.deref(&ctx).verify(&ctx)?;
         Ok(())
     }

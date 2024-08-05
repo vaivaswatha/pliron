@@ -4,6 +4,7 @@ use crate::{
     basic_block::BasicBlock,
     common_traits::Verify,
     dialect::{Dialect, DialectName},
+    identifier::Identifier,
     op::{OpCreator, OpId},
     operation::Operation,
     printable::{self, Printable},
@@ -142,9 +143,9 @@ impl<'a, T: ArenaObj> Ptr<T> {
     }
 
     /// Create a unique (to the arena) name based on the arena index.
-    pub(crate) fn make_name(&self, name_base: &str) -> String {
+    pub(crate) fn make_name(&self, name_base: &str) -> Identifier {
         let idx = format!("{:?}", self.idx.0);
-        name_base.to_string() + "_" + &idx
+        (name_base.to_string() + "_" + &idx).try_into().unwrap()
     }
 }
 

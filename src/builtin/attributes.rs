@@ -25,6 +25,52 @@ use crate::{
 
 use super::{attr_interfaces::TypedAttrInterface, types::IntegerType};
 
+#[def_attribute("builtin.identifier")]
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct IdentifierAttr(Identifier);
+
+impl IdentifierAttr {
+    /// Create a new [IdentifierAttr]
+    pub fn new(value: Identifier) -> Self {
+        IdentifierAttr(value)
+    }
+}
+
+impl_verify_succ!(IdentifierAttr);
+
+impl Printable for IdentifierAttr {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        self.0.fmt(ctx, state, f)
+    }
+}
+
+impl From<IdentifierAttr> for Identifier {
+    fn from(value: IdentifierAttr) -> Self {
+        value.0
+    }
+}
+
+impl Parsable for IdentifierAttr {
+    type Arg = ();
+
+    type Parsed = IdentifierAttr;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        Identifier::parser(arg)
+            .parse_stream(state_stream)
+            .map(IdentifierAttr::new)
+            .into_result()
+    }
+}
+
 /// An attribute containing a string.
 /// Similar to MLIR's [StringAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#stringattr).
 #[def_attribute("builtin.string")]
@@ -436,6 +482,7 @@ impl_attr_interface!(
 );
 
 pub fn register(ctx: &mut Context) {
+    IdentifierAttr::register_attr_in_dialect(ctx, IdentifierAttr::parser_fn);
     StringAttr::register_attr_in_dialect(ctx, StringAttr::parser_fn);
     IntegerAttr::register_attr_in_dialect(ctx, IntegerAttr::parser_fn);
     DictAttr::register_attr_in_dialect(ctx, DictAttr::parser_fn);

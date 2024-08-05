@@ -21,7 +21,7 @@ use crate::{
     verify_err, verify_error,
 };
 
-use super::{attributes::StringAttr, types::FunctionType};
+use super::{attributes::IdentifierAttr, types::FunctionType};
 
 decl_op_interface! {
     /// An [Op] implementing this interface is a block terminator.
@@ -204,15 +204,15 @@ decl_op_interface! {
     /// [Op] that defines or declares a [symbol](https://mlir.llvm.org/docs/SymbolsAndSymbolTables/#symbol).
     SymbolOpInterface {
         // Get the name of the symbol defined by this operation.
-        fn get_symbol_name(&self, ctx: &Context) -> String {
+        fn get_symbol_name(&self, ctx: &Context) -> Identifier {
             let self_op = self.get_operation().deref(ctx);
-            let s_attr = self_op.attributes.get::<StringAttr>(&ATTR_KEY_SYM_NAME).unwrap();
-            String::from(s_attr.clone())
+            let s_attr = self_op.attributes.get::<IdentifierAttr>(&ATTR_KEY_SYM_NAME).unwrap();
+            s_attr.clone().into()
         }
 
         /// Set a name for the symbol defined by this operation.
-        fn set_symbol_name(&self, ctx: &mut Context, name: &str) {
-            let name_attr = StringAttr::new(name.to_string());
+        fn set_symbol_name(&self, ctx: &mut Context, name: &Identifier) {
+            let name_attr = IdentifierAttr::new(name.clone());
             let mut self_op = self.get_operation().deref_mut(ctx);
             self_op.attributes.set(ATTR_KEY_SYM_NAME.clone(), name_attr);
         }
@@ -222,7 +222,7 @@ decl_op_interface! {
             Self: Sized,
         {
             let self_op = op.get_operation().deref(ctx);
-            if self_op.attributes.get::<StringAttr>(&ATTR_KEY_SYM_NAME).is_none() {
+            if self_op.attributes.get::<IdentifierAttr>(&ATTR_KEY_SYM_NAME).is_none() {
                 return verify_err!(op.get_operation().deref(ctx).loc(), SymbolOpInterfaceErr);
             }
             Ok(())
@@ -241,12 +241,12 @@ decl_op_interface! {
     SymbolTableInterface: SingleBlockRegionInterface, OneRegionInterface {
 
         /// Lookup a symbol in this symbol table op. Linear search.
-        fn lookup(&self, ctx: &Context, sym: String) -> Option<Ptr<Operation>> {
+        fn lookup(&self, ctx: &Context, sym: &Identifier) -> Option<Ptr<Operation>> {
             for op in self.get_body(ctx, 0).deref(ctx).iter(ctx) {
                 if let Some(sym_op) =
                     op_cast::<dyn SymbolOpInterface>(&*Operation::get_op(op, ctx))
                 {
-                    if sym_op.get_symbol_name(ctx) == sym {
+                    if &sym_op.get_symbol_name(ctx) == sym {
                         return Some(op)
                     }
                 }
@@ -259,7 +259,7 @@ decl_op_interface! {
             Self: Sized,
         {
             // Check that every symbol is defined only once.
-            let mut seen = FxHashMap::<String, Location>::default();
+            let mut seen = FxHashMap::<Identifier, Location>::default();
             let table_ops_block =
                 op_cast::<dyn SingleBlockRegionInterface>(op)
                 .unwrap()
@@ -275,7 +275,7 @@ decl_op_interface! {
                                 op.deref(ctx).loc(),
                                 verify_error!(
                                     prev_loc.get().clone(),
-                                    SymbolTableInterfaceErr::SymbolRedefined(sym)
+                                    SymbolTableInterfaceErr::SymbolRedefined(sym.to_string())
                                 ));
                         }
                         hash_map::Entry::Vacant(vac) => {
@@ -538,7 +538,7 @@ decl_op_interface! {
 ///   - direct callee, expressed as a symbol)
 ///   - indirect callee, a [Value] pointing to the function to be called.
 pub enum CallOpCallable {
-    Direct(String),
+    Direct(Identifier),
     Indirect(Value),
 }
 

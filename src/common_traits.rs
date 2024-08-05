@@ -1,6 +1,10 @@
 //! Utility traits such as [Named], [Verify] etc.
 
-use crate::{context::Context, result::Result};
+use crate::{
+    context::Context,
+    identifier::{underscore, Identifier},
+    result::Result,
+};
 
 /// Check and ensure correctness.
 pub trait Verify {
@@ -31,13 +35,13 @@ macro_rules! impl_verify_succ {
 /// Anything that has a name.
 pub trait Named {
     // A (not necessarily unique) name.
-    fn given_name(&self, ctx: &Context) -> Option<String>;
+    fn given_name(&self, ctx: &Context) -> Option<Identifier>;
     // A Unique (within the context) ID.
-    fn id(&self, ctx: &Context) -> String;
+    fn id(&self, ctx: &Context) -> Identifier;
     // A unique name; concatenation of name and id.
-    fn unique_name(&self, ctx: &Context) -> String {
+    fn unique_name(&self, ctx: &Context) -> Identifier {
         match self.given_name(ctx) {
-            Some(given_name) => given_name + "_" + &self.id(ctx),
+            Some(given_name) => given_name + underscore() + self.id(ctx),
             None => self.id(ctx),
         }
     }

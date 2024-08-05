@@ -6,7 +6,7 @@ use pliron::{
     basic_block::BasicBlock,
     builtin::{
         attr_interfaces::TypedAttrInterface,
-        attributes::{FloatAttr, IntegerAttr, StringAttr, TypeAttr},
+        attributes::{FloatAttr, IdentifierAttr, IntegerAttr, TypeAttr},
         op_interfaces::{
             BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
             OneOpdInterface, OneResultInterface, SameOperandsAndResultType, SameOperandsType,
@@ -121,7 +121,7 @@ macro_rules! new_int_bin_op_with_overflow {
             ///
             /// | key | value | via Interface |
             /// |-----|-------| --------------
-            /// | [ATTR_KEY_INTEGER_OVERFLOW_FLAGS](super::op_interfaces::ATTR_KEY_INTEGER_OVERFLOW_FLAGS) | [StringAttr](pliron::builtin::attributes::StringAttr) | [IntBinArithOpWithOverflowFlag] |
+            /// | [ATTR_KEY_INTEGER_OVERFLOW_FLAGS](super::op_interfaces::ATTR_KEY_INTEGER_OVERFLOW_FLAGS) | [IntegerOverflowFlagsAttr](super::attributes::IntegerOverflowFlagsAttr) | [IntBinArithOpWithOverflowFlag] |
             $op_name,
             $op_id
         );
@@ -844,7 +844,7 @@ impl_op_interface!(ZeroResultInterface for LoadOp {});
 /// ### Attributes:
 /// | key | value | via Interface |
 /// |-----|-------| --------------|
-/// | [ATTR_KEY_CALLEE](call_op::ATTR_KEY_CALLEE) | [StringAttr] | N/A |
+/// | [ATTR_KEY_CALLEE](call_op::ATTR_KEY_CALLEE) | [IdentifierAttr] | N/A |
 /// | [ATTR_KEY_CALLEE_TYPE](pliron::builtin::op_interfaces::ATTR_KEY_CALLEE_TYPE) | [TypeAttr] | [CallOpInterface] |
 ///
 #[def_op("llvm.call")]
@@ -873,7 +873,7 @@ impl CallOp {
                     Operation::new(ctx, Self::get_opid_static(), vec![res_ty], args, vec![], 0);
                 op.deref_mut(ctx)
                     .attributes
-                    .set(call_op::ATTR_KEY_CALLEE.clone(), StringAttr::new(cval));
+                    .set(call_op::ATTR_KEY_CALLEE.clone(), IdentifierAttr::new(cval));
                 op
             }
             CallOpCallable::Indirect(csym) => {
@@ -888,10 +888,14 @@ impl CallOp {
         CallOp { op }
     }
 }
+
 impl CallOpInterface for CallOp {
     fn callee(&self, ctx: &Context) -> CallOpCallable {
         let op = self.op.deref(ctx);
-        if let Some(callee_sym) = op.attributes.get::<StringAttr>(&call_op::ATTR_KEY_CALLEE) {
+        if let Some(callee_sym) = op
+            .attributes
+            .get::<IdentifierAttr>(&call_op::ATTR_KEY_CALLEE)
+        {
             CallOpCallable::Direct(callee_sym.clone().into())
         } else {
             assert!(
@@ -901,13 +905,11 @@ impl CallOpInterface for CallOp {
             CallOpCallable::Indirect(op.get_operand(0))
         }
     }
+
     fn args(&self, ctx: &Context) -> Vec<Value> {
         let op = self.op.deref(ctx);
-        let skip = if op
-            .attributes
-            .get::<StringAttr>(&call_op::ATTR_KEY_CALLEE)
-            .is_some()
-        {
+        // If this is an indirect call, the first operand is the callee value.
+        let skip = if matches!(self.callee(ctx), CallOpCallable::Direct(_)) {
             0
         } else {
             1
@@ -917,6 +919,7 @@ impl CallOpInterface for CallOp {
 }
 impl_canonical_syntax!(CallOp);
 impl_verify_succ!(CallOp);
+impl_op_interface!(OneResultInterface for CallOp {});
 
 /// Undefined value of a type.
 /// See MLIR's [llvm.mlir.undef](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmlirundef-llvmundefop).

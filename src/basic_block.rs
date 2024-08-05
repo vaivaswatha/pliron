@@ -47,11 +47,13 @@ impl Typed for BlockArgument {
 }
 
 impl Named for BlockArgument {
-    fn given_name(&self, ctx: &Context) -> Option<String> {
+    fn given_name(&self, ctx: &Context) -> Option<Identifier> {
         get_block_arg_name(ctx, self.def_block, self.arg_idx)
     }
-    fn id(&self, ctx: &Context) -> String {
+    fn id(&self, ctx: &Context) -> Identifier {
         format!("{}_arg{}", self.def_block.deref(ctx).id(ctx), self.arg_idx)
+            .try_into()
+            .unwrap()
     }
 }
 
@@ -109,10 +111,10 @@ pub struct BasicBlock {
 }
 
 impl Named for BasicBlock {
-    fn given_name(&self, _ctx: &Context) -> Option<String> {
-        self.label.as_ref().map(|id| id.clone().into())
+    fn given_name(&self, _ctx: &Context) -> Option<Identifier> {
+        self.label.clone()
     }
-    fn id(&self, _ctx: &Context) -> String {
+    fn id(&self, _ctx: &Context) -> Identifier {
         self.self_ptr.make_name("block")
     }
 }
@@ -377,12 +379,12 @@ impl Parsable for BasicBlock {
         let block = BasicBlock::new(state_stream.state.ctx, Some(label.clone()), arg_types);
         for (arg_idx, (loc, name)) in arg_names.into_iter().enumerate() {
             let def: Value = (&block.deref(state_stream.state.ctx).args[arg_idx]).into();
-            let name_string = name.to_string();
-            state_stream
-                .state
-                .name_tracker
-                .ssa_def(state_stream.state.ctx, &(name, loc), def)?;
-            set_block_arg_name(state_stream.state.ctx, block, arg_idx, name_string);
+            state_stream.state.name_tracker.ssa_def(
+                state_stream.state.ctx,
+                &(name.clone(), loc),
+                def,
+            )?;
+            set_block_arg_name(state_stream.state.ctx, block, arg_idx, name);
         }
         for op in ops {
             op.insert_at_back(block, state_stream.state.ctx);

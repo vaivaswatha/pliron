@@ -527,8 +527,8 @@ mod tests {
     fn test_struct() -> Result<()> {
         let mut ctx = Context::new();
         let int64_ptr = IntegerType::get(&mut ctx, 64, Signedness::Signless).into();
-        let linked_list_id = Identifier::try_new("LinkedList".into()).unwrap();
-        let linked_list_2_id = Identifier::try_new("LinkedList2".into()).unwrap();
+        let linked_list_id: Identifier = "LinkedList".try_into().unwrap();
+        let linked_list_2_id: Identifier = "LinkedList2".try_into().unwrap();
 
         // Create an opaque struct since we want a recursive type.
         let list_struct: Ptr<TypeObj> =

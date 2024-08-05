@@ -174,17 +174,17 @@ pub fn setup_context_dialects() -> Context {
 // containing a single `return 0`.
 pub fn const_ret_in_mod(ctx: &mut Context) -> Result<(ModuleOp, FuncOp, ConstantOp, ReturnOp)> {
     let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
-    let module = ModuleOp::new(ctx, "bar");
+    let module = ModuleOp::new(ctx, &"bar".try_into().unwrap());
     // Our function is going to have type () -> ().
     let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
-    let func = FuncOp::new(ctx, "foo", func_ty);
+    let func = FuncOp::new(ctx, &"foo".try_into().unwrap(), func_ty);
     module.append_operation(ctx, func.get_operation(), 0);
     let bb = func.get_entry_block(ctx);
 
     // Create a `const 0` op and add it to bb.
     let const_op = ConstantOp::new(ctx, 0);
     const_op.get_operation().insert_at_front(bb, ctx);
-    set_operation_result_name(ctx, const_op.get_operation(), 0, "c0".to_string());
+    set_operation_result_name(ctx, const_op.get_operation(), 0, "c0".try_into().unwrap());
 
     // Return the constant.
     let ret_op = ReturnOp::new(ctx, const_op.get_result(ctx));

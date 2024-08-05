@@ -66,7 +66,7 @@ fn replace_c0_with_c1() -> Result<()> {
     const1_op
         .get_operation()
         .insert_after(ctx, const_op.get_operation());
-    set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".to_string());
+    set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".try_into().unwrap());
     let const0_val = const_op.get_result(ctx);
     const0_val.replace_some_uses_with(ctx, |_, _| true, &const1_op.get_result(ctx));
 
@@ -90,7 +90,7 @@ fn replace_c0_with_c1_operand() -> Result<()> {
     const1_op
         .get_operation()
         .insert_after(ctx, const_op.get_operation());
-    set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".to_string());
+    set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".try_into().unwrap());
 
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
@@ -444,7 +444,7 @@ fn test_walker_find_op() {
     const1_op
         .get_operation()
         .insert_after(ctx, const_op.get_operation());
-    set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".to_string());
+    set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".try_into().unwrap());
 
     // A function to breaks the walk when a [ConstantOp] is found.
     fn finder(

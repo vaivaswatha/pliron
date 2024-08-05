@@ -46,7 +46,7 @@ use super::{
 ///
 /// | key | value | via Interface |
 /// |-----|-------|-----|
-/// | [ATTR_KEY_SYM_NAME](super::op_interfaces::ATTR_KEY_SYM_NAME) | [StringAttr](super::attributes::StringAttr) | [SymbolOpInterface] |
+/// | [ATTR_KEY_SYM_NAME](super::op_interfaces::ATTR_KEY_SYM_NAME) | [IdentifierAttr](super::attributes::IdentifierAttr) | [SymbolOpInterface] |
 #[def_op("builtin.module")]
 pub struct ModuleOp {}
 
@@ -104,7 +104,7 @@ impl ModuleOp {
     /// Create a new [ModuleOp].
     /// The underlying [Operation] is not linked to a [BasicBlock].
     /// The returned module has a single [crate::region::Region] with a single (BasicBlock)[crate::basic_block::BasicBlock].
-    pub fn new(ctx: &mut Context, name: &str) -> ModuleOp {
+    pub fn new(ctx: &mut Context, name: &Identifier) -> ModuleOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
         let opop = ModuleOp { op };
         opop.set_symbol_name(ctx, name);
@@ -133,7 +133,7 @@ impl_op_interface!(ZeroResultInterface for ModuleOp {});
 ///
 /// | key | value | via Interface |
 /// |-----|-------|-----|
-/// | [ATTR_KEY_SYM_NAME](super::op_interfaces::ATTR_KEY_SYM_NAME) | [StringAttr](super::attributes::StringAttr) | [SymbolOpInterface] |
+/// | [ATTR_KEY_SYM_NAME](super::op_interfaces::ATTR_KEY_SYM_NAME) | [IdentifierAttr](super::attributes::IdentifierAttr) | [SymbolOpInterface] |
 /// | [ATTR_KEY_FUNC_TYPE](func_op::ATTR_KEY_FUNC_TYPE) | [TypeAttr](super::attributes::TypeAttr) | N/A |
 #[def_op("builtin.func")]
 pub struct FuncOp {}
@@ -150,7 +150,7 @@ pub mod func_op {
 impl FuncOp {
     /// Create a new [FuncOp].
     /// The returned function has a single region with an empty `entry` block.
-    pub fn new(ctx: &mut Context, name: &str, ty: TypePtr<FunctionType>) -> Self {
+    pub fn new(ctx: &mut Context, name: &Identifier, ty: TypePtr<FunctionType>) -> Self {
         let ty_attr = TypeAttr::new(ty.into());
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
 
@@ -322,7 +322,7 @@ impl Verify for ForwardRefOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         verify_err!(
             self.get_operation().deref(ctx).loc(),
-            ForwardRefOpExistenceErr(self.get_result(ctx).unique_name(ctx))
+            ForwardRefOpExistenceErr(self.get_result(ctx).unique_name(ctx).into())
         )
     }
 }

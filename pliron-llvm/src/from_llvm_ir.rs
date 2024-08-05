@@ -7,12 +7,14 @@ use pliron::{
     basic_block::BasicBlock,
     builtin::{
         attributes::IntegerAttr,
-        op_interfaces::{OneRegionInterface, OneResultInterface, SingleBlockRegionInterface},
+        op_interfaces::{
+            CallOpCallable, OneRegionInterface, OneResultInterface, SingleBlockRegionInterface,
+        },
         ops::{FuncOp, ModuleOp},
         types::{FunctionType, IntegerType, Signedness},
     },
     context::{Context, Ptr},
-    identifier::Identifier,
+    identifier::{self, Identifier},
     input_err_noloc, input_error_noloc,
     op::Op,
     operation::Operation,
@@ -28,9 +30,10 @@ use crate::{
     llvm_sys::core::{
         basic_block_iter, function_iter, incoming_iter, instruction_iter,
         llvm_const_int_get_zext_value, llvm_get_allocated_type, llvm_get_array_length2,
-        llvm_get_basic_block_name, llvm_get_basic_block_terminator, llvm_get_element_type,
-        llvm_get_icmp_predicate, llvm_get_instruction_opcode, llvm_get_instruction_parent,
-        llvm_get_int_type_width, llvm_get_module_identifier, llvm_get_num_operands,
+        llvm_get_basic_block_name, llvm_get_basic_block_terminator, llvm_get_called_function_type,
+        llvm_get_called_value, llvm_get_element_type, llvm_get_icmp_predicate,
+        llvm_get_instruction_opcode, llvm_get_instruction_parent, llvm_get_int_type_width,
+        llvm_get_module_identifier, llvm_get_num_arg_operands, llvm_get_num_operands,
         llvm_get_operand, llvm_get_param_types, llvm_get_return_type,
         llvm_get_struct_element_types, llvm_get_struct_name, llvm_get_type_kind,
         llvm_get_value_kind, llvm_get_value_name, llvm_global_get_value_type, llvm_is_a,
@@ -39,27 +42,31 @@ use crate::{
     },
     op_interfaces::BinArithOp,
     ops::{
-        AShrOp, AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CondBrOp, ConstantOp, ICmpOp, LShrOp,
-        LoadOp, MulOp, OrOp, ReturnOp, SDivOp, SRemOp, ShlOp, StoreOp, SubOp, UDivOp, URemOp,
-        UndefOp, XorOp,
+        AShrOp, AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp, ICmpOp,
+        LShrOp, LoadOp, MulOp, OrOp, ReturnOp, SDivOp, SRemOp, ShlOp, StoreOp, SubOp, UDivOp,
+        URemOp, UndefOp, XorOp,
     },
     types::{ArrayType, PointerType, StructErr, StructType, VoidType},
 };
 
-pub fn convert_type(ctx: &mut Context, ty: LLVMType) -> Result<Ptr<TypeObj>> {
+fn convert_type(
+    ctx: &mut Context,
+    cctx: &mut ConversionContext,
+    ty: LLVMType,
+) -> Result<Ptr<TypeObj>> {
     let kind = llvm_get_type_kind(ty);
     match kind {
         LLVMTypeKind::LLVMArrayTypeKind => {
             let (element_ty, len) = (llvm_get_element_type(ty), llvm_get_array_length2(ty));
-            let elem = convert_type(ctx, element_ty)?;
+            let elem = convert_type(ctx, cctx, element_ty)?;
             Ok(ArrayType::get(ctx, elem, len).into())
         }
         LLVMTypeKind::LLVMFloatTypeKind => todo!(),
         LLVMTypeKind::LLVMFunctionTypeKind => {
-            let return_type = convert_type(ctx, llvm_get_return_type(ty))?;
+            let return_type = convert_type(ctx, cctx, llvm_get_return_type(ty))?;
             let param_types = llvm_get_param_types(ty)
                 .into_iter()
-                .map(|ty| convert_type(ctx, ty))
+                .map(|ty| convert_type(ctx, cctx, ty))
                 .collect::<Result<_>>()?;
             // TODO: Use llvm::types::FuncType.
             // Not already doing it because we don't have a corresponding llvm::ops::FuncOp.
@@ -71,9 +78,8 @@ pub fn convert_type(ctx: &mut Context, ty: LLVMType) -> Result<Ptr<TypeObj>> {
         }
         LLVMTypeKind::LLVMPointerTypeKind => Ok(PointerType::get(ctx).into()),
         LLVMTypeKind::LLVMStructTypeKind => {
-            let name_opt: Option<Identifier> = llvm_get_struct_name(ty)
-                .map(|str| str.try_into())
-                .transpose()?;
+            let name_opt: Option<Identifier> =
+                llvm_get_struct_name(ty).map(|str| cctx.id_legaliser.legalise(&str));
             if llvm_is_opaque_struct(ty) {
                 // Opaque structs must be named.
                 let Some(name) = name_opt else {
@@ -83,7 +89,7 @@ pub fn convert_type(ctx: &mut Context, ty: LLVMType) -> Result<Ptr<TypeObj>> {
             } else {
                 let field_types = llvm_get_struct_element_types(ty)
                     .into_iter()
-                    .map(|ty| convert_type(ctx, ty))
+                    .map(|ty| convert_type(ctx, cctx, ty))
                     .collect::<Result<_>>()?;
                 if let Some(name) = name_opt {
                     Ok(StructType::get_named(ctx, name, Some(field_types))?.into())
@@ -126,22 +132,25 @@ pub fn convert_ipredicate(ipred: LLVMIntPredicate) -> ICmpPredicateAttr {
 }
 
 /// Mapping from LLVM entities to pliron entities.
+#[derive(Default)]
 struct ConversionContext {
     // A map from LLVM's Values to pliron's Values.
     value_map: FxHashMap<LLVMValue, Value>,
     // A map from LLVM's basic blocks to plirons'.
     block_map: FxHashMap<LLVMBasicBlock, Ptr<BasicBlock>>,
     // Entry block of the function we're processing.
-    entry_block: Ptr<BasicBlock>,
+    entry_block: Option<Ptr<BasicBlock>>,
+    // Identifier legaliser
+    id_legaliser: identifier::Legaliser,
 }
 
 impl ConversionContext {
-    fn new(entry_block: Ptr<BasicBlock>) -> Self {
-        Self {
-            value_map: FxHashMap::default(),
-            block_map: FxHashMap::default(),
-            entry_block,
-        }
+    /// Reset the value and block maps and set the entry block.
+    /// Identifier::Legaliser remains unmodified.
+    fn reset_for_function(&mut self, entry_block: Ptr<BasicBlock>) {
+        self.entry_block = Some(entry_block);
+        self.value_map.clear();
+        self.block_map.clear();
     }
 }
 
@@ -218,14 +227,14 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
     if cctx.value_map.contains_key(&val) {
         return Ok(());
     }
-    let ty = convert_type(ctx, llvm_type_of(val))?;
+    let ty = convert_type(ctx, cctx, llvm_type_of(val))?;
     match llvm_get_value_kind(val) {
         LLVMValueKind::LLVMUndefValueValueKind => {
             let undef_op = UndefOp::new(ctx, ty);
             // Insert at the beginning of the entry block.
             undef_op
                 .get_operation()
-                .insert_at_front(cctx.entry_block, ctx);
+                .insert_at_front(cctx.entry_block.unwrap(), ctx);
             cctx.value_map.insert(val, undef_op.get_result(ctx));
         }
         LLVMValueKind::LLVMConstantIntValueKind => {
@@ -237,7 +246,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             // Insert at the beginning of the entry block.
             const_op
                 .get_operation()
-                .insert_at_front(cctx.entry_block, ctx);
+                .insert_at_front(cctx.entry_block.unwrap(), ctx);
             cctx.value_map.insert(val, const_op.get_result(ctx));
         }
         LLVMValueKind::LLVMConstantFPValueKind => todo!(),
@@ -252,12 +261,12 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
 fn convert_operands(
     ctx: &mut Context,
     cctx: &mut ConversionContext,
-    inst: LLVMValue,
+    operands: &[LLVMValue],
 ) -> Result<(Vec<Value>, Vec<Ptr<BasicBlock>>)> {
     let mut opds = vec![];
     let mut succs = vec![];
-    for opd_idx in 0..llvm_get_num_operands(inst) {
-        let opd = llvm_get_operand(inst, opd_idx);
+
+    for opd in operands.iter().cloned() {
         if !llvm_value_is_basic_block(opd) {
             process_constant(ctx, cctx, opd)?;
             if let Some(m_val) = cctx.value_map.get(&opd) {
@@ -318,12 +327,47 @@ fn convert_branch_args(
     Ok(args)
 }
 
+fn convert_call(
+    ctx: &mut Context,
+    cctx: &mut ConversionContext,
+    inst: LLVMValue,
+) -> Result<Ptr<Operation>> {
+    let llvm_operands: Vec<_> = (0..llvm_get_num_arg_operands(inst))
+        .map(|opd_idx| llvm_get_operand(inst, opd_idx))
+        .collect();
+    let (args, _) = convert_operands(ctx, cctx, &llvm_operands)?;
+
+    let callee = llvm_get_called_value(inst);
+    let callee = if llvm_is_a::function(callee) {
+        let fn_name = llvm_get_value_name(callee)
+            .map(|name| cctx.id_legaliser.legalise(&name))
+            .expect("Unable to obtain valid function name");
+        CallOpCallable::Direct(fn_name)
+    } else {
+        let (callee_converted, _) = convert_operands(ctx, cctx, &[callee])?;
+        CallOpCallable::Indirect(callee_converted[0])
+    };
+
+    let callee_ty = llvm_get_called_function_type(inst);
+    let callee_ty: TypePtr<FunctionType> =
+        convert_type(ctx, cctx, callee_ty).and_then(|ty| TypePtr::from_ptr(ty, ctx))?;
+    Ok(CallOp::new(ctx, callee, callee_ty, args).get_operation())
+}
+
 fn convert_instruction(
     ctx: &mut Context,
     cctx: &mut ConversionContext,
     inst: LLVMValue,
 ) -> Result<Ptr<Operation>> {
-    let (ref opds, ref succs) = convert_operands(ctx, cctx, inst)?;
+    if llvm_is_a::call_inst(inst) {
+        return convert_call(ctx, cctx, inst);
+    }
+
+    let llvm_operands: Vec<_> = (0..llvm_get_num_operands(inst))
+        .map(|opd_idx| llvm_get_operand(inst, opd_idx))
+        .collect();
+
+    let (ref opds, ref succs) = convert_operands(ctx, cctx, &llvm_operands)?;
     match llvm_get_instruction_opcode(inst) {
         LLVMOpcode::LLVMAdd => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
@@ -331,7 +375,7 @@ fn convert_instruction(
         }
         LLVMOpcode::LLVMAddrSpaceCast => todo!(),
         LLVMOpcode::LLVMAlloca => {
-            let elem_type = convert_type(ctx, llvm_get_allocated_type(inst))?;
+            let elem_type = convert_type(ctx, cctx, llvm_get_allocated_type(inst))?;
             let size = get_operand(opds, 0)?;
             Ok(AllocaOp::new(ctx, elem_type, size).get_operation())
         }
@@ -347,7 +391,7 @@ fn convert_instruction(
         LLVMOpcode::LLVMAtomicRMW => todo!(),
         LLVMOpcode::LLVMBitCast => {
             let arg = get_operand(opds, 0)?;
-            let res_ty = convert_type(ctx, llvm_type_of(inst))?;
+            let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
             Ok(BitcastOp::new(ctx, res_ty, arg).get_operation())
         }
         LLVMOpcode::LLVMBr => {
@@ -388,7 +432,7 @@ fn convert_instruction(
             }
         }
         LLVMOpcode::LLVMCall => {
-            todo!()
+            unreachable!("Should've already been processed separately")
         }
         LLVMOpcode::LLVMCallBr => todo!(),
         LLVMOpcode::LLVMCatchPad => todo!(),
@@ -426,7 +470,7 @@ fn convert_instruction(
         LLVMOpcode::LLVMInvoke => todo!(),
         LLVMOpcode::LLVMLandingPad => todo!(),
         LLVMOpcode::LLVMLoad => {
-            let res_ty = convert_type(ctx, llvm_type_of(inst))?;
+            let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
             Ok(LoadOp::new(ctx, get_operand(opds, 0)?, res_ty).get_operation())
         }
         LLVMOpcode::LLVMLShr => {
@@ -510,7 +554,7 @@ fn convert_block(
 ) -> Result<()> {
     for inst in instruction_iter(block) {
         if llvm_get_instruction_opcode(inst) == LLVMOpcode::LLVMPHI {
-            let ty = convert_type(ctx, llvm_type_of(inst))?;
+            let ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
             let arg_idx = m_block.deref_mut(ctx).add_argument(ty);
             cctx.value_map
                 .insert(inst, m_block.deref(ctx).get_argument(arg_idx));
@@ -527,17 +571,24 @@ fn convert_block(
     Ok(())
 }
 
-fn convert_function(ctx: &mut Context, function: LLVMValue) -> Result<FuncOp> {
+fn convert_function(
+    ctx: &mut Context,
+    cctx: &mut ConversionContext,
+    function: LLVMValue,
+) -> Result<FuncOp> {
     assert!(llvm_is_a::function(function));
-    let name = llvm_get_value_name(function).unwrap();
-    let fn_ty = convert_type(ctx, llvm_global_get_value_type(function))?;
+    let name = llvm_get_value_name(function)
+        .map(|name| cctx.id_legaliser.legalise(&name))
+        .expect("Expected functions to have names");
+    let fn_ty = convert_type(ctx, cctx, llvm_global_get_value_type(function))?;
     let fn_ty = TypePtr::from_ptr(fn_ty, ctx)?;
     // Create a new FuncOp, which also creates an entry block with the right parameters.
     let m_func = FuncOp::new(ctx, &name, fn_ty);
     let m_func_reg = m_func.get_region(ctx);
 
     let m_entry_block = m_func.get_entry_block(ctx);
-    let cctx = &mut ConversionContext::new(m_entry_block);
+    cctx.reset_for_function(m_entry_block);
+
     let blocks = rpo(function);
     // Map entry block
     let mut blocks_iter = blocks.iter();
@@ -557,10 +608,7 @@ fn convert_function(ctx: &mut Context, function: LLVMValue) -> Result<FuncOp> {
 
     // Create, place and map rest of the blocks.
     for block in blocks_iter {
-        let label = llvm_get_basic_block_name(*block)
-            .and_then(|name| (!name.is_empty()).then_some(name))
-            .map(String::try_into)
-            .transpose()?;
+        let label = llvm_get_basic_block_name(*block).map(|name| cctx.id_legaliser.legalise(&name));
         let m_block = BasicBlock::new(ctx, label, vec![]);
         m_block.insert_at_back(m_func_reg, ctx);
         cctx.block_map.insert(*block, m_block);
@@ -580,13 +628,17 @@ fn convert_function(ctx: &mut Context, function: LLVMValue) -> Result<FuncOp> {
 
 /// Convert [LLVMModule] to [ModuleOp].
 pub fn convert_module(ctx: &mut Context, module: &LLVMModule) -> Result<ModuleOp> {
+    let cctx = &mut ConversionContext::default();
+
     let module_name = llvm_get_module_identifier(module).unwrap_or_default();
+    let module_name = cctx.id_legaliser.legalise(&module_name);
+
     let m = ModuleOp::new(ctx, &module_name);
     // TODO: Convert globals.
     // ...
     // Convert functions.
     for fun in function_iter(module) {
-        let m_fun = convert_function(ctx, fun)?;
+        let m_fun = convert_function(ctx, cctx, fun)?;
         m.append_operation(ctx, m_fun.get_operation(), 0);
     }
     Ok(m)

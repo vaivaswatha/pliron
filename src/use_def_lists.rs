@@ -19,6 +19,7 @@ use crate::{
     basic_block::BasicBlock,
     common_traits::Named,
     context::{Context, Ptr},
+    identifier::Identifier,
     linked_list::{ContainsLinkedList, LinkedList},
     operation::Operation,
     printable::Printable,
@@ -179,7 +180,7 @@ impl Typed for Value {
 }
 
 impl Named for Value {
-    fn given_name(&self, ctx: &Context) -> Option<String> {
+    fn given_name(&self, ctx: &Context) -> Option<Identifier> {
         match self {
             Value::OpResult { op, res_idx } => {
                 op.deref(ctx).get_result_ref(*res_idx).given_name(ctx)
@@ -190,7 +191,7 @@ impl Named for Value {
         }
     }
 
-    fn id(&self, ctx: &Context) -> String {
+    fn id(&self, ctx: &Context) -> Identifier {
         match self {
             Value::OpResult { op, res_idx } => op.deref(ctx).get_result_ref(*res_idx).id(ctx),
             Value::BlockArgument { block, arg_idx } => {
@@ -326,10 +327,10 @@ impl Ptr<BasicBlock> {
 }
 
 impl Named for Ptr<BasicBlock> {
-    fn given_name(&self, ctx: &Context) -> Option<String> {
+    fn given_name(&self, ctx: &Context) -> Option<Identifier> {
         self.deref(ctx).given_name(ctx)
     }
-    fn id(&self, ctx: &Context) -> String {
+    fn id(&self, ctx: &Context) -> Identifier {
         self.deref(ctx).id(ctx)
     }
 }

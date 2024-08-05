@@ -6,7 +6,7 @@ use pliron::{
 };
 use pliron_llvm::{
     from_llvm_ir,
-    llvm_sys::core::{llvm_context_create, LLVMModule},
+    llvm_sys::core::{LLVMContext, LLVMModule},
     to_llvm_ir,
 };
 
@@ -32,19 +32,19 @@ struct Cli {
 }
 
 fn run(cli: Cli, ctx: &mut Context) -> Result<()> {
-    let llvm_context = llvm_context_create();
+    let llvm_context = LLVMContext::default();
     let is_text_ir = cli.input.extension().filter(|ext| *ext == "ll").is_some();
     let module = if is_text_ir {
-        LLVMModule::from_ir_in_file(llvm_context, cli.input.to_str().unwrap())
+        LLVMModule::from_ir_in_file(&llvm_context, cli.input.to_str().unwrap())
     } else {
-        LLVMModule::from_bitcode_in_file(llvm_context, cli.input.to_str().unwrap())
+        LLVMModule::from_bitcode_in_file(&llvm_context, cli.input.to_str().unwrap())
     }
     .map_err(|err| arg_error_noloc!("{}", err))?;
 
     let pliron_module = from_llvm_ir::convert_module(ctx, &module)?;
     println!("{}", pliron_module.disp(ctx));
 
-    let module = to_llvm_ir::convert_module(ctx, llvm_context, pliron_module)?;
+    let module = to_llvm_ir::convert_module(ctx, &llvm_context, pliron_module)?;
     module
         .verify()
         .map_err(|err| verify_error_noloc!("{}", err.to_string()))?;

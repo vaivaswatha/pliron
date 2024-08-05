@@ -75,12 +75,14 @@ impl From<&OpResult> for Value {
 }
 
 impl Named for OpResult {
-    fn given_name(&self, ctx: &Context) -> Option<String> {
+    fn given_name(&self, ctx: &Context) -> Option<Identifier> {
         debug_info::get_operation_result_name(ctx, self.def_op, self.res_idx)
     }
 
-    fn id(&self, _ctx: &Context) -> String {
+    fn id(&self, _ctx: &Context) -> Identifier {
         format!("{}_res{}", self.def_op.make_name("op"), self.res_idx)
+            .try_into()
+            .unwrap()
     }
 }
 
