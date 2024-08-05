@@ -7,7 +7,6 @@ use std::{
 
 use llvm_sys::{
     analysis::LLVMVerifyModule,
-    bit_reader::LLVMParseBitcodeInContext2,
     bit_writer::LLVMWriteBitcodeToFile,
     core::{
         LLVMAddFunction, LLVMAddIncoming, LLVMAppendBasicBlockInContext, LLVMArrayType2,
@@ -1172,28 +1171,6 @@ impl LLVMModule {
         Self(unsafe { LLVMModuleCreateWithNameInContext(to_c_str(module_id).as_ptr(), context.0) })
     }
 
-    /// Parse bitcode in memory into a [LLVMModule].
-    pub fn from_bitcode_in_memory_buffer(
-        context: &LLVMContext,
-        memory_buffer: &LLVMMemoryBuffer,
-    ) -> Result<LLVMModule, String> {
-        let mut module_ref = MaybeUninit::uninit();
-
-        let success = unsafe {
-            LLVMParseBitcodeInContext2(
-                context.0,
-                memory_buffer.memory_buffer_ref,
-                module_ref.as_mut_ptr(),
-            )
-        };
-
-        if success != 0 {
-            return Err("Error parsing bitcode".into());
-        }
-
-        unsafe { Ok(LLVMModule(module_ref.assume_init())) }
-    }
-
     /// Parse IR in memory buffer to [LLVMModule]
     pub fn from_ir_in_memory_buffer(
         context: &LLVMContext,
@@ -1226,23 +1203,14 @@ impl LLVMModule {
         unsafe { Ok(LLVMModule(module_ref.assume_init())) }
     }
 
-    /// Parse bitcode in file given by filename into a [LLVMModule]
-    pub fn from_bitcode_in_file(
-        context: &LLVMContext,
-        filename: &str,
-    ) -> Result<LLVMModule, String> {
-        let memory_buffer = LLVMMemoryBuffer::from_file_name(filename)?;
-        Self::from_bitcode_in_memory_buffer(context, &memory_buffer)
-    }
-
     /// Parse IR in file given by filename into a [LLVMModule]
     pub fn from_ir_in_file(context: &LLVMContext, filename: &str) -> Result<LLVMModule, String> {
         let memory_buffer = LLVMMemoryBuffer::from_file_name(filename)?;
         Self::from_ir_in_memory_buffer(context, memory_buffer)
     }
 
-    /// Print this Module to a file
-    pub fn to_ir_file(&self, filename: &str) -> Result<(), String> {
+    /// Print [LLVMModule] to a text assembly file
+    pub fn asm_to_file(&self, filename: &str) -> Result<(), String> {
         let mut err_string = MaybeUninit::uninit();
         let return_code = unsafe {
             LLVMPrintModuleToFile(self.0, to_c_str(filename).as_ptr(), err_string.as_mut_ptr())
@@ -1260,8 +1228,8 @@ impl LLVMModule {
         Ok(())
     }
 
-    /// Print this [LLVMModule] bitcode to file
-    pub fn to_bitcode_file(&self, filename: &str) -> Result<(), String> {
+    /// Print this [LLVMModule] to a bitcode file
+    pub fn bitcode_to_file(&self, filename: &str) -> Result<(), String> {
         unsafe {
             if LLVMWriteBitcodeToFile(self.0, to_c_str(filename).as_ptr()) == 0 {
                 Ok(())
