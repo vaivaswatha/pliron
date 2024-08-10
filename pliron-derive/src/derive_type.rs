@@ -136,7 +136,7 @@ mod tests {
         let args = quote! { "testing.simple_type" };
         let input = quote! {
             #[derive(Hash, PartialEq, Eq, Debug)]
-            pub struct SimpleType {}
+            pub struct SimpleType;
         };
         let t = def_type(args, input).unwrap();
         let f = syn::parse2::<syn::File>(t).unwrap();
@@ -146,7 +146,7 @@ mod tests {
             #[derive(Hash, PartialEq, Eq, Debug)]
             #[derive(::pliron_derive::DeriveAttribAcceptor)]
             #[ir_kind = "type"]
-            pub struct SimpleType {}
+            pub struct SimpleType;
             impl ::pliron::r#type::Type for SimpleType {
                 fn hash_type(&self) -> ::pliron::storage_uniquer::TypeValueHash {
                     ::pliron::storage_uniquer::TypeValueHash::new(self)

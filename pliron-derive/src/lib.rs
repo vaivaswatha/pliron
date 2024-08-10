@@ -51,7 +51,7 @@ pub fn def_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
 /// ```ignore
 /// #[def_type("my_dialect.unit")]
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-/// pub struct UnitType();
+/// pub struct UnitType;
 /// ```
 ///
 /// **Note**: pre-requisite traits for `Type` must already be implemented.
@@ -78,7 +78,7 @@ pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// ```ignore
 /// #[def_op("my_dialect.op")]
-/// pub struct MyOp {}
+/// pub struct MyOp;
 /// ```
 ///
 /// The example will create a struct definition equivalent to:

@@ -51,7 +51,7 @@ use super::{
 /// |-----|-------|
 /// | `arg` | any type |
 #[def_op("llvm.return")]
-pub struct ReturnOp {}
+pub struct ReturnOp;
 impl ReturnOp {
     /// Create a new [ReturnOp]
     pub fn new(ctx: &mut Context, value: Option<Value>) -> Self {
@@ -98,7 +98,7 @@ macro_rules! new_int_bin_op {
         /// | result | description |
         /// |-----|-------|
         /// | `res` | Signless integer |
-        pub struct $op_name {}
+        pub struct $op_name;
 
         impl_verify_succ!($op_name);
         impl_canonical_syntax!($op_name);
@@ -234,7 +234,7 @@ pub enum ICmpOpVerifyErr {
 /// |-----|-------| --------------|
 /// | [ATTR_KEY_PREDICATE](icmp_op::ATTR_KEY_PREDICATE) | [ICmpPredicateAttr](ICmpPredicateAttr) | N/A |
 #[def_op("llvm.icmp")]
-pub struct ICmpOp {}
+pub struct ICmpOp;
 
 pub mod icmp_op {
     use std::sync::LazyLock;
@@ -335,7 +335,7 @@ pub enum AllocaOpVerifyErr {
 /// |-----|-------| --------------|
 /// | [ATTR_KEY_ELEM_TYPE](alloca_op::ATTR_KEY_ELEM_TYPE) | [TypeAttr](pliron::builtin::attributes::TypeAttr) | N/A |
 #[def_op("llvm.alloca")]
-pub struct AllocaOp {}
+pub struct AllocaOp;
 impl_canonical_syntax!(AllocaOp);
 impl Verify for AllocaOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
@@ -410,7 +410,7 @@ impl AllocaOp {
 /// |-----|-------|
 /// | `res` | non-aggregate LLVM type |
 #[def_op("llvm.bitcast")]
-pub struct BitcastOp {}
+pub struct BitcastOp;
 impl_canonical_syntax!(BitcastOp);
 impl_verify_succ!(BitcastOp);
 impl_op_interface!(OneResultInterface for BitcastOp {});
@@ -444,7 +444,7 @@ impl BitcastOp {
 /// |-----|-------|
 /// | `dest` | Any successor |
 #[def_op("llvm.br")]
-pub struct BrOp {}
+pub struct BrOp;
 impl_canonical_syntax!(BrOp);
 impl_verify_succ!(BrOp);
 impl_op_interface!(IsTerminatorInterface for BrOp {});
@@ -485,7 +485,7 @@ impl BrOp {
 /// | `true_dest` | Any successor |
 /// | `false_dest` | Any successor |
 #[def_op("llvm.cond_br")]
-pub struct CondBrOp {}
+pub struct CondBrOp;
 impl CondBrOp {
     /// Create anew [CondBrOp].
     pub fn new(
@@ -568,7 +568,7 @@ pub enum GetElementPtrOpErr {
 /// |-----|-------|
 /// | `res` | LLVM pointer type |
 #[def_op("llvm.gep")]
-pub struct GetElementPtrOp {}
+pub struct GetElementPtrOp;
 impl_canonical_syntax!(GetElementPtrOp);
 impl_op_interface!(OneResultInterface for GetElementPtrOp {});
 impl_op_interface!(PointerTypeResult for GetElementPtrOp {
@@ -730,7 +730,7 @@ pub enum LoadOpVerifyErr {
 /// ### Attributes:
 ///
 #[def_op("llvm.load")]
-pub struct LoadOp {}
+pub struct LoadOp;
 impl LoadOp {
     /// Create a new [LoadOp]
     pub fn new(ctx: &mut Context, ptr: Value, res_ty: Ptr<TypeObj>) -> Self {
@@ -778,7 +778,7 @@ pub enum StoreOpVerifyErr {
 /// ### Attributes:
 ///
 #[def_op("llvm.store")]
-pub struct StoreOp {}
+pub struct StoreOp;
 impl StoreOp {
     /// Create a new [LoadOp]
     pub fn new(ctx: &mut Context, value: Value, ptr: Value) -> Self {
@@ -848,7 +848,7 @@ impl_op_interface!(ZeroResultInterface for LoadOp {});
 /// | [ATTR_KEY_CALLEE_TYPE](pliron::builtin::op_interfaces::ATTR_KEY_CALLEE_TYPE) | [TypeAttr] | [CallOpInterface] |
 ///
 #[def_op("llvm.call")]
-pub struct CallOp {}
+pub struct CallOp;
 
 pub mod call_op {
     use std::sync::LazyLock;
@@ -930,7 +930,7 @@ impl_op_interface!(OneResultInterface for CallOp {});
 /// |-----|-------|
 /// | `result` | any type |
 #[def_op("llvm.undef")]
-pub struct UndefOp {}
+pub struct UndefOp;
 impl_canonical_syntax!(UndefOp);
 impl_verify_succ!(UndefOp);
 impl_op_interface!(OneResultInterface for UndefOp {});
@@ -965,7 +965,7 @@ impl UndefOp {
 /// |-----|-------|
 /// | `result` | any type |
 #[def_op("llvm.constant")]
-pub struct ConstantOp {}
+pub struct ConstantOp;
 
 pub mod constant_op {
     use std::sync::LazyLock;

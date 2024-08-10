@@ -48,7 +48,7 @@ use super::{
 /// |-----|-------|-----|
 /// | [ATTR_KEY_SYM_NAME](super::op_interfaces::ATTR_KEY_SYM_NAME) | [IdentifierAttr](super::attributes::IdentifierAttr) | [SymbolOpInterface] |
 #[def_op("builtin.module")]
-pub struct ModuleOp {}
+pub struct ModuleOp;
 
 impl Printable for ModuleOp {
     fn fmt(
@@ -136,7 +136,7 @@ impl_op_interface!(ZeroResultInterface for ModuleOp {});
 /// | [ATTR_KEY_SYM_NAME](super::op_interfaces::ATTR_KEY_SYM_NAME) | [IdentifierAttr](super::attributes::IdentifierAttr) | [SymbolOpInterface] |
 /// | [ATTR_KEY_FUNC_TYPE](func_op::ATTR_KEY_FUNC_TYPE) | [TypeAttr](super::attributes::TypeAttr) | N/A |
 #[def_op("builtin.func")]
-pub struct FuncOp {}
+pub struct FuncOp;
 
 pub mod func_op {
     use std::sync::LazyLock;
@@ -293,7 +293,7 @@ impl_op_interface!(ZeroResultInterface for FuncOp {});
 /// [UnrealizedConversionCastOp](https://mlir.llvm.org/docs/Dialects/Builtin/#builtinunrealized_conversion_cast-unrealizedconversioncastop)
 /// for this purpose.
 #[def_op("builtin.forward_ref")]
-pub struct ForwardRefOp {}
+pub struct ForwardRefOp;
 
 impl Printable for ForwardRefOp {
     fn fmt(

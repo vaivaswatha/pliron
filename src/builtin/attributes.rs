@@ -217,7 +217,7 @@ impl_attr_interface!(TypedAttrInterface for IntegerAttr {
 
 /// A dummy implementation until we have a good one.
 #[derive(PartialEq, Clone, Debug)]
-pub struct APFloat();
+pub struct APFloat;
 
 /// An attribute containing an floating point value.
 /// Similar to MLIR's [FloatAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#floatattr).
@@ -395,11 +395,11 @@ impl Parsable for VecAttr {
 /// See [UnitAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#unitattr) in MLIR.
 #[def_attribute("builtin.unit")]
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Default)]
-pub struct UnitAttr();
+pub struct UnitAttr;
 
 impl UnitAttr {
     pub fn new() -> Self {
-        UnitAttr()
+        UnitAttr
     }
 }
 

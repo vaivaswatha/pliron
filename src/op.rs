@@ -531,7 +531,7 @@ pub fn canonical_syntax_parser<'a>(
 /// use pliron_derive::def_op;
 /// use pliron::{impl_canonical_syntax, impl_verify_succ};
 /// #[def_op("dialect.name")]
-/// pub struct MyOp {};
+/// pub struct MyOp;
 /// impl_canonical_syntax!(MyOp);
 /// impl_verify_succ!(MyOp);
 /// ```

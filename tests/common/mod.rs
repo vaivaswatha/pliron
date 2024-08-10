@@ -31,7 +31,7 @@ use pliron::{
 use pliron_derive::def_op;
 
 #[def_op("test.return")]
-pub struct ReturnOp {}
+pub struct ReturnOp;
 impl ReturnOp {
     pub fn new(ctx: &mut Context, value: Value) -> Self {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![value], vec![], 0);

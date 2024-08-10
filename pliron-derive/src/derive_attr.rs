@@ -135,7 +135,7 @@ mod tests {
         let args = quote! { "testing.unit" };
         let input = quote! {
             #[derive(PartialEq, Eq, Debug, Clone)]
-            pub struct UnitAttr();
+            pub struct UnitAttr;
         };
         let attr = def_attribute(args, input).unwrap();
         let f = syn::parse2::<syn::File>(attr).unwrap();
@@ -145,7 +145,7 @@ mod tests {
             #[derive(PartialEq, Eq, Debug, Clone)]
             #[derive(::pliron_derive::DeriveAttribAcceptor)]
             #[ir_kind = "attribute"]
-            pub struct UnitAttr();
+            pub struct UnitAttr;
             impl ::pliron::attribute::Attribute for UnitAttr {
                 fn eq_attr(&self, other: &dyn ::pliron::attribute::Attribute) -> bool {
                     other.downcast_ref::<Self>().map_or(false, |other| other == self)
