@@ -1,5 +1,5 @@
-//! # SSA [Value]s: Use-Def and Def-Use Graph.
-//! At the core of the IR infrastructure are SSA use-def chains.
+//! SSA [Value]s: Use-Def and Def-Use Graph.
+//! At the core of the IR infrastructure are SSA def-use and use-def chains.
 //! Use-def and def-use chains are composed of four key structures:
 //!   - [Value] describes a value definition, either a block argument, or an operation result.
 //!   - [`Ptr<BasicBlock>`] describes a block definition.
