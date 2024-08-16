@@ -20,7 +20,7 @@ use pliron::{
     operation::Operation,
     r#type::{TypeObj, TypePtr},
     result::Result,
-    use_def_lists::Value,
+    value::Value,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use thiserror::Error;

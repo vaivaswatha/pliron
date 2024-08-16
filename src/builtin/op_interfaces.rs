@@ -17,7 +17,7 @@ use crate::{
     r#type::{TypeObj, TypePtr, Typed},
     region::Region,
     result::Result,
-    use_def_lists::Value,
+    value::Value,
     verify_err, verify_error,
 };
 

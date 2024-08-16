@@ -25,7 +25,7 @@ use pliron::{
     operation::Operation,
     r#type::{type_cast, Type, TypeObj, TypePtr, Typed},
     result::Result,
-    use_def_lists::Value,
+    value::Value,
 };
 
 use rustc_hash::FxHashMap;

@@ -15,7 +15,7 @@ use crate::{
     op::op_impls,
     operation::Operation,
     result::{self, Result},
-    use_def_lists::Value,
+    value::Value,
 };
 use combine::{
     easy::{self, Errors, ParseError},

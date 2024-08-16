@@ -24,8 +24,8 @@ use crate::{
     r#type::{TypeObj, Typed},
     region::Region,
     result::Result,
-    use_def_lists::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
     utils::vec_exns::VecExtns,
+    value::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
     verify_err,
 };
 
@@ -231,7 +231,7 @@ impl Operation {
 
     /// Does any result of this operation have a use?
     pub fn has_use(&self) -> bool {
-        self.results.iter().any(|res| res.def.has_use())
+        self.results.iter().any(|res| res.def.is_used())
     }
 
     /// Total number of uses (across all results).

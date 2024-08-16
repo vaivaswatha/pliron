@@ -26,7 +26,7 @@ use pliron::{
     parsable::{self, IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     result::Result,
-    use_def_lists::Value,
+    value::Value,
 };
 use pliron_derive::def_op;
 

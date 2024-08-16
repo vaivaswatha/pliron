@@ -1,5 +1,5 @@
-//! # Use-Def and Def-Use Graph.
-//! Like in LLVM, at the core of the IR infrastructure are SSA use-def chains.
+//! # SSA [Value]s: Use-Def and Def-Use Graph.
+//! At the core of the IR infrastructure are SSA use-def chains.
 //! Use-def and def-use chains are composed of four key structures:
 //!   - [Value] describes a value definition, either a block argument, or an operation result.
 //!   - [`Ptr<BasicBlock>`] describes a block definition.
@@ -46,7 +46,7 @@ impl<T: DefUseParticipant> DefNode<T> {
     }
 
     /// Does the definition have a use?
-    pub(crate) fn has_use(&self) -> bool {
+    pub(crate) fn is_used(&self) -> bool {
         !self.uses.is_empty()
     }
 
@@ -138,8 +138,8 @@ impl Value {
     }
 
     /// Does this definition have any [Use]?
-    pub fn has_use(&self, ctx: &Context) -> bool {
-        self.get_defnode_ref(ctx).has_use()
+    pub fn is_used(&self, ctx: &Context) -> bool {
+        self.get_defnode_ref(ctx).is_used()
     }
 
     /// Replace uses of the underlying definition, that satisfy `pred`, with `other`.
@@ -252,7 +252,7 @@ impl UseTrait for Value {
 impl Ptr<BasicBlock> {
     /// Does this block a predecessor?
     pub fn has_pred(&self, ctx: &Context) -> bool {
-        self.deref(ctx).preds.has_use()
+        self.deref(ctx).preds.is_used()
     }
 
     /// Number of predecessors to this block.

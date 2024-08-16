@@ -13,7 +13,7 @@ use crate::{
     parsable::{Parsable, ParseResult, StateStream},
     r#type::TypeObj,
     result::Result,
-    use_def_lists::Value,
+    value::Value,
 };
 use combine::{
     between, many1,

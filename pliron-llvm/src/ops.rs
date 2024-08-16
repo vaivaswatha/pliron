@@ -24,8 +24,8 @@ use pliron::{
     parsable::Parsable,
     r#type::{TypeObj, TypePtr},
     result::{Error, ErrorKind, Result},
-    use_def_lists::Value,
     utils::vec_exns::VecExtns,
+    value::Value,
     verify_err,
 };
 

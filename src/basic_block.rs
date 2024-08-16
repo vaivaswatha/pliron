@@ -24,8 +24,8 @@ use crate::{
     r#type::{TypeObj, Typed},
     region::Region,
     result::Result,
-    use_def_lists::{DefNode, Value},
     utils::vec_exns::VecExtns,
+    value::{DefNode, Value},
 };
 
 /// Argument to a [BasicBlock]
