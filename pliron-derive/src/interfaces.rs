@@ -110,8 +110,10 @@ impl Parse for PathList {
 }
 
 /// For each interface specified in the list, expand it to
+/// ```no_compile
 /// #[op_interface_impl]
-/// impl Interface for OpStruct
+/// impl Interface for OpStruct { }
+/// ```
 pub(crate) fn derive_op_interface_impl(
     attr: proc_macro::TokenStream,
     input: proc_macro::TokenStream,
