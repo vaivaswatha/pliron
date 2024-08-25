@@ -18,7 +18,7 @@ use pliron::{
     debug_info::set_operation_result_name,
     dialect::{Dialect, DialectName},
     identifier::Identifier,
-    impl_op_interface, impl_verify_succ, input_err,
+    impl_verify_succ, input_err,
     irfmt::parsers::{attr_parser, process_parsed_ssa_defs, ssa_opd_parser},
     location::{Located, Location},
     op::{Op, OpObj},
@@ -28,9 +28,10 @@ use pliron::{
     result::Result,
     value::Value,
 };
-use pliron_derive::def_op;
+use pliron_derive::{def_op, derive_op_interface_impl};
 
 #[def_op("test.return")]
+#[derive_op_interface_impl(IsTerminatorInterface)]
 pub struct ReturnOp;
 impl ReturnOp {
     pub fn new(ctx: &mut Context, value: Value) -> Self {
@@ -74,14 +75,12 @@ impl Parsable for ReturnOp {
     }
 }
 
-impl_op_interface!(IsTerminatorInterface for ReturnOp {});
 impl_verify_succ!(ReturnOp);
 
 #[def_op("test.constant")]
+#[derive_op_interface_impl(ZeroOpdInterface, OneResultInterface)]
 pub struct ConstantOp;
 impl_verify_succ!(ConstantOp);
-impl_op_interface! (ZeroOpdInterface for ConstantOp {});
-impl_op_interface! (OneResultInterface for ConstantOp {});
 impl ConstantOp {
     pub const ATTR_KEY_VALUE: LazyLock<Identifier> =
         LazyLock::new(|| "constant_value".try_into().unwrap());

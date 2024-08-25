@@ -6,6 +6,7 @@ mod derive_op;
 mod derive_printable;
 mod derive_shared;
 mod derive_type;
+mod interfaces;
 
 use proc_macro::TokenStream;
 
@@ -124,4 +125,103 @@ pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> Tok
 #[proc_macro_derive(DeriveAttribAcceptor, attributes(ir_kind))]
 pub fn derive_attrib_dummy(_input: TokenStream) -> TokenStream {
     TokenStream::new()
+}
+
+/// Declare an [Op](../pliron/op/trait.Op.html) interface, which can be implemented
+/// by any `Op`.
+///
+/// If the interface requires any other interface to be already implemented,
+/// they can be specified super-traits.
+///
+/// When an `Op` is verified, its interfaces are also automatically verified,
+/// with guarantee that a super-interface is verified before an interface itself is.
+///
+/// Example: Here `SameOperandsAndResultType` and `SymbolOpInterface` are super interfaces
+/// for the new interface `MyOpIntr`.
+/// ```
+/// # use pliron::builtin::op_interfaces::{SameOperandsAndResultType, SymbolOpInterface};
+/// # use pliron_derive::{op_interface};
+/// # use pliron::{op::Op, context::Context, result::Result};
+///   /// MyOpIntr is my first op interface.
+///   #[op_interface]
+///   trait MyOpIntr: SameOperandsAndResultType + SymbolOpInterface {
+///       fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+///       where Self: Sized,
+///       {
+///           Ok(())
+///       }
+///   }
+/// ```
+#[proc_macro_attribute]
+pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    to_token_stream(interfaces::op_interface_define(item))
+}
+
+/// Implement [Op](../pliron/op/trait.Op.html) Interface for an Op. The interface trait must define
+/// a `verify` function with type [OpInterfaceVerifier](../pliron/op/type.OpInterfaceVerifier.html)
+///
+/// Usage:
+/// ```
+/// # use pliron_derive::{def_op, op_interface, op_interface_impl};
+///
+/// #[def_op("dialect.name")]
+/// struct MyOp;
+///
+/// #[op_interface]
+/// pub trait MyOpInterface {
+///     fn gubbi(&self);
+///     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+///     where Self: Sized,
+///     {
+///         Ok(())
+///     }
+/// }
+///
+/// #[op_interface_impl]
+/// impl MyOpInterface for MyOp {
+///     fn gubbi(&self) { println!("gubbi"); }
+/// }
+/// # use pliron::{
+/// #     op::Op, context::Context, result::Result, common_traits::Verify
+/// # };
+/// # pliron::impl_verify_succ!(MyOp);
+/// # pliron::impl_canonical_syntax!(MyOp);
+/// ```
+#[proc_macro_attribute]
+pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    to_token_stream(interfaces::op_interface_impl(item))
+}
+
+/// Derive implementation of an [Op](../pliron/op/trait.Op.html) Interface for an Op.
+/// Note that an impl can be derived only for those interfaces that do not require any
+/// methods to be defined during the impl.
+///
+/// Usage:
+/// ```
+/// # use pliron_derive::{op_interface, derive_op_interface_impl};
+///
+/// #[def_op("dialect.name")]
+/// #[derive_op_interface_impl(MyOpInterface)]
+/// struct MyOp;
+///
+/// #[op_interface]
+/// pub trait MyOpInterface {
+///     fn gubbi(&self) { println!("gubbi"); }
+///     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+///     where Self: Sized,
+///     {
+///         Ok(())
+///     }
+/// }
+/// # use pliron_derive::def_op;
+/// # use pliron::{
+/// #     op::Op, context::Context, result::Result,
+/// #     common_traits::Verify
+/// # };
+/// # pliron::impl_verify_succ!(MyOp);
+/// # pliron::impl_canonical_syntax!(MyOp);
+/// ```
+#[proc_macro_attribute]
+pub fn derive_op_interface_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
+    to_token_stream(interfaces::derive_op_interface_impl(attr, item))
 }

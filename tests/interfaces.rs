@@ -15,10 +15,9 @@ use pliron::{
     },
     common_traits::Verify,
     context::{Context, Ptr},
-    decl_attr_interface, decl_op_interface, decl_type_interface,
+    decl_attr_interface, decl_type_interface,
     identifier::Identifier,
-    impl_attr_interface, impl_canonical_syntax, impl_op_interface, impl_type_interface,
-    impl_verify_succ,
+    impl_attr_interface, impl_canonical_syntax, impl_type_interface, impl_verify_succ,
     location::Location,
     op::{op_cast, Op, OpObj},
     operation::Operation,
@@ -28,7 +27,9 @@ use pliron::{
     result::{Error, ErrorKind, Result},
     utils::trait_cast::any_to_trait,
 };
-use pliron_derive::{def_attribute, def_op, def_type};
+use pliron_derive::{
+    def_attribute, def_op, def_type, derive_op_interface_impl, op_interface, op_interface_impl,
+};
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
 
@@ -36,7 +37,8 @@ use crate::common::{const_ret_in_mod, setup_context_dialects};
 struct ZeroResultOp {}
 
 // This is setup to fail.
-impl_op_interface!(OneResultInterface for ZeroResultOp {});
+#[op_interface_impl]
+impl OneResultInterface for ZeroResultOp {}
 
 impl Printable for ZeroResultOp {
     fn fmt(
@@ -92,50 +94,48 @@ fn check_intrf_verfiy_errs() {
 
 static TEST_OP_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new("".into()));
 
-decl_op_interface! {
-    TestOpInterfaceX {
-        fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
-        where
-            Self: Sized,
-        {
-            Ok(())
-        }
+#[op_interface]
+trait TestOpInterfaceX {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        Ok(())
     }
 }
 
-impl_op_interface!(TestOpInterfaceX for ReturnOp {});
-impl_op_interface!(TestOpInterfaceX for ModuleOp {});
+#[op_interface_impl]
+impl TestOpInterfaceX for ReturnOp {}
+#[op_interface_impl]
+impl TestOpInterfaceX for ModuleOp {}
 
-decl_op_interface! {
-    TestOpInterface {
-        fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
-        where
-            Self: Sized,
-        {
-            *TEST_OP_VERIFIERS_OUTPUT.lock().unwrap() += "TestOpInterface verified\n";
-            Ok(())
-        }
+#[op_interface]
+trait TestOpInterface {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_OP_VERIFIERS_OUTPUT.lock().unwrap() += "TestOpInterface verified\n";
+        Ok(())
     }
 }
 
-decl_op_interface! {
-    TestOpInterface2: TestOpInterface {
-        fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
-        where
-            Self: Sized,
-        {
-            *TEST_OP_VERIFIERS_OUTPUT.lock().unwrap() += "TestOpInterface2 verified\n";
-            Ok(())
-        }
+#[op_interface]
+trait TestOpInterface2: TestOpInterface {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_OP_VERIFIERS_OUTPUT.lock().unwrap() += "TestOpInterface2 verified\n";
+        Ok(())
     }
 }
 
 #[def_op("test.verify_intr_op")]
+#[derive_op_interface_impl(TestOpInterface, TestOpInterface2)]
 struct VerifyIntrOp {}
 impl_canonical_syntax!(VerifyIntrOp);
 impl_verify_succ!(VerifyIntrOp);
-impl_op_interface!(TestOpInterface for VerifyIntrOp {});
-impl_op_interface!(TestOpInterface2 for VerifyIntrOp {});
 impl VerifyIntrOp {
     fn new(ctx: &mut Context) -> VerifyIntrOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);

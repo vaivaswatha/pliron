@@ -1,5 +1,5 @@
 use combine::{token, Parser};
-use pliron_derive::def_op;
+use pliron_derive::{def_op, derive_op_interface_impl};
 use thiserror::Error;
 
 use crate::{
@@ -8,7 +8,7 @@ use crate::{
     common_traits::{Named, Verify},
     context::{Context, Ptr},
     identifier::Identifier,
-    impl_op_interface, impl_verify_succ, input_err,
+    impl_verify_succ, input_err,
     irfmt::{
         parsers::{spaced, type_parser},
         printers::op::{region, symb_op_header, typed_symb_op_header},
@@ -48,6 +48,15 @@ use super::{
 /// |-----|-------|-----|
 /// | [ATTR_KEY_SYM_NAME](super::op_interfaces::ATTR_KEY_SYM_NAME) | [IdentifierAttr](super::attributes::IdentifierAttr) | [SymbolOpInterface] |
 #[def_op("builtin.module")]
+#[derive_op_interface_impl(
+    OneRegionInterface,
+    SingleBlockRegionInterface,
+    SymbolTableInterface,
+    SymbolOpInterface,
+    IsolatedFromAboveInterface,
+    ZeroOpdInterface,
+    ZeroResultInterface
+)]
 pub struct ModuleOp;
 
 impl Printable for ModuleOp {
@@ -118,14 +127,6 @@ impl ModuleOp {
     }
 }
 
-impl_op_interface!(OneRegionInterface for ModuleOp {});
-impl_op_interface!(SingleBlockRegionInterface for ModuleOp {});
-impl_op_interface!(SymbolTableInterface for ModuleOp {});
-impl_op_interface!(SymbolOpInterface for ModuleOp {});
-impl_op_interface!(IsolatedFromAboveInterface for ModuleOp {});
-impl_op_interface!(ZeroOpdInterface for ModuleOp {});
-impl_op_interface!(ZeroResultInterface for ModuleOp {});
-
 /// An operation with a name containing a single SSA control-flow-graph region.
 /// See MLIR's [func.func](https://mlir.llvm.org/docs/Dialects/Func/#funcfunc-mlirfuncfuncop).
 ///
@@ -136,6 +137,13 @@ impl_op_interface!(ZeroResultInterface for ModuleOp {});
 /// | [ATTR_KEY_SYM_NAME](super::op_interfaces::ATTR_KEY_SYM_NAME) | [IdentifierAttr](super::attributes::IdentifierAttr) | [SymbolOpInterface] |
 /// | [ATTR_KEY_FUNC_TYPE](func_op::ATTR_KEY_FUNC_TYPE) | [TypeAttr](super::attributes::TypeAttr) | N/A |
 #[def_op("builtin.func")]
+#[derive_op_interface_impl(
+    OneRegionInterface,
+    SymbolOpInterface,
+    IsolatedFromAboveInterface,
+    ZeroOpdInterface,
+    ZeroResultInterface
+)]
 pub struct FuncOp;
 
 pub mod func_op {
@@ -201,10 +209,6 @@ impl Typed for FuncOp {
         self.get_type(ctx)
     }
 }
-
-impl_op_interface!(OneRegionInterface for FuncOp {});
-impl_op_interface!(SymbolOpInterface for FuncOp {});
-impl_op_interface!(IsolatedFromAboveInterface for FuncOp {});
 
 impl Printable for FuncOp {
     fn fmt(
@@ -285,14 +289,12 @@ impl Verify for FuncOp {
     }
 }
 
-impl_op_interface!(ZeroOpdInterface for FuncOp {});
-impl_op_interface!(ZeroResultInterface for FuncOp {});
-
 /// A placeholder during parsing to refer to yet undefined operations.
 /// MLIR [uses](https://github.com/llvm/llvm-project/blob/185b81e034ba60081023b6e59504dfffb560f3e3/mlir/lib/AsmParser/Parser.cpp#L1075)
 /// [UnrealizedConversionCastOp](https://mlir.llvm.org/docs/Dialects/Builtin/#builtinunrealized_conversion_cast-unrealizedconversioncastop)
 /// for this purpose.
 #[def_op("builtin.forward_ref")]
+#[derive_op_interface_impl(OneResultInterface, ZeroOpdInterface)]
 pub struct ForwardRefOp;
 
 impl Printable for ForwardRefOp {
@@ -310,9 +312,6 @@ impl Printable for ForwardRefOp {
         )
     }
 }
-
-impl_op_interface! (OneResultInterface for ForwardRefOp {});
-impl_op_interface! (ZeroOpdInterface for ForwardRefOp {});
 
 #[derive(Error, Debug)]
 #[error("{0} is a temporary Op during parsing. It must not exit in a well-formed program.")]
