@@ -4,14 +4,14 @@ use combine::{
     parser::char::{self, hex_digit, string},
     token, Parser,
 };
-use pliron_derive::def_attribute;
+use pliron_derive::{attr_interface_impl, def_attribute};
 
 use crate::{
     attribute::{AttrObj, Attribute, AttributeDict},
     common_traits::Verify,
     context::{Context, Ptr},
     identifier::Identifier,
-    impl_attr_interface, impl_verify_succ, input_err,
+    impl_verify_succ, input_err,
     irfmt::{
         parsers::{delimited_list_parser, spaced, type_parser},
         printers::{list_with_sep, quoted},
@@ -209,11 +209,12 @@ impl Typed for IntegerAttr {
     }
 }
 
-impl_attr_interface!(TypedAttrInterface for IntegerAttr {
+#[attr_interface_impl]
+impl TypedAttrInterface for IntegerAttr {
     fn get_type(&self) -> Ptr<TypeObj> {
         self.ty.into()
     }
-});
+}
 
 /// A dummy implementation until we have a good one.
 #[derive(PartialEq, Clone, Debug)]
@@ -262,13 +263,12 @@ impl Typed for FloatAttr {
     }
 }
 
-impl_attr_interface!(
-    TypedAttrInterface for FloatAttr {
-        fn get_type(&self) -> Ptr<TypeObj> {
-            todo!()
-        }
+#[attr_interface_impl]
+impl TypedAttrInterface for FloatAttr {
+    fn get_type(&self) -> Ptr<TypeObj> {
+        todo!()
     }
-);
+}
 
 impl Parsable for FloatAttr {
     type Arg = ();
@@ -473,13 +473,12 @@ impl Typed for TypeAttr {
     }
 }
 
-impl_attr_interface!(
-    TypedAttrInterface for TypeAttr {
-        fn get_type(&self) -> Ptr<TypeObj> {
-            self.0
-        }
+#[attr_interface_impl]
+impl TypedAttrInterface for TypeAttr {
+    fn get_type(&self) -> Ptr<TypeObj> {
+        self.0
     }
-);
+}
 
 pub fn register(ctx: &mut Context) {
     IdentifierAttr::register_attr_in_dialect(ctx, IdentifierAttr::parser_fn);

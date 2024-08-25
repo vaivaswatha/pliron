@@ -9,6 +9,8 @@ mod derive_type;
 mod interfaces;
 
 use proc_macro::TokenStream;
+use quote::format_ident;
+use syn::parse_quote;
 
 /// `#[def_attribute(...)]`: Annotate a Rust struct as a new IR attribute.
 ///
@@ -170,7 +172,14 @@ pub fn derive_attrib_dummy(_input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    to_token_stream(interfaces::op_interface_define(item))
+    let supertrait = parse_quote! { ::pliron::op::Op };
+    let interface_deps_slice = parse_quote! { ::pliron::op::OP_INTERFACE_DEPS };
+
+    to_token_stream(interfaces::interface_define(
+        item,
+        supertrait,
+        interface_deps_slice,
+    ))
 }
 
 /// Implement [Op](../pliron/op/trait.Op.html) Interface for an Op. The interface trait must define
@@ -205,7 +214,17 @@ pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    to_token_stream(interfaces::op_interface_impl(item))
+    let interface_verifiers_slice = parse_quote! { ::pliron::op::OP_INTERFACE_VERIFIERS };
+    let id = parse_quote! { ::pliron::op::OpId };
+    let get_id_static = format_ident!("{}", "get_opid_static");
+    let verifier_type = parse_quote! { ::pliron::op::OpInterfaceVerifier };
+    to_token_stream(interfaces::interface_impl(
+        item,
+        interface_verifiers_slice,
+        id,
+        verifier_type,
+        get_id_static,
+    ))
 }
 
 /// Derive implementation of an [Op](../pliron/op/trait.Op.html) Interface for an Op.
@@ -240,4 +259,229 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn derive_op_interface_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
     to_token_stream(interfaces::derive_op_interface_impl(attr, item))
+}
+
+/// Declare an [Attribute](../pliron/attribute/trait.Attribute.html) interface,
+/// which can be implemented by any `Attribute`.
+///
+/// If the interface requires any other interface to be already implemented,
+/// they can be specified super-traits.
+///
+/// When an `Attribute` is verified, its interfaces are also automatically verified,
+/// with guarantee that a super-interface is verified before an interface itself is.
+///
+/// Example: Here `Super1` and `Super2` are super interfaces for the interface `MyAttrIntr`.
+/// ```
+/// # use pliron::{attribute::Attribute, context::Context, result::Result};
+/// use pliron_derive::attr_interface;
+///
+/// #[attr_interface]
+/// trait Super1 {
+///     fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
+///     where
+///         Self: Sized,
+///     {
+///         Ok(())
+///     }
+/// }
+///
+/// #[attr_interface]
+/// trait Super2 {
+///     fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
+///     where
+///         Self: Sized,
+///     {
+///         Ok(())
+///     }
+/// }
+///
+/// // MyAttrIntr is my best attribute interface.
+/// #[attr_interface]
+/// trait MyAttrIntr: Super1 + Super2 {
+///     fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
+///     where
+///         Self: Sized,
+///     {
+///         Ok(())
+///     }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn attr_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let supertrait = parse_quote! { ::pliron::attribute::Attribute };
+    let interface_deps_slice = parse_quote! { ::pliron::attribute::ATTR_INTERFACE_DEPS };
+
+    to_token_stream(interfaces::interface_define(
+        item,
+        supertrait,
+        interface_deps_slice,
+    ))
+}
+
+/// Implement [Attribute](../pliron/attribute/trait.Attribute.html) Interface for an Attribute.
+/// The interface trait must define a `verify` function with type
+/// [AttrInterfaceVerifier](../pliron/attribute/type.AttrInterfaceVerifier.html).
+///
+/// Usage:
+/// ```
+/// use pliron_derive::{attr_interface, attr_interface_impl};
+///
+/// #[def_attribute("dialect.name")]
+/// #[derive(PartialEq, Eq, Clone, Debug)]
+/// struct MyAttr { }
+///
+///     /// My first attribute interface.
+/// #[attr_interface]
+/// trait MyAttrInterface {
+///     fn monu(&self);
+///     fn verify(attr: &dyn Attribute, ctx: &Context) -> Result<()>
+///     where Self: Sized,
+///     {
+///          Ok(())
+///     }
+/// }
+///
+/// #[attr_interface_impl]
+/// impl MyAttrInterface for MyAttr
+/// {
+///     fn monu(&self) { println!("monu"); }
+/// }
+/// # use pliron::{
+/// #     printable::{self, Printable},
+/// #     context::Context, result::Result, common_traits::Verify,
+/// #     attribute::Attribute
+/// # };
+/// # use pliron_derive::def_attribute;
+/// #
+/// # impl Printable for MyAttr {
+/// #    fn fmt(&self, _ctx: &Context, _state: &printable::State, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// #        unimplemented!()
+/// #    }
+/// # }
+/// # pliron::impl_verify_succ!(MyAttr);
+#[proc_macro_attribute]
+pub fn attr_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let interface_verifiers_slice = parse_quote! { ::pliron::attribute::ATTR_INTERFACE_VERIFIERS };
+    let id = parse_quote! { ::pliron::attribute::AttrId };
+    let get_id_static = format_ident!("{}", "get_attr_id_static");
+    let verifier_type = parse_quote! { ::pliron::attribute::AttrInterfaceVerifier };
+    to_token_stream(interfaces::interface_impl(
+        item,
+        interface_verifiers_slice,
+        id,
+        verifier_type,
+        get_id_static,
+    ))
+}
+
+/// Declare a [Type](../pliron/type/trait.Type.html) interface,
+/// which can be implemented by any `Type`.
+///
+/// If the interface requires any other interface to be already implemented,
+/// they can be specified super-traits.
+///
+/// When an `Attribute` is verified, its interfaces are also automatically verified,
+/// with guarantee that a super-interface is verified before an interface itself is.
+///
+/// Example: Here `Super1` and `Super2` are super interfaces for the interface `MyTypeIntr`.
+/// ```
+/// use pliron_derive::type_interface;
+/// # use pliron::{r#type::Type, context::Context, result::Result};
+/// #[type_interface]
+/// trait Super1 {
+///     fn verify(_type: &dyn Type, _ctx: &Context) -> Result<()>
+///     where
+///         Self: Sized,
+///     {
+///         Ok(())
+///     }
+/// }
+///
+/// #[type_interface]
+/// trait Super2 {
+///     fn verify(_type: &dyn Type, _ctx: &Context) -> Result<()>
+///     where
+///         Self: Sized,
+///     {
+///         Ok(())
+///     }
+/// }
+///
+/// #[type_interface]
+/// // MyTypeIntr is my best type interface.
+/// trait MyTypeIntr: Super1 + Super2 {
+///     fn verify(_type: &dyn Type, _ctx: &Context) -> Result<()>
+///     where
+///         Self: Sized,
+///     {
+///         Ok(())
+///     }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn type_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let supertrait = parse_quote! { ::pliron::r#type::Type };
+    let interface_deps_slice = parse_quote! { ::pliron::r#type::TYPE_INTERFACE_DEPS };
+
+    to_token_stream(interfaces::interface_define(
+        item,
+        supertrait,
+        interface_deps_slice,
+    ))
+}
+
+/// Implement [Type](../pliron/type/trait.Type.html) Interface for a Type.
+/// The interface trait must define a `verify` function with type
+/// [TypeInterfaceVerifier](../pliron/type/type.TypeInterfaceVerifier.html).
+///
+/// Usage:
+/// ```
+/// use pliron_derive::{type_interface, type_interface_impl};
+///
+/// #[def_type("dialect.name")]
+/// #[derive(PartialEq, Eq, Clone, Debug, Hash)]
+/// struct MyType { }
+///
+/// #[type_interface]
+/// /// My first type interface.
+/// trait MyTypeInterface {
+///     fn monu(&self);
+///     fn verify(r#type: &dyn Type, ctx: &Context) -> Result<()>
+///     where Self: Sized,
+///     {
+///          Ok(())
+///     }
+/// }
+///
+/// #[type_interface_impl]
+/// impl MyTypeInterface for MyType
+/// {
+///     fn monu(&self) { println!("monu"); }
+/// }
+/// # use pliron::{
+/// #     printable::{self, Printable},
+/// #     context::Context, result::Result, common_traits::Verify,
+/// #     r#type::Type
+/// # };
+/// # use pliron_derive::def_type;
+/// #
+/// # impl Printable for MyType {
+/// #    fn fmt(&self, _ctx: &Context, _state: &printable::State, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// #        unimplemented!()
+/// #    }
+/// # }
+/// # pliron::impl_verify_succ!(MyType);
+#[proc_macro_attribute]
+pub fn type_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let interface_verifiers_slice = parse_quote! { ::pliron::r#type::TYPE_INTERFACE_VERIFIERS };
+    let id = parse_quote! { ::pliron::r#type::TypeId };
+    let get_id_static = format_ident!("{}", "get_type_id_static");
+    let verifier_type = parse_quote! { ::pliron::r#type::TypeInterfaceVerifier };
+    to_token_stream(interfaces::interface_impl(
+        item,
+        interface_verifiers_slice,
+        id,
+        verifier_type,
+        get_id_static,
+    ))
 }

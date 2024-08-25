@@ -16,15 +16,18 @@
 //! and [Interfaces](https://mlir.llvm.org/docs/Interfaces/).
 //! Interfaces must all implement an associated function named `verify` with
 //! the type [AttrInterfaceVerifier].
-//! New interfaces must be specified via [decl_attr_interface](pliron::decl_attr_interface)
-//! for proper verification.
 //!
-//! [Attribute]s that implement an interface must do so using the
-//! [impl_attr_interface](crate::impl_attr_interface) macro.
-//! This ensures that the interface verifier is automatically called,
-//! and that a `&dyn Attribute` object can be [cast](attr_cast) into an
-//! interface object, (or that it can be checked if the interface
-//! is [implemented](attr_impls)) with ease.
+//! Interfaces are rust Trait definitions annotated with the attribute macro
+//! [attr_interface](pliron_derive::attr_interface). The attribute ensures that any
+//! verifiers of super-interfaces (specified as super traits) are run prior to
+//! the verifier of this interface.
+//!
+//! [Attribute]s that implement an interface must annotate the implementation with
+//! [attr_interface_impl](pliron_derive::attr_interface_impl) macro to ensure that
+//! the interface verifier is automatically called during verification
+//! and that a `&dyn Attribute` object can be [cast](attr_cast) into an interface object,
+//! (or that it can be checked if the interface is [implemented](attr_impls))
+//! with ease.
 //!
 //! [AttrObj]s can be downcasted to their concrete types using
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
@@ -408,66 +411,6 @@ impl Parsable for AttrId {
 /// Every attribute interface must have a function named `verify` with this type.
 pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 
-/// Implement an Attribute Interface for an Attribute.
-/// The interface trait must define a `verify` function with type [AttrInterfaceVerifier].
-///
-/// Usage:
-/// ```
-/// #[def_attribute("dialect.name")]
-/// #[derive(PartialEq, Eq, Clone, Debug)]
-/// struct MyAttr { }
-///
-/// decl_attr_interface! {
-///     /// My first attribute interface.
-///     MyAttrInterface {
-///         fn monu(&self);
-///         fn verify(attr: &dyn Attribute, ctx: &Context) -> Result<()>
-///         where Self: Sized,
-///         {
-///              Ok(())
-///         }
-///     }
-/// }
-/// impl_attr_interface!(
-///     MyAttrInterface for MyAttr
-///     {
-///         fn monu(&self) { println!("monu"); }
-///     }
-/// );
-/// # use pliron::{
-/// #     decl_attr_interface,
-/// #     printable::{self, Printable},
-/// #     context::Context, result::Result, common_traits::Verify,
-/// #     attribute::Attribute, impl_attr_interface
-/// # };
-/// # use pliron_derive::def_attribute;
-/// #
-/// # impl Printable for MyAttr {
-/// #    fn fmt(&self, _ctx: &Context, _state: &printable::State, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-/// #        unimplemented!()
-/// #    }
-/// # }
-/// # pliron::impl_verify_succ!(MyAttr);
-#[macro_export]
-macro_rules! impl_attr_interface {
-    ($intr_name:ident for $attr_name:ident { $($tt:tt)* }) => {
-        $crate::type_to_trait!($attr_name, $intr_name);
-        impl $intr_name for $attr_name {
-            $($tt)*
-        }
-        const _: () = {
-            #[linkme::distributed_slice(pliron::attribute::ATTR_INTERFACE_VERIFIERS)]
-            static INTERFACE_VERIFIER: std::sync::LazyLock<
-                (pliron::attribute::AttrId, (std::any::TypeId, pliron::attribute::AttrInterfaceVerifier))
-            > =
-            std::sync::LazyLock::new(||
-                ($attr_name::get_attr_id_static(), (std::any::TypeId::of::<dyn $intr_name>(),
-                     <$attr_name as $intr_name>::verify))
-            );
-        };
-    };
-}
-
 /// [Attribute]s paired with every interface it implements (and the verifier for that interface).
 #[distributed_slice]
 pub static ATTR_INTERFACE_VERIFIERS: [LazyLock<(
@@ -544,78 +487,6 @@ pub static ATTR_INTERFACE_VERIFIERS_MAP: LazyLock<
 
     attr_intr_verifiers
 });
-
-/// Declare an [Attribute] interface, which can be implemented by any [Attribute].
-///
-/// If the interface requires any other interface to be already implemented,
-/// they can be specified. The trait to which this interface is expanded will
-/// have the dependent interfaces as super-traits, in addition to the [Attribute] trait
-/// itself, which is always automatically added as a super-trait.
-///
-/// When an [Attribute] is verified, its interfaces are also automatically verified,
-/// with guarantee that a super-interface is verified before an interface itself is.
-///
-/// Example: Here `Super1` and `Super2` are super interfaces for the interface `MyAttrIntr`.
-/// ```
-/// # use pliron::{decl_attr_interface, attribute::Attribute, context::Context, result::Result};
-/// decl_attr_interface!(
-///     Super1 {
-///         fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
-///         where
-///             Self: Sized,
-///         {
-///             Ok(())
-///         }
-///     }
-/// );
-/// decl_attr_interface!(
-///     Super2 {
-///         fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
-///         where
-///             Self: Sized,
-///         {
-///             Ok(())
-///         }
-///     }
-/// );
-/// decl_attr_interface!(
-///     /// MyAttrIntr is my best attribute interface.
-///     MyAttrIntr: Super1, Super2 {
-///         fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
-///         where
-///             Self: Sized,
-///         {
-///             Ok(())
-///         }
-///     }
-/// );
-/// ```
-#[macro_export]
-macro_rules! decl_attr_interface {
-    // No deps case
-    ($(#[$docs:meta])*
-        $intr_name:ident { $($tt:tt)* }) => {
-        decl_attr_interface!(
-            $(#[$docs])*
-            $intr_name: { $($tt)* }
-        );
-    };
-    // Zero or more deps
-    ($(#[$docs:meta])*
-        $intr_name:ident: $($dep:path),* { $($tt:tt)* }) => {
-        $(#[$docs])*
-        pub trait $intr_name: pliron::attribute::Attribute $( + $dep )* {
-            $($tt)*
-        }
-        const _: () = {
-            #[linkme::distributed_slice(pliron::attribute::ATTR_INTERFACE_DEPS)]
-            static ATTR_INTERFACE_DEP: std::sync::LazyLock<(std::any::TypeId, Vec<std::any::TypeId>)>
-                = std::sync::LazyLock::new(|| {
-                    (std::any::TypeId::of::<dyn $intr_name>(), vec![$(std::any::TypeId::of::<dyn $dep>(),)*])
-             });
-        };
-    };
-}
 
 #[cfg(test)]
 mod tests {

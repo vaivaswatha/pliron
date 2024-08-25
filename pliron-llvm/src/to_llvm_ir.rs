@@ -15,10 +15,9 @@ use pliron::{
     },
     common_traits::Named,
     context::{Context, Ptr},
-    decl_type_interface,
     graph::traversals::region::topological_order,
     identifier::Identifier,
-    impl_type_interface, input_err, input_err_noloc, input_error_noloc,
+    input_err, input_err_noloc, input_error_noloc,
     linked_list::{ContainsLinkedList, LinkedList},
     location::Located,
     op::{op_cast, Op},
@@ -28,7 +27,7 @@ use pliron::{
     value::Value,
 };
 
-use pliron_derive::{op_interface, op_interface_impl};
+use pliron_derive::{op_interface, op_interface_impl, type_interface, type_interface_impl};
 use rustc_hash::FxHashMap;
 use thiserror::Error;
 
@@ -116,20 +115,17 @@ pub fn convert_ipredicate(pred: ICmpPredicateAttr) -> LLVMIntPredicate {
     }
 }
 
-decl_type_interface! {
-    /// A type that implements this is convertible to an [LLVMType].
-    ToLLVMType {
-        /// Convert from pliron [Type] to [LLVMType].
-        fn convert(
-            &self,
-            ctx: &Context,
-            llvm_ctx: &LLVMContext) -> Result<LLVMType>;
+/// A type that implements this is convertible to an [LLVMType].
+#[type_interface]
+trait ToLLVMType {
+    /// Convert from pliron [Type] to [LLVMType].
+    fn convert(&self, ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType>;
 
-        fn verify(_type: &dyn Type, _ctx: &Context) -> Result<()>
-        where Self: Sized,
-        {
-            Ok(())
-        }
+    fn verify(_type: &dyn Type, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        Ok(())
     }
 }
 
@@ -152,105 +148,73 @@ trait ToLLVMValue {
     }
 }
 
-impl_type_interface!(
-    ToLLVMType for IntegerType {
-        fn convert(
-            &self,
-            _ctx: &Context,
-            llvm_ctx: &LLVMContext) -> Result<LLVMType>
-        {
-            Ok(llvm_int_type_in_context(llvm_ctx, self.get_width()))
-        }
+#[type_interface_impl]
+impl ToLLVMType for IntegerType {
+    fn convert(&self, _ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+        Ok(llvm_int_type_in_context(llvm_ctx, self.get_width()))
     }
-);
+}
 
-impl_type_interface!(
-    ToLLVMType for ArrayType {
-        fn convert(
-            &self,
-            ctx: &Context,
-            llvm_ctx: &LLVMContext) -> Result<LLVMType>
-        {
-            let elem_ty = convert_type(ctx, llvm_ctx, self.elem_type())?;
-            Ok(llvm_array_type2(elem_ty, self.size()))
-        }
+#[type_interface_impl]
+impl ToLLVMType for ArrayType {
+    fn convert(&self, ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+        let elem_ty = convert_type(ctx, llvm_ctx, self.elem_type())?;
+        Ok(llvm_array_type2(elem_ty, self.size()))
     }
-);
+}
 
-impl_type_interface!(
-    ToLLVMType for FunctionType {
-        fn convert(
-            &self,
-            ctx: &Context,
-            llvm_ctx: &LLVMContext) -> Result<LLVMType>
-        {
-            let args_tys: Vec<_> =
-                self.get_inputs()
-                .iter()
-                .map(|ty| {
-                    convert_type(ctx, llvm_ctx, *ty)
-                })
-                .collect::<Result<_>>()?;
-            let ret_ty =
-                self.get_results().first().map(|ty| convert_type(ctx, llvm_ctx, *ty))
-                .unwrap_or(Ok(llvm_void_type_in_context(llvm_ctx)))?;
-            Ok(llvm_function_type(ret_ty, &args_tys, false))
-        }
+#[type_interface_impl]
+impl ToLLVMType for FunctionType {
+    fn convert(&self, ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+        let args_tys: Vec<_> = self
+            .get_inputs()
+            .iter()
+            .map(|ty| convert_type(ctx, llvm_ctx, *ty))
+            .collect::<Result<_>>()?;
+        let ret_ty = self
+            .get_results()
+            .first()
+            .map(|ty| convert_type(ctx, llvm_ctx, *ty))
+            .unwrap_or(Ok(llvm_void_type_in_context(llvm_ctx)))?;
+        Ok(llvm_function_type(ret_ty, &args_tys, false))
     }
-);
+}
 
-impl_type_interface!(
-    ToLLVMType for VoidType {
-        fn convert(
-            &self,
-            _ctx: &Context,
-            llvm_ctx: &LLVMContext) -> Result<LLVMType>
-        {
-            Ok(llvm_void_type_in_context(llvm_ctx))
-        }
+#[type_interface_impl]
+impl ToLLVMType for VoidType {
+    fn convert(&self, _ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+        Ok(llvm_void_type_in_context(llvm_ctx))
     }
-);
+}
 
-impl_type_interface!(
-    ToLLVMType for PointerType {
-        fn convert(
-            &self,
-            _ctx: &Context,
-            llvm_ctx: &LLVMContext) -> Result<LLVMType>
-        {
-            Ok(llvm_pointer_type_in_context(llvm_ctx, 0))
-        }
+#[type_interface_impl]
+impl ToLLVMType for PointerType {
+    fn convert(&self, _ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+        Ok(llvm_pointer_type_in_context(llvm_ctx, 0))
     }
-);
+}
 
-impl_type_interface!(
-    ToLLVMType for StructType {
-        fn convert(
-            &self,
-            ctx: &Context,
-            llvm_ctx: &LLVMContext) -> Result<LLVMType>
-        {
-            if self.is_opaque() {
-                let name = self.name().expect("Opaqaue struct must have a name");
-                Ok(llvm_struct_create_named(llvm_ctx, name.as_str()))
+#[type_interface_impl]
+impl ToLLVMType for StructType {
+    fn convert(&self, ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+        if self.is_opaque() {
+            let name = self.name().expect("Opaqaue struct must have a name");
+            Ok(llvm_struct_create_named(llvm_ctx, name.as_str()))
+        } else {
+            let field_types = self
+                .fields()
+                .map(|fty| convert_type(ctx, llvm_ctx, fty))
+                .collect::<Result<Vec<_>>>()?;
+            if let Some(name) = self.name() {
+                let str_ty = llvm_struct_create_named(llvm_ctx, name.as_str());
+                llvm_struct_set_body(str_ty, &field_types, false);
+                Ok(str_ty)
             } else {
-                let field_types = self
-                    .fields()
-                    .map(|fty| {
-                         convert_type(ctx, llvm_ctx, fty)
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-                if let Some(name) = self.name() {
-                    let str_ty = llvm_struct_create_named(llvm_ctx, name.as_str());
-                    llvm_struct_set_body(str_ty, &field_types, false);
-                    Ok(str_ty)
-                } else {
-                    Ok(llvm_struct_type_in_context(llvm_ctx, &field_types, false))
-                }
+                Ok(llvm_struct_type_in_context(llvm_ctx, &field_types, false))
             }
         }
     }
-);
+}
 
 /// Convert a pliron [Type] to [LLVMType].
 pub fn convert_type(ctx: &Context, llvm_ctx: &LLVMContext, ty: Ptr<TypeObj>) -> Result<LLVMType> {

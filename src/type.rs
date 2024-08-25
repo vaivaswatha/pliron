@@ -15,15 +15,18 @@
 //! and [Interfaces](https://mlir.llvm.org/docs/Interfaces/).
 //! Interfaces must all implement an associated function named `verify` with
 //! the type [TypeInterfaceVerifier].
-//! New interfaces must be specified via [decl_type_interface](pliron::decl_type_interface)
-//! for proper verification.
 //!
-//! [Type]s that implement an interface must do so using the
-//! [impl_type_interface](crate::impl_type_interface) macro.
-//! This ensures that the interface verifier is automatically called,
-//! and that a `&dyn Type` object can be [cast](type_cast) into an
-//! interface object, (or that it can be checked if the interface
-//! is [implemented](type_impls)) with ease.
+//! Interfaces are rust Trait definitions annotated with the attribute macro
+//! [type_interface](pliron_derive::type_interface). The attribute ensures that any
+//! verifiers of super-interfaces (specified as super traits) are run prior to
+//! the verifier of this interface.
+//!
+//! [Type]s that implement an interface must annotate the implementation with
+//! [type_interface_impl](pliron_derive::type_interface_impl) macro to ensure that
+//! the interface verifier is automatically called during verification
+//! and that a `&dyn Type` object can be [cast](type_cast) into an interface object,
+//! (or that it can be checked if the interface is [implemented](type_impls))
+//! with ease.
 //!
 //! [TypeObj]s can be downcasted to their concrete types using
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
@@ -548,66 +551,6 @@ pub fn type_impls<T: ?Sized + Type>(ty: &dyn Type) -> bool {
 /// Every type interface must have a function named `verify` with this type.
 pub type TypeInterfaceVerifier = fn(&dyn Type, &Context) -> Result<()>;
 
-/// Implement a Type Interface for a Type.
-/// The interface trait must define a `verify` function with type [TypeInterfaceVerifier].
-///
-/// Usage:
-/// ```
-/// #[def_type("dialect.name")]
-/// #[derive(PartialEq, Eq, Clone, Debug, Hash)]
-/// struct MyType { }
-///
-/// decl_type_interface! {
-///     /// My first type interface.
-///     MyTypeInterface {
-///         fn monu(&self);
-///         fn verify(r#type: &dyn Type, ctx: &Context) -> Result<()>
-///         where Self: Sized,
-///         {
-///              Ok(())
-///         }
-///     }
-/// }
-/// impl_type_interface!(
-///     MyTypeInterface for MyType
-///     {
-///         fn monu(&self) { println!("monu"); }
-///     }
-/// );
-/// # use pliron::{
-/// #     decl_type_interface,
-/// #     printable::{self, Printable},
-/// #     context::Context, result::Result, common_traits::Verify,
-/// #     r#type::Type, impl_type_interface
-/// # };
-/// # use pliron_derive::def_type;
-/// #
-/// # impl Printable for MyType {
-/// #    fn fmt(&self, _ctx: &Context, _state: &printable::State, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-/// #        unimplemented!()
-/// #    }
-/// # }
-/// # pliron::impl_verify_succ!(MyType);
-#[macro_export]
-macro_rules! impl_type_interface {
-    ($intr_name:ident for $type_name:ident { $($tt:tt)* }) => {
-        $crate::type_to_trait!($type_name, $intr_name);
-        impl $intr_name for $type_name {
-            $($tt)*
-        }
-        const _: () = {
-            #[linkme::distributed_slice(pliron::r#type::TYPE_INTERFACE_VERIFIERS)]
-            static INTERFACE_VERIFIER: std::sync::LazyLock<
-                (pliron::r#type::TypeId, (std::any::TypeId, pliron::r#type::TypeInterfaceVerifier))
-            > =
-            std::sync::LazyLock::new(||
-                ($type_name::get_type_id_static(), (std::any::TypeId::of::<dyn $intr_name>(),
-                     <$type_name as $intr_name>::verify))
-            );
-        };
-    };
-}
-
 /// [Type]s paired with every interface it implements (and the verifier for that interface).
 #[distributed_slice]
 pub static TYPE_INTERFACE_VERIFIERS: [LazyLock<(
@@ -684,78 +627,6 @@ pub static TYPE_INTERFACE_VERIFIERS_MAP: LazyLock<
 
     type_intr_verifiers
 });
-
-/// Declare a [Type] interface, which can be implemented by any [Type].
-///
-/// If the interface requires any other interface to be already implemented,
-/// they can be specified. The trait to which this interface is expanded will
-/// have the dependent interfaces as super-traits, in addition to the [Type] trait
-/// itself, which is always automatically added as a super-trait.
-///
-/// When a [Type] is verified, its interfaces are also automatically verified,
-/// with guarantee that a super-interface is verified before an interface itself is.
-///
-/// Example: Here `Super1` and `Super2` are super interfaces for the interface `MyTypeIntr`.
-/// ```
-/// # use pliron::{decl_type_interface, r#type::Type, context::Context, result::Result};
-/// decl_type_interface!(
-///     Super1 {
-///         fn verify(_type: &dyn Type, _ctx: &Context) -> Result<()>
-///         where
-///             Self: Sized,
-///         {
-///             Ok(())
-///         }
-///     }
-/// );
-/// decl_type_interface!(
-///     Super2 {
-///         fn verify(_type: &dyn Type, _ctx: &Context) -> Result<()>
-///         where
-///             Self: Sized,
-///         {
-///             Ok(())
-///         }
-///     }
-/// );
-/// decl_type_interface!(
-///     /// MyTypeIntr is my best type interface.
-///     MyTypeIntr: Super1, Super2 {
-///         fn verify(_type: &dyn Type, _ctx: &Context) -> Result<()>
-///         where
-///             Self: Sized,
-///         {
-///             Ok(())
-///         }
-///     }
-/// );
-/// ```
-#[macro_export]
-macro_rules! decl_type_interface {
-    // No deps case
-    ($(#[$docs:meta])*
-        $intr_name:ident { $($tt:tt)* }) => {
-        decl_type_interface!(
-            $(#[$docs])*
-            $intr_name: { $($tt)* }
-        );
-    };
-    // Zero or more deps
-    ($(#[$docs:meta])*
-        $intr_name:ident: $($dep:path),* { $($tt:tt)* }) => {
-        $(#[$docs])*
-        pub trait $intr_name: pliron::r#type::Type $( + $dep )* {
-            $($tt)*
-        }
-        const _: () = {
-            #[linkme::distributed_slice(pliron::r#type::TYPE_INTERFACE_DEPS)]
-            static TYPE_INTERFACE_DEP: std::sync::LazyLock<(std::any::TypeId, Vec<std::any::TypeId>)>
-                = std::sync::LazyLock::new(|| {
-                    (std::any::TypeId::of::<dyn $intr_name>(), vec![$(std::any::TypeId::of::<dyn $dep>(),)*])
-             });
-        };
-    };
-}
 
 #[cfg(test)]
 mod tests {
