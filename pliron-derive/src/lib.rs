@@ -10,9 +10,7 @@ mod interfaces;
 
 use proc_macro::TokenStream;
 
-/// The `#[def_attribute(...)]` proc macro.
-///
-/// The macro can be used to annotate a Rust struct as a new IR attribute.
+/// `#[def_attribute(...)]`: Annotate a Rust struct as a new IR attribute.
 ///
 /// The argument to the macro is the fully qualified name of the attribute in the form of
 /// `"dialect.attribute_name"`.
@@ -21,24 +19,30 @@ use proc_macro::TokenStream;
 /// the pliron::Attribute trait and implements other internal traits and types resources required
 /// to use the IR attribute.
 ///
+/// **Note**: pre-requisite traits for `Attribute` must already be implemented.
+///         Additionaly, PartialEq must be implemented by the type.
+///
 /// Usage:
 ///
-/// ```ignore
+/// ```
+/// use pliron_derive::def_attribute;
+///
 /// #[def_attribute("my_dialect.attribute")]
 /// #[derive(Debug, Clone, PartialEq, Eq)]
 /// pub struct StringAttr(String);
+/// # use pliron::{impl_verify_succ, printable::{State, Printable}, context::Context};
+/// # impl_verify_succ!(StringAttr);
+/// # impl Printable for StringAttr {
+/// #     fn fmt(&self, _ctx: &Context, _state: &State, f: &mut std::fmt::Formatter<'_>)
+/// #      -> std::fmt::Result  { todo!() }
+/// # }
 /// ```
-///
-/// **Note**: pre-requisite traits for `Attribute` must already be implemented.
-///         Additionaly, PartialEq must be implemented by the type.
 #[proc_macro_attribute]
 pub fn def_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_attr::def_attribute(args, input))
 }
 
-/// The `#[def_type(...)]` proc macro.
-///
-/// The macro can be used to annotate a Rust struct as a new IR type.
+/// `#[def_type(...)]`: Annotate a Rust struct as a new IR type.
 ///
 /// The argument to the macro is the fully qualified name of the type in the form of
 /// `"dialect.type_name"`.
@@ -47,24 +51,29 @@ pub fn def_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
 /// the pliron::Type trait and implements other internal traits and types resources required
 /// to use the IR type.
 ///
+/// **Note**: pre-requisite traits for `Type` must already be implemented.
+///         Additionaly, [Hash](core::hash::Hash) and [Eq] must be implemented by the rust type.
+///
 /// Usage:
 ///
-/// ```ignore
+/// ```
+/// use pliron_derive::def_type;
 /// #[def_type("my_dialect.unit")]
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// pub struct UnitType;
+/// # use pliron::{impl_verify_succ, printable::{State, Printable}, context::Context};
+/// # impl_verify_succ!(UnitType);
+/// # impl Printable for UnitType {
+/// #     fn fmt(&self, _ctx: &Context, _state: &State, f: &mut std::fmt::Formatter<'_>)
+/// #      -> std::fmt::Result  { todo!() }
+/// # }
 /// ```
-///
-/// **Note**: pre-requisite traits for `Type` must already be implemented.
-///         Additionaly, [Hash](core::hash::Hash) and [Eq] must be implemented by the rust type.
 #[proc_macro_attribute]
 pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_type::def_type(args, input))
 }
 
-/// The `#[def_op(...)]` proc macro.
-///
-/// The `#[def_op("dialect.op"]` can be used to to create a new IR operation.
+/// `#[def_op(...)]`: Create a new IR operation.
 ///
 /// The argument to the macro is the fully qualified name of the operation in the form of
 /// `"dialect.op_name"`.
@@ -75,20 +84,27 @@ pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
 /// The macro will automatically derive the `Clone`, `Copy`, `Hash`, `PartialEq` and `Eq` traits
 /// for the new struct definition.
 ///
+/// **Note**: pre-requisite traits for `Op` (Printable, Verify etc) must already be implemented
+///
 /// Usage:
 ///
-/// ```ignore
+/// ```
+/// use pliron_derive::def_op;
+/// use pliron::{impl_canonical_syntax, impl_verify_succ};
+///
 /// #[def_op("my_dialect.op")]
 /// pub struct MyOp;
+/// impl_canonical_syntax!(MyOp);
+/// impl_verify_succ!(MyOp);
 /// ```
-///
 /// The example will create a struct definition equivalent to:
 ///
-/// ```ignore
+/// ```
 /// #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 /// pub struct MyOp {
 ///   op: Ptr<Operation>,
 /// }
+/// # use pliron::{context::Ptr, operation::Operation};
 /// ```
 #[proc_macro_attribute]
 pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
