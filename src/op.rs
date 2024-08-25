@@ -12,12 +12,15 @@
 //! and [Interfaces](https://mlir.llvm.org/docs/Interfaces/).
 //! Interfaces must all implement an associated function named `verify` with
 //! the type [OpInterfaceVerifier].
-//! New interfaces must be specified via [decl_op_interface](pliron::decl_op_interface)
-//! for proper verification.
 //!
-//! [Op]s that implement an interface must do so using the
-//! [impl_op_interface](crate::impl_op_interface) macro.
-//! This ensures that the interface verifier is automatically called,
+//! Interfaces are rust Trait definitions annotated with the attribute macro
+//! [op_interface](pliron_derive::op_interface). The attribute ensures that any
+//! verifiers of super-interfaces (specified as super traits) are run prior to
+//! the verifier of this interface.
+//!
+//! [Op]s that implement an interface must annotate the implementation with
+//! [op_interface_impl](pliron_derive::op_interface_impl) macro to ensure that
+//! the interface verifier is automatically called during verification
 //! and that a `&dyn Op` object can be [cast](op_cast) into an interface object,
 //! (or that it can be checked if the interface is [implemented](op_impls))
 //! with ease.
@@ -230,60 +233,6 @@ pub fn op_impls<T: ?Sized + Op>(op: &dyn Op) -> bool {
 /// Every op interface must have a function named `verify` with this type.
 pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<()>;
 
-/// Implement an Op Interface for an Op. The interface trait must define
-/// a `verify` function with type [OpInterfaceVerifier]
-///
-/// Usage:
-/// ```
-/// # use pliron::decl_op_interface;
-///
-/// #[def_op("dialect.name")]
-/// struct MyOp {};
-///
-/// decl_op_interface! {
-///     MyOpInterface {
-///         fn gubbi(&self);
-///         fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
-///         where Self: Sized,
-///         {
-///             Ok(())
-///         }
-///     }
-/// }
-/// impl_op_interface!(
-///     MyOpInterface for MyOp
-///     {
-///         fn gubbi(&self) { println!("gubbi"); }
-///     }
-/// );
-/// # use pliron_derive::def_op;
-/// # use pliron::{
-/// #     op::Op, impl_op_interface,
-/// #     context::Context, result::Result,
-/// #     common_traits::Verify
-/// # };
-/// # pliron::impl_verify_succ!(MyOp);
-/// # pliron::impl_canonical_syntax!(MyOp);
-#[macro_export]
-macro_rules! impl_op_interface {
-    ($intr_name:ident for $op_name:ident { $($tt:tt)* }) => {
-        $crate::type_to_trait!($op_name, $intr_name);
-        impl $intr_name for $op_name {
-            $($tt)*
-        }
-        const _: () = {
-            #[linkme::distributed_slice(pliron::op::OP_INTERFACE_VERIFIERS)]
-            static INTERFACE_VERIFIER: std::sync::LazyLock<
-                (pliron::op::OpId, (std::any::TypeId, pliron::op::OpInterfaceVerifier))
-            > =
-            std::sync::LazyLock::new(||
-                ($op_name::get_opid_static(), (std::any::TypeId::of::<dyn $intr_name>(),
-                     <$op_name as $intr_name>::verify))
-            );
-        };
-    };
-}
-
 /// [Op]s paired with every interface it implements (and the verifier for that interface).
 #[distributed_slice]
 pub static OP_INTERFACE_VERIFIERS: [LazyLock<(OpId, (std::any::TypeId, OpInterfaceVerifier))>];
@@ -357,59 +306,6 @@ pub static OP_INTERFACE_VERIFIERS_MAP: LazyLock<
 
     op_intr_verifiers
 });
-
-/// Declare an [Op] interface, which can be implemented by any [Op].
-///
-/// If the interface requires any other interface to be already implemented,
-/// they can be specified. The trait to which this interface is expanded will
-/// have the dependent interfaces as super-traits, in addition to the [Op] trait
-/// itself, which is always automatically added as a super-trait.
-///
-/// When an [Op] is verified, its interfaces are also automatically verified,
-/// with guarantee that a super-interface is verified before an interface itself is.
-///
-/// Example: Here `SameOperandsAndResultType` and `SymbolOpInterface` are super interfaces
-/// for the new interface `MyOpIntr`.
-/// ```
-/// # use pliron::builtin::op_interfaces::{SameOperandsAndResultType, SymbolOpInterface};
-/// # use pliron::{decl_op_interface, op::Op, context::Context, result::Result};
-/// decl_op_interface!(
-///     /// MyOpIntr is my first op interface.
-///     MyOpIntr: SameOperandsAndResultType, SymbolOpInterface {
-///         fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
-///         where Self: Sized,
-///         {
-///             Ok(())
-///         }
-///     }
-/// );
-/// ```
-#[macro_export]
-macro_rules! decl_op_interface {
-    // No deps case
-    ($(#[$docs:meta])*
-        $intr_name:ident { $($tt:tt)* }) => {
-        decl_op_interface!(
-            $(#[$docs])*
-            $intr_name: { $($tt)* }
-        );
-    };
-    // Zero or more deps
-    ($(#[$docs:meta])*
-        $intr_name:ident: $($dep:path),* { $($tt:tt)* }) => {
-        $(#[$docs])*
-        pub trait $intr_name: pliron::op::Op $( + $dep )* {
-            $($tt)*
-        }
-        const _: () = {
-            #[linkme::distributed_slice(pliron::op::OP_INTERFACE_DEPS)]
-            static INTERFACE_DEP: std::sync::LazyLock<(std::any::TypeId, Vec<std::any::TypeId>)>
-                = std::sync::LazyLock::new(|| {
-                    (std::any::TypeId::of::<dyn $intr_name>(), vec![$(std::any::TypeId::of::<dyn $dep>(),)*])
-             });
-        };
-    };
-}
 
 /// Printer for an [Op] in canonical syntax.
 /// `res_1: type_1, res_2: type_2, ... res_n: type_n =

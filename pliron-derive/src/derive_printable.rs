@@ -64,7 +64,7 @@ impl ToTokens for DerivedPrinter {
 ///
 /// Directive macro rules are assumed to have the following signature:
 ///
-/// ```ignore
+/// ```
 /// macro_rules! at_name_directive {
 ///     ($self:ident, ($($printer:ident),*), ($($field_name:tt),*), ($($_param:ident)*)) => {
 ///     ...
@@ -134,7 +134,7 @@ impl<'a> PrinterBuilder for AttribTypePrinterBuilder<'a> {
 ///
 /// Directive macro rules are assumed to have the following signature:
 ///
-/// ```ignore
+/// ```
 /// macro_rules! op_name_directive {
 ///     ( $ctx:ident, $self:ident, $($args:expr),*) => {
 ///     ...

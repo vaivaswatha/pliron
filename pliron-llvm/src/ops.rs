@@ -17,7 +17,7 @@ use pliron::{
     common_traits::Verify,
     context::{Context, Ptr},
     identifier::Identifier,
-    impl_canonical_syntax, impl_op_interface, impl_verify_succ,
+    impl_canonical_syntax, impl_verify_succ,
     location::Located,
     op::Op,
     operation::Operation,
@@ -35,7 +35,7 @@ use crate::{
 };
 
 use combine::parser::Parser;
-use pliron_derive::def_op;
+use pliron_derive::{def_op, derive_op_interface_impl, op_interface_impl};
 use thiserror::Error;
 
 use super::{
@@ -51,6 +51,7 @@ use super::{
 /// |-----|-------|
 /// | `arg` | any type |
 #[def_op("llvm.return")]
+#[derive_op_interface_impl(IsTerminatorInterface)]
 pub struct ReturnOp;
 impl ReturnOp {
     /// Create a new [ReturnOp]
@@ -78,7 +79,6 @@ impl ReturnOp {
 }
 impl_canonical_syntax!(ReturnOp);
 impl_verify_succ!(ReturnOp);
-impl_op_interface!(IsTerminatorInterface for ReturnOp {});
 
 macro_rules! new_int_bin_op {
     (   $(#[$outer:meta])*
@@ -98,16 +98,14 @@ macro_rules! new_int_bin_op {
         /// | result | description |
         /// |-----|-------|
         /// | `res` | Signless integer |
+        #[pliron_derive::derive_op_interface_impl(
+            OneResultInterface, SameOperandsType, SameResultsType,
+            SameOperandsAndResultType, BinArithOp, IntBinArithOp
+        )]
         pub struct $op_name;
 
         impl_verify_succ!($op_name);
         impl_canonical_syntax!($op_name);
-        impl_op_interface!(OneResultInterface for $op_name {});
-        impl_op_interface!(SameOperandsType for $op_name {});
-        impl_op_interface!(SameResultsType for $op_name {});
-        impl_op_interface!(SameOperandsAndResultType for $op_name {});
-        impl_op_interface!(BinArithOp for $op_name {});
-        impl_op_interface!(IntBinArithOp for $op_name {});
     }
 }
 
@@ -125,7 +123,8 @@ macro_rules! new_int_bin_op_with_overflow {
             $op_name,
             $op_id
         );
-        impl_op_interface!(IntBinArithOpWithOverflowFlag for $op_name {});
+        #[pliron_derive::op_interface_impl]
+        impl IntBinArithOpWithOverflowFlag for $op_name {}
     }
 }
 new_int_bin_op_with_overflow!(
@@ -234,6 +233,7 @@ pub enum ICmpOpVerifyErr {
 /// |-----|-------| --------------|
 /// | [ATTR_KEY_PREDICATE](icmp_op::ATTR_KEY_PREDICATE) | [ICmpPredicateAttr](ICmpPredicateAttr) | N/A |
 #[def_op("llvm.icmp")]
+#[derive_op_interface_impl(SameOperandsType, OneResultInterface)]
 pub struct ICmpOp;
 
 pub mod icmp_op {
@@ -306,8 +306,6 @@ impl Verify for ICmpOp {
     }
 }
 impl_canonical_syntax!(ICmpOp);
-impl_op_interface!(SameOperandsType for ICmpOp {});
-impl_op_interface!(OneResultInterface for ICmpOp {});
 
 #[derive(Error, Debug)]
 pub enum AllocaOpVerifyErr {
@@ -335,6 +333,7 @@ pub enum AllocaOpVerifyErr {
 /// |-----|-------| --------------|
 /// | [ATTR_KEY_ELEM_TYPE](alloca_op::ATTR_KEY_ELEM_TYPE) | [TypeAttr](pliron::builtin::attributes::TypeAttr) | N/A |
 #[def_op("llvm.alloca")]
+#[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
 pub struct AllocaOp;
 impl_canonical_syntax!(AllocaOp);
 impl Verify for AllocaOp {
@@ -357,18 +356,18 @@ impl Verify for AllocaOp {
         Ok(())
     }
 }
-impl_op_interface!(OneResultInterface for AllocaOp {});
-impl_op_interface!(OneOpdInterface for AllocaOp {});
-impl_op_interface!(PointerTypeResult for AllocaOp {
+
+#[op_interface_impl]
+impl PointerTypeResult for AllocaOp {
     fn result_pointee_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         self.op
-        .deref(ctx)
-        .attributes
-        .get::<TypeAttr>(&alloca_op::ATTR_KEY_ELEM_TYPE)
-        .expect("AllocaOp missing or incorrect type for elem_type attribute")
-        .get_type()
+            .deref(ctx)
+            .attributes
+            .get::<TypeAttr>(&alloca_op::ATTR_KEY_ELEM_TYPE)
+            .expect("AllocaOp missing or incorrect type for elem_type attribute")
+            .get_type()
     }
-});
+}
 
 pub mod alloca_op {
     use std::sync::LazyLock;
@@ -410,11 +409,10 @@ impl AllocaOp {
 /// |-----|-------|
 /// | `res` | non-aggregate LLVM type |
 #[def_op("llvm.bitcast")]
+#[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
 pub struct BitcastOp;
 impl_canonical_syntax!(BitcastOp);
 impl_verify_succ!(BitcastOp);
-impl_op_interface!(OneResultInterface for BitcastOp {});
-impl_op_interface!(OneOpdInterface for BitcastOp {});
 
 impl BitcastOp {
     /// Create a new [BitcastOp].
@@ -444,16 +442,19 @@ impl BitcastOp {
 /// |-----|-------|
 /// | `dest` | Any successor |
 #[def_op("llvm.br")]
+#[derive_op_interface_impl(IsTerminatorInterface)]
 pub struct BrOp;
 impl_canonical_syntax!(BrOp);
 impl_verify_succ!(BrOp);
-impl_op_interface!(IsTerminatorInterface for BrOp {});
-impl_op_interface!(BranchOpInterface for BrOp {
+
+#[op_interface_impl]
+impl BranchOpInterface for BrOp {
     fn successor_operands(&self, ctx: &Context, succ_idx: usize) -> Vec<Value> {
         assert!(succ_idx == 0, "BrOp has exactly one successor");
         self.get_operation().deref(ctx).operands().collect()
     }
-});
+}
+
 impl BrOp {
     /// Create anew [BrOp].
     pub fn new(ctx: &mut Context, dest: Ptr<BasicBlock>, dest_opds: Vec<Value>) -> Self {
@@ -485,6 +486,7 @@ impl BrOp {
 /// | `true_dest` | Any successor |
 /// | `false_dest` | Any successor |
 #[def_op("llvm.cond_br")]
+#[derive_op_interface_impl(IsTerminatorInterface)]
 pub struct CondBrOp;
 impl CondBrOp {
     /// Create anew [CondBrOp].
@@ -518,20 +520,38 @@ impl CondBrOp {
 }
 impl_canonical_syntax!(CondBrOp);
 impl_verify_succ!(CondBrOp);
-impl_op_interface!(IsTerminatorInterface for CondBrOp {});
-impl_op_interface!(BranchOpInterface for CondBrOp {
+
+#[op_interface_impl]
+impl BranchOpInterface for CondBrOp {
     fn successor_operands(&self, ctx: &Context, succ_idx: usize) -> Vec<Value> {
-        assert!(succ_idx == 0 || succ_idx == 1, "CondBrOp has exactly two successors");
-        let num_opds_succ0 = self.get_operation().deref(ctx).get_successor(0).deref(ctx).get_num_arguments();
+        assert!(
+            succ_idx == 0 || succ_idx == 1,
+            "CondBrOp has exactly two successors"
+        );
+        let num_opds_succ0 = self
+            .get_operation()
+            .deref(ctx)
+            .get_successor(0)
+            .deref(ctx)
+            .get_num_arguments();
         if succ_idx == 0 {
             // Skip `condition` operand and take num_opds_succ0 operands after that.
-            self.get_operation().deref(ctx).operands().skip(1).take(num_opds_succ0).collect()
+            self.get_operation()
+                .deref(ctx)
+                .operands()
+                .skip(1)
+                .take(num_opds_succ0)
+                .collect()
         } else {
             // Skip `condition` and `true_dest_opds`. Take the remaining.
-            self.get_operation().deref(ctx).operands().skip(1 + num_opds_succ0).collect()
+            self.get_operation()
+                .deref(ctx)
+                .operands()
+                .skip(1 + num_opds_succ0)
+                .collect()
         }
     }
-});
+}
 
 /// A way to express whether a GEP index is a constant or an SSA value
 #[derive(Clone)]
@@ -568,14 +588,18 @@ pub enum GetElementPtrOpErr {
 /// |-----|-------|
 /// | `res` | LLVM pointer type |
 #[def_op("llvm.gep")]
+#[derive_op_interface_impl(OneResultInterface)]
 pub struct GetElementPtrOp;
 impl_canonical_syntax!(GetElementPtrOp);
-impl_op_interface!(OneResultInterface for GetElementPtrOp {});
-impl_op_interface!(PointerTypeResult for GetElementPtrOp {
+
+#[op_interface_impl]
+impl PointerTypeResult for GetElementPtrOp {
     fn result_pointee_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        Self::indexed_type(ctx, self.src_elem_type(ctx), &self.indices(ctx)).expect("Invalid indices for GEP")
+        Self::indexed_type(ctx, self.src_elem_type(ctx), &self.indices(ctx))
+            .expect("Invalid indices for GEP")
     }
-});
+}
+
 impl Verify for GetElementPtrOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let op = &*self.op.deref(ctx);
@@ -730,6 +754,7 @@ pub enum LoadOpVerifyErr {
 /// ### Attributes:
 ///
 #[def_op("llvm.load")]
+#[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
 pub struct LoadOp;
 impl LoadOp {
     /// Create a new [LoadOp]
@@ -757,8 +782,6 @@ impl Verify for LoadOp {
         Ok(())
     }
 }
-impl_op_interface!(OneResultInterface for LoadOp {});
-impl_op_interface!(OneOpdInterface for LoadOp {});
 
 #[derive(Error, Debug)]
 pub enum StoreOpVerifyErr {
@@ -778,9 +801,10 @@ pub enum StoreOpVerifyErr {
 /// ### Attributes:
 ///
 #[def_op("llvm.store")]
+#[derive_op_interface_impl(ZeroResultInterface)]
 pub struct StoreOp;
 impl StoreOp {
-    /// Create a new [LoadOp]
+    /// Create a new [StoreOp]
     pub fn new(ctx: &mut Context, value: Value, ptr: Value) -> Self {
         StoreOp {
             op: Operation::new(
@@ -827,7 +851,6 @@ impl Verify for StoreOp {
         Ok(())
     }
 }
-impl_op_interface!(ZeroResultInterface for LoadOp {});
 
 /// Equivalent to LLVM's Store opcode.
 /// ### Operands
@@ -848,6 +871,7 @@ impl_op_interface!(ZeroResultInterface for LoadOp {});
 /// | [ATTR_KEY_CALLEE_TYPE](pliron::builtin::op_interfaces::ATTR_KEY_CALLEE_TYPE) | [TypeAttr] | [CallOpInterface] |
 ///
 #[def_op("llvm.call")]
+#[derive_op_interface_impl(OneResultInterface)]
 pub struct CallOp;
 
 pub mod call_op {
@@ -919,7 +943,6 @@ impl CallOpInterface for CallOp {
 }
 impl_canonical_syntax!(CallOp);
 impl_verify_succ!(CallOp);
-impl_op_interface!(OneResultInterface for CallOp {});
 
 /// Undefined value of a type.
 /// See MLIR's [llvm.mlir.undef](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmlirundef-llvmundefop).
@@ -930,10 +953,10 @@ impl_op_interface!(OneResultInterface for CallOp {});
 /// |-----|-------|
 /// | `result` | any type |
 #[def_op("llvm.undef")]
+#[derive_op_interface_impl(OneResultInterface)]
 pub struct UndefOp;
 impl_canonical_syntax!(UndefOp);
 impl_verify_succ!(UndefOp);
-impl_op_interface!(OneResultInterface for UndefOp {});
 
 impl UndefOp {
     /// Create a new [UndefOp].
@@ -965,6 +988,7 @@ impl UndefOp {
 /// |-----|-------|
 /// | `result` | any type |
 #[def_op("llvm.constant")]
+#[derive_op_interface_impl(ZeroOpdInterface, OneResultInterface)]
 pub struct ConstantOp;
 
 pub mod constant_op {
@@ -1024,8 +1048,6 @@ impl Verify for ConstantOp {
 }
 
 impl_canonical_syntax!(ConstantOp);
-impl_op_interface! (ZeroOpdInterface for ConstantOp {});
-impl_op_interface! (OneResultInterface for ConstantOp {});
 
 /// Register ops in the LLVM dialect.
 pub fn register(ctx: &mut Context) {
