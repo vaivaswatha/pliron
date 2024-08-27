@@ -612,13 +612,14 @@ impl Verify for GetElementPtrOp {
             verify_err!(op.loc(), GetElementPtrOpErr::IndicesAttrErr)?
         }
 
-        if let Err(Error { kind: _, err, loc }) =
+        if let Err(e @ Error { .. }) =
             Self::indexed_type(ctx, self.src_elem_type(ctx), &self.indices(ctx))
         {
             return Err(Error {
                 kind: ErrorKind::VerificationFailed,
-                err,
-                loc,
+                // We reset the error origin to be from here
+                backtrace: std::backtrace::Backtrace::capture(),
+                ..e
             });
         }
 

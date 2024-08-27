@@ -1,5 +1,10 @@
 //! Utilities for error handling
 
+use std::{
+    backtrace::{Backtrace, BacktraceStatus},
+    fmt::Display,
+};
+
 use thiserror::Error;
 
 use crate::{
@@ -23,14 +28,26 @@ pub enum ErrorKind {
 }
 
 /// An error object that can hold any [std::error::Error].
-/// This does not print [Location]. Use [Printable::disp] for that.
-#[derive(Debug, Error)]
-#[error("Compilation error: {kind}.\n{err}")]
+#[derive(Debug)]
 pub struct Error {
+    /// The kind of error this is
     pub kind: ErrorKind,
+    /// The actual error object describing the error
     pub err: Box<dyn std::error::Error + Send + Sync>,
+    /// Location of this error in the code being compiled
     pub loc: Location,
+    /// Details of how this error occurred
+    pub backtrace: Backtrace,
 }
+
+/// This does not print [Location] or [Backtrace]. Use [Printable::disp] for that.
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Compilation error: {}.\n{}", self.kind, self.err)
+    }
+}
+
+impl std::error::Error for Error {}
 
 impl Printable for Error {
     fn fmt(
@@ -47,10 +64,15 @@ impl Printable for Error {
         )?;
 
         if let Some(self_val) = self.err.downcast_ref::<Error>() {
-            write!(f, "{}", self_val.disp(ctx))
+            write!(f, "{}", self_val.disp(ctx))?;
         } else {
-            write!(f, "{}", self.err)
+            write!(f, "{}", self.err)?;
+            if self.backtrace.status() == BacktraceStatus::Captured {
+                write!(f, "\nError backtrace:\n{}", self.backtrace)?;
+            }
         }
+
+        Ok(())
     }
 }
 
@@ -87,6 +109,7 @@ macro_rules! create_error {
             kind: $kind,
             err: Box::new($err),
             loc: $loc,
+            backtrace: std::backtrace::Backtrace::capture(),
         }
     };
 }
@@ -123,7 +146,7 @@ macro_rules! create_err {
 ///         Error {
 ///            kind: ErrorKind::VerificationFailed,
 ///            err,
-///            loc: _,
+///            ..
 ///         } if err.is::<SampleErr>()
 /// ));
 ///
@@ -157,7 +180,7 @@ macro_rules! verify_error {
 ///         Result::<()>::Err(Error {
 ///            kind: ErrorKind::VerificationFailed,
 ///            err,
-///            loc: _,
+///            ..
 ///         }) if err.is::<SampleErr>()
 /// ));
 ///
@@ -191,7 +214,7 @@ macro_rules! verify_err {
 ///         Error {
 ///            kind: ErrorKind::InvalidInput,
 ///            err,
-///            loc: _,
+///            ..
 ///         } if err.is::<SampleErr>()
 /// ));
 ///
@@ -225,7 +248,7 @@ macro_rules! input_error {
 ///         Result::<()>::Err(Error {
 ///            kind: ErrorKind::InvalidInput,
 ///            err,
-///            loc: _,
+///            ..
 ///         }) if err.is::<SampleErr>()
 /// ));
 ///
@@ -259,7 +282,7 @@ macro_rules! input_err {
 ///         Error {
 ///            kind: ErrorKind::InvalidArgument,
 ///            err,
-///            loc: _,
+///            ..
 ///         } if err.is::<SampleErr>()
 /// ));
 ///
@@ -293,7 +316,7 @@ macro_rules! arg_error {
 ///         Result::<()>::Err(Error {
 ///            kind: ErrorKind::InvalidArgument,
 ///            err,
-///            loc: _,
+///            ..
 ///         }) if err.is::<SampleErr>()
 /// ));
 ///

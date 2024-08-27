@@ -97,6 +97,21 @@ pub struct IntBinArithOpWithOverflowFlagErr;
 /// Integer binary arithmetic [Op] with [IntegerOverflowFlagsAttr]
 #[op_interface]
 pub trait IntBinArithOpWithOverflowFlag: IntBinArithOp {
+    /// Create a new integer binary op with overflow flags set.
+    fn new_with_overflow_flag(
+        ctx: &mut Context,
+        lhs: Value,
+        rhs: Value,
+        flag: IntegerOverflowFlagsAttr,
+    ) -> Self
+    where
+        Self: Sized,
+    {
+        let op = Self::new(ctx, lhs, rhs);
+        op.set_integer_overflow_flag(ctx, flag);
+        op
+    }
+
     /// Get the integer overflow flag on this [Op].
     fn integer_overflow_flag(&self, ctx: &Context) -> IntegerOverflowFlagsAttr
     where

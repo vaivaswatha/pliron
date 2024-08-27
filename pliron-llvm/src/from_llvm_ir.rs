@@ -26,21 +26,21 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use thiserror::Error;
 
 use crate::{
-    attributes::ICmpPredicateAttr,
+    attributes::{ICmpPredicateAttr, IntegerOverflowFlagsAttr},
     llvm_sys::core::{
         basic_block_iter, function_iter, incoming_iter, instruction_iter,
         llvm_const_int_get_zext_value, llvm_get_allocated_type, llvm_get_array_length2,
         llvm_get_basic_block_name, llvm_get_basic_block_terminator, llvm_get_called_function_type,
         llvm_get_called_value, llvm_get_element_type, llvm_get_icmp_predicate,
         llvm_get_instruction_opcode, llvm_get_instruction_parent, llvm_get_int_type_width,
-        llvm_get_module_identifier, llvm_get_num_arg_operands, llvm_get_num_operands,
-        llvm_get_operand, llvm_get_param_types, llvm_get_return_type,
+        llvm_get_module_identifier, llvm_get_nsw, llvm_get_num_arg_operands, llvm_get_num_operands,
+        llvm_get_nuw, llvm_get_operand, llvm_get_param_types, llvm_get_return_type,
         llvm_get_struct_element_types, llvm_get_struct_name, llvm_get_type_kind,
         llvm_get_value_kind, llvm_get_value_name, llvm_global_get_value_type, llvm_is_a,
         llvm_is_opaque_struct, llvm_type_of, llvm_value_as_basic_block, llvm_value_is_basic_block,
         param_iter, LLVMBasicBlock, LLVMModule, LLVMType, LLVMValue,
     },
-    op_interfaces::BinArithOp,
+    op_interfaces::{BinArithOp, IntBinArithOpWithOverflowFlag},
     ops::{
         AShrOp, AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp, ICmpOp,
         LShrOp, LoadOp, MulOp, OrOp, ReturnOp, SDivOp, SRemOp, ShlOp, StoreOp, SubOp, UDivOp,
@@ -363,6 +363,16 @@ fn convert_instruction(
         return convert_call(ctx, cctx, inst);
     }
 
+    fn get_integer_overflow_flag(inst: LLVMValue) -> IntegerOverflowFlagsAttr {
+        if llvm_get_nsw(inst) {
+            IntegerOverflowFlagsAttr::Nsw
+        } else if llvm_get_nuw(inst) {
+            IntegerOverflowFlagsAttr::Nuw
+        } else {
+            IntegerOverflowFlagsAttr::None
+        }
+    }
+
     let llvm_operands: Vec<_> = (0..llvm_get_num_operands(inst))
         .map(|opd_idx| llvm_get_operand(inst, opd_idx))
         .collect();
@@ -371,7 +381,10 @@ fn convert_instruction(
     match llvm_get_instruction_opcode(inst) {
         LLVMOpcode::LLVMAdd => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(AddOp::new(ctx, lhs, rhs).get_operation())
+            Ok(
+                AddOp::new_with_overflow_flag(ctx, lhs, rhs, get_integer_overflow_flag(inst))
+                    .get_operation(),
+            )
         }
         LLVMOpcode::LLVMAddrSpaceCast => todo!(),
         LLVMOpcode::LLVMAlloca => {
@@ -479,7 +492,10 @@ fn convert_instruction(
         }
         LLVMOpcode::LLVMMul => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(MulOp::new(ctx, lhs, rhs).get_operation())
+            Ok(
+                MulOp::new_with_overflow_flag(ctx, lhs, rhs, get_integer_overflow_flag(inst))
+                    .get_operation(),
+            )
         }
         LLVMOpcode::LLVMOr => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
@@ -506,7 +522,10 @@ fn convert_instruction(
         LLVMOpcode::LLVMSExt => todo!(),
         LLVMOpcode::LLVMShl => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(ShlOp::new(ctx, lhs, rhs).get_operation())
+            Ok(
+                ShlOp::new_with_overflow_flag(ctx, lhs, rhs, get_integer_overflow_flag(inst))
+                    .get_operation(),
+            )
         }
         LLVMOpcode::LLVMShuffleVector => todo!(),
         LLVMOpcode::LLVMSIToFP => todo!(),
@@ -520,7 +539,10 @@ fn convert_instruction(
         }
         LLVMOpcode::LLVMSub => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(SubOp::new(ctx, lhs, rhs).get_operation())
+            Ok(
+                SubOp::new_with_overflow_flag(ctx, lhs, rhs, get_integer_overflow_flag(inst))
+                    .get_operation(),
+            )
         }
         LLVMOpcode::LLVMSwitch => todo!(),
         LLVMOpcode::LLVMTrunc => todo!(),

@@ -2,7 +2,8 @@ use std::{path::PathBuf, process::ExitCode};
 
 use clap::Parser;
 use pliron::{
-    arg_error_noloc, context::Context, printable::Printable, result::Result, verify_error_noloc,
+    arg_error_noloc, common_traits::Verify, context::Context, op::Op, printable::Printable,
+    result::Result, verify_error_noloc,
 };
 use pliron_llvm::{
     from_llvm_ir,
@@ -32,7 +33,7 @@ fn run(cli: Cli, ctx: &mut Context) -> Result<()> {
         .map_err(|err| arg_error_noloc!("{}", err))?;
 
     let pliron_module = from_llvm_ir::convert_module(ctx, &module)?;
-    // pliron_module.get_operation().verify(ctx)?;
+    pliron_module.get_operation().verify(ctx)?;
     // println!("{}", pliron_module.disp(ctx));
 
     let module = to_llvm_ir::convert_module(ctx, &llvm_context, pliron_module)?;

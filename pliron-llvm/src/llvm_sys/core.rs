@@ -24,17 +24,18 @@ use llvm_sys::{
         LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFirstBasicBlock, LLVMGetFirstFunction,
         LLVMGetFirstInstruction, LLVMGetFirstParam, LLVMGetICmpPredicate, LLVMGetIncomingBlock,
         LLVMGetIncomingValue, LLVMGetInsertBlock, LLVMGetInstructionOpcode,
-        LLVMGetInstructionParent, LLVMGetIntTypeWidth, LLVMGetModuleIdentifier,
-        LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextInstruction, LLVMGetNextParam,
-        LLVMGetNumArgOperands, LLVMGetNumOperands, LLVMGetOperand, LLVMGetParam, LLVMGetParamTypes,
-        LLVMGetPreviousBasicBlock, LLVMGetPreviousFunction, LLVMGetPreviousInstruction,
-        LLVMGetPreviousParam, LLVMGetReturnType, LLVMGetStructElementTypes, LLVMGetStructName,
-        LLVMGetTypeKind, LLVMGetUndef, LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType,
-        LLVMIntTypeInContext, LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser,
-        LLVMIsOpaqueStruct, LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext,
-        LLVMPositionBuilderAtEnd, LLVMPositionBuilderBefore, LLVMPrintModuleToFile,
-        LLVMStructCreateNamed, LLVMStructSetBody, LLVMStructTypeInContext, LLVMTypeIsSized,
-        LLVMTypeOf, LLVMValueAsBasicBlock, LLVMValueIsBasicBlock, LLVMVoidTypeInContext,
+        LLVMGetInstructionParent, LLVMGetIntTypeWidth, LLVMGetModuleIdentifier, LLVMGetNSW,
+        LLVMGetNUW, LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextInstruction,
+        LLVMGetNextParam, LLVMGetNumArgOperands, LLVMGetNumOperands, LLVMGetOperand, LLVMGetParam,
+        LLVMGetParamTypes, LLVMGetPreviousBasicBlock, LLVMGetPreviousFunction,
+        LLVMGetPreviousInstruction, LLVMGetPreviousParam, LLVMGetReturnType,
+        LLVMGetStructElementTypes, LLVMGetStructName, LLVMGetTypeKind, LLVMGetUndef,
+        LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType, LLVMIntTypeInContext,
+        LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser, LLVMIsOpaqueStruct,
+        LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext, LLVMPositionBuilderAtEnd,
+        LLVMPositionBuilderBefore, LLVMPrintModuleToFile, LLVMStructCreateNamed, LLVMStructSetBody,
+        LLVMStructTypeInContext, LLVMTypeIsSized, LLVMTypeOf, LLVMValueAsBasicBlock,
+        LLVMValueIsBasicBlock, LLVMVoidTypeInContext,
     },
     ir_reader::LLVMParseIRInContext,
     prelude::{
@@ -1155,6 +1156,18 @@ pub fn llvm_get_num_arg_operands(inst: LLVMValue) -> u32 {
 pub fn llvm_get_called_function_type(inst: LLVMValue) -> LLVMType {
     assert!(llvm_is_a::call_inst(inst) || llvm_is_a::invoke_inst(inst));
     unsafe { LLVMGetCalledFunctionType(inst.into()).into() }
+}
+
+/// LLVMGetNUW
+pub fn llvm_get_nuw(arith_inst: LLVMValue) -> bool {
+    assert!(llvm_is_a::instruction(arith_inst));
+    unsafe { LLVMGetNUW(arith_inst.into()).to_bool() }
+}
+
+/// LLVMGetNSW
+pub fn llvm_get_nsw(arith_inst: LLVMValue) -> bool {
+    assert!(llvm_is_a::instruction(arith_inst));
+    unsafe { LLVMGetNSW(arith_inst.into()).to_bool() }
 }
 
 /// RAII wrapper around LLVMModuleRef

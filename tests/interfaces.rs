@@ -86,7 +86,7 @@ fn check_intrf_verfiy_errs() {
         Err(Error {
             kind: ErrorKind::VerificationFailed,
             err,
-            loc: _,
+            ..
         })
         if err.is::<OneResultVerifyErr>()
     ))
