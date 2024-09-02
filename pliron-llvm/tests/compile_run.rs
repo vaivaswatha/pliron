@@ -6,6 +6,8 @@ use assert_cmd::Command;
 use expect_test::expect;
 use tempfile::{tempdir, TempDir};
 
+const CLANG_BINARY: &'static str ="clang-18";
+
 static RESOURCES_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     [env!("CARGO_MANIFEST_DIR"), "tests", "resources"]
         .iter()
@@ -34,7 +36,7 @@ fn test_fib(tmp_dir: &TempDir, input_file: &str) {
     );
 
     // clang -o $tmp/fib $tmp/fib.out.ll tests/resources/fib-main.c
-    let mut cmd = Command::new("clang-17");
+    let mut cmd = Command::new(CLANG_BINARY);
     let compile_fib = cmd
         .current_dir(&*RESOURCES_DIR)
         .args([
@@ -73,7 +75,7 @@ fn test_fib_from_c() {
     let tmp_dir = tempdir().unwrap();
 
     // clang -c -emit-llvm -o $tmp/fib.bc tests/resources/fib.c
-    let mut cmd = Command::new("clang-17");
+    let mut cmd = Command::new(CLANG_BINARY);
     let compile_fib = cmd
         .current_dir(&*RESOURCES_DIR)
         .args([

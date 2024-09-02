@@ -20,7 +20,7 @@ combine.workspace = true
 thiserror.workspace = true
 linkme.workspace = true
 rustc-hash.workspace = true
-llvm-sys = "170"
+llvm-sys = "180"
 
 [dev-dependencies]
 expect-test.workspace = true
