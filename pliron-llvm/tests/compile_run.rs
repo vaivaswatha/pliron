@@ -6,7 +6,7 @@ use assert_cmd::Command;
 use expect_test::expect;
 use tempfile::{tempdir, TempDir};
 
-const CLANG_BINARY: &'static str ="clang-18";
+const CLANG_BINARY: &'static str = "clang-18";
 
 static RESOURCES_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     [env!("CARGO_MANIFEST_DIR"), "tests", "resources"]
