@@ -67,8 +67,8 @@ impl<'a, T: LinkedList> Iterator for Iter<'a, T> {
     type Item = Ptr<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.next.map(|curr| {
-            if curr
+        self.next.inspect(|curr| {
+            if *curr
                 == self
                     .next_back
                     .expect("Some(next) => Some(next_back) violated")
@@ -78,7 +78,6 @@ impl<'a, T: LinkedList> Iterator for Iter<'a, T> {
             } else {
                 self.next = curr.deref(self.ctx).get_next();
             }
-            curr
         })
     }
 
@@ -89,14 +88,13 @@ impl<'a, T: LinkedList> Iterator for Iter<'a, T> {
 
 impl<'a, T: LinkedList> DoubleEndedIterator for Iter<'a, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.next_back.map(|curr| {
-            if curr == self.next.expect("Some(next_back) => Some(next) violated") {
+        self.next_back.inspect(|curr| {
+            if *curr == self.next.expect("Some(next_back) => Some(next) violated") {
                 self.next_back = None;
                 self.next = None;
             } else {
                 self.next_back = curr.deref(self.ctx).get_prev();
             }
-            curr
         })
     }
 }
