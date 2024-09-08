@@ -144,7 +144,7 @@ mod tests {
 
         expect![[r##"
             #[derive(Hash, PartialEq, Eq, Debug)]
-            #[derive(::pliron_derive::DeriveAttribAcceptor)]
+            #[derive(::pliron::derive::DeriveAttribAcceptor)]
             #[ir_kind = "type"]
             pub struct SimpleType;
             impl ::pliron::r#type::Type for SimpleType {

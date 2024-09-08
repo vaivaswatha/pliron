@@ -1,6 +1,7 @@
 //! [Type]s defined in the LLVM dialect.
 
 use combine::{between, optional, parser::char::spaces, token, Parser};
+use pliron::derive::def_type;
 use pliron::{
     common_traits::Verify,
     context::{Context, Ptr},
@@ -17,7 +18,6 @@ use pliron::{
     result::Result,
     verify_err_noloc,
 };
-use pliron_derive::def_type;
 use thiserror::Error;
 
 use std::hash::Hash;
@@ -504,7 +504,7 @@ mod tests {
     use crate as llvm;
     use combine::{eof, token, Parser};
     use expect_test::expect;
-    use pliron_derive::def_type;
+    use pliron::derive::def_type;
 
     use crate::types::{FuncType, StructType, VoidType};
     use pliron::{

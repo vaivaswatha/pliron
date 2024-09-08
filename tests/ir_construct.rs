@@ -1,5 +1,6 @@
 use common::{ConstantOp, ReturnOp};
 use expect_test::{expect, Expect};
+use pliron::derive::def_op;
 use pliron::{
     basic_block::BasicBlock,
     builtin::{
@@ -24,7 +25,6 @@ use pliron::{
     printable::Printable,
     result::Result,
 };
-use pliron_derive::def_op;
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
 use combine::parser::Parser;

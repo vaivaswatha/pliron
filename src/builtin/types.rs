@@ -1,5 +1,5 @@
 use combine::{between, choice, parser::char::string, token, Parser};
-use pliron_derive::def_type;
+use pliron::derive::def_type;
 
 use crate::{
     context::{Context, Ptr},

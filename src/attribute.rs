@@ -7,7 +7,7 @@
 //! They are heavy (i.e., not just a pointer, handle or reference),
 //! making clones potentially expensive.
 //!
-//! The [def_attribute](pliron_derive::def_attribute) proc macro from the
+//! The [def_attribute](pliron::derive::def_attribute) proc macro from the
 //! pliron-derive create can be used to implement [Attribute] for a rust type.
 //!
 //! Common semantics, API and behaviour of [Attribute]s are
@@ -18,12 +18,12 @@
 //! the type [AttrInterfaceVerifier].
 //!
 //! Interfaces are rust Trait definitions annotated with the attribute macro
-//! [attr_interface](pliron_derive::attr_interface). The attribute ensures that any
+//! [attr_interface](pliron::derive::attr_interface). The attribute ensures that any
 //! verifiers of super-interfaces (specified as super traits) are run prior to
 //! the verifier of this interface.
 //!
 //! [Attribute]s that implement an interface must annotate the implementation with
-//! [attr_interface_impl](pliron_derive::attr_interface_impl) macro to ensure that
+//! [attr_interface_impl](pliron::derive::attr_interface_impl) macro to ensure that
 //! the interface verifier is automatically called during verification
 //! and that a `&dyn Attribute` object can be [cast](attr_cast) into an interface object,
 //! (or that it can be checked if the interface is [implemented](attr_impls))

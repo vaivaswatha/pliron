@@ -6,7 +6,7 @@
 //!
 //! See [MLIR Types](https://mlir.llvm.org/docs/DefiningDialects/TypesAndTypes/#types)
 //!
-//! The [def_type](pliron_derive::def_type) proc macro from [pliron-derive]
+//! The [def_type](pliron::derive::def_type) proc macro from [pliron-derive]
 //! can be used to implement [Type] for a rust type.
 //!
 //! Common semantics, API and behaviour of [Type]s are
@@ -17,12 +17,12 @@
 //! the type [TypeInterfaceVerifier].
 //!
 //! Interfaces are rust Trait definitions annotated with the attribute macro
-//! [type_interface](pliron_derive::type_interface). The attribute ensures that any
+//! [type_interface](pliron::derive::type_interface). The attribute ensures that any
 //! verifiers of super-interfaces (specified as super traits) are run prior to
 //! the verifier of this interface.
 //!
 //! [Type]s that implement an interface must annotate the implementation with
-//! [type_interface_impl](pliron_derive::type_interface_impl) macro to ensure that
+//! [type_interface_impl](pliron::derive::type_interface_impl) macro to ensure that
 //! the interface verifier is automatically called during verification
 //! and that a `&dyn Type` object can be [cast](type_cast) into an interface object,
 //! (or that it can be checked if the interface is [implemented](type_impls))
@@ -65,7 +65,7 @@ use thiserror::Error;
 /// ```rust
 ///     # use pliron::{printable::Printable, context::Context,
 ///     #   printable::State, impl_verify_succ, result::Result};
-///     # use pliron_derive::def_type;
+///     # use pliron::derive::def_type;
 ///     # use std::fmt::{self, Formatter};
 ///     # impl_verify_succ!(IntType);
 ///     #[def_type("test.intty")]

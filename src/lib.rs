@@ -6,6 +6,9 @@
 // Allow proc-macros to find this crate
 extern crate self as pliron;
 
+// Export pliron_derive as pliron::derive.
+pub use pliron_derive as derive;
+
 pub mod attribute;
 pub mod basic_block;
 pub mod builtin;

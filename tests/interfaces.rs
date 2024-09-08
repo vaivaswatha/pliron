@@ -4,6 +4,10 @@ use std::sync::{LazyLock, Mutex};
 
 use common::ReturnOp;
 use expect_test::expect;
+use pliron::derive::{
+    attr_interface, attr_interface_impl, def_attribute, def_op, def_type, derive_op_interface_impl,
+    op_interface, op_interface_impl, type_interface, type_interface_impl,
+};
 use pliron::{
     attribute::Attribute,
     builtin::{
@@ -25,10 +29,6 @@ use pliron::{
     r#type::{Type, TypeObj},
     result::{Error, ErrorKind, Result},
     utils::trait_cast::any_to_trait,
-};
-use pliron_derive::{
-    attr_interface, attr_interface_impl, def_attribute, def_op, def_type, derive_op_interface_impl,
-    op_interface, op_interface_impl, type_interface, type_interface_impl,
 };
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};

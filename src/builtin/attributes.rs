@@ -4,7 +4,7 @@ use combine::{
     parser::char::{self, hex_digit, string},
     token, Parser,
 };
-use pliron_derive::{attr_interface_impl, def_attribute};
+use pliron::derive::{attr_interface_impl, def_attribute};
 
 use crate::{
     attribute::{AttrObj, Attribute, AttributeDict},

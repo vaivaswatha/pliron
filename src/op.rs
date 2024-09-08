@@ -3,7 +3,7 @@
 //!
 //! See MLIR's [Op](https://mlir.llvm.org/docs/Tutorials/Toy/Ch-2/#op-vs-operation-using-mlir-operations).
 //!
-//! New [Op]s can be easily declared using the [def_op](pliron_derive::def_op)
+//! New [Op]s can be easily declared using the [def_op](pliron::derive::def_op)
 //! proc macro from the pliron-derive crate.
 //!
 //! Common semantics, API and behaviour of [Op]s are
@@ -14,12 +14,12 @@
 //! the type [OpInterfaceVerifier].
 //!
 //! Interfaces are rust Trait definitions annotated with the attribute macro
-//! [op_interface](pliron_derive::op_interface). The attribute ensures that any
+//! [op_interface](pliron::derive::op_interface). The attribute ensures that any
 //! verifiers of super-interfaces (specified as super traits) are run prior to
 //! the verifier of this interface.
 //!
 //! [Op]s that implement an interface must annotate the implementation with
-//! [op_interface_impl](pliron_derive::op_interface_impl) macro to ensure that
+//! [op_interface_impl](pliron::derive::op_interface_impl) macro to ensure that
 //! the interface verifier is automatically called during verification
 //! and that a `&dyn Op` object can be [cast](op_cast) into an interface object,
 //! (or that it can be checked if the interface is [implemented](op_impls))
@@ -424,7 +424,7 @@ pub fn canonical_syntax_parser<'a>(
 
 /// Shorthand for defining a canonical syntax [Printable] and [Parsable] for an [Op]
 /// ```
-/// use pliron_derive::def_op;
+/// use pliron::derive::def_op;
 /// use pliron::{impl_canonical_syntax, impl_verify_succ};
 /// #[def_op("dialect.name")]
 /// pub struct MyOp;

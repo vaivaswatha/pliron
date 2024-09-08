@@ -35,7 +35,7 @@ use crate::{
 };
 
 use combine::parser::Parser;
-use pliron_derive::{def_op, derive_op_interface_impl, op_interface_impl};
+use pliron::derive::{def_op, derive_op_interface_impl, op_interface_impl};
 use thiserror::Error;
 
 use super::{
@@ -98,7 +98,7 @@ macro_rules! new_int_bin_op {
         /// | result | description |
         /// |-----|-------|
         /// | `res` | Signless integer |
-        #[pliron_derive::derive_op_interface_impl(
+        #[pliron::derive::derive_op_interface_impl(
             OneResultInterface, SameOperandsType, SameResultsType,
             SameOperandsAndResultType, BinArithOp, IntBinArithOp
         )]
@@ -123,7 +123,7 @@ macro_rules! new_int_bin_op_with_overflow {
             $op_name,
             $op_id
         );
-        #[pliron_derive::op_interface_impl]
+        #[pliron::derive::op_interface_impl]
         impl IntBinArithOpWithOverflowFlag for $op_name {}
     }
 }

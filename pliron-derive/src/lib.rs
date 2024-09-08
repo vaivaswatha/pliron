@@ -27,7 +27,7 @@ use syn::parse_quote;
 /// Usage:
 ///
 /// ```
-/// use pliron_derive::def_attribute;
+/// use pliron::derive::def_attribute;
 ///
 /// #[def_attribute("my_dialect.attribute")]
 /// #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,7 +59,7 @@ pub fn def_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Usage:
 ///
 /// ```
-/// use pliron_derive::def_type;
+/// use pliron::derive::def_type;
 /// #[def_type("my_dialect.unit")]
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// pub struct UnitType;
@@ -91,7 +91,7 @@ pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Usage:
 ///
 /// ```
-/// use pliron_derive::def_op;
+/// use pliron::derive::def_op;
 /// use pliron::{impl_canonical_syntax, impl_verify_succ};
 ///
 /// #[def_op("my_dialect.op")]
@@ -158,7 +158,7 @@ pub fn derive_attrib_dummy(_input: TokenStream) -> TokenStream {
 /// for the new interface `MyOpIntr`.
 /// ```
 /// # use pliron::builtin::op_interfaces::{SameOperandsAndResultType, SymbolOpInterface};
-/// # use pliron_derive::{op_interface};
+/// # use pliron::derive::{op_interface};
 /// # use pliron::{op::Op, context::Context, result::Result};
 ///   /// MyOpIntr is my first op interface.
 ///   #[op_interface]
@@ -187,7 +187,7 @@ pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Usage:
 /// ```
-/// # use pliron_derive::{def_op, op_interface, op_interface_impl};
+/// # use pliron::derive::{def_op, op_interface, op_interface_impl};
 ///
 /// #[def_op("dialect.name")]
 /// struct MyOp;
@@ -233,7 +233,7 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Usage:
 /// ```
-/// # use pliron_derive::{op_interface, derive_op_interface_impl};
+/// # use pliron::derive::{op_interface, derive_op_interface_impl};
 ///
 /// #[def_op("dialect.name")]
 /// #[derive_op_interface_impl(MyOpInterface)]
@@ -248,7 +248,7 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///         Ok(())
 ///     }
 /// }
-/// # use pliron_derive::def_op;
+/// # use pliron::derive::def_op;
 /// # use pliron::{
 /// #     op::Op, context::Context, result::Result,
 /// #     common_traits::Verify
@@ -273,7 +273,7 @@ pub fn derive_op_interface_impl(attr: TokenStream, item: TokenStream) -> TokenSt
 /// Example: Here `Super1` and `Super2` are super interfaces for the interface `MyAttrIntr`.
 /// ```
 /// # use pliron::{attribute::Attribute, context::Context, result::Result};
-/// use pliron_derive::attr_interface;
+/// use pliron::derive::attr_interface;
 ///
 /// #[attr_interface]
 /// trait Super1 {
@@ -324,7 +324,7 @@ pub fn attr_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Usage:
 /// ```
-/// use pliron_derive::{attr_interface, attr_interface_impl};
+/// use pliron::derive::{attr_interface, attr_interface_impl};
 ///
 /// #[def_attribute("dialect.name")]
 /// #[derive(PartialEq, Eq, Clone, Debug)]
@@ -351,7 +351,7 @@ pub fn attr_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #     context::Context, result::Result, common_traits::Verify,
 /// #     attribute::Attribute
 /// # };
-/// # use pliron_derive::def_attribute;
+/// # use pliron::derive::def_attribute;
 /// #
 /// # impl Printable for MyAttr {
 /// #    fn fmt(&self, _ctx: &Context, _state: &printable::State, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -385,7 +385,7 @@ pub fn attr_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
 ///
 /// Example: Here `Super1` and `Super2` are super interfaces for the interface `MyTypeIntr`.
 /// ```
-/// use pliron_derive::type_interface;
+/// use pliron::derive::type_interface;
 /// # use pliron::{r#type::Type, context::Context, result::Result};
 /// #[type_interface]
 /// trait Super1 {
@@ -436,7 +436,7 @@ pub fn type_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Usage:
 /// ```
-/// use pliron_derive::{type_interface, type_interface_impl};
+/// use pliron::derive::{type_interface, type_interface_impl};
 ///
 /// #[def_type("dialect.name")]
 /// #[derive(PartialEq, Eq, Clone, Debug, Hash)]
@@ -463,7 +463,7 @@ pub fn type_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #     context::Context, result::Result, common_traits::Verify,
 /// #     r#type::Type
 /// # };
-/// # use pliron_derive::def_type;
+/// # use pliron::derive::def_type;
 /// #
 /// # impl Printable for MyType {
 /// #    fn fmt(&self, _ctx: &Context, _state: &printable::State, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

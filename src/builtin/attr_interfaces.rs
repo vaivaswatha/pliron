@@ -1,4 +1,4 @@
-use pliron_derive::attr_interface;
+use pliron::derive::attr_interface;
 
 use crate::{
     attribute::Attribute,

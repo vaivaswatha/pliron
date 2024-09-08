@@ -27,7 +27,7 @@ use pliron::{
     value::Value,
 };
 
-use pliron_derive::{op_interface, op_interface_impl, type_interface, type_interface_impl};
+use pliron::derive::{op_interface, op_interface_impl, type_interface, type_interface_impl};
 use rustc_hash::FxHashMap;
 use thiserror::Error;
 
@@ -256,7 +256,7 @@ macro_rules! to_llvm_value_int_bin_op {
     (
         $op_name:ident, $builder_function:ident
     ) => {
-        #[pliron_derive::op_interface_impl]
+        #[pliron::derive::op_interface_impl]
         impl ToLLVMValue for $op_name {
             fn convert(
                 &self,

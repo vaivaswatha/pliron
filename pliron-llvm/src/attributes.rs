@@ -1,7 +1,7 @@
 //! Attributes belonging to the LLVM dialect.
 
 use combine::{between, choice, parser::char::string, token, Parser};
-use pliron_derive::def_attribute;
+use pliron::derive::def_attribute;
 
 use pliron::{
     context::Context,

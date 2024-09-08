@@ -6,7 +6,7 @@ pub(crate) fn mark_ir_kind(
 ) -> impl Iterator<Item = syn::Attribute> {
     attrs
         .chain(std::iter::once(syn::parse_quote! {
-            #[derive(::pliron_derive::DeriveAttribAcceptor)]
+            #[derive(::pliron::derive::DeriveAttribAcceptor)]
         }))
         .chain(std::iter::once(syn::parse_quote! {
             #kind

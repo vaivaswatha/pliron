@@ -12,7 +12,6 @@ license.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pliron-derive = { path = "../pliron-derive", version = "0" }
 pliron = { path = "../", version = "0" }
 apint.workspace = true
 clap.workspace = true

@@ -156,7 +156,7 @@ mod tests {
 
         expect![[r##"
             #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-            #[derive(::pliron_derive::DeriveAttribAcceptor)]
+            #[derive(::pliron::derive::DeriveAttribAcceptor)]
             #[ir_kind = "op"]
             struct TestOp {
                 op: ::pliron::context::Ptr<::pliron::operation::Operation>,

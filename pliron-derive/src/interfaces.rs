@@ -129,7 +129,7 @@ pub(crate) fn derive_op_interface_impl(
 
     let impls = intrs.paths.into_iter().map(|path| {
         quote! {
-            #[::pliron_derive::op_interface_impl]
+            #[::pliron::derive::op_interface_impl]
             impl #path for #struct_name {}
         }
     });

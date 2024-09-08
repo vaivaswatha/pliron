@@ -2,7 +2,7 @@
 
 use std::sync::LazyLock;
 
-use pliron_derive::op_interface;
+use pliron::derive::op_interface;
 use thiserror::Error;
 
 use pliron::{

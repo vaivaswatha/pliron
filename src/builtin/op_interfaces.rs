@@ -1,6 +1,6 @@
 use std::{collections::hash_map, sync::LazyLock};
 
-use pliron_derive::op_interface;
+use pliron::derive::op_interface;
 use rustc_hash::FxHashMap;
 use thiserror::Error;
 

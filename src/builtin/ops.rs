@@ -1,5 +1,5 @@
 use combine::{token, Parser};
-use pliron_derive::{def_op, derive_op_interface_impl};
+use pliron::derive::{def_op, derive_op_interface_impl};
 use thiserror::Error;
 
 use crate::{

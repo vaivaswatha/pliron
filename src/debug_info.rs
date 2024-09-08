@@ -131,7 +131,7 @@ pub fn get_block_arg_name(
 
 #[cfg(test)]
 mod tests {
-    use pliron_derive::{def_op, derive_op_interface_impl};
+    use pliron::derive::{def_op, derive_op_interface_impl};
 
     use crate::{
         basic_block::BasicBlock,

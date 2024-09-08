@@ -143,7 +143,7 @@ mod tests {
 
         expect![[r##"
             #[derive(PartialEq, Eq, Debug, Clone)]
-            #[derive(::pliron_derive::DeriveAttribAcceptor)]
+            #[derive(::pliron::derive::DeriveAttribAcceptor)]
             #[ir_kind = "attribute"]
             pub struct UnitAttr;
             impl ::pliron::attribute::Attribute for UnitAttr {

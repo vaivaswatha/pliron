@@ -1,6 +1,7 @@
 use std::sync::LazyLock;
 
 use apint::ApInt;
+use pliron::derive::{def_op, derive_op_interface_impl};
 use pliron::{
     attribute::AttrObj,
     builtin::{
@@ -28,7 +29,6 @@ use pliron::{
     result::Result,
     value::Value,
 };
-use pliron_derive::{def_op, derive_op_interface_impl};
 
 #[def_op("test.return")]
 #[derive_op_interface_impl(IsTerminatorInterface)]
