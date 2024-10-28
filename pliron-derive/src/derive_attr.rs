@@ -4,8 +4,6 @@ use syn::{DeriveInput, LitStr, Result};
 
 const PROC_MACRO_NAME: &str = "def_attribute";
 
-use crate::{derive_shared::mark_ir_kind, macro_attr::IRKind};
-
 pub(crate) fn def_attribute(
     args: impl Into<TokenStream>,
     input: impl Into<TokenStream>,
@@ -52,8 +50,8 @@ impl DefAttribute {
         let attrs = input
             .attrs
             .into_iter()
-            .filter(|attr| !attr.path().is_ident(PROC_MACRO_NAME));
-        let attrs: Vec<_> = mark_ir_kind(attrs, IRKind::Attribute).collect();
+            .filter(|attr| !attr.path().is_ident(PROC_MACRO_NAME))
+            .collect();
 
         let input = DeriveInput { attrs, ..input };
 
@@ -143,8 +141,6 @@ mod tests {
 
         expect![[r##"
             #[derive(PartialEq, Eq, Debug, Clone)]
-            #[derive(::pliron::derive::DeriveAttribAcceptor)]
-            #[ir_kind = "attribute"]
             pub struct UnitAttr;
             impl ::pliron::attribute::Attribute for UnitAttr {
                 fn eq_attr(&self, other: &dyn ::pliron::attribute::Attribute) -> bool {

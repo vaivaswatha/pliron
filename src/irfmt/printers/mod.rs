@@ -31,11 +31,6 @@ pub fn disp(disp: impl fmt::Display) -> impl Printable {
     )
 }
 
-/// Print a plain string as is.
-pub fn literal(lit: &str) -> impl Printable + '_ {
-    disp(lit)
-}
-
 /// Print a string as a quoted string.
 pub fn quoted(s: &str) -> impl Printable + '_ {
     PrinterFn(

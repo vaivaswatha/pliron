@@ -2,8 +2,6 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{DeriveInput, LitStr, Result};
 
-use crate::{derive_shared::mark_ir_kind, macro_attr::IRKind};
-
 const PROC_MACRO_NAME: &str = "def_type";
 
 pub(crate) fn def_type(
@@ -51,8 +49,8 @@ impl DefType {
         let attrs = input
             .attrs
             .into_iter()
-            .filter(|attr| !attr.path().is_ident(PROC_MACRO_NAME));
-        let attrs: Vec<_> = mark_ir_kind(attrs, IRKind::Type).collect();
+            .filter(|attr| !attr.path().is_ident(PROC_MACRO_NAME))
+            .collect();
 
         let input = DeriveInput { attrs, ..input };
 
@@ -144,8 +142,6 @@ mod tests {
 
         expect![[r##"
             #[derive(Hash, PartialEq, Eq, Debug)]
-            #[derive(::pliron::derive::DeriveAttribAcceptor)]
-            #[ir_kind = "type"]
             pub struct SimpleType;
             impl ::pliron::r#type::Type for SimpleType {
                 fn hash_type(&self) -> ::pliron::storage_uniquer::TypeValueHash {

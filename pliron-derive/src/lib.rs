@@ -1,12 +1,9 @@
-mod irfmt;
-mod macro_attr;
-
 mod derive_attr;
+mod derive_format;
 mod derive_op;
-mod derive_printable;
-mod derive_shared;
 mod derive_type;
 mod interfaces;
+mod irfmt;
 
 use proc_macro::TokenStream;
 use quote::format_ident;
@@ -113,14 +110,23 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_op::def_op(args, input))
 }
 
-/// The derive macro is normally used together with one of the `#[def_attribute]`, `#[def_type]` or
-/// `#[def_op]` proc macros.
-///
-/// An optional format string can be provided to the derive macro using the `ir_format` attribute.
-/// The `ir_kind` macro attribute is normally filled in by the `def_x` proc macros.
-#[proc_macro_derive(Printable, attributes(ir_kind, ir_format))]
-pub fn derive_printable(input: TokenStream) -> TokenStream {
-    to_token_stream(derive_printable::derive(input))
+/// Derive [Format](../pliron/irfmt/trait.Format.html) for [Op](../pliron/op/trait.Op.html)s
+/// This derive only supports a syntax in which results appear before the opid:
+///   res1, ... = opid ...
+/// The format string only specifies what comes after the opid.
+///   1. A named variable $name specifies a named attribute of the operation.
+///   2. An unnamed variable $i specifies the `operands[i]`.
+#[proc_macro_attribute]
+pub fn op_format(args: TokenStream, input: TokenStream) -> TokenStream {
+    to_token_stream(derive_format::op_derive(args, input))
+}
+
+/// Derive [Format](../pliron/irfmt/trait.Format.html) for Rust types other than Ops.
+///   1. A named variable $name specifies a named struct field.
+///   2. An unnamed variable $i specifies the i'th field of a tuple struct.
+#[proc_macro_attribute]
+pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
+    to_token_stream(derive_format::derive(args, input))
 }
 
 pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> TokenStream {
@@ -134,15 +140,6 @@ pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> Tok
         }
     };
     TokenStream::from(tokens)
-}
-
-// Helper derive macro to accept internal attributes that we pass to Printable,
-// Parsable and other derive macros. The helper ensures that the injected attributes
-// do not cause a compilation error if no other derive macro is used.
-#[doc(hidden)]
-#[proc_macro_derive(DeriveAttribAcceptor, attributes(ir_kind))]
-pub fn derive_attrib_dummy(_input: TokenStream) -> TokenStream {
-    TokenStream::new()
 }
 
 /// Declare an [Op](../pliron/op/trait.Op.html) interface, which can be implemented

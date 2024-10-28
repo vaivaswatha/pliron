@@ -4,98 +4,34 @@ use syn::parse::{Parse, ParseStream};
 use syn::Data;
 use syn::{self, DataStruct, DeriveInput};
 
-mod eval;
 mod parser;
-
-pub use eval::AttribTypeFmtEvaler;
-
-use crate::macro_attr::{require_once, IRFormat, IRKind};
-
-/// Represents the common input to derive macros that use the `ir_format` attribute in conjunction
-/// with the struct definition in order to create parsers, printers for an IR entity.
-pub(crate) struct IRFmtInput {
-    pub ident: syn::Ident,
-    pub kind: IRKind,
-    pub data: FmtData,
-    pub format: Format,
-}
 
 pub(crate) enum FmtData {
     Struct(Struct),
 }
 
-impl Parse for IRFmtInput {
+impl Parse for FmtData {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let input = DeriveInput::parse(input)?;
         Self::try_from(input)
     }
 }
 
-impl TryFrom<DeriveInput> for IRFmtInput {
+impl TryFrom<DeriveInput> for FmtData {
     type Error = syn::Error;
 
     fn try_from(input: DeriveInput) -> syn::Result<Self> {
-        let mut kind = None;
-        let mut format = None;
-
-        for attr in &input.attrs {
-            if attr.path().is_ident(IRFormat::ATTR_NAME) {
-                require_once(IRFormat::ATTR_NAME, &format, attr)?;
-                format = Some(IRFormat::from_syn(attr)?);
-            }
-            if attr.path().is_ident(IRKind::ATTR_NAME) {
-                require_once(IRKind::ATTR_NAME, &kind, attr)?;
-                kind = Some(IRKind::from_syn(attr)?);
-            }
-        }
-
-        let Some(kind) = kind else {
-            return Err(syn::Error::new_spanned(
-                input,
-                "unknown IR object type. Use #[ir_kind=...] or one of the supported derive clauses Type, Attrib, ...",
-            ));
-        };
-
-        let data = match input.data {
+        match input.data {
             Data::Struct(ref data) => Struct::from_syn(data).map(FmtData::Struct),
             Data::Enum(_) => Err(syn::Error::new_spanned(
                 &input,
-                "Type can only be derived for structs",
+                "Format can only be derived for structs",
             )),
             Data::Union(_) => Err(syn::Error::new_spanned(
                 &input,
-                "Type can only be derived for structs",
+                "Format can only be derived for structs",
             )),
-        }?;
-
-        let format = match format {
-            Some(f) => f,
-            None => {
-                let mut format = match kind {
-                    IRKind::Op => generic_op_format(),
-                    IRKind::Type | IRKind::Attribute => try_format_from_input(&input)?,
-                };
-                if !format.is_empty() && kind != IRKind::Op {
-                    format.enclose(Elem::Lit("<".into()), Elem::Lit(">".into()));
-                }
-                format.into()
-            }
-        };
-
-        let mut format: Format = format.into();
-        if kind == IRKind::Op {
-            format.prepend(Optional::new(
-                Elem::new_directive("results"),
-                Format::from(vec![Elem::new_directive("results"), Elem::new_lit(" = ")]),
-            ));
         }
-
-        Ok(Self {
-            ident: input.ident,
-            kind,
-            format,
-            data,
-        })
     }
 }
 
@@ -225,18 +161,16 @@ pub(crate) enum Elem {
     /// Literal is a custom string enclosed in backticks. For example `lit` or `(`.
     Lit(Lit),
 
-    /// varialbes are custom identifiers starting with a dollar sign. For example $var or $0.
+    /// Varialbes are custom identifiers starting with a dollar sign. For example $var.
     Var(Var),
 
     /// Unnamed variables are custom identifiers starting with a dollar sign and a number.
+    /// For example $0.
     UnnamedVar(UnnamedVar),
 
     /// Directives are builtin identifiers. Some directives may have optional arguments enclosed
-    // in parens. For example `attr-dict` or `directive($arg1, other-directive)`.
+    /// in parens. For example `attr-dict` or `directive($arg1, other-directive)`.
     Directive(Directive),
-
-    /// Optional represents an optional format string.
-    Optional(Optional),
 }
 
 impl Default for Elem {
@@ -268,10 +202,6 @@ impl Elem {
 
     pub fn new_unnamed_var_at(pos: usize, index: usize) -> Self {
         Self::UnnamedVar(UnnamedVar::new_at(pos, index))
-    }
-
-    pub fn new_directive(name: impl Into<String>) -> Self {
-        Self::Directive(Directive::new(name))
     }
 
     #[allow(dead_code)] // used in tests.
@@ -439,38 +369,6 @@ impl From<Directive> for Elem {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Optional {
-    pub check: Box<Elem>,
-    pub then_format: Format,
-    pub else_format: Option<Format>,
-}
-
-impl From<Optional> for Elem {
-    fn from(optional: Optional) -> Self {
-        Self::Optional(optional)
-    }
-}
-
-impl Optional {
-    pub fn new(check: Elem, then_format: Format) -> Self {
-        Self {
-            check: Box::new(check),
-            then_format,
-            else_format: None,
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn new_with_else(check: Elem, then_format: Format, else_format: Format) -> Self {
-        Self {
-            check: Box::new(check),
-            then_format,
-            else_format: Some(else_format),
-        }
-    }
-}
-
 struct FmtValue(Vec<Elem>);
 
 impl From<Elem> for FmtValue {
@@ -491,12 +389,6 @@ impl From<Directive> for FmtValue {
     }
 }
 
-impl From<Optional> for FmtValue {
-    fn from(opt: Optional) -> Self {
-        Self(vec![Elem::Optional(opt)])
-    }
-}
-
 impl From<FmtValue> for Vec<Elem> {
     fn from(value: FmtValue) -> Self {
         value.0
@@ -509,24 +401,15 @@ impl From<FmtValue> for Format {
     }
 }
 
-impl FmtValue {
-    // flattens a FmtValue such that it contains no nested Values.
-    fn flatten(self) -> Vec<Elem> {
-        self.0
-    }
-
-    fn flatten_into(self, values: &mut Vec<Elem>) {
-        values.extend(self.0);
-    }
-}
-
-pub(crate) fn generic_op_format() -> Format {
+pub(crate) fn canonical_op_format() -> Format {
     Format {
-        elems: vec![Directive::new("operation_generic_format").into()],
+        elems: vec![Directive::new("canonical").into()],
     }
 }
 
-pub(crate) fn try_format_from_input(input: &syn::DeriveInput) -> syn::Result<Format> {
+/// Describe a canonical syntax for types / attributes defined by a struct.
+/// This is just "<field1 = ..., field2 = ... >".
+pub(crate) fn canonical_format_for_structs(input: &syn::DeriveInput) -> syn::Result<Format> {
     // TODO: add support for per field attributes?
 
     let data = match input.data {
@@ -534,7 +417,7 @@ pub(crate) fn try_format_from_input(input: &syn::DeriveInput) -> syn::Result<For
         _ => {
             return Err(syn::Error::new_spanned(
                 input,
-                "Type can only be derived for structs",
+                "Format can only be derived for structs",
             ))
         }
     };
@@ -545,9 +428,10 @@ pub(crate) fn try_format_from_input(input: &syn::DeriveInput) -> syn::Result<For
             for (i, field) in fields.named.iter().enumerate() {
                 let ident = field.ident.as_ref().unwrap();
                 if i > 0 {
-                    elems.push(Elem::new_lit(", "));
+                    elems.push(Elem::new_lit(","));
                 }
-                elems.push(Elem::new_lit(format!("{}=", ident)));
+                elems.push(Elem::new_lit(format!("{}", ident)));
+                elems.push(Elem::new_lit("=".to_string()));
                 elems.push(Elem::new_var(ident.to_string()));
             }
             elems
@@ -557,5 +441,10 @@ pub(crate) fn try_format_from_input(input: &syn::DeriveInput) -> syn::Result<For
             .collect::<Vec<_>>(),
         syn::Fields::Unit => vec![],
     };
-    Ok(Format { elems })
+
+    let mut format = Format { elems };
+    if !format.is_empty() {
+        format.enclose(Elem::Lit("<".into()), Elem::Lit(">".into()));
+    }
+    Ok(format)
 }
