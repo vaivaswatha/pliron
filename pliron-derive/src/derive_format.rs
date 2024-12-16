@@ -53,7 +53,7 @@ pub(crate) fn derive(
 fn derive_from_parsed(input: FmtInput) -> Result<TokenStream> {
     let mut format_tokens = TokenStream::new();
     let printable = DerivePrintable::build(&input)?;
-    let parsable = TokenStream::new(); // DeriveParsable::build(&input)?;
+    let parsable = BaseDeriveParsable::build(&input)?;
 
     format_tokens.extend(printable);
     format_tokens.extend(parsable);
@@ -120,7 +120,9 @@ impl PrintableBuilder for DerivePrintable {
         let FmtData::Struct(ref struct_fields) = input.data;
         if !struct_fields
             .fields
-            .contains(&FieldIdent::Named(name.to_string()))
+            .iter()
+            .map(|f| &f.ident)
+            .any(|i| i == &FieldIdent::Named(name.to_string()))
         {
             return Err(syn::Error::new_spanned(
                 input.ident.clone(),
@@ -134,7 +136,12 @@ impl PrintableBuilder for DerivePrintable {
     fn build_unnamed_var(input: &FmtInput, index: usize) -> Result<TokenStream> {
         // This is a struct unnamed field access.
         let FmtData::Struct(ref struct_fields) = input.data;
-        if !struct_fields.fields.contains(&FieldIdent::Unnamed(index)) {
+        if !struct_fields
+            .fields
+            .iter()
+            .map(|f| &f.ident)
+            .any(|i| i == &FieldIdent::Unnamed(index))
+        {
             return Err(syn::Error::new_spanned(
                 input.ident.clone(),
                 format!("{} field index mismatch", index),
@@ -223,5 +230,140 @@ impl PrintableBuilder for OpDerivePrintable {
         } else {
             todo!()
         }
+    }
+}
+
+/// Generate token stream for derived [Printable](::pliron::printable::Printable) trait.
+trait ParsableBuilder {
+    /// Entry point to build a parser.
+    fn build(input: &FmtInput) -> Result<TokenStream> {
+        let name = input.ident.clone();
+        let body = Self::build_body(input)?;
+
+        let arg = Self::build_assoc_type_arg()?;
+        let parsed = Self::build_assoc_type_parsed()?;
+        let derived = quote! {
+            impl ::pliron::parsable::Parsable for #name {
+                type Arg = #arg;
+                type Parsed = #parsed;
+                fn parse<'a>(
+                    state_stream: &mut ::pliron::parsable::StateStream<'a>,
+                    results: Self::Arg,
+                ) -> ::pliron::parsable::ParseResult<'a, Self::Parsed> {
+                    #body
+                }
+            }
+        };
+        Ok(derived)
+    }
+
+    /// Default implementation for building the parser's associated type for `Arg`.
+    fn build_assoc_type_arg() -> Result<TokenStream> {
+        Ok(quote! { () })
+    }
+
+    /// Default implementation for building the parser's associated type for `Parsed`.
+    fn build_assoc_type_parsed() -> Result<TokenStream> {
+        Ok(quote! { Self })
+    }
+
+    fn build_lit(lit: &str) -> TokenStream {
+        quote! {
+            {
+                use ::combine::Parser;
+                ::pliron::irfmt::parsers::spaced(::combine::parser::char::string(#lit))
+                .parse_stream(state_stream)
+                .into_result()?;
+            }
+        }
+    }
+
+    fn build_format(input: &FmtInput) -> Result<TokenStream> {
+        let derived_format = input
+            .format
+            .elems
+            .iter()
+            .map(|elem| Self::build_elem(input, elem))
+            .try_fold(TokenStream::new(), |mut acc, e| {
+                acc.extend(e?);
+                Ok(acc)
+            });
+        derived_format
+    }
+
+    fn build_elem(input: &FmtInput, elem: &Elem) -> Result<TokenStream> {
+        match elem {
+            Elem::Lit(Lit { lit, .. }) => Ok(Self::build_lit(lit)),
+            Elem::Var(Var { name, .. }) => Self::build_var(input, name),
+            Elem::UnnamedVar(UnnamedVar { index, .. }) => Self::build_unnamed_var(input, *index),
+            Elem::Directive(ref d) => Self::build_directive(input, d),
+        }
+    }
+
+    fn build_body(input: &FmtInput) -> Result<TokenStream>;
+    fn build_var(input: &FmtInput, name: &str) -> Result<TokenStream>;
+    fn build_unnamed_var(input: &FmtInput, index: usize) -> Result<TokenStream>;
+    fn build_directive(input: &FmtInput, d: &Directive) -> Result<TokenStream>;
+}
+
+/// Basic parsable builder for any Rust type.
+/// Builds an object of that type.
+/// Requires all contents to be parsable themselves.
+struct BaseDeriveParsable;
+
+impl ParsableBuilder for BaseDeriveParsable {
+    fn build_var(input: &FmtInput, name: &str) -> Result<TokenStream> {
+        let FmtData::Struct(r#struct) = &input.data;
+
+        let Some(crate::irfmt::Field { ty, .. }) = r#struct
+            .fields
+            .iter()
+            .find(|f| matches!(&f.ident, FieldIdent::Named(field_name) if name == field_name))
+        else {
+            return Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                format!("{} field not found", name),
+            ));
+        };
+        let name = format_ident!("{}", name);
+        Ok(quote! {
+            let #name = <#ty>::parser(()).parse_stream(state_stream).into_result()?.0;
+        })
+    }
+
+    fn build_unnamed_var(_input: &FmtInput, _index: usize) -> Result<TokenStream> {
+        todo!()
+    }
+
+    fn build_directive(_input: &FmtInput, _d: &Directive) -> Result<TokenStream> {
+        todo!()
+    }
+
+    fn build_body(input: &FmtInput) -> Result<TokenStream> {
+        let processed_fmt = Self::build_format(input)?;
+        let FmtData::Struct(r#struct) = &input.data;
+        let name = &r#struct.name;
+
+        let mut obj_builder = quote! {};
+        for field in &r#struct.fields {
+            match &field.ident {
+                FieldIdent::Named(name) => {
+                    let name = format_ident!("{}", name);
+                    obj_builder.extend(quote! {
+                        #name
+                    });
+                }
+                FieldIdent::Unnamed(_index) => {
+                    todo!()
+                }
+            }
+        }
+        Ok(quote! {
+            #processed_fmt
+            use ::pliron::parsable::IntoParseResult;
+            Ok(#name {
+                #obj_builder
+            }).into_parse_result()
+        })
     }
 }

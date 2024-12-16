@@ -1,8 +1,9 @@
 use proc_macro2::TokenStream;
 use quote::format_ident;
 use syn::parse::{Parse, ParseStream};
-use syn::Data;
+use syn::Type;
 use syn::{self, DataStruct, DeriveInput};
+use syn::{Data, Ident};
 
 mod parser;
 
@@ -22,7 +23,7 @@ impl TryFrom<DeriveInput> for FmtData {
 
     fn try_from(input: DeriveInput) -> syn::Result<Self> {
         match input.data {
-            Data::Struct(ref data) => Struct::from_syn(data).map(FmtData::Struct),
+            Data::Struct(ref data) => Struct::from_syn(input.ident, data).map(FmtData::Struct),
             Data::Enum(_) => Err(syn::Error::new_spanned(
                 &input,
                 "Format can only be derived for structs",
@@ -37,23 +38,35 @@ impl TryFrom<DeriveInput> for FmtData {
 
 /// Struct format data.
 pub(crate) struct Struct {
-    pub fields: Vec<FieldIdent>,
+    pub name: Ident,
+    pub fields: Vec<Field>,
 }
 
 impl Struct {
-    fn from_syn(data: &DataStruct) -> syn::Result<Self> {
+    fn from_syn(name: Ident, data: &DataStruct) -> syn::Result<Self> {
         let fields = data
             .fields
             .iter()
             .enumerate()
             .map(|(i, f)| match f.ident {
-                Some(ref ident) => FieldIdent::Named(ident.to_string()),
-                None => FieldIdent::Unnamed(i),
+                Some(ref ident) => Field {
+                    ty: f.ty.clone(),
+                    ident: FieldIdent::Named(ident.to_string()),
+                },
+                None => Field {
+                    ty: f.ty.clone(),
+                    ident: FieldIdent::Unnamed(i),
+                },
             })
             .collect();
 
-        Ok(Self { fields })
+        Ok(Self { name, fields })
     }
+}
+
+pub(crate) struct Field {
+    pub(crate) ty: Type,
+    pub(crate) ident: FieldIdent,
 }
 
 /// Field identifier of an IR entity that can be used a variable in a format string.

@@ -121,7 +121,8 @@ pub fn op_format(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_format::op_derive(args, input))
 }
 
-/// Derive [Format](../pliron/irfmt/trait.Format.html) for Rust types other than Ops.
+/// Derive [Format](../pliron/irfmt/trait.Format.html) for Rust types.
+/// Use this is for types other than `Op`, `Type` and `Attribute`s.
 ///   1. A named variable $name specifies a named struct field.
 ///   2. An unnamed variable $i specifies the i'th field of a tuple struct.
 #[proc_macro_attribute]
