@@ -42,7 +42,7 @@ pub struct State<'a> {
 
 impl<'a> State<'a> {
     /// Create a new empty [State].
-    pub fn new(ctx: &'a mut Context, src: location::Source) -> State {
+    pub fn new(ctx: &'a mut Context, src: location::Source) -> State<'a> {
         State {
             ctx,
             name_tracker: NameTracker::default(),
