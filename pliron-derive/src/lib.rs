@@ -9,6 +9,8 @@ use proc_macro::TokenStream;
 use quote::format_ident;
 use syn::parse_quote;
 
+use derive_format::DeriveIRObject;
+
 /// `#[def_attribute(...)]`: Annotate a Rust struct as a new IR attribute.
 ///
 /// The argument to the macro is the fully qualified name of the attribute in the form of
@@ -110,24 +112,49 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_op::def_op(args, input))
 }
 
-/// Derive [Format](../pliron/irfmt/trait.Format.html) for [Op](../pliron/op/trait.Op.html)s
-/// This derive only supports a syntax in which results appear before the opid:
-///   res1, ... = opid ...
-/// The format string only specifies what comes after the opid.
-///   1. A named variable $name specifies a named attribute of the operation.
-///   2. An unnamed variable $i specifies the `operands[i]`.
-#[proc_macro_attribute]
-pub fn op_format(args: TokenStream, input: TokenStream) -> TokenStream {
-    to_token_stream(derive_format::op_derive(args, input))
-}
-
 /// Derive [Format](../pliron/irfmt/trait.Format.html) for Rust types.
 /// Use this is for types other than `Op`, `Type` and `Attribute`s.
 ///   1. A named variable $name specifies a named struct field.
 ///   2. An unnamed variable $i specifies the i'th field of a tuple struct.
 #[proc_macro_attribute]
 pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
-    to_token_stream(derive_format::derive(args, input))
+    to_token_stream(derive_format::derive(
+        args,
+        input,
+        DeriveIRObject::AnyOtherRustType,
+    ))
+}
+
+/// Derive [Format](../pliron/irfmt/trait.Format.html) for [Op](../pliron/op/trait.Op.html)s
+/// This derive only supports a syntax in which results appear before the opid:
+///   res1, ... = opid ...
+/// The format string only specifies what comes after the opid.
+///   1. A named variable $name specifies a named attribute of the operation.
+///   2. An unnamed variable $i specifies `operands[i]`.
+#[proc_macro_attribute]
+pub fn format_op(args: TokenStream, input: TokenStream) -> TokenStream {
+    to_token_stream(derive_format::derive(args, input, DeriveIRObject::Op))
+}
+
+/// Derive [Format](../pliron/irfmt/trait.Format.html) for
+/// [Attribute](../pliron/attribute/trait.Attribute.html)s
+///   1. A named variable $name specifies a named struct field.
+///   2. An unnamed variable $i specifies the i'th field of a tuple struct.
+#[proc_macro_attribute]
+pub fn format_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
+    to_token_stream(derive_format::derive(
+        args,
+        input,
+        DeriveIRObject::Attribute,
+    ))
+}
+/// Derive [Format](../pliron/irfmt/trait.Format.html) for
+/// [Type](../pliron/type/trait.Type.html)s
+///   1. A named variable $name specifies a named struct field.
+///   2. An unnamed variable $i specifies the i'th field of a tuple struct.
+#[proc_macro_attribute]
+pub fn format_type(args: TokenStream, input: TokenStream) -> TokenStream {
+    to_token_stream(derive_format::derive(args, input, DeriveIRObject::Type))
 }
 
 pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> TokenStream {

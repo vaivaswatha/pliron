@@ -9,7 +9,7 @@ use crate::{
     attribute::{AttrId, AttrParserFn},
     context::Context,
     identifier::Identifier,
-    input_err,
+    impl_printable_for_display, input_err,
     location::{Located, Location},
     op::{OpId, OpObj},
     parsable::{IntoParseResult, Parsable, ParseResult, ParserFn, StateStream},
@@ -34,16 +34,7 @@ impl From<&str> for DialectName {
     }
 }
 
-impl Printable for DialectName {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        <Self as Display>::fmt(self, f)
-    }
-}
+impl_printable_for_display!(DialectName);
 
 impl Display for DialectName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

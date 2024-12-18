@@ -50,7 +50,7 @@ use crate::{
     context::Context,
     dialect::DialectName,
     identifier::Identifier,
-    input_err,
+    impl_printable_for_display, input_err,
     irfmt::{
         parsers::{attr_parser, delimited_list_parser, spaced},
         printers::iter_with_sep,
@@ -322,16 +322,7 @@ impl AttrName {
     }
 }
 
-impl Printable for AttrName {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        <Self as Display>::fmt(self, f)
-    }
-}
+impl_printable_for_display!(AttrName);
 
 impl Display for AttrName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -371,16 +362,7 @@ pub struct AttrId {
     pub name: AttrName,
 }
 
-impl Printable for AttrId {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        <Self as Display>::fmt(self, f)
-    }
-}
+impl_printable_for_display!(AttrId);
 
 impl Display for AttrId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

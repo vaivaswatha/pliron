@@ -1,7 +1,7 @@
 //! [Type]s defined in the LLVM dialect.
 
 use combine::{between, optional, parser::char::spaces, token, Parser};
-use pliron::derive::def_type;
+use pliron::derive::{def_type, format_type};
 use pliron::{
     common_traits::Verify,
     context::{Context, Ptr},
@@ -296,6 +296,7 @@ impl Eq for StructType {}
 /// An opaque pointer, corresponding to LLVM's pointer type.
 #[def_type("llvm.ptr")]
 #[derive(Hash, PartialEq, Eq, Debug)]
+#[format_type]
 pub struct PointerType;
 
 impl PointerType {
@@ -306,32 +307,6 @@ impl PointerType {
     /// Get, if it already exists, a pointer type.
     pub fn get_existing(ctx: &Context) -> Option<TypePtr<Self>> {
         Type::get_instance(PointerType, ctx)
-    }
-}
-
-impl Printable for PointerType {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        _f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        Ok(())
-    }
-}
-
-impl Parsable for PointerType {
-    type Arg = ();
-    type Parsed = TypePtr<Self>;
-
-    fn parse<'a>(
-        state_stream: &mut StateStream<'a>,
-        _arg: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed>
-    where
-        Self: Sized,
-    {
-        Ok(PointerType::get(state_stream.state.ctx)).into_parse_result()
     }
 }
 
@@ -402,36 +377,13 @@ impl_verify_succ!(ArrayType);
 
 #[def_type("llvm.void")]
 #[derive(Hash, PartialEq, Eq, Debug)]
+#[format_type]
 pub struct VoidType;
 
 impl VoidType {
     /// Get or create a new void type.
     pub fn get(ctx: &mut Context) -> TypePtr<Self> {
         Type::register_instance(Self {}, ctx)
-    }
-}
-
-impl Printable for VoidType {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        _f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        Ok(())
-    }
-}
-
-impl Parsable for VoidType {
-    type Arg = ();
-
-    type Parsed = TypePtr<VoidType>;
-
-    fn parse<'a>(
-        state_stream: &mut StateStream<'a>,
-        _arg: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed> {
-        Ok(VoidType::get(state_stream.state.ctx)).into_parse_result()
     }
 }
 
@@ -462,7 +414,7 @@ impl Printable for FuncType {
     ) -> std::fmt::Result {
         write!(
             f,
-            "<{} ({})>",
+            "<{}({})>",
             self.res.disp(ctx),
             list_with_sep(&self.args, ListSeparator::CharSpace(',')).disp(ctx)
         )
@@ -556,7 +508,7 @@ mod tests {
 
         assert_eq!(
             list_struct.disp(&ctx).to_string(),
-            "llvm.struct<LinkedList { builtin.int<i64>, llvm.typed_ptr<llvm.struct<LinkedList>> }>"
+            "llvm.struct <LinkedList { builtin.int <i64>, llvm.typed_ptr <llvm.struct <LinkedList>> }>"
         );
 
         let head_fields = vec![int64_ptr, list_struct_ptr];
@@ -634,7 +586,7 @@ mod tests {
         let int64pointer_ptr = Type::register_instance(int64pointer_ptr, &mut ctx);
         assert_eq!(
             int64pointer_ptr.disp(&ctx).to_string(),
-            "llvm.typed_ptr<builtin.int<si64>>"
+            "llvm.typed_ptr <builtin.int <si64>>"
         );
         assert!(int64pointer_ptr == TypedPointerType::get(&mut ctx, int64_ptr));
 
@@ -667,7 +619,7 @@ mod tests {
         let res = type_parser().parse(state_stream).unwrap().0;
         assert_eq!(
             &res.disp(&ctx).to_string(),
-            "llvm.typed_ptr<builtin.int<si64>>"
+            "llvm.typed_ptr <builtin.int <si64>>"
         );
     }
 
@@ -679,7 +631,7 @@ mod tests {
         TypedPointerType::register_type_in_dialect(&mut ctx, TypedPointerType::parser_fn);
 
         let state_stream = state_stream_from_iterator(
-            "llvm.struct<LinkedList { builtin.int<i64>, llvm.typed_ptr<llvm.struct<LinkedList>> }>"
+            "llvm.struct <LinkedList { builtin.int <i64>, llvm.typed_ptr <llvm.struct <LinkedList>> }>"
                 .chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
@@ -687,11 +639,11 @@ mod tests {
         let res = type_parser().parse(state_stream).unwrap().0;
         assert_eq!(
             &res.disp(&ctx).to_string(),
-            "llvm.struct<LinkedList { builtin.int<i64>, llvm.typed_ptr<llvm.struct<LinkedList>> }>"
+            "llvm.struct <LinkedList { builtin.int <i64>, llvm.typed_ptr <llvm.struct <LinkedList>> }>"
         );
 
         // Test parsing an opaque struct.
-        let test_string = "llvm.struct<ExternStruct>";
+        let test_string = "llvm.struct <ExternStruct>";
         let state_stream = state_stream_from_iterator(
             test_string.chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
@@ -705,7 +657,7 @@ mod tests {
         }
 
         // Test parsing an unnamed struct.
-        let test_string = "llvm.struct<{ builtin.int<i8> }>";
+        let test_string = "llvm.struct <{ builtin.int <i8> }>";
         let state_stream = state_stream_from_iterator(
             test_string.chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
@@ -726,13 +678,13 @@ mod tests {
         llvm::register(&mut ctx);
 
         let state_stream = state_stream_from_iterator(
-            "llvm.struct < My1 { builtin.int<i8> } >".chars(),
+            "llvm.struct < My1 { builtin.int <i8> } >".chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
         let _ = type_parser().parse(state_stream).unwrap().0;
 
         let state_stream = state_stream_from_iterator(
-            "llvm.struct < My1 { builtin.int<i16> } >".chars(),
+            "llvm.struct < My1 { builtin.int <i16> } >".chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
@@ -754,7 +706,7 @@ mod tests {
 
         let si32 = IntegerType::get(&mut ctx, 32, Signedness::Signed);
 
-        let input = "llvm.func<llvm.void (builtin.int<si32>)>";
+        let input = "llvm.func <llvm.void (builtin.int <si32>)>";
         let state_stream = state_stream_from_iterator(
             input.chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),

@@ -1,5 +1,6 @@
 use combine::{between, choice, parser::char::string, token, Parser};
 use pliron::derive::def_type;
+use pliron_derive::format_type;
 
 use crate::{
     context::{Context, Ptr},
@@ -8,7 +9,7 @@ use crate::{
         parsers::{delimited_list_parser, int_parser, spaced, type_parser},
         printers::{functional_type, list_with_sep},
     },
-    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
+    parsable::{Parsable, ParseResult, StateStream},
     printable::{self, ListSeparator, Printable},
     r#type::{Type, TypeObj, TypePtr},
 };
@@ -186,6 +187,7 @@ impl Parsable for FunctionType {
 impl_verify_succ!(FunctionType);
 
 #[def_type("builtin.unit")]
+#[format_type]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct UnitType;
 
@@ -193,32 +195,6 @@ impl UnitType {
     /// Get or create a new unit type.
     pub fn get(ctx: &mut Context) -> TypePtr<Self> {
         Type::register_instance(Self {}, ctx)
-    }
-}
-
-impl Printable for UnitType {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        _f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        Ok(())
-    }
-}
-
-impl Parsable for UnitType {
-    type Arg = ();
-    type Parsed = TypePtr<Self>;
-
-    fn parse<'a>(
-        state_stream: &mut StateStream<'a>,
-        _arg: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed>
-    where
-        Self: Sized,
-    {
-        Ok(UnitType::get(state_stream.state.ctx)).into_parse_result()
     }
 }
 

@@ -5,6 +5,7 @@ use combine::{
     token, Parser,
 };
 use pliron::derive::{attr_interface_impl, def_attribute};
+use pliron_derive::format_attribute;
 
 use crate::{
     attribute::{AttrObj, Attribute, AttributeDict},
@@ -13,7 +14,7 @@ use crate::{
     identifier::Identifier,
     impl_verify_succ, input_err,
     irfmt::{
-        parsers::{delimited_list_parser, spaced, type_parser},
+        parsers::delimited_list_parser,
         printers::{list_with_sep, quoted},
     },
     location::Located,
@@ -27,6 +28,7 @@ use super::{attr_interfaces::TypedAttrInterface, types::IntegerType};
 
 #[def_attribute("builtin.identifier")]
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[format_attribute]
 pub struct IdentifierAttr(Identifier);
 
 impl IdentifierAttr {
@@ -38,36 +40,9 @@ impl IdentifierAttr {
 
 impl_verify_succ!(IdentifierAttr);
 
-impl Printable for IdentifierAttr {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        state: &printable::State,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        self.0.fmt(ctx, state, f)
-    }
-}
-
 impl From<IdentifierAttr> for Identifier {
     fn from(value: IdentifierAttr) -> Self {
         value.0
-    }
-}
-
-impl Parsable for IdentifierAttr {
-    type Arg = ();
-
-    type Parsed = IdentifierAttr;
-
-    fn parse<'a>(
-        state_stream: &mut StateStream<'a>,
-        arg: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed> {
-        Identifier::parser(arg)
-            .parse_stream(state_stream)
-            .map(IdentifierAttr::new)
-            .into_result()
     }
 }
 
@@ -394,6 +369,7 @@ impl Parsable for VecAttr {
 /// Represent attributes that only have meaning from their existence.
 /// See [UnitAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#unitattr) in MLIR.
 #[def_attribute("builtin.unit")]
+#[format_attribute]
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Default)]
 pub struct UnitAttr;
 
@@ -403,65 +379,18 @@ impl UnitAttr {
     }
 }
 
-impl Printable for UnitAttr {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "()")
-    }
-}
 impl_verify_succ!(UnitAttr);
-
-impl Parsable for UnitAttr {
-    type Arg = ();
-    type Parsed = Self;
-
-    fn parse<'a>(
-        _state_stream: &mut StateStream<'a>,
-        _argg: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed> {
-        Ok(UnitAttr::new()).into_parse_result()
-    }
-}
 
 /// An attribute that does nothing but hold a Type.
 /// Same as MLIR's [TypeAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#typeattr).
 #[def_attribute("builtin.type")]
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[format_attribute("`<` $0 `>`")]
 pub struct TypeAttr(Ptr<TypeObj>);
 
 impl TypeAttr {
     pub fn new(ty: Ptr<TypeObj>) -> Self {
         TypeAttr(ty)
-    }
-}
-
-impl Printable for TypeAttr {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "<{}>", self.0.disp(ctx))
-    }
-}
-
-impl Parsable for TypeAttr {
-    type Arg = ();
-    type Parsed = Self;
-
-    fn parse<'a>(
-        state_stream: &mut StateStream<'a>,
-        _arg: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed> {
-        between(token('<'), token('>'), spaced(type_parser()))
-            .map(TypeAttr::new)
-            .parse_stream(state_stream)
-            .into()
     }
 }
 
@@ -526,11 +455,11 @@ mod tests {
         assert!(int64_0_ptr == int64_0_ptr2);
         assert_eq!(
             int64_0_ptr.disp(&ctx).to_string(),
-            "builtin.integer <0x0: builtin.int<si64>>"
+            "builtin.integer <0x0: builtin.int <si64>>"
         );
         assert_eq!(
             int64_1_ptr.disp(&ctx).to_string(),
-            "builtin.integer <0xf: builtin.int<si64>>"
+            "builtin.integer <0xf: builtin.int <si64>>"
         );
         assert!(
             ApInt::from(int64_0_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()).is_zero()

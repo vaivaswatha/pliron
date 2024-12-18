@@ -17,9 +17,9 @@ and written in safe Rust.
   ```mlir
   builtin.module @bar {
     ^block_1v1():
-      builtin.func @foo: builtin.function<() -> (builtin.int<si64>)> {
+      builtin.func @foo: builtin.function<() -> (builtin.int <si64>)> {
         ^entry_block_2v1():
-          c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int<si64>>;
+          c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
           test.return c0_op_3v1_res0
       }
   }

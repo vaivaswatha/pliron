@@ -148,18 +148,36 @@ pub trait Printable {
         })
     }
 }
-
-impl Printable for &str {
-    fn fmt(&self, _ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
-    }
+/// Implement [Printable] for a type that already implements [Display].
+/// Example:
+/// ```
+///     struct MyType;
+///     impl std::fmt::Display for MyType {
+///         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+///             write!(f, "{}", self)
+///         }
+///     }
+///     pliron::impl_printable_for_display!(MyType);
+/// ```
+#[macro_export]
+macro_rules! impl_printable_for_display {
+    ($ty_name:ty) => {
+        impl $crate::printable::Printable for $ty_name {
+            fn fmt(
+                &self,
+                _ctx: &pliron::context::Context,
+                _state: &pliron::printable::State,
+                f: &mut std::fmt::Formatter<'_>,
+            ) -> std::fmt::Result {
+                write!(f, "{}", self)
+            }
+        }
+    };
 }
 
-impl Printable for String {
-    fn fmt(&self, _ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
-    }
-}
+impl_printable_for_display!(&str);
+impl_printable_for_display!(String);
+impl_printable_for_display!(u64);
 
 impl<'a, T: Printable + ?Sized> Printable for &'a T {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {

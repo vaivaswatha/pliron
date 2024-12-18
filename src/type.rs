@@ -41,7 +41,7 @@ use crate::parsable::{Parsable, ParseResult, ParserFn, StateStream};
 use crate::printable::{self, Printable};
 use crate::result::Result;
 use crate::storage_uniquer::TypeValueHash;
-use crate::{arg_err_noloc, input_err};
+use crate::{arg_err_noloc, impl_printable_for_display, input_err};
 
 use combine::{parser, Parser};
 use downcast_rs::{impl_downcast, Downcast};
@@ -259,16 +259,7 @@ impl Deref for TypeName {
     }
 }
 
-impl Printable for TypeName {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        <Self as Display>::fmt(self, f)
-    }
-}
+impl_printable_for_display!(TypeName);
 
 impl Display for TypeName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -321,16 +312,7 @@ impl Parsable for TypeId {
     }
 }
 
-impl Printable for TypeId {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        <Self as Display>::fmt(self, f)
-    }
-}
+impl_printable_for_display!(TypeId);
 
 impl Display for TypeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -381,7 +363,7 @@ impl Printable for TypeObj {
         state: &printable::State,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        write!(f, "{}", self.get_type_id())?;
+        write!(f, "{} ", self.get_type_id())?;
         Printable::fmt(self.deref(), ctx, state, f)
     }
 }

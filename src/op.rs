@@ -49,7 +49,7 @@ use crate::{
     context::{Context, Ptr},
     dialect::DialectName,
     identifier::Identifier,
-    input_err,
+    impl_printable_for_display, input_err,
     irfmt::{
         parsers::{
             block_opd_parser, delimited_list_parser, location, process_parsed_ssa_defs, spaced,
@@ -84,16 +84,7 @@ impl Deref for OpName {
     }
 }
 
-impl Printable for OpName {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        <Self as Display>::fmt(self, f)
-    }
-}
+impl_printable_for_display!(OpName);
 
 impl Parsable for OpName {
     type Arg = ();
@@ -126,16 +117,7 @@ pub struct OpId {
     pub name: OpName,
 }
 
-impl Printable for OpId {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        <Self as Display>::fmt(self, f)
-    }
-}
+impl_printable_for_display!(OpId);
 
 impl Parsable for OpId {
     type Arg = ();

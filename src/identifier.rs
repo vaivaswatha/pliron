@@ -11,9 +11,8 @@ use thiserror::Error;
 
 use crate::{
     builtin::attributes::StringAttr,
-    context::Context,
+    impl_printable_for_display,
     parsable::{self, Parsable, ParseResult},
-    printable::{self, Printable},
     result::{self, Result},
     verify_err_noloc,
 };
@@ -58,16 +57,7 @@ impl Add for Identifier {
     }
 }
 
-impl Printable for Identifier {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        <Self as Display>::fmt(self, f)
-    }
-}
+impl_printable_for_display!(Identifier);
 
 impl Display for Identifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
