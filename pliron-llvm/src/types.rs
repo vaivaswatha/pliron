@@ -8,7 +8,7 @@ use pliron::{
     identifier::Identifier,
     impl_verify_succ, input_err_noloc,
     irfmt::{
-        parsers::{delimited_list_parser, int_parser, location, spaced, type_parser},
+        parsers::{delimited_list_parser, location, spaced, type_parser},
         printers::{enclosed, list_with_sep},
     },
     location::Located,
@@ -315,6 +315,7 @@ impl_verify_succ!(PointerType);
 /// Array type, corresponding to LLVM's array type.
 #[def_type("llvm.array")]
 #[derive(Hash, PartialEq, Eq, Debug)]
+#[format_type("`[` $size `x` $elem `]`")]
 pub struct ArrayType {
     elem: Ptr<TypeObj>,
     size: u64,
@@ -341,38 +342,6 @@ impl ArrayType {
     }
 }
 
-impl Printable for ArrayType {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "[{} x {}]", self.size, self.elem.disp(ctx))
-    }
-}
-
-impl Parsable for ArrayType {
-    type Arg = ();
-    type Parsed = TypePtr<Self>;
-
-    fn parse<'a>(
-        state_stream: &mut StateStream<'a>,
-        _arg: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed>
-    where
-        Self: Sized,
-    {
-        combine::between(
-            token('['),
-            token(']'),
-            spaced((int_parser::<u64>(), spaced(token('x')), type_parser())),
-        )
-        .parse_stream(state_stream)
-        .map(|(size, _, elem)| ArrayType::get(state_stream.state.ctx, elem, size))
-        .into()
-    }
-}
 impl_verify_succ!(ArrayType);
 
 #[def_type("llvm.void")]

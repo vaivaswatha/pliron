@@ -11,6 +11,7 @@ use crate::{
     context::{Context, Ptr},
     identifier::Identifier,
     input_err,
+    irfmt::parsers::int_parser,
     location::{self, Located, Location},
     op::op_impls,
     operation::Operation,
@@ -412,5 +413,17 @@ impl NameTracker {
         }
 
         Ok(())
+    }
+}
+
+impl Parsable for u64 {
+    type Arg = ();
+    type Parsed = u64;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        int_parser::<u64>().parse_stream(state_stream).into()
     }
 }
