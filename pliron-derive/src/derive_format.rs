@@ -70,15 +70,15 @@ fn derive_from_parsed(input: FmtInput, irobj: DeriveIRObject) -> Result<TokenStr
             DeriveOpParsable::build(&input)?,
         ),
         DeriveIRObject::AnyOtherRustType => (
-            DerivePrintable::build(&input)?,
+            DeriveBasePrintable::build(&input)?,
             DeriveBaseParsable::build(&input)?,
         ),
         DeriveIRObject::Attribute => (
-            DerivePrintable::build(&input)?,
+            DeriveBasePrintable::build(&input)?,
             DeriveAttributeParsable::build(&input)?,
         ),
         DeriveIRObject::Type => (
-            DerivePrintable::build(&input)?,
+            DeriveBasePrintable::build(&input)?,
             DeriveTypeParsable::build(&input)?,
         ),
     };
@@ -90,9 +90,10 @@ fn derive_from_parsed(input: FmtInput, irobj: DeriveIRObject) -> Result<TokenStr
 
 /// Generate token stream for derived [Printable](::pliron::printable::Printable) trait.
 trait PrintableBuilder {
+    // Entry function. Builds the outer function outline.
     fn build(input: &FmtInput) -> Result<TokenStream> {
         let name = input.ident.clone();
-        let body = Self::build_format(input)?;
+        let body = Self::build_body(input)?;
 
         let derived = quote! {
             impl ::pliron::printable::Printable for #name {
@@ -108,6 +109,11 @@ trait PrintableBuilder {
             }
         };
         Ok(derived)
+    }
+
+    // Build the body of the outer function Printable::fmt.
+    fn build_body(input: &FmtInput) -> Result<TokenStream> {
+        Self::build_format(input)
     }
 
     fn build_lit(lit: &str) -> TokenStream {
@@ -141,9 +147,9 @@ trait PrintableBuilder {
     fn build_directive(input: &FmtInput, d: &Directive) -> Result<TokenStream>;
 }
 
-struct DerivePrintable;
+struct DeriveBasePrintable;
 
-impl PrintableBuilder for DerivePrintable {
+impl PrintableBuilder for DeriveBasePrintable {
     fn build_var(input: &FmtInput, name: &str) -> Result<TokenStream> {
         let FmtData::Struct(ref struct_fields) = input.data;
         if !struct_fields
@@ -208,10 +214,14 @@ impl PrintableBuilder for DeriveOpPrintable {
 
     fn build_directive(_input: &FmtInput, d: &Directive) -> Result<TokenStream> {
         if d.name == "canonical" {
-            Ok(quote! { ::pliron::op::canonical_syntax_fmt(Box::new(*self), ctx, state, f) })
+            Ok(quote! { ::pliron::op::canonical_syntax_print(Box::new(*self), ctx, state, f) })
         } else {
             todo!()
         }
+    }
+
+    fn build_body(_input: &FmtInput) -> Result<TokenStream> {
+        todo!()
     }
 }
 

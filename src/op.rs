@@ -290,10 +290,10 @@ pub static OP_INTERFACE_VERIFIERS_MAP: LazyLock<
 });
 
 /// Printer for an [Op] in canonical syntax.
-/// `res_1: type_1, res_2: type_2, ... res_n: type_n =
+/// `res_1, res_2, ... res_n =
 ///      op_id (opd_1, opd_2, ... opd_n) [succ_1, succ_2, ... succ_n] [attr-dic]: function-type`
 /// TODO: Handle operations with regions.
-pub fn canonical_syntax_fmt(
+pub fn canonical_syntax_print(
     op: OpObj,
     ctx: &Context,
     _state: &printable::State,
@@ -333,7 +333,7 @@ pub enum CanonicalSyntaxParseError {
 }
 
 /// Parse an [Op] in canonical syntax.
-/// See [canonical_syntax_fmt] for the syntax.
+/// See [canonical_syntax_print] for the syntax.
 pub fn canonical_syntax_parse<'a>(
     opid: OpId,
     state_stream: &mut StateStream<'a>,
@@ -393,7 +393,7 @@ pub fn canonical_syntax_parse<'a>(
 }
 
 /// Parser for an [Op] in canonical syntax.
-/// See [canonical_syntax_fmt] for the syntax.
+/// See [canonical_syntax_print] for the syntax.
 pub fn canonical_syntax_parser<'a>(
     opid: OpId,
     results: Vec<(Identifier, Location)>,
@@ -424,7 +424,7 @@ macro_rules! impl_canonical_syntax {
                 state: &$crate::printable::State,
                 f: &mut std::fmt::Formatter<'_>,
             ) -> std::fmt::Result {
-                $crate::op::canonical_syntax_fmt(Box::new(*self), ctx, state, f)
+                $crate::op::canonical_syntax_print(Box::new(*self), ctx, state, f)
             }
         }
 
