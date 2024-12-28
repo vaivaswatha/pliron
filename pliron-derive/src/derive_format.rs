@@ -1,5 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
+use rustc_hash::FxHashMap;
 use syn::{DeriveInput, LitStr, Result};
 
 use crate::irfmt::{
@@ -67,19 +68,19 @@ fn derive_from_parsed(input: FmtInput, irobj: DeriveIRObject) -> Result<TokenStr
     let (printable, parsable) = match irobj {
         DeriveIRObject::Op => (
             DeriveOpPrintable::build(&input)?,
-            DeriveOpParsable::build(&input)?,
+            DeriveOpParsable::build(&input, &mut OpParserState::default())?,
         ),
         DeriveIRObject::AnyOtherRustType => (
             DeriveBasePrintable::build(&input)?,
-            DeriveBaseParsable::build(&input)?,
+            DeriveBaseParsable::build(&input, &mut ())?,
         ),
         DeriveIRObject::Attribute => (
             DeriveBasePrintable::build(&input)?,
-            DeriveAttributeParsable::build(&input)?,
+            DeriveAttributeParsable::build(&input, &mut ())?,
         ),
         DeriveIRObject::Type => (
             DeriveBasePrintable::build(&input)?,
-            DeriveTypeParsable::build(&input)?,
+            DeriveTypeParsable::build(&input, &mut ())?,
         ),
     };
 
@@ -116,7 +117,7 @@ trait PrintableBuilder {
         Self::build_format(input)
     }
 
-    fn build_lit(lit: &str) -> TokenStream {
+    fn build_lit(_input: &FmtInput, lit: &str) -> TokenStream {
         quote! { ::pliron::printable::Printable::fmt(&#lit, ctx, state, fmt)?; }
     }
 
@@ -135,7 +136,7 @@ trait PrintableBuilder {
 
     fn build_elem(input: &FmtInput, elem: &Elem) -> Result<TokenStream> {
         match elem {
-            Elem::Lit(Lit { lit, .. }) => Ok(Self::build_lit(lit)),
+            Elem::Lit(Lit { lit, .. }) => Ok(Self::build_lit(input, lit)),
             Elem::Var(Var { name, .. }) => Self::build_var(input, name),
             Elem::UnnamedVar(UnnamedVar { index, .. }) => Self::build_unnamed_var(input, *index),
             Elem::Directive(ref d) => Self::build_directive(input, d),
@@ -212,36 +213,64 @@ impl PrintableBuilder for DeriveOpPrintable {
         })
     }
 
-    fn build_directive(_input: &FmtInput, d: &Directive) -> Result<TokenStream> {
+    fn build_directive(input: &FmtInput, d: &Directive) -> Result<TokenStream> {
         if d.name == "canonical" {
-            Ok(quote! { ::pliron::op::canonical_syntax_print(Box::new(*self), ctx, state, f) })
+            Ok(quote! { ::pliron::op::canonical_syntax_print(Box::new(*self), ctx, state, fmt)?; })
+        } else if d.name == "type" {
+            let err = Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "The `type` directive takes a single unnamed variable argument to specify the result index".to_string(),
+                ));
+            if d.args.len() != 1 {
+                return err;
+            }
+            if let Elem::UnnamedVar(UnnamedVar { index, .. }) = &d.args[0] {
+                Ok(quote! {
+                    let res = self.get_operation().deref(ctx).get_type(#index);
+                    ::pliron::printable::Printable::fmt(&res, ctx, state, fmt)?;
+                })
+            } else {
+                return err;
+            }
         } else {
-            todo!()
+            unimplemented!("Unknown directive {}", d.name)
         }
     }
 
-    fn build_body(_input: &FmtInput) -> Result<TokenStream> {
-        todo!()
+    fn build_body(input: &FmtInput) -> Result<TokenStream> {
+        let mut output = quote! {
+            use ::pliron::op::Op;
+            use ::pliron::irfmt::printers::iter_with_sep;
+            let op = self.get_operation().deref(ctx);
+            if op.get_num_results() > 0 {
+                let sep = ::pliron::printable::ListSeparator::CharSpace(',');
+                let results = iter_with_sep(op.results(), sep);
+                write!(fmt, "{} = ", results.disp(ctx))?;
+            }
+            write!(fmt, "{} ", self.get_opid())?;
+        };
+        output.extend(Self::build_format(input)?);
+        Ok(output)
     }
 }
 
 /// Generate token stream for derived [Printable](::pliron::printable::Printable) trait.
-trait ParsableBuilder {
+trait ParsableBuilder<State: Default> {
     /// Entry point to build a parser.
-    fn build(input: &FmtInput) -> Result<TokenStream> {
+    fn build(input: &FmtInput, state: &mut State) -> Result<TokenStream> {
         let name = input.ident.clone();
-        let body = Self::build_body(input)?;
-        let final_ret_value = Self::build_final_ret_value();
+        let body = Self::build_body(input, state)?;
+        let final_ret_value = Self::build_final_ret_value(input, state);
 
-        let arg = Self::build_assoc_type_arg()?;
-        let parsed = Self::build_assoc_type_parsed()?;
+        let arg = Self::build_assoc_type_arg(input, state)?;
+        let parsed = Self::build_assoc_type_parsed(input, state)?;
         let derived = quote! {
             impl ::pliron::parsable::Parsable for #name {
                 type Arg = #arg;
                 type Parsed = #parsed;
                 fn parse<'a>(
                     state_stream: &mut ::pliron::parsable::StateStream<'a>,
-                    results: Self::Arg,
+                    arg: Self::Arg,
                 ) -> ::pliron::parsable::ParseResult<'a, Self::Parsed> {
                     use ::pliron::parsable::IntoParseResult;
                     use ::combine::Parser;
@@ -254,16 +283,16 @@ trait ParsableBuilder {
     }
 
     /// Default implementation for building the parser's associated type for `Arg`.
-    fn build_assoc_type_arg() -> Result<TokenStream> {
+    fn build_assoc_type_arg(_input: &FmtInput, _state: &mut State) -> Result<TokenStream> {
         Ok(quote! { () })
     }
 
     /// Default implementation for building the parser's associated type for `Parsed`.
-    fn build_assoc_type_parsed() -> Result<TokenStream> {
+    fn build_assoc_type_parsed(_input: &FmtInput, _state: &mut State) -> Result<TokenStream> {
         Ok(quote! { Self })
     }
 
-    fn build_lit(lit: &str) -> TokenStream {
+    fn build_lit(_input: &FmtInput, lit: &str, _state: &mut State) -> TokenStream {
         quote! {
             ::pliron::irfmt::parsers::spaced(::combine::parser::char::string(#lit))
             .parse_stream(state_stream)
@@ -271,12 +300,12 @@ trait ParsableBuilder {
         }
     }
 
-    fn build_format(input: &FmtInput) -> Result<TokenStream> {
+    fn build_format(input: &FmtInput, state: &mut State) -> Result<TokenStream> {
         let derived_format = input
             .format
             .elems
             .iter()
-            .map(|elem| Self::build_elem(input, elem))
+            .map(|elem| Self::build_elem(input, state, elem))
             .try_fold(TokenStream::new(), |mut acc, e| {
                 acc.extend(e?);
                 Ok(acc)
@@ -284,17 +313,19 @@ trait ParsableBuilder {
         derived_format
     }
 
-    fn build_elem(input: &FmtInput, elem: &Elem) -> Result<TokenStream> {
+    fn build_elem(input: &FmtInput, state: &mut State, elem: &Elem) -> Result<TokenStream> {
         match elem {
-            Elem::Lit(Lit { lit, .. }) => Ok(Self::build_lit(lit)),
-            Elem::Var(Var { name, .. }) => Self::build_var(input, name),
-            Elem::UnnamedVar(UnnamedVar { index, .. }) => Self::build_unnamed_var(input, *index),
-            Elem::Directive(ref d) => Self::build_directive(input, d),
+            Elem::Lit(Lit { lit, .. }) => Ok(Self::build_lit(input, lit, state)),
+            Elem::Var(Var { name, .. }) => Self::build_var(input, state, name),
+            Elem::UnnamedVar(UnnamedVar { index, .. }) => {
+                Self::build_unnamed_var(input, state, *index)
+            }
+            Elem::Directive(ref d) => Self::build_directive(input, state, d),
         }
     }
 
-    fn build_body(input: &FmtInput) -> Result<TokenStream> {
-        let mut processed_fmt = Self::build_format(input)?;
+    fn build_body(input: &FmtInput, state: &mut State) -> Result<TokenStream> {
+        let mut processed_fmt = Self::build_format(input, state)?;
         let FmtData::Struct(r#struct) = &input.data;
         let name = &r#struct.name;
         let mut named = true;
@@ -338,7 +369,7 @@ trait ParsableBuilder {
         Ok(processed_fmt)
     }
 
-    fn build_var(input: &FmtInput, name: &str) -> Result<TokenStream> {
+    fn build_var(input: &FmtInput, _state: &mut State, name: &str) -> Result<TokenStream> {
         let FmtData::Struct(r#struct) = &input.data;
 
         let Some(crate::irfmt::Field { ty, .. }) = r#struct
@@ -357,7 +388,11 @@ trait ParsableBuilder {
         })
     }
 
-    fn build_unnamed_var(input: &FmtInput, index: usize) -> Result<TokenStream> {
+    fn build_unnamed_var(
+        input: &FmtInput,
+        _state: &mut State,
+        index: usize,
+    ) -> Result<TokenStream> {
         let FmtData::Struct(r#struct) = &input.data;
         let crate::irfmt::Field { ty, .. } =
             r#struct.fields.get(index).ok_or(syn::Error::new_spanned(
@@ -370,12 +405,16 @@ trait ParsableBuilder {
         })
     }
 
-    fn build_directive(_input: &FmtInput, _d: &Directive) -> Result<TokenStream> {
+    fn build_directive(
+        _input: &FmtInput,
+        _state: &mut State,
+        _d: &Directive,
+    ) -> Result<TokenStream> {
         unimplemented!("No directives supported in default trait implementation")
     }
 
     /// After the entire body is built, build the parsed value to be finally returned.
-    fn build_final_ret_value() -> TokenStream {
+    fn build_final_ret_value(_input: &FmtInput, _state: &mut State) -> TokenStream {
         quote! {
             Ok(final_ret_value).into_parse_result()
         }
@@ -387,56 +426,210 @@ trait ParsableBuilder {
 /// Requires all contents to be parsable themselves.
 struct DeriveBaseParsable;
 
-impl ParsableBuilder for DeriveBaseParsable {
-    fn build_directive(_input: &FmtInput, _d: &Directive) -> Result<TokenStream> {
+impl ParsableBuilder<()> for DeriveBaseParsable {
+    fn build_directive(_input: &FmtInput, _state: &mut (), _d: &Directive) -> Result<TokenStream> {
         todo!()
     }
 }
 
+#[derive(Default)]
+struct OpParserState {
+    is_canonical: bool,
+    operands: FxHashMap<usize, syn::Ident>,
+    result_types: FxHashMap<usize, syn::Ident>,
+}
+
 struct DeriveOpParsable;
 
-impl ParsableBuilder for DeriveOpParsable {
-    fn build_body(_input: &FmtInput) -> Result<TokenStream> {
+impl ParsableBuilder<OpParserState> for DeriveOpParsable {
+    fn build_body(input: &FmtInput, state: &mut OpParserState) -> Result<TokenStream> {
+        let mut output = quote! {
+            use ::pliron::op::Op;
+            use ::pliron::operation::Operation;
+            use ::pliron::irfmt::parsers::{process_parsed_ssa_defs, ssa_opd_parser};
+            use ::pliron::input_err;
+            use ::pliron::location::Located;
+
+            let cur_loc = state_stream.loc();
+        };
+
+        let built_format = Self::build_format(input, state)?;
+        output.extend(built_format);
+
+        if state.is_canonical {
+            return Ok(output);
+        }
+
+        let num_operands = state
+            .operands
+            .keys()
+            .map(|idx| idx + 1)
+            .max()
+            .unwrap_or_default();
+        let num_result_types = state
+            .result_types
+            .keys()
+            .map(|idx| idx + 1)
+            .max()
+            .unwrap_or_default();
+
+        for i in 0..num_operands {
+            if !state.operands.contains_key(&i) {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    format!("missing operand {}", i),
+                ));
+            }
+        }
+
+        for i in 0..num_result_types {
+            if !state.result_types.contains_key(&i) {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    format!("missing type for result {}", i),
+                ));
+            }
+        }
+
+        let results_check = quote! {
+            if arg.len() != #num_result_types {
+                return
+                    input_err!(cur_loc,
+                        "expected {} results as per spec, got {} during parsing",
+                        #num_result_types,
+                        arg.len()
+                    )?;
+            }
+        };
+
+        output.extend(results_check);
+
+        let operand_indices = (0..num_operands).map(|i| state.operands[&i].clone());
+        let operands = quote! {
+            vec![#( #operand_indices ),*]
+        };
+        let result_indices = (0..num_result_types).map(|i| state.result_types[&i].clone());
+        let results = quote! {
+            vec![#( #result_indices ),*]
+        };
+
+        output.extend(quote! {
+            let op = ::pliron::operation::Operation::new(
+                state_stream.state.ctx,
+                Self::get_opid_static(),
+                #results,
+                #operands,
+                vec![],   // successors
+                0,        // regions
+            );
+            process_parsed_ssa_defs(state_stream, &arg, op)?;
+            let final_ret_value = Operation::get_op(op, state_stream.state.ctx);
+        });
+
+        Ok(output)
+    }
+
+    fn build_var(
+        _input: &FmtInput,
+        _state: &mut OpParserState,
+        _name: &str,
+    ) -> Result<TokenStream> {
         todo!()
     }
 
-    fn build_var(_input: &FmtInput, _name: &str) -> Result<TokenStream> {
-        todo!()
+    fn build_unnamed_var(
+        _input: &FmtInput,
+        state: &mut OpParserState,
+        index: usize,
+    ) -> Result<TokenStream> {
+        let opd_name = format_ident!("opd_{}", index);
+        state.operands.insert(index, opd_name.clone());
+        Ok(quote! {
+            let #opd_name = ssa_opd_parser().parse_stream(state_stream).into_result()?.0;
+        })
     }
 
-    fn build_unnamed_var(_input: &FmtInput, _index: usize) -> Result<TokenStream> {
-        todo!()
+    fn build_directive(
+        input: &FmtInput,
+        state: &mut OpParserState,
+        d: &Directive,
+    ) -> Result<TokenStream> {
+        if d.name == "canonical" {
+            state.is_canonical = true;
+            Ok(quote! {
+                ::pliron::op::canonical_syntax_parser(
+                    <Self as ::pliron::op::Op>::get_opid_static(),
+                    arg,
+                )
+                .parse_stream(state_stream)
+                .into()
+            })
+        } else if d.name == "type" {
+            let err = Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "The `type` directive takes a single unnamed variable argument to specify the result index".to_string(),
+                ));
+            if d.args.len() != 1 {
+                return err;
+            }
+            if let Elem::UnnamedVar(UnnamedVar { index, .. }) = &d.args[0] {
+                let res_type = format_ident!("res_{}", index);
+                state.result_types.insert(*index, res_type.clone());
+                Ok(quote! {
+                    let #res_type = ::pliron::irfmt::parsers::type_parser().parse_stream(state_stream).into_result()?.0;
+                })
+            } else {
+                return err;
+            }
+        } else {
+            unimplemented!("Unknown directive {}", d.name)
+        }
     }
 
-    fn build_directive(_input: &FmtInput, _d: &Directive) -> Result<TokenStream> {
-        todo!()
+    fn build_final_ret_value(_input: &FmtInput, state: &mut OpParserState) -> TokenStream {
+        if !state.is_canonical {
+            quote! {
+                Ok(final_ret_value).into_parse_result()
+            }
+        } else {
+            quote! {}
+        }
     }
 
-    fn build_final_ret_value() -> TokenStream {
-        todo!()
+    /// Default implementation for building the parser's associated type for `Arg`.
+    fn build_assoc_type_arg(_input: &FmtInput, _state: &mut OpParserState) -> Result<TokenStream> {
+        Ok(quote! { Vec<(::pliron::identifier::Identifier, ::pliron::location::Location)> })
+    }
+
+    /// Default implementation for building the parser's associated type for `Parsed`.
+    fn build_assoc_type_parsed(
+        _input: &FmtInput,
+        _state: &mut OpParserState,
+    ) -> Result<TokenStream> {
+        Ok(quote! { ::pliron::op::OpObj })
     }
 }
 
 struct DeriveAttributeParsable;
 
-impl ParsableBuilder for DeriveAttributeParsable {
-    fn build_directive(_input: &FmtInput, _d: &Directive) -> Result<TokenStream> {
-        todo!()
+impl ParsableBuilder<()> for DeriveAttributeParsable {
+    fn build_directive(_input: &FmtInput, _state: &mut (), d: &Directive) -> Result<TokenStream> {
+        unimplemented!("Unknown directive {}", d.name)
     }
 }
 
 struct DeriveTypeParsable;
 
-impl ParsableBuilder for DeriveTypeParsable {
-    fn build_directive(_input: &FmtInput, _d: &Directive) -> Result<TokenStream> {
-        todo!()
+impl ParsableBuilder<()> for DeriveTypeParsable {
+    fn build_directive(_input: &FmtInput, _state: &mut (), d: &Directive) -> Result<TokenStream> {
+        unimplemented!("Unknown directive {}", d.name)
     }
 
-    fn build_assoc_type_parsed() -> Result<TokenStream> {
+    fn build_assoc_type_parsed(_input: &FmtInput, _state: &mut ()) -> Result<TokenStream> {
         Ok(quote! { ::pliron::r#type::TypePtr<Self> })
     }
 
-    fn build_final_ret_value() -> TokenStream {
+    fn build_final_ret_value(_input: &FmtInput, _state: &mut ()) -> TokenStream {
         quote! {
             Ok(::pliron::r#type::Type::register_instance(final_ret_value, state_stream.state.ctx)).into_parse_result()
         }

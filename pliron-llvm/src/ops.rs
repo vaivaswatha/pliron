@@ -16,6 +16,7 @@ use pliron::{
     },
     common_traits::Verify,
     context::{Context, Ptr},
+    derive::format_op,
     identifier::Identifier,
     impl_canonical_syntax, impl_verify_succ,
     location::Located,
@@ -85,6 +86,7 @@ macro_rules! new_int_bin_op {
         $op_name:ident, $op_id:literal
     ) => {
         #[def_op($op_id)]
+        #[format_op("$0 `,` $1 `:` type($0)")]
         $(#[$outer])*
         /// ### Operands:
         ///
@@ -105,7 +107,6 @@ macro_rules! new_int_bin_op {
         pub struct $op_name;
 
         impl_verify_succ!($op_name);
-        impl_canonical_syntax!($op_name);
     }
 }
 
@@ -409,9 +410,9 @@ impl AllocaOp {
 /// |-----|-------|
 /// | `res` | non-aggregate LLVM type |
 #[def_op("llvm.bitcast")]
+#[format_op("$0 `:` type($0)")]
 #[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
 pub struct BitcastOp;
-impl_canonical_syntax!(BitcastOp);
 impl_verify_succ!(BitcastOp);
 
 impl BitcastOp {

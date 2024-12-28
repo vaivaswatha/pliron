@@ -1,4 +1,4 @@
-//! Test format derive for struct attributes / types.
+//! Test format derive for plain structs, attributes / types.
 
 use pliron::{
     builtin::types::IntegerType,

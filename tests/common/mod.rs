@@ -9,7 +9,7 @@ use pliron::{
         attributes::IntegerAttr,
         op_interfaces::{
             IsTerminatorInterface, OneResultInterface, OneResultVerifyErr,
-            SingleBlockRegionInterface, ZeroOpdInterface, ZeroResultVerifyErr,
+            SingleBlockRegionInterface, ZeroOpdInterface,
         },
         ops::{FuncOp, ModuleOp},
         types::{FunctionType, IntegerType, Signedness},
@@ -20,58 +20,25 @@ use pliron::{
     dialect::{Dialect, DialectName},
     identifier::Identifier,
     impl_verify_succ, input_err,
-    irfmt::parsers::{attr_parser, process_parsed_ssa_defs, ssa_opd_parser},
+    irfmt::parsers::{attr_parser, process_parsed_ssa_defs},
     location::{Located, Location},
     op::{Op, OpObj},
     operation::Operation,
-    parsable::{self, IntoParseResult, Parsable, ParseResult, StateStream},
+    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     result::Result,
     value::Value,
 };
+use pliron_derive::format_op;
 
 #[def_op("test.return")]
+#[format_op("$0")]
 #[derive_op_interface_impl(IsTerminatorInterface)]
 pub struct ReturnOp;
 impl ReturnOp {
     pub fn new(ctx: &mut Context, value: Value) -> Self {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![value], vec![], 0);
         ReturnOp { op }
-    }
-}
-impl Printable for ReturnOp {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(
-            f,
-            "{} {}",
-            self.get_opid().disp(ctx),
-            self.get_operation().deref(ctx).get_operand(0).disp(ctx)
-        )
-    }
-}
-impl Parsable for ReturnOp {
-    type Arg = Vec<(Identifier, Location)>;
-    type Parsed = OpObj;
-    fn parse<'a>(
-        state_stream: &mut parsable::StateStream<'a>,
-        results: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed> {
-        if !results.is_empty() {
-            input_err!(
-                state_stream.loc(),
-                ZeroResultVerifyErr(Self::get_opid_static().to_string())
-            )?
-        }
-
-        ssa_opd_parser()
-            .parse_stream(state_stream)
-            .map(|opd| -> OpObj { Box::new(Self::new(state_stream.state.ctx, opd)) })
-            .into()
     }
 }
 

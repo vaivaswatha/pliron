@@ -23,10 +23,11 @@ pub(crate) type Error = Box<dyn std::error::Error>;
 /// A format string is a sequence of literals, variables, and directives. The terms are optionally
 /// separated by whitespaces, which will be ignored in the parsed format.
 ///
-/// Literal strings are enclosed in backticks, and may contain escaped characters.
-/// Variables begin with a dollar sign and are followed by an identifier.
-/// Directives are identifiers followed by an optional list of arguments enclosed in parentheses.
-/// In case no arguments are provided, the parentheses may be omitted.
+/// * Literal strings are enclosed in backticks, and may contain escaped characters.
+/// * Variables (named / unnamed) begin with a dollar sign and are followed by an
+///   identifier (named) or a number (unnamed).
+/// * Directives are identifiers followed by an optional list of arguments enclosed in parentheses.
+/// * In case no arguments are provided, the parentheses may be omitted.
 pub(crate) fn parse(input: &str) -> Result<Format> {
     let input = Stream::with_positioner(input, IndexPositioner::new());
     let (elems, _rest) = match parse_fmt_elems().parse(input) {

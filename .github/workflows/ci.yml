@@ -32,8 +32,8 @@ jobs:
     - name: Tests (Release)
       run: cargo test --release --workspace --verbose
 
-#    - name: Clippy
-#      run: cargo clippy --workspace -- -D warnings
+    - name: Clippy
+      run: cargo clippy --workspace -- -D warnings
 
     - name: Format
       run: cargo fmt --check
