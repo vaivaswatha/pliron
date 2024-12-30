@@ -165,3 +165,39 @@ fn two_result_two_operands() {
 
     assert!(res.verify(ctx).is_ok());
 }
+
+#[format_op("$attr `:` type($0)")]
+#[def_op("test.attr_op")]
+struct AttrOp {}
+impl_verify_succ!(AttrOp);
+
+#[test]
+fn attr_op() {
+    let ctx = &mut setup_context_dialects();
+    AttrOp::register(ctx, AttrOp::parser_fn);
+
+    let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.attr_op builtin.integer <0x0: builtin.int <si64>> :builtin.int <si64>;
+            test.return res0
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::parser(())
+        .parse(state_stream)
+        .expect("AttrOp parser failed");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry_block_1v1():
+            res0_op_2v1_res0 = test.attr_op builtin.integer <0x0: builtin.int <si64>>:builtin.int <si64>;
+            test.return res0_op_2v1_res0
+        }"#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+}

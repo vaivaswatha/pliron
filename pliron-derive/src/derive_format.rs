@@ -194,15 +194,17 @@ impl PrintableBuilder for DeriveBasePrintable {
 struct DeriveOpPrintable;
 
 impl PrintableBuilder for DeriveOpPrintable {
-    fn build_var(input: &FmtInput, name: &str) -> Result<TokenStream> {
+    fn build_var(input: &FmtInput, attr_name: &str) -> Result<TokenStream> {
+        let attr_name = attr_name.to_string();
         let op_name = input.ident.clone();
-        let attr_name = format_ident!("{}", name);
+        let missing_attr_err = format!("Missing attribute {} on Op {}", &attr_name, &op_name);
         Ok(quote! {
-            let attr = self
-                .get_operation(ctx)
-                .attributes.0.get(#attr_name)
-                .expect("Missing attribute {} on Op {}", name, #op_name);
-            ::pliron::printable::Printable::fmt(attr, ctx, state, fmt)?;
+            {
+                let name = #attr_name.try_into().expect("Invalid attribute name");
+                let self_op = self.get_operation().deref(ctx);
+                let attr = self_op.attributes.0.get(&name).expect(&#missing_attr_err);
+                ::pliron::printable::Printable::fmt(attr, ctx, state, fmt)?;
+            }
         })
     }
 
@@ -437,6 +439,7 @@ struct OpParserState {
     is_canonical: bool,
     operands: FxHashMap<usize, syn::Ident>,
     result_types: FxHashMap<usize, syn::Ident>,
+    attributes: FxHashMap<String, syn::Ident>,
 }
 
 struct DeriveOpParsable;
@@ -446,7 +449,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
         let mut output = quote! {
             use ::pliron::op::Op;
             use ::pliron::operation::Operation;
-            use ::pliron::irfmt::parsers::{process_parsed_ssa_defs, ssa_opd_parser};
+            use ::pliron::irfmt::parsers::{process_parsed_ssa_defs, ssa_opd_parser, attr_parser};
             use ::pliron::input_err;
             use ::pliron::location::Located;
 
@@ -513,6 +516,16 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             vec![#( #result_indices ),*]
         };
 
+        let mut attribute_sets = quote! {};
+        for (attr_name, attr_ident) in &state.attributes {
+            attribute_sets.extend(quote! {
+                op.deref_mut(state_stream.state.ctx).attributes.0.insert(
+                    ::pliron::identifier::Identifier::try_from(#attr_name).unwrap(),
+                    #attr_ident,
+                );
+            });
+        }
+
         output.extend(quote! {
             let op = ::pliron::operation::Operation::new(
                 state_stream.state.ctx,
@@ -526,15 +539,27 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             let final_ret_value = Operation::get_op(op, state_stream.state.ctx);
         });
 
+        output.extend(attribute_sets);
+
         Ok(output)
     }
 
     fn build_var(
         _input: &FmtInput,
-        _state: &mut OpParserState,
-        _name: &str,
+        state: &mut OpParserState,
+        attr_name: &str,
     ) -> Result<TokenStream> {
-        todo!()
+        let attr_name = attr_name.to_string();
+        let attr_name_ident = format_ident!("{}", attr_name);
+        state
+            .attributes
+            .insert(attr_name.clone(), attr_name_ident.clone());
+        Ok(quote! {
+            let #attr_name_ident = attr_parser()
+                .parse_stream(state_stream)
+                .into_result()?
+                .0;
+        })
     }
 
     fn build_unnamed_var(
