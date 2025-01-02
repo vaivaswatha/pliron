@@ -94,9 +94,11 @@ fn replace_c0_with_c1_operand() -> Result<()> {
 
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
-        builtin.module @bar {
+        builtin.module @bar 
+        {
           ^block_1v1():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+            {
               ^entry_block_2v1():
                 c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
                 c1_op_5v1_res0 = test.constant builtin.integer <0x1: builtin.int <si64>>;
@@ -110,9 +112,11 @@ fn replace_c0_with_c1_operand() -> Result<()> {
 
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
-        builtin.module @bar {
+        builtin.module @bar 
+        {
           ^block_1v1():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+            {
               ^entry_block_2v1():
                 c1_op_5v1_res0 = test.constant builtin.integer <0x1: builtin.int <si64>>;
                 test.return c1_op_5v1_res0
@@ -161,9 +165,11 @@ fn test_replace_within_same_def_site() {
     res1.replace_some_uses_with(ctx, |_, _| true, &res2);
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
-        builtin.module @bar {
+        builtin.module @bar 
+        {
           ^block_1v1():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+            {
               ^entry_block_2v1():
                 c0_op_4v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
                 op_1v1_res0, op_1v1_res1 = test.dual_def () [] []: <() -> (builtin.int <si64>, builtin.int <si64>)>;
@@ -184,9 +190,11 @@ fn test_replace_within_same_def_site() {
 
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
-        builtin.module @bar {
+        builtin.module @bar 
+        {
           ^block_1v1():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+            {
               ^entry_block_2v1():
                 c0_op_4v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
                 op_1v1_res0, op_1v1_res1 = test.dual_def () [] []: <() -> (builtin.int <si64>, builtin.int <si64>)>;
@@ -205,9 +213,11 @@ fn print_simple() -> Result<()> {
     let module_op = const_ret_in_mod(ctx)?.0.get_operation();
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
-        builtin.module @bar {
+        builtin.module @bar 
+        {
           ^block_1v1():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+            {
               ^entry_block_2v1():
                 c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
                 test.return c0_op_3v1_res0
@@ -374,15 +384,18 @@ fn test_preorder_forward_walk() {
         accum + &op.disp(ctx).to_string() + "\n"
     });
     expect![[r#"
-        builtin.module @bar {
+        builtin.module @bar 
+        {
           ^block_1v1():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+            {
               ^entry_block_2v1():
                 c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
                 test.return c0_op_3v1_res0
             }
         }
-        builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+        builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+        {
           ^entry_block_2v1():
             c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
             test.return c0_op_3v1_res0
@@ -418,14 +431,17 @@ fn test_postorder_forward_walk() {
     expect![[r#"
         c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>
         test.return c0_op_3v1_res0
-        builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+        builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+        {
           ^entry_block_2v1():
             c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
             test.return c0_op_3v1_res0
         }
-        builtin.module @bar {
+        builtin.module @bar 
+        {
           ^block_1v1():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+            {
               ^entry_block_2v1():
                 c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
                 test.return c0_op_3v1_res0

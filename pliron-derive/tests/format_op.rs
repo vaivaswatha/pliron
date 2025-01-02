@@ -77,10 +77,11 @@ fn one_result_zero_operands() {
         .expect("OneResultZeroOperands parser failed");
 
     expect![[r#"
-        builtin.func @testfunc: builtin.function <() -> ()> {
+        builtin.func @testfunc: builtin.function <() -> ()> 
+        {
           ^entry_block_1v1():
-            res0_op_2v1_res0 = test.one_result_zero_operands :builtin.int <si64>;
-            test.return res0_op_2v1_res0
+            res0_op_3v1_res0 = test.one_result_zero_operands :builtin.int <si64>;
+            test.return res0_op_3v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -116,11 +117,12 @@ fn one_result_one_operand() {
         .expect("OneResultOneOperand parser failed");
 
     expect![[r#"
-        builtin.func @testfunc: builtin.function <() -> ()> {
+        builtin.func @testfunc: builtin.function <() -> ()> 
+        {
           ^entry_block_1v1():
-            res0_op_2v1_res0 = test.one_result_zero_operands :builtin.int <si64>;
-            res1_op_3v1_res0 = test.one_result_one_operand res0_op_2v1_res0:builtin.int <si64>;
-            test.return res1_op_3v1_res0
+            res0_op_3v1_res0 = test.one_result_zero_operands :builtin.int <si64>;
+            res1_op_4v1_res0 = test.one_result_one_operand res0_op_3v1_res0:builtin.int <si64>;
+            test.return res1_op_4v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -155,11 +157,12 @@ fn two_result_two_operands() {
         .expect("TwoResultTwoOperands parser failed");
 
     expect![[r#"
-        builtin.func @testfunc: builtin.function <() -> ()> {
+        builtin.func @testfunc: builtin.function <() -> ()> 
+        {
           ^entry_block_1v1():
-            res0_op_2v1_res0 = test.one_result_zero_operands :builtin.int <si64>;
-            res1a_op_3v1_res0, res1b_op_3v1_res1 = test.two_results_two_operands res0_op_2v1_res0,res0_op_2v1_res0:(builtin.int <si64>,builtin.int <si64>);
-            test.return res1a_op_3v1_res0
+            res0_op_3v1_res0 = test.one_result_zero_operands :builtin.int <si64>;
+            res1a_op_4v1_res0, res1b_op_4v1_res1 = test.two_results_two_operands res0_op_3v1_res0,res0_op_3v1_res0:(builtin.int <si64>,builtin.int <si64>);
+            test.return res1a_op_4v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -192,10 +195,11 @@ fn attr_op() {
         .expect("AttrOp parser failed");
 
     expect![[r#"
-        builtin.func @testfunc: builtin.function <() -> ()> {
+        builtin.func @testfunc: builtin.function <() -> ()> 
+        {
           ^entry_block_1v1():
-            res0_op_2v1_res0 = test.attr_op builtin.integer <0x0: builtin.int <si64>>:builtin.int <si64>;
-            test.return res0_op_2v1_res0
+            res0_op_3v1_res0 = test.attr_op builtin.integer <0x0: builtin.int <si64>>:builtin.int <si64>;
+            test.return res0_op_3v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
