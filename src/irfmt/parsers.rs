@@ -16,7 +16,7 @@ use crate::{
     value::Value,
 };
 use combine::{
-    between, many1,
+    between, many, many1,
     parser::char::{digit, spaces},
     sep_by, token, Parser, Stream,
 };
@@ -102,6 +102,13 @@ pub fn delimited_list_parser<Input: Stream<Token = char>, Output>(
             token(sep).skip(spaces()),
         )),
     )
+}
+
+/// Parse zero-or-more occurrences (ignoring spaces) of `parser`.
+pub fn zero_or_more_parser<Input: Stream<Token = char>, Output>(
+    parser: impl Parser<Input, Output = Output>,
+) -> impl Parser<Input, Output = Vec<Output>> {
+    many::<Vec<_>, _, _>(spaces().with(parser.skip(spaces())))
 }
 
 /// Parse an identifier into an SSA [Value]. Typically called to parse

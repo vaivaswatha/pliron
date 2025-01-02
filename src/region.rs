@@ -43,6 +43,25 @@ impl Region {
         Self::alloc(ctx, f)
     }
 
+    /// Move this [Region] to (the end of) a different [Operation].
+    /// If `new_parent_op` is same as the current parent, no action.
+    /// Indices of other regions in the current parent will be invalidated.
+    pub fn move_to_op(ptr: Ptr<Self>, new_parent_op: Ptr<Operation>, ctx: &mut Context) {
+        let src = ptr.deref(ctx).get_parent_op();
+        if src == new_parent_op {
+            return;
+        }
+        let regions = &mut src.deref_mut(ctx).regions;
+        regions.swap_remove(
+            regions
+                .iter()
+                .position(|x| *x == ptr)
+                .expect("Region missing in it's current parent Operations"),
+        );
+        new_parent_op.deref_mut(ctx).regions.push(ptr);
+        ptr.deref_mut(ctx).parent_op = new_parent_op;
+    }
+
     /// Get the operation that contains this region.
     pub fn get_parent_op(&self) -> Ptr<Operation> {
         self.parent_op
@@ -109,6 +128,7 @@ impl Printable for Region {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
+        fmt_indented_newline(state, f)?;
         write!(f, "{{")?;
 
         indented_block!(state, {

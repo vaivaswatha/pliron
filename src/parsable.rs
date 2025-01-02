@@ -13,7 +13,7 @@ use crate::{
     input_err,
     irfmt::parsers::int_parser,
     location::{self, Located, Location},
-    op::op_impls,
+    op::{op_impls, Op},
     operation::Operation,
     result::{self, Result},
     value::Value,
@@ -39,16 +39,38 @@ pub struct State<'a> {
     pub ctx: &'a mut Context,
     pub(crate) name_tracker: NameTracker,
     pub src: location::Source,
+    /// Constructing a [Region](crate::region::Region) requires a parent [Operation],
+    /// but during parsing, the parent itself may not be constructed yet.
+    /// So we use a dummy [ForwardRefOp] to represent the parent until it is actually constructed,
+    /// and then move the region to the actual parent.
+    pub parent_for_regions: Ptr<Operation>,
 }
 
 impl<'a> State<'a> {
     /// Create a new empty [State].
     pub fn new(ctx: &'a mut Context, src: location::Source) -> State<'a> {
+        let parent_for_regions = ForwardRefOp::new(ctx).get_operation();
         State {
             ctx,
             name_tracker: NameTracker::default(),
             src,
+            parent_for_regions,
         }
+    }
+}
+
+impl<'a> Drop for State<'a> {
+    // Ensure that `parent_for_regions` doesn't have any regions left and erase it.
+    fn drop(&mut self) {
+        let parent_for_regions = self.parent_for_regions;
+        // This assert is disabled because, if the parser fails, then we could have
+        // regions that were constructed but not moved to their parents.
+        assert!(
+            true || parent_for_regions.deref(self.ctx).num_regions() == 0,
+            "Regions constructed during parsing must be moved to \
+            their respective parents before the end of parsing"
+        );
+        Operation::erase(parent_for_regions, self.ctx);
     }
 }
 

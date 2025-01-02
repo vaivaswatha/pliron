@@ -53,7 +53,7 @@ use crate::{
     irfmt::{
         parsers::{
             block_opd_parser, delimited_list_parser, location, process_parsed_ssa_defs, spaced,
-            ssa_opd_parser,
+            ssa_opd_parser, zero_or_more_parser,
         },
         printers::{functional_type, iter_with_sep},
     },
@@ -62,6 +62,7 @@ use crate::{
     parsable::{IntoParseResult, Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
     r#type::Typed,
+    region::Region,
     result::Result,
 };
 
@@ -291,12 +292,11 @@ pub static OP_INTERFACE_VERIFIERS_MAP: LazyLock<
 
 /// Printer for an [Op] in canonical syntax.
 /// `res_1, res_2, ... res_n =
-///      op_id (opd_1, opd_2, ... opd_n) [succ_1, succ_2, ... succ_n] [attr-dic]: function-type`
-/// TODO: Handle operations with regions.
+///      op_id (opd_1, opd_2, ... opd_n) [succ_1, succ_2, ... succ_n] [attr-dict]: function-type (regions)*`
 pub fn canonical_syntax_print(
     op: OpObj,
     ctx: &Context,
-    _state: &printable::State,
+    state: &printable::State,
     f: &mut fmt::Formatter<'_>,
 ) -> fmt::Result {
     let sep = printable::ListSeparator::CharSpace(',');
@@ -307,12 +307,14 @@ pub fn canonical_syntax_print(
         iter_with_sep(op.operands().map(|opd| opd.get_type(ctx)), sep),
         iter_with_sep(op.results().map(|res| res.get_type(ctx)), sep),
     );
+    let regions = iter_with_sep(op.regions.iter(), printable::ListSeparator::Newline);
 
     if op.get_num_results() != 0 {
         let results = iter_with_sep(op.results(), sep);
         write!(f, "{} = ", results.disp(ctx))?;
     }
-    let ret = write!(
+
+    write!(
         f,
         "{} ({}) [{}] {}: {}",
         op.get_opid().disp(ctx),
@@ -320,8 +322,12 @@ pub fn canonical_syntax_print(
         successors.disp(ctx),
         op.attributes.disp(ctx),
         op_type.disp(ctx),
-    );
-    ret
+    )?;
+
+    if op.regions.len() > 0 {
+        regions.fmt(ctx, state, f)?;
+    }
+    Ok(())
 }
 
 #[derive(Error, Debug)]
@@ -339,14 +345,22 @@ pub fn canonical_syntax_parse<'a>(
     state_stream: &mut StateStream<'a>,
     results: Vec<(Identifier, Location)>,
 ) -> ParseResult<'a, OpObj> {
+    let parent_for_regions = state_stream.state.parent_for_regions;
     // Results and opid have already been parsed. Continue after that.
     delimited_list_parser('(', ')', ',', ssa_opd_parser())
         .and(spaces().with(delimited_list_parser('[', ']', ',', block_opd_parser())))
         .and(spaces().with(AttributeDict::parser(())))
         .skip(spaced(token(':')))
         .and((location(), FunctionType::parser(())))
+        .and((
+            location(),
+            zero_or_more_parser(Region::parser(parent_for_regions)),
+        ))
         .then(
-            move |(((operands, successors), attr_dict), (fty_loc, fty))| {
+            move |(
+                (((operands, successors), attr_dict), (fty_loc, fty)),
+                (_regions_loc, regions),
+            )| {
                 let opid = opid.clone();
                 let results = results.clone();
                 let fty_loc = fty_loc.clone();
@@ -383,6 +397,9 @@ pub fn canonical_syntax_parse<'a>(
                     );
                     opr.deref_mut(ctx).attributes = attr_dict.clone();
                     let op = from_operation(ctx, opr);
+                    for region in regions.iter() {
+                        Region::move_to_op(*region, opr, ctx);
+                    }
                     process_parsed_ssa_defs(parsable_state, &results, opr)?;
                     Ok(op).into_parse_result()
                 })

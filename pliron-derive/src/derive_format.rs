@@ -89,12 +89,17 @@ fn derive_from_parsed(input: FmtInput, irobj: DeriveIRObject) -> Result<TokenStr
     Ok(format_tokens)
 }
 
+#[derive(Default)]
+struct OpPrinterState {
+    is_canonical: bool,
+}
+
 /// Generate token stream for derived [Printable](::pliron::printable::Printable) trait.
-trait PrintableBuilder {
+trait PrintableBuilder<State: Default> {
     // Entry function. Builds the outer function outline.
     fn build(input: &FmtInput) -> Result<TokenStream> {
         let name = input.ident.clone();
-        let body = Self::build_body(input)?;
+        let body = Self::build_body(input, &mut State::default())?;
 
         let derived = quote! {
             impl ::pliron::printable::Printable for #name {
@@ -113,20 +118,20 @@ trait PrintableBuilder {
     }
 
     // Build the body of the outer function Printable::fmt.
-    fn build_body(input: &FmtInput) -> Result<TokenStream> {
-        Self::build_format(input)
+    fn build_body(input: &FmtInput, state: &mut State) -> Result<TokenStream> {
+        Self::build_format(input, state)
     }
 
-    fn build_lit(_input: &FmtInput, lit: &str) -> TokenStream {
+    fn build_lit(_input: &FmtInput, _state: &mut State, lit: &str) -> TokenStream {
         quote! { ::pliron::printable::Printable::fmt(&#lit, ctx, state, fmt)?; }
     }
 
-    fn build_format(input: &FmtInput) -> Result<TokenStream> {
+    fn build_format(input: &FmtInput, state: &mut State) -> Result<TokenStream> {
         let derived_format = input
             .format
             .elems
             .iter()
-            .map(|elem| Self::build_elem(input, elem))
+            .map(|elem| Self::build_elem(input, state, elem))
             .try_fold(TokenStream::new(), |mut acc, e| {
                 acc.extend(e?);
                 Ok(acc)
@@ -134,24 +139,26 @@ trait PrintableBuilder {
         derived_format
     }
 
-    fn build_elem(input: &FmtInput, elem: &Elem) -> Result<TokenStream> {
+    fn build_elem(input: &FmtInput, state: &mut State, elem: &Elem) -> Result<TokenStream> {
         match elem {
-            Elem::Lit(Lit { lit, .. }) => Ok(Self::build_lit(input, lit)),
-            Elem::Var(Var { name, .. }) => Self::build_var(input, name),
-            Elem::UnnamedVar(UnnamedVar { index, .. }) => Self::build_unnamed_var(input, *index),
-            Elem::Directive(ref d) => Self::build_directive(input, d),
+            Elem::Lit(Lit { lit, .. }) => Ok(Self::build_lit(input, state, lit)),
+            Elem::Var(Var { name, .. }) => Self::build_var(input, state, name),
+            Elem::UnnamedVar(UnnamedVar { index, .. }) => {
+                Self::build_unnamed_var(input, state, *index)
+            }
+            Elem::Directive(ref d) => Self::build_directive(input, state, d),
         }
     }
 
-    fn build_var(input: &FmtInput, name: &str) -> Result<TokenStream>;
-    fn build_unnamed_var(input: &FmtInput, index: usize) -> Result<TokenStream>;
-    fn build_directive(input: &FmtInput, d: &Directive) -> Result<TokenStream>;
+    fn build_var(input: &FmtInput, state: &mut State, name: &str) -> Result<TokenStream>;
+    fn build_unnamed_var(input: &FmtInput, state: &mut State, index: usize) -> Result<TokenStream>;
+    fn build_directive(input: &FmtInput, state: &mut State, d: &Directive) -> Result<TokenStream>;
 }
 
 struct DeriveBasePrintable;
 
-impl PrintableBuilder for DeriveBasePrintable {
-    fn build_var(input: &FmtInput, name: &str) -> Result<TokenStream> {
+impl PrintableBuilder<()> for DeriveBasePrintable {
+    fn build_var(input: &FmtInput, _state: &mut (), name: &str) -> Result<TokenStream> {
         let FmtData::Struct(ref struct_fields) = input.data;
         if !struct_fields
             .fields
@@ -168,7 +175,7 @@ impl PrintableBuilder for DeriveBasePrintable {
         Ok(quote! { ::pliron::printable::Printable::fmt(&self.#field, ctx, state, fmt)?; })
     }
 
-    fn build_unnamed_var(input: &FmtInput, index: usize) -> Result<TokenStream> {
+    fn build_unnamed_var(input: &FmtInput, _state: &mut (), index: usize) -> Result<TokenStream> {
         // This is a struct unnamed field access.
         let FmtData::Struct(ref struct_fields) = input.data;
         if !struct_fields
@@ -186,15 +193,19 @@ impl PrintableBuilder for DeriveBasePrintable {
         Ok(quote! { ::pliron::printable::Printable::fmt(&self.#index, ctx, state, fmt)?; })
     }
 
-    fn build_directive(_input: &FmtInput, _d: &Directive) -> Result<TokenStream> {
+    fn build_directive(_input: &FmtInput, _state: &mut (), _d: &Directive) -> Result<TokenStream> {
         todo!()
     }
 }
 
 struct DeriveOpPrintable;
 
-impl PrintableBuilder for DeriveOpPrintable {
-    fn build_var(input: &FmtInput, attr_name: &str) -> Result<TokenStream> {
+impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
+    fn build_var(
+        input: &FmtInput,
+        _state: &mut OpPrinterState,
+        attr_name: &str,
+    ) -> Result<TokenStream> {
         let attr_name = attr_name.to_string();
         let op_name = input.ident.clone();
         let missing_attr_err = format!("Missing attribute {} on Op {}", &attr_name, &op_name);
@@ -208,15 +219,24 @@ impl PrintableBuilder for DeriveOpPrintable {
         })
     }
 
-    fn build_unnamed_var(_input: &FmtInput, index: usize) -> Result<TokenStream> {
+    fn build_unnamed_var(
+        _input: &FmtInput,
+        _state: &mut OpPrinterState,
+        index: usize,
+    ) -> Result<TokenStream> {
         Ok(quote! {
             let opd = self.get_operation().deref(ctx).get_operand(#index);
             ::pliron::printable::Printable::fmt(&opd, ctx, state, fmt)?;
         })
     }
 
-    fn build_directive(input: &FmtInput, d: &Directive) -> Result<TokenStream> {
+    fn build_directive(
+        input: &FmtInput,
+        state: &mut OpPrinterState,
+        d: &Directive,
+    ) -> Result<TokenStream> {
         if d.name == "canonical" {
+            state.is_canonical = true;
             Ok(quote! { ::pliron::op::canonical_syntax_print(Box::new(*self), ctx, state, fmt)?; })
         } else if d.name == "type" {
             let err = Err(syn::Error::new_spanned(
@@ -239,19 +259,23 @@ impl PrintableBuilder for DeriveOpPrintable {
         }
     }
 
-    fn build_body(input: &FmtInput) -> Result<TokenStream> {
-        let mut output = quote! {
-            use ::pliron::op::Op;
-            use ::pliron::irfmt::printers::iter_with_sep;
-            let op = self.get_operation().deref(ctx);
-            if op.get_num_results() > 0 {
-                let sep = ::pliron::printable::ListSeparator::CharSpace(',');
-                let results = iter_with_sep(op.results(), sep);
-                write!(fmt, "{} = ", results.disp(ctx))?;
-            }
-            write!(fmt, "{} ", self.get_opid())?;
-        };
-        output.extend(Self::build_format(input)?);
+    fn build_body(input: &FmtInput, state: &mut OpPrinterState) -> Result<TokenStream> {
+        let formatted_tokens = Self::build_format(input, state)?;
+        let mut output = quote! {};
+        if !state.is_canonical {
+            output.extend(quote! {
+                use ::pliron::op::Op;
+                use ::pliron::irfmt::printers::iter_with_sep;
+                let op = self.get_operation().deref(ctx);
+                if op.get_num_results() > 0 {
+                    let sep = ::pliron::printable::ListSeparator::CharSpace(',');
+                    let results = iter_with_sep(op.results(), sep);
+                    write!(fmt, "{} = ", results.disp(ctx))?;
+                }
+                write!(fmt, "{} ", self.get_opid())?;
+            });
+        }
+        output.extend(formatted_tokens);
         Ok(output)
     }
 }
