@@ -3,7 +3,8 @@
 use expect_test::expect;
 use pliron::{
     builtin::op_interfaces::{
-        OneOpdInterface, OneResultInterface, ZeroOpdInterface, ZeroResultInterface,
+        OneOpdInterface, OneRegionInterface, OneResultInterface, ZeroOpdInterface,
+        ZeroResultInterface,
     },
     common_traits::Verify,
     impl_verify_succ, location,
@@ -199,6 +200,115 @@ fn attr_op() {
         {
           ^entry_block_1v1():
             res0_op_3v1_res0 = test.attr_op builtin.integer <0x0: builtin.int <si64>>:builtin.int <si64>;
+            test.return res0_op_3v1_res0
+        }"#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+}
+
+#[format_op("`(`$0`)` region($0)")]
+#[def_op("test.if_op")]
+#[derive_op_interface_impl(OneOpdInterface, ZeroResultInterface, OneRegionInterface)]
+struct IfOp {}
+impl_verify_succ!(IfOp);
+
+#[test]
+fn if_op() {
+    let ctx = &mut setup_context_dialects();
+    AttrOp::register(ctx, AttrOp::parser_fn);
+    IfOp::register(ctx, IfOp::parser_fn);
+
+    let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.attr_op builtin.integer <0x0: builtin.int <si64>> :builtin.int <si64>;
+            test.if_op (res0) {
+              ^then():
+                res1 = test.attr_op builtin.integer <0x1: builtin.int <si64>> :builtin.int <si64>;
+                test.return res1
+            };
+            test.return res0
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::parser(())
+        .parse(state_stream)
+        .expect("IfOp parser failed");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <() -> ()> 
+        {
+          ^entry_block_2v1():
+            res0_op_3v1_res0 = test.attr_op builtin.integer <0x0: builtin.int <si64>>:builtin.int <si64>;
+            test.if_op (res0_op_3v1_res0)
+            {
+              ^then_block_1v1():
+                res1_op_4v1_res0 = test.attr_op builtin.integer <0x1: builtin.int <si64>>:builtin.int <si64>;
+                test.return res1_op_4v1_res0
+            };
+            test.return res0_op_3v1_res0
+        }"#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+}
+
+#[format_op("`(`$0`)` region($0) `else` region($1)")]
+#[def_op("test.if_else_op")]
+#[derive_op_interface_impl(OneOpdInterface, ZeroResultInterface)]
+struct IfElseOp {}
+impl_verify_succ!(IfElseOp);
+
+#[test]
+fn if_else_op() {
+    let ctx = &mut setup_context_dialects();
+    AttrOp::register(ctx, AttrOp::parser_fn);
+    IfElseOp::register(ctx, IfElseOp::parser_fn);
+
+    let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.attr_op builtin.integer <0x0: builtin.int <si64>> :builtin.int <si64>;
+            test.if_else_op (res0) {
+              ^then():
+                res1 = test.attr_op builtin.integer <0x1: builtin.int <si64>> :builtin.int <si64>;
+                test.return res1
+            } else {
+              ^else():
+                res2 = test.attr_op builtin.integer <0x2: builtin.int <si64>> :builtin.int <si64>;
+                test.return res2
+            };
+            test.return res0
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::parser(())
+        .parse(state_stream)
+        .expect("IfOp parser failed");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <() -> ()> 
+        {
+          ^entry_block_3v1():
+            res0_op_3v1_res0 = test.attr_op builtin.integer <0x0: builtin.int <si64>>:builtin.int <si64>;
+            test.if_else_op (res0_op_3v1_res0)
+            {
+              ^then_block_1v1():
+                res1_op_4v1_res0 = test.attr_op builtin.integer <0x1: builtin.int <si64>>:builtin.int <si64>;
+                test.return res1_op_4v1_res0
+            }else
+            {
+              ^else_block_2v1():
+                res2_op_6v1_res0 = test.attr_op builtin.integer <0x2: builtin.int <si64>>:builtin.int <si64>;
+                test.return res2_op_6v1_res0
+            };
             test.return res0_op_3v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());

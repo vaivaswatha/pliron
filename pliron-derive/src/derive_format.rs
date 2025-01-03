@@ -254,6 +254,22 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
             } else {
                 return err;
             }
+        } else if d.name == "region" {
+            let err = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `region` directive takes a single unnamed variable argument to specify the region index".to_string(),
+            ));
+            if d.args.len() != 1 {
+                return err;
+            }
+            if let Elem::UnnamedVar(UnnamedVar { index, .. }) = &d.args[0] {
+                Ok(quote! {
+                    let reg = self.get_operation().deref(ctx).get_region(#index);
+                    ::pliron::printable::Printable::fmt(&reg, ctx, state, fmt)?;
+                })
+            } else {
+                return err;
+            }
         } else {
             unimplemented!("Unknown directive {}", d.name)
         }
@@ -464,6 +480,7 @@ struct OpParserState {
     operands: FxHashMap<usize, syn::Ident>,
     result_types: FxHashMap<usize, syn::Ident>,
     attributes: FxHashMap<String, syn::Ident>,
+    regions: FxHashMap<usize, syn::Ident>,
 }
 
 struct DeriveOpParsable;
@@ -499,6 +516,12 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             .map(|idx| idx + 1)
             .max()
             .unwrap_or_default();
+        let num_regions = state
+            .regions
+            .keys()
+            .map(|idx| idx + 1)
+            .max()
+            .unwrap_or_default();
 
         for i in 0..num_operands {
             if !state.operands.contains_key(&i) {
@@ -529,6 +552,15 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             }
         };
 
+        for i in 0..num_regions {
+            if !state.regions.contains_key(&i) {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    format!("missing region {}", i),
+                ));
+            }
+        }
+
         output.extend(results_check);
 
         let operand_indices = (0..num_operands).map(|i| state.operands[&i].clone());
@@ -539,7 +571,10 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
         let results = quote! {
             vec![#( #result_indices ),*]
         };
-
+        let region_indices = (0..num_regions).map(|i| state.regions[&i].clone());
+        let regions = quote! {
+            vec![#( #region_indices ),*]
+        };
         let mut attribute_sets = quote! {};
         for (attr_name, attr_ident) in &state.attributes {
             attribute_sets.extend(quote! {
@@ -559,6 +594,9 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                 vec![],   // successors
                 0,        // regions
             );
+            for region in #regions {
+                ::pliron::region::Region::move_to_op(region, op, state_stream.state.ctx);
+            }
             process_parsed_ssa_defs(state_stream, &arg, op)?;
             let final_ret_value = Operation::get_op(op, state_stream.state.ctx);
         });
@@ -626,6 +664,24 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                 state.result_types.insert(*index, res_type.clone());
                 Ok(quote! {
                     let #res_type = ::pliron::irfmt::parsers::type_parser().parse_stream(state_stream).into_result()?.0;
+                })
+            } else {
+                return err;
+            }
+        } else if d.name == "region" {
+            let err = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `region` directive takes a single unnamed variable argument to specify the region index".to_string(),
+            ));
+            if d.args.len() != 1 {
+                return err;
+            }
+            if let Elem::UnnamedVar(UnnamedVar { index, .. }) = &d.args[0] {
+                let reg_parsed = format_ident!("reg_{}", index);
+                state.regions.insert(*index, reg_parsed.clone());
+                Ok(quote! {
+                    let #reg_parsed = ::pliron::region::Region::parser
+                        (state_stream.state.parent_for_regions).parse_stream(state_stream).into_result()?.0;
                 })
             } else {
                 return err;

@@ -133,6 +133,8 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 ///   2. An unnamed variable $i specifies `operands[i]`, except when inside some directives.
 ///   3. The "type" directive specifies that a type must be parsed. It takes one argument,
 ///      which is an unnamed variable `$i` with `i` specifying `result[i]`.
+///   4. The "region" directive specifies that a region must be parsed. It takes one argument,
+///      which is an unnamed variable `$i` with `i` specifying `region[i]`.
 #[proc_macro_attribute]
 pub fn format_op(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_format::derive(args, input, DeriveIRObject::Op))
