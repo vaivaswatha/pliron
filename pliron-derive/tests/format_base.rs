@@ -96,7 +96,10 @@ fn double_wrap() {
 #[format]
 enum Enum {
     A(TypePtr<IntegerType>),
-    B { one: TypePtr<IntegerType>, two: IntWrapper },
+    B {
+        one: TypePtr<IntegerType>,
+        two: IntWrapper,
+    },
     C,
 }
 
