@@ -1,14 +1,15 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::format_ident;
 use syn::parse::{Parse, ParseStream};
-use syn::Type;
-use syn::{self, DataStruct, DeriveInput};
+use syn::{self, DataEnum, DeriveInput};
 use syn::{Data, Ident};
+use syn::{Fields, Type};
 
 mod parser;
 
 pub(crate) enum FmtData {
     Struct(Struct),
+    Enum(Enum),
 }
 
 impl Parse for FmtData {
@@ -23,11 +24,10 @@ impl TryFrom<DeriveInput> for FmtData {
 
     fn try_from(input: DeriveInput) -> syn::Result<Self> {
         match input.data {
-            Data::Struct(ref data) => Struct::from_syn(input.ident, data).map(FmtData::Struct),
-            Data::Enum(_) => Err(syn::Error::new_spanned(
-                &input,
-                "Format can only be derived for structs",
-            )),
+            Data::Struct(ref data) => {
+                Struct::from_syn(input.ident, &data.fields, false).map(FmtData::Struct)
+            }
+            Data::Enum(ref data) => Enum::from_syn(input.ident, data).map(FmtData::Enum),
             Data::Union(_) => Err(syn::Error::new_spanned(
                 &input,
                 "Format can only be derived for structs",
@@ -36,16 +36,25 @@ impl TryFrom<DeriveInput> for FmtData {
     }
 }
 
+/// Enum format data.
+#[derive(Clone)]
+pub(crate) struct Enum {
+    pub name: Ident,
+    pub variants: Vec<Struct>,
+}
+
 /// Struct format data.
+#[derive(Clone)]
 pub(crate) struct Struct {
     pub name: Ident,
     pub fields: Vec<Field>,
+    // Whether the struct is for an enum variant
+    pub is_enum_variant: bool,
 }
 
 impl Struct {
-    fn from_syn(name: Ident, data: &DataStruct) -> syn::Result<Self> {
-        let fields = data
-            .fields
+    fn from_syn(name: Ident, fields: &Fields, is_enum_variant: bool) -> syn::Result<Self> {
+        let fields = fields
             .iter()
             .enumerate()
             .map(|(i, f)| match f.ident {
@@ -60,10 +69,27 @@ impl Struct {
             })
             .collect();
 
-        Ok(Self { name, fields })
+        Ok(Self {
+            name,
+            fields,
+            is_enum_variant,
+        })
     }
 }
 
+impl Enum {
+    fn from_syn(name: Ident, data: &DataEnum) -> syn::Result<Self> {
+        let variants = data
+            .variants
+            .iter()
+            .map(|v| Struct::from_syn(v.ident.clone(), &v.fields, true))
+            .collect::<Result<_, _>>()?;
+
+        Ok(Self { name, variants })
+    }
+}
+
+#[derive(Clone)]
 pub(crate) struct Field {
     pub(crate) ty: Type,
     pub(crate) ident: FieldIdent,
@@ -419,45 +445,52 @@ pub(crate) fn canonical_op_format() -> Format {
         elems: vec![Directive::new("canonical").into()],
     }
 }
+/// Enums have just one preset format, which is:
+/// "Variant <field1 = ..., field2 = ... >".
+pub(crate) fn canonical_format_for_enums() -> Format {
+    Format {
+        elems: vec![Directive::new("canonical").into()],
+    }
+}
 
 /// Describe a canonical syntax for types / attributes defined by a struct.
 /// This is just "<field1 = ..., field2 = ... >".
-pub(crate) fn canonical_format_for_structs(input: &syn::DeriveInput) -> syn::Result<Format> {
+pub(crate) fn canonical_format_for_structs(input: &FmtData, span: Span) -> syn::Result<Format> {
     // TODO: add support for per field attributes?
 
-    let data = match input.data {
-        Data::Struct(ref data) => data,
-        _ => {
-            return Err(syn::Error::new_spanned(
-                input,
-                "Format can only be derived for structs",
-            ))
-        }
+    let FmtData::Struct(data) = input else {
+        return Err(syn::Error::new(
+            span,
+            "Format can only be derived for structs",
+        ));
     };
 
-    let elems = match data.fields {
-        syn::Fields::Named(ref fields) => {
-            let mut elems = vec![];
-            for (i, field) in fields.named.iter().enumerate() {
-                let ident = field.ident.as_ref().unwrap();
+    let mut elems = vec![];
+    let mut is_named = false;
+    for (i, field) in data.fields.iter().enumerate() {
+        match &field.ident {
+            FieldIdent::Named(field) => {
+                is_named = true;
                 if i > 0 {
                     elems.push(Elem::new_lit(","));
                 }
-                elems.push(Elem::new_lit(format!("{}", ident)));
+                elems.push(Elem::new_lit(field));
                 elems.push(Elem::new_lit("=".to_string()));
-                elems.push(Elem::new_var(ident.to_string()));
+                elems.push(Elem::new_var(field));
             }
-            elems
+            FieldIdent::Unnamed(field) => {
+                elems.push(Elem::new_unnamed_var(*field));
+            }
         }
-        syn::Fields::Unnamed(ref fields) => (0..(fields.unnamed.len()))
-            .map(Elem::new_unnamed_var)
-            .collect::<Vec<_>>(),
-        syn::Fields::Unit => vec![],
-    };
+    }
 
     let mut format = Format { elems };
     if !format.is_empty() {
-        format.enclose(Elem::Lit("<".into()), Elem::Lit(">".into()));
+        if is_named {
+            format.enclose(Elem::Lit("{".into()), Elem::Lit("}".into()));
+        } else {
+            format.enclose(Elem::Lit("(".into()), Elem::Lit(")".into()));
+        }
     }
     Ok(format)
 }
