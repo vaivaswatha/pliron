@@ -1,7 +1,7 @@
 use proc_macro2::{Span, TokenStream};
 use quote::format_ident;
 use syn::parse::{Parse, ParseStream};
-use syn::{self, DataEnum, DeriveInput};
+use syn::{self, DataEnum, DeriveInput, LitStr};
 use syn::{Data, Ident};
 use syn::{Fields, Type};
 
@@ -30,7 +30,7 @@ impl TryFrom<DeriveInput> for FmtData {
             Data::Enum(ref data) => Enum::from_syn(input.ident, data).map(FmtData::Enum),
             Data::Union(_) => Err(syn::Error::new_spanned(
                 &input,
-                "Format can only be derived for structs",
+                "Format can only be derived for structs and enums",
             )),
         }
     }
@@ -40,7 +40,7 @@ impl TryFrom<DeriveInput> for FmtData {
 #[derive(Clone)]
 pub(crate) struct Enum {
     pub name: Ident,
-    pub variants: Vec<Struct>,
+    pub variants: Vec<(Format, Struct)>,
 }
 
 /// Struct format data.
@@ -79,11 +79,35 @@ impl Struct {
 
 impl Enum {
     fn from_syn(name: Ident, data: &DataEnum) -> syn::Result<Self> {
-        let variants = data
-            .variants
-            .iter()
-            .map(|v| Struct::from_syn(v.ident.clone(), &v.fields, true))
-            .collect::<Result<_, _>>()?;
+        let variants =
+            data.variants
+                .iter()
+                .map(|v| {
+                    // parse the variant's format string given as an attribute
+                    let fmt_str = v
+                        .attrs
+                        .iter()
+                        .find_map(|attr| {
+                            if attr.path().is_ident("format") {
+                                Some(attr.parse_args::<LitStr>())
+                            } else {
+                                None
+                            }
+                        })
+                        .transpose()?;
+                    let r#struct = Struct::from_syn(v.ident.clone(), &v.fields, true)?;
+
+                    let format = match fmt_str {
+                        Some(str) => Format::parse(&str.value())
+                            .map_err(|e| syn::Error::new_spanned(str, e))?,
+                        None => canonical_format_for_structs(
+                            &FmtData::Struct(r#struct.clone()),
+                            name.span(),
+                        )?,
+                    };
+                    Ok((format, r#struct))
+                })
+                .collect::<Result<_, syn::Error>>()?;
 
         Ok(Self { name, variants })
     }

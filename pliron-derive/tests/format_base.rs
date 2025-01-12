@@ -101,6 +101,11 @@ enum Enum {
         two: IntWrapper,
     },
     C,
+    #[format("`<` $upper `/` $lower `>`")]
+    Op {
+        upper: u64,
+        lower: u64,
+    },
 }
 
 #[test]
@@ -144,6 +149,23 @@ fn enum_test() {
     let test_ty = Enum::C;
     let printed = test_ty.disp(ctx).to_string();
     assert_eq!("C", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = Enum::parser(())
+        .parse(state_stream)
+        .expect("Enum parser failed");
+
+    assert_eq!(res.disp(ctx).to_string(), printed);
+
+    let test_ty = Enum::Op {
+        upper: 42,
+        lower: 7,
+    };
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("Op<42/7>", &printed);
 
     let state_stream = state_stream_from_iterator(
         printed.chars(),

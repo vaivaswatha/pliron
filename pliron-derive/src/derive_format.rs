@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use rustc_hash::FxHashMap;
-use syn::{spanned::Spanned, DeriveInput, LitStr, Result};
+use syn::{spanned::Spanned, Data, DeriveInput, LitStr, Result};
 
 use crate::irfmt::{
     canonical_format_for_enums, canonical_format_for_structs, canonical_op_format, Directive, Elem,
@@ -23,6 +23,20 @@ pub(crate) enum DeriveIRObject {
     AnyOtherRustType,
 }
 
+/// enums can have a `#[format]` for its variants.
+/// Those shouldn't be in the final output, so we remove them.
+fn erase_helper_attributes(mut input: DeriveInput) -> DeriveInput {
+    match input.data {
+        Data::Struct(_) | Data::Union(_) => input,
+        Data::Enum(ref mut data) => {
+            for variant in &mut data.variants {
+                variant.attrs.clear();
+            }
+            input
+        }
+    }
+}
+
 /// Derive the [Printable](::pliron::printable::Printable) and
 /// [Parsable](::pliron::parsable::Parsable) traits for Rust types.
 pub(crate) fn derive(
@@ -42,7 +56,8 @@ pub(crate) fn derive(
         if !args.is_empty() {
             return Err(syn::Error::new_spanned(
                 input,
-                "Custom format strings are not supported for Enums".to_string(),
+                "Custom format strings for enums can only be specified for individual variants"
+                    .to_string(),
             ));
         }
         canonical_format_for_enums()
@@ -66,7 +81,7 @@ pub(crate) fn derive(
 
     // We're not in a derive macro (but an attribute macro),
     // so attach the original input back.
-    derived.extend(input.into_token_stream());
+    derived.extend(erase_helper_attributes(input).into_token_stream());
     Ok(derived)
 }
 
@@ -131,20 +146,18 @@ trait PrintableBuilder<State: Default> {
     fn build_body(input: &FmtInput, state: &mut State) -> Result<TokenStream> {
         if let FmtData::Enum(r#enum) = &input.data {
             let mut output = quote! {};
-            for variant in &r#enum.variants {
-                let variant_name = variant.name.clone();
-                let fmt_data = FmtData::Struct(variant.clone());
-                let format = canonical_format_for_structs(&fmt_data, input.ident.span())?;
+            for (format, r#struct) in &r#enum.variants {
+                let variant_name = r#struct.name.clone();
                 let variant_input = FmtInput {
-                    ident: variant.name.clone(),
-                    data: fmt_data,
-                    format,
+                    ident: variant_name.clone(),
+                    data: FmtData::Struct(r#struct.clone()),
+                    format: format.clone(),
                 };
                 let mut variant_fields = quote! {};
-                if !variant.fields.is_empty() {
+                if !r#struct.fields.is_empty() {
                     let mut is_named = false;
                     let mut fields = quote! {};
-                    for field in &variant.fields {
+                    for field in &r#struct.fields {
                         let field_name = field.ident.clone();
                         match field_name {
                             FieldIdent::Named(name) => {
@@ -474,21 +487,19 @@ trait ParsableBuilder<State: Default> {
             };
 
             let mut match_arms = quote! {};
-            for variant in &r#enum.variants {
-                let variant_name = variant.name.clone();
+            for (format, r#struct) in &r#enum.variants {
+                let variant_name = r#struct.name.clone();
                 let variant_name_str = variant_name.to_string();
-                let parsed_variant = if variant.fields.is_empty() {
+                let parsed_variant = if r#struct.fields.is_empty() {
                     quote! {
                         // Could as well use Self::#variant_name here.
                         #enum_name::#variant_name
                     }
                 } else {
-                    let fmt_data = FmtData::Struct(variant.clone());
-                    let format = canonical_format_for_structs(&fmt_data, input.ident.span())?;
                     let variant_input = FmtInput {
-                        ident: variant.name.clone(),
-                        data: fmt_data,
-                        format,
+                        ident: r#struct.name.clone(),
+                        data: FmtData::Struct(r#struct.clone()),
+                        format: format.clone(),
                     };
                     let built_body = Self::build_body(&variant_input, state)?;
                     quote! {
