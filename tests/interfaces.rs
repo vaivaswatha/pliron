@@ -30,6 +30,7 @@ use pliron::{
     result::{Error, ErrorKind, Result},
     utils::trait_cast::any_to_trait,
 };
+use pliron_derive::format_attribute;
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
 
@@ -181,25 +182,12 @@ impl TestAttrInterfaceX for StringAttr {}
 impl TestAttrInterfaceX for IntegerAttr {}
 
 #[def_attribute("test.my_attr")]
+#[format_attribute("`<` $ty `>`")]
 #[derive(PartialEq, Clone, Debug)]
 struct MyAttr {
     ty: Ptr<TypeObj>,
 }
-impl Verify for MyAttr {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        Ok(())
-    }
-}
-impl Printable for MyAttr {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "MyAttr")
-    }
-}
+impl_verify_succ!(MyAttr);
 
 #[attr_interface_impl]
 impl TypedAttrInterface for MyAttr {

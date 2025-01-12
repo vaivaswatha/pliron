@@ -128,7 +128,7 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Derive [Format](../pliron/irfmt/trait.Format.html) for [Op](../pliron/op/trait.Op.html)s
 /// This derive only supports a syntax in which results appear before the opid:
 ///   res1, ... = opid ...
-/// The format string only specifies what comes after the opid.
+/// The format string specifies what comes after the opid.
 ///   1. A named variable $name specifies a named attribute of the operation.
 ///   2. An unnamed variable $i specifies `operands[i]`, except when inside some directives.
 ///   3. The "type" directive specifies that a type must be parsed. It takes one argument,
