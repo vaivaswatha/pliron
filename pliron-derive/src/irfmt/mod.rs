@@ -83,15 +83,25 @@ impl Enum {
             data.variants
                 .iter()
                 .map(|v| {
+                    if v.attrs.len() > 1 {
+                        return Err(syn::Error::new_spanned(
+                            &name,
+                            "Enum variants are allowed one #[format = \"...\"] attribute, and no others",
+                        ));
+                    }
                     // parse the variant's format string given as an attribute
                     let fmt_str = v
                         .attrs
                         .iter()
-                        .find_map(|attr| {
+                        .next()
+                        .map(|attr| {
                             if attr.path().is_ident("format") {
-                                Some(attr.parse_args::<LitStr>())
+                                attr.parse_args::<LitStr>()
                             } else {
-                                None
+                                Err(syn::Error::new_spanned(
+                                    &name,
+                                    "Enum variants can only have a #[format = \"...\"] attribute",
+                                ))
                             }
                         })
                         .transpose()?;
