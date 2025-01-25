@@ -91,9 +91,7 @@ impl Enum {
                     }
                     // parse the variant's format string given as an attribute
                     let fmt_str = v
-                        .attrs
-                        .iter()
-                        .next()
+                        .attrs.first()
                         .map(|attr| {
                             if attr.path().is_ident("format") {
                                 attr.parse_args::<LitStr>()

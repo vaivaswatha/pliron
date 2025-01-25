@@ -324,7 +324,7 @@ pub fn canonical_syntax_print(
         op_type.disp(ctx),
     )?;
 
-    if op.regions.len() > 0 {
+    if !op.regions.is_empty() {
         regions.fmt(ctx, state, f)?;
     }
     Ok(())

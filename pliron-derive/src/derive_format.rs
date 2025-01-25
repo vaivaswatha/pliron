@@ -479,7 +479,7 @@ trait ParsableBuilder<State: Default> {
     fn build_body(input: &FmtInput, state: &mut State) -> Result<TokenStream> {
         if let FmtData::Enum(r#enum) = &input.data {
             let enum_name = r#enum.name.clone();
-            assert!(r#enum.variants.len() > 0, "Enum has no variants");
+            assert!(!r#enum.variants.is_empty(), "Enum has no variants");
             let variant_name_parsed = quote! {
                 let variant_name_parsed =
                     ::pliron::identifier::Identifier::parser(()).

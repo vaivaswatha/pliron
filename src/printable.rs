@@ -89,7 +89,7 @@ struct Displayable<'t, 'c, T: Printable + ?Sized> {
     state: State,
 }
 
-impl<'t, 'c, T: Printable + ?Sized> Display for Displayable<'t, 'c, T> {
+impl<T: Printable + ?Sized> Display for Displayable<'_, '_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.t.fmt(self.ctx, &self.state, f)
     }
@@ -179,7 +179,7 @@ impl_printable_for_display!(&str);
 impl_printable_for_display!(String);
 impl_printable_for_display!(u64);
 
-impl<'a, T: Printable + ?Sized> Printable for &'a T {
+impl<T: Printable + ?Sized> Printable for &T {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         (*self).fmt(ctx, state, f)
     }

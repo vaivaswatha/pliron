@@ -281,9 +281,9 @@ impl Ptr<BasicBlock> {
         // We do not check [Self::get_defnode_ref].uses here because
         // we'd have to go through them all. We do not have a Use<_>
         // object to directly check membership.
-        pred.deref(ctx).get_tail().map_or(false, |pred_term| {
-            pred_term.deref(ctx).successors().any(|succ| self == &succ)
-        })
+        pred.deref(ctx)
+            .get_tail()
+            .is_some_and(|pred_term| pred_term.deref(ctx).successors().any(|succ| self == &succ))
     }
     /// Retarget predecessors (that satisfy pred) to `other`.
     pub fn retarget_some_preds_to<P: Fn(&Context, Ptr<BasicBlock>) -> bool>(

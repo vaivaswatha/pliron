@@ -53,7 +53,7 @@ pub struct Iter<'a, T: LinkedList> {
     ctx: &'a Context,
 }
 
-impl<'a, T: LinkedList> Clone for Iter<'a, T> {
+impl<T: LinkedList> Clone for Iter<'_, T> {
     fn clone(&self) -> Self {
         Self {
             next: self.next,
@@ -63,7 +63,7 @@ impl<'a, T: LinkedList> Clone for Iter<'a, T> {
     }
 }
 
-impl<'a, T: LinkedList> Iterator for Iter<'a, T> {
+impl<T: LinkedList> Iterator for Iter<'_, T> {
     type Item = Ptr<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -86,7 +86,7 @@ impl<'a, T: LinkedList> Iterator for Iter<'a, T> {
     }
 }
 
-impl<'a, T: LinkedList> DoubleEndedIterator for Iter<'a, T> {
+impl<T: LinkedList> DoubleEndedIterator for Iter<'_, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.next_back.inspect(|curr| {
             if *curr == self.next.expect("Some(next_back) => Some(next) violated") {

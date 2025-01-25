@@ -59,17 +59,19 @@ impl<'a> State<'a> {
     }
 }
 
-impl<'a> Drop for State<'a> {
+impl Drop for State<'_> {
     // Ensure that `parent_for_regions` doesn't have any regions left and erase it.
     fn drop(&mut self) {
         let parent_for_regions = self.parent_for_regions;
         // This assert is disabled because, if the parser fails, then we could have
         // regions that were constructed but not moved to their parents.
-        assert!(
-            true || parent_for_regions.deref(self.ctx).num_regions() == 0,
-            "Regions constructed during parsing must be moved to \
-            their respective parents before the end of parsing"
-        );
+        /*
+            assert!(
+                parent_for_regions.deref(self.ctx).num_regions() == 0,
+                "Regions constructed during parsing must be moved to \
+                their respective parents before the end of parsing"
+            );
+        */
         Operation::erase(parent_for_regions, self.ctx);
     }
 }
@@ -78,7 +80,7 @@ impl<'a> Drop for State<'a> {
 /// Buffering and positioning are automatically handled hereafter.
 pub struct CharIterator<'a>(Box<dyn Iterator<Item = char> + 'a>);
 
-impl<'a> Iterator for CharIterator<'a> {
+impl Iterator for CharIterator<'_> {
     type Item = char;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -97,7 +99,7 @@ pub type StateStream<'a> = Stream<
     State<'a>,
 >;
 
-impl<'a> Located for StateStream<'a> {
+impl Located for StateStream<'_> {
     fn loc(&self) -> location::Location {
         location::Location::SrcPos {
             src: self.state.src,
@@ -227,7 +229,7 @@ impl<'a, T> IntoParseResult<'a, T> for Result<T> {
     }
 }
 
-impl<'a> From<result::Error> for ParseError<StateStream<'a>> {
+impl From<result::Error> for ParseError<StateStream<'_>> {
     fn from(value: result::Error) -> Self {
         let position = if let Location::SrcPos { pos, .. } = value.loc {
             pos
@@ -238,11 +240,9 @@ impl<'a> From<result::Error> for ParseError<StateStream<'a>> {
     }
 }
 
-impl<'a> From<result::Error>
-    for combine::error::Commit<Tracked<Errors<char, char, SourcePosition>>>
-{
+impl From<result::Error> for combine::error::Commit<Tracked<Errors<char, char, SourcePosition>>> {
     fn from(value: result::Error) -> Self {
-        let res: StdParseResult2<(), ParseError<StateStream<'a>>> =
+        let res: StdParseResult2<(), ParseError<StateStream<'_>>> =
             combine::ParseResult::CommitErr(value.into()).into();
         res.err().unwrap()
     }
