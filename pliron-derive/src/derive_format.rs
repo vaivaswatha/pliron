@@ -376,6 +376,15 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
             } else {
                 return err;
             }
+        } else if d.name == "attr" {
+            let (attr_name_str, attr_type_path) = parse_attr_directive_args(d, input)?;
+            Ok(quote! {
+                let self_op = self.get_operation().deref(ctx);
+                let attr = self_op.attributes.get::<#attr_type_path>(
+                    &::pliron::identifier::Identifier::try_from(#attr_name_str).unwrap()
+                ).expect("Missing attribute");
+                ::pliron::printable::Printable::fmt(attr, ctx, state, fmt)?;
+            })
         } else {
             unimplemented!("Unknown directive {}", d.name)
         }
@@ -863,6 +872,18 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             } else {
                 return err;
             }
+        } else if d.name == "attr" {
+            let (attr_name_str, attr_type_path) = parse_attr_directive_args(d, input)?;
+            let attr_name_ident = format_ident!("{}", attr_name_str);
+            state
+                .attributes
+                .insert(attr_name_str.clone(), attr_name_ident.clone());
+            Ok(quote! {
+                let #attr_name_ident = Box::new(#attr_type_path::parser(())
+                    .parse_stream(state_stream)
+                    .into_result()?
+                    .0);
+            })
         } else {
             unimplemented!("Unknown directive {}", d.name)
         }
@@ -916,4 +937,39 @@ impl ParsableBuilder<()> for DeriveTypeParsable {
             Ok(::pliron::r#type::Type::register_instance(final_ret_value, state_stream.state.ctx)).into_parse_result()
         }
     }
+}
+
+fn parse_attr_directive_args(d: &Directive, input: &FmtInput) -> Result<(String, syn::Type)> {
+    if d.args.len() != 2 {
+        return Err(syn::Error::new_spanned(
+            input.ident.clone(),
+            "The `attr` directive takes two arguments,
+                        the first is attribute name, and second attribute type"
+                .to_string(),
+        ));
+    }
+    let Elem::Var(Var {
+        name: attr_name, ..
+    }) = &d.args[0]
+    else {
+        return Err(syn::Error::new_spanned(
+            input.ident.clone(),
+            "The first argument to `attr` directive must be a named variable representing its name"
+                .to_string(),
+        ));
+    };
+    let attr_type = match &d.args[1] {
+                 Elem::Var(Var { name, .. }) => name.clone(),
+                 Elem::Lit(lit) => {
+                    lit.lit.clone()
+                 }
+                 _ =>
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "The second argument to `attr` directive must be a named variable or a literal representing its type".to_string(),
+                ))
+            };
+    let attr_type_path = syn::parse_str::<syn::Type>(&attr_type)?;
+    let attr_name_str = attr_name.to_string();
+    Ok((attr_name_str, attr_type_path))
 }

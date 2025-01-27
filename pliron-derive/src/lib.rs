@@ -114,8 +114,45 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Derive [Format](../pliron/irfmt/trait.Format.html) for Rust types.
 /// Use this is for types other than `Op`, `Type` and `Attribute`s.
-///   1. A named variable $name specifies a named struct field.
-///   2. An unnamed variable $i specifies the i'th field of a tuple struct.
+///   1. A named variable `$name` specifies a named struct field.
+///   2. An unnamed variable `$i` specifies the i'th field of a tuple struct.
+///
+/// Examples:
+/// 1. Derive for a struct, with no format string (default format):
+///     (Note that the field u64 has both `Printable` and `Parsable` implemented).
+/// ```
+/// use pliron::derive::format;
+/// #[format]
+/// struct IntWrapper {
+///    inner: u64,
+/// }
+/// ```
+/// 2. An example with a custom format string:
+/// ```
+/// use pliron::derive::format;
+/// #[format("`BubbleWrap` `[` $inner `]`")]
+/// struct IntWrapperCustom {
+///   inner: u64,
+/// }
+/// ```
+/// 3. An example for an enum (custom format strings are allowed for the variants only).
+/// ```
+/// use pliron::derive::format;
+/// use pliron::{builtin::types::IntegerType, r#type::TypePtr};
+/// #[format]
+/// enum Enum {
+///     A(TypePtr<IntegerType>),
+///     B {
+///         one: TypePtr<IntegerType>,
+///         two: u64,
+///     },
+///     C,
+///     #[format("`<` $upper `/` $lower `>`")]
+///     Op {
+///         upper: u64,
+///         lower: u64,
+///     },
+/// }
 #[proc_macro_attribute]
 pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_format::derive(
@@ -127,14 +164,42 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Derive [Format](../pliron/irfmt/trait.Format.html) for [Op](../pliron/op/trait.Op.html)s
 /// This derive only supports a syntax in which results appear before the opid:
-///   res1, ... = opid ...
+///   `res1, ... = opid ...`
 /// The format string specifies what comes after the opid.
-///   1. A named variable $name specifies a named attribute of the operation.
-///   2. An unnamed variable $i specifies `operands[i]`, except when inside some directives.
+///   1. A named variable `$name` specifies a named attribute of the operation.
+///   2. An unnamed variable `$i` specifies `operands[i]`, except when inside some directives.
 ///   3. The "type" directive specifies that a type must be parsed. It takes one argument,
 ///      which is an unnamed variable `$i` with `i` specifying `result[i]`.
 ///   4. The "region" directive specifies that a region must be parsed. It takes one argument,
 ///      which is an unnamed variable `$i` with `i` specifying `region[i]`.
+///   5. The "attr" directive can be used to specify attribute on an `Op` when the attribute's
+///      rust type is fixed at compile time. It takes two arguments, the first is the attribute name
+///      and the second is the concrete rust type of the attribute. This second argument can be a
+///      named variable `$Name` (with `Name` being in scope) or a literal string denoting the path
+///      to a rust type (e.g. `` `::pliron::builtin::attributes::IntegerAttr` ``).
+///      The advantage over specifying the attribute as a named variable is that the attribute-id
+///      is not a part of the syntax here, allowing it to be more succint.
+///
+/// Examples:
+/// 1. Derive for a struct, with no format string (default format):
+/// ```
+/// use pliron::derive::{def_op, format_op};
+/// use pliron::impl_verify_succ;
+/// #[format_op]
+/// #[def_op("test.myop")]
+/// struct MyOp;
+/// impl_verify_succ!(MyOp);
+/// ```
+/// 2. An example with a custom format string:
+/// ```
+/// use pliron::derive::{def_op, format_op, derive_op_interface_impl};
+/// use pliron::impl_verify_succ;
+/// use pliron::{op::Op, builtin::op_interfaces::{OneOpdInterface, OneResultInterface}};
+/// #[format_op("$0 `<` $attr `>` `:` type($0)")]
+/// #[def_op("test.one_result_one_operand")]
+/// #[derive_op_interface_impl(OneOpdInterface, OneResultInterface)]
+/// struct OneResultOneOperandOp;
+/// impl_verify_succ!(OneResultOneOperandOp);
 #[proc_macro_attribute]
 pub fn format_op(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_format::derive(args, input, DeriveIRObject::Op))
@@ -142,8 +207,10 @@ pub fn format_op(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Derive [Format](../pliron/irfmt/trait.Format.html) for
 /// [Attribute](../pliron/attribute/trait.Attribute.html)s
-///   1. A named variable $name specifies a named struct field.
-///   2. An unnamed variable $i specifies the i'th field of a tuple struct.
+///   1. A named variable `$name` specifies a named struct field.
+///   2. An unnamed variable `$i` specifies the i'th field of a tuple struct.
+///
+/// See [macro@format] for examples.
 #[proc_macro_attribute]
 pub fn format_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_format::derive(
@@ -154,8 +221,10 @@ pub fn format_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 /// Derive [Format](../pliron/irfmt/trait.Format.html) for
 /// [Type](../pliron/type/trait.Type.html)s
-///   1. A named variable $name specifies a named struct field.
-///   2. An unnamed variable $i specifies the i'th field of a tuple struct.
+///   1. A named variable `$name` specifies a named struct field.
+///   2. An unnamed variable `$i` specifies the i'th field of a tuple struct.
+///
+/// See [macro@format] for examples.
 #[proc_macro_attribute]
 pub fn format_type(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_format::derive(args, input, DeriveIRObject::Type))
