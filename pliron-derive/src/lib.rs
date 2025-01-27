@@ -178,7 +178,7 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 ///      named variable `$Name` (with `Name` being in scope) or a literal string denoting the path
 ///      to a rust type (e.g. `` `::pliron::builtin::attributes::IntegerAttr` ``).
 ///      The advantage over specifying the attribute as a named variable is that the attribute-id
-///      is not a part of the syntax here, allowing it to be more succint.
+///      is not a part of the syntax here, allowing it to be more succinct.
 ///
 /// Examples:
 /// 1. Derive for a struct, with no format string (default format):
