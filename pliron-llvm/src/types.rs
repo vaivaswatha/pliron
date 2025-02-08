@@ -1,6 +1,6 @@
 //! [Type]s defined in the LLVM dialect.
 
-use combine::{between, optional, parser::char::spaces, token, Parser};
+use combine::{between, optional, token, Parser};
 use pliron::derive::{def_type, format_type};
 use pliron::{
     common_traits::Verify,
@@ -8,7 +8,7 @@ use pliron::{
     identifier::Identifier,
     impl_verify_succ, input_err_noloc,
     irfmt::{
-        parsers::{delimited_list_parser, location, spaced, type_parser},
+        parsers::{delimited_list_parser, location, spaced},
         printers::{enclosed, list_with_sep},
     },
     location::Located,
@@ -359,6 +359,7 @@ impl VoidType {
 impl_verify_succ!(VoidType);
 
 #[def_type("llvm.func")]
+#[format_type("`<` $res `(` vec($args, CharSpace(`,`)) `)` `>`")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FuncType {
     res: Ptr<TypeObj>,
@@ -373,43 +374,6 @@ impl FuncType {
 }
 
 impl_verify_succ!(FuncType);
-
-impl Printable for FuncType {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        _state: &printable::State,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        write!(
-            f,
-            "<{}({})>",
-            self.res.disp(ctx),
-            list_with_sep(&self.args, ListSeparator::CharSpace(',')).disp(ctx)
-        )
-    }
-}
-
-impl Parsable for FuncType {
-    type Arg = ();
-
-    type Parsed = TypePtr<FuncType>;
-
-    fn parse<'a>(
-        state_stream: &mut StateStream<'a>,
-        _arg: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed> {
-        let type_list_parser = spaced(delimited_list_parser('(', ')', ',', type_parser()));
-        spaced(between(
-            token('<'),
-            token('>'),
-            spaces().with(type_parser()).and(type_list_parser),
-        ))
-        .parse_stream(state_stream)
-        .map(|(res, args)| FuncType::get(state_stream.state.ctx, res, args))
-        .into_result()
-    }
-}
 
 pub fn register(ctx: &mut Context) {
     VoidType::register_type_in_dialect(ctx, VoidType::parser_fn);

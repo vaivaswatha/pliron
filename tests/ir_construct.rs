@@ -97,7 +97,7 @@ fn replace_c0_with_c1_operand() -> Result<()> {
         builtin.module @bar 
         {
           ^block_1v1():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+            builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
             {
               ^entry_block_2v1():
                 c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
@@ -115,7 +115,7 @@ fn replace_c0_with_c1_operand() -> Result<()> {
         builtin.module @bar 
         {
           ^block_1v1():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+            builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
             {
               ^entry_block_2v1():
                 c1_op_5v1_res0 = test.constant builtin.integer <0x1: builtin.int <si64>>;
@@ -168,7 +168,7 @@ fn test_replace_within_same_def_site() {
         builtin.module @bar 
         {
           ^block_1v1():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+            builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
             {
               ^entry_block_2v1():
                 c0_op_4v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
@@ -193,7 +193,7 @@ fn test_replace_within_same_def_site() {
         builtin.module @bar 
         {
           ^block_1v1():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+            builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
             {
               ^entry_block_2v1():
                 c0_op_4v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
@@ -216,7 +216,7 @@ fn print_simple() -> Result<()> {
         builtin.module @bar 
         {
           ^block_1v1():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+            builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
             {
               ^entry_block_2v1():
                 c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
@@ -387,14 +387,14 @@ fn test_preorder_forward_walk() {
         builtin.module @bar 
         {
           ^block_1v1():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+            builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
             {
               ^entry_block_2v1():
                 c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
                 test.return c0_op_3v1_res0
             }
         }
-        builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+        builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
         {
           ^entry_block_2v1():
             c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
@@ -431,7 +431,7 @@ fn test_postorder_forward_walk() {
     expect![[r#"
         c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>
         test.return c0_op_3v1_res0
-        builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+        builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
         {
           ^entry_block_2v1():
             c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
@@ -440,7 +440,7 @@ fn test_postorder_forward_walk() {
         builtin.module @bar 
         {
           ^block_1v1():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> 
+            builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
             {
               ^entry_block_2v1():
                 c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;

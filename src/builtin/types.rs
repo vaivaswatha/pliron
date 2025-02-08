@@ -5,12 +5,9 @@ use pliron_derive::format_type;
 use crate::{
     context::{Context, Ptr},
     impl_verify_succ,
-    irfmt::{
-        parsers::{delimited_list_parser, int_parser, spaced, type_parser},
-        printers::{functional_type, list_with_sep},
-    },
+    irfmt::parsers::{int_parser, spaced},
     parsable::{Parsable, ParseResult, StateStream},
-    printable::{self, ListSeparator, Printable},
+    printable::{self, Printable},
     r#type::{Type, TypeObj, TypePtr},
 };
 
@@ -106,6 +103,9 @@ impl_verify_succ!(IntegerType);
 ///
 #[def_type("builtin.function")]
 #[derive(Hash, PartialEq, Eq, Debug)]
+#[format_type(
+    "`<` `(` vec($inputs, CharSpace(`,`)) `)` `->` `(`vec($results, CharSpace(`,`)) `)` `>`"
+)]
 pub struct FunctionType {
     /// Function arguments / inputs.
     inputs: Vec<Ptr<TypeObj>>,
@@ -139,48 +139,6 @@ impl FunctionType {
     /// Get a reference to the function result / output types.
     pub fn get_results(&self) -> &Vec<Ptr<TypeObj>> {
         &self.results
-    }
-}
-
-impl Printable for FunctionType {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        let sep = ListSeparator::Char(',');
-        functional_type(
-            list_with_sep(&self.inputs, sep),
-            list_with_sep(&self.results, sep),
-        )
-        .fmt(ctx, state, f)
-    }
-}
-
-impl Parsable for FunctionType {
-    type Arg = ();
-    type Parsed = TypePtr<Self>;
-
-    fn parse<'a>(
-        state_stream: &mut StateStream<'a>,
-        _arg: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed>
-    where
-        Self: Sized,
-    {
-        let type_list_parser = || spaced(delimited_list_parser('(', ')', ',', type_parser()));
-        let mut parser = spaced(between(
-            token('<'),
-            token('>'),
-            type_list_parser()
-                .skip(spaced(string("->")))
-                .and(type_list_parser()),
-        ));
-        parser
-            .parse_stream(state_stream)
-            .map(|(inputs, results)| Self::get(state_stream.state.ctx, inputs, results))
-            .into()
     }
 }
 

@@ -711,27 +711,7 @@ trait ParsableBuilder<State: Default> {
         })
     }
 
-    fn build_directive(
-        _input: &FmtInput,
-        _state: &mut State,
-        _d: &Directive,
-    ) -> Result<TokenStream>;
-
-    /// After the entire body is built, build the parsed value to be finally returned.
-    fn build_final_ret_value(_input: &FmtInput, _state: &mut State) -> TokenStream {
-        quote! {
-            Ok(final_ret_value).into_parse_result()
-        }
-    }
-}
-
-/// Basic parsable builder for any Rust type.
-/// Builds an object of that type.
-/// Requires all contents to be parsable themselves.
-struct DeriveBaseParsable;
-
-impl ParsableBuilder<()> for DeriveBaseParsable {
-    fn build_directive(input: &FmtInput, _state: &mut (), d: &Directive) -> Result<TokenStream> {
+    fn build_directive(input: &FmtInput, _state: &mut State, d: &Directive) -> Result<TokenStream> {
         if d.name == "opt" {
             let err = Err(syn::Error::new_spanned(
                 input.ident.clone(),
@@ -833,7 +813,21 @@ impl ParsableBuilder<()> for DeriveBaseParsable {
             unimplemented!("Unknown directive {}", d.name)
         }
     }
+
+    /// After the entire body is built, build the parsed value to be finally returned.
+    fn build_final_ret_value(_input: &FmtInput, _state: &mut State) -> TokenStream {
+        quote! {
+            Ok(final_ret_value).into_parse_result()
+        }
+    }
 }
+
+/// Basic parsable builder for any Rust type.
+/// Builds an object of that type.
+/// Requires all contents to be parsable themselves.
+struct DeriveBaseParsable;
+
+impl ParsableBuilder<()> for DeriveBaseParsable {}
 
 #[derive(Default)]
 struct OpParserState {
@@ -1086,19 +1080,11 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
 
 struct DeriveAttributeParsable;
 
-impl ParsableBuilder<()> for DeriveAttributeParsable {
-    fn build_directive(_input: &FmtInput, _state: &mut (), d: &Directive) -> Result<TokenStream> {
-        unimplemented!("Unknown directive {}", d.name)
-    }
-}
+impl ParsableBuilder<()> for DeriveAttributeParsable {}
 
 struct DeriveTypeParsable;
 
 impl ParsableBuilder<()> for DeriveTypeParsable {
-    fn build_directive(_input: &FmtInput, _state: &mut (), d: &Directive) -> Result<TokenStream> {
-        unimplemented!("Unknown directive {}", d.name)
-    }
-
     fn build_assoc_type_parsed(_input: &FmtInput, _state: &mut ()) -> Result<TokenStream> {
         Ok(quote! { ::pliron::r#type::TypePtr<Self> })
     }

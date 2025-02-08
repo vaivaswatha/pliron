@@ -13,10 +13,7 @@ use crate::{
     context::{Context, Ptr},
     identifier::Identifier,
     impl_verify_succ, input_err,
-    irfmt::{
-        parsers::delimited_list_parser,
-        printers::{list_with_sep, quoted},
-    },
+    irfmt::printers::quoted,
     location::Located,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
@@ -322,6 +319,7 @@ impl DictAttr {
 /// A vector of other attributes.
 #[def_attribute("builtin.vec")]
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
 pub struct VecAttr(pub Vec<AttrObj>);
 
 impl VecAttr {
@@ -330,39 +328,9 @@ impl VecAttr {
     }
 }
 
-impl Printable for VecAttr {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(
-            f,
-            "[{}]",
-            list_with_sep(&self.0, printable::ListSeparator::Char(',')).disp(ctx)
-        )
-    }
-}
-
 impl Verify for VecAttr {
     fn verify(&self, ctx: &Context) -> Result<()> {
         self.0.iter().try_for_each(|elm| elm.verify(ctx))
-    }
-}
-
-impl Parsable for VecAttr {
-    type Arg = ();
-    type Parsed = Self;
-
-    fn parse<'a>(
-        state_stream: &mut StateStream<'a>,
-        arg: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed> {
-        delimited_list_parser('[', ']', ',', AttrObj::parser(arg))
-            .parse_stream(state_stream)
-            .map(VecAttr::new)
-            .into_result()
     }
 }
 

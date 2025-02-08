@@ -1,6 +1,6 @@
 //! Attributes belonging to the LLVM dialect.
 
-use pliron::derive::{def_attribute, format};
+use pliron::derive::{def_attribute, format, format_attribute};
 
 use pliron::impl_verify_succ;
 
@@ -12,7 +12,7 @@ use pliron::impl_verify_succ;
 /// (in the signed or unsigned case, respectively). This gives the optimizer more information
 ///  and can be used for things like C signed integer values, which are undefined on overflow.
 #[def_attribute("llvm.integer_overlflow_flags")]
-#[format]
+#[format_attribute]
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum IntegerOverflowFlagsAttr {
     None,
@@ -23,7 +23,7 @@ pub enum IntegerOverflowFlagsAttr {
 impl_verify_succ!(IntegerOverflowFlagsAttr);
 
 #[def_attribute("llvm.icmp_predicate")]
-#[format]
+#[format_attribute]
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ICmpPredicateAttr {
     EQ,
@@ -53,7 +53,7 @@ pub enum GepIndexAttr {
 }
 
 #[def_attribute("llvm.gep_indices")]
-#[format("`[` vec($0, CharSpace(`,`)) `]`")]
+#[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct GepIndicesAttr(pub Vec<GepIndexAttr>);
 impl_verify_succ!(GepIndicesAttr);
