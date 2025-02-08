@@ -227,3 +227,118 @@ fn int_div() {
         .expect("IntDiv parser failed");
     assert_eq!(res.disp(ctx).to_string(), printed);
 }
+
+#[format("`<` opt($a) `>`")]
+struct OptionalField {
+    a: Option<u64>,
+}
+
+#[test]
+fn optional_field() {
+    let ctx = &mut setup_context_dialects();
+    let test_ty = OptionalField { a: Some(42) };
+
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("<42>", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = OptionalField::parser(())
+        .parse(state_stream)
+        .expect("OptionalField parser failed");
+    assert_eq!(res.disp(ctx).to_string(), printed);
+
+    let test_ty = OptionalField { a: None };
+
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("<>", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = OptionalField::parser(())
+        .parse(state_stream)
+        .expect("OptionalField parser failed");
+    assert_eq!(res.disp(ctx).to_string(), printed);
+}
+
+#[format("`<` vec($a, Char(`,`)) `>`")]
+struct VecField {
+    a: Vec<u64>,
+}
+
+#[test]
+fn vec_field() {
+    let ctx = &mut setup_context_dialects();
+    let test_ty = VecField { a: vec![1, 2, 3] };
+
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("<1,2,3>", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = VecField::parser(())
+        .parse(state_stream)
+        .expect("VecField parser failed");
+    assert_eq!(res.disp(ctx).to_string(), printed);
+
+    // Test empty vector
+    let test_ty = VecField { a: vec![] };
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("<>", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = VecField::parser(())
+        .parse(state_stream)
+        .expect("VecField parser failed");
+    assert_eq!(res.disp(ctx).to_string(), printed);
+}
+
+#[format("`<` opt($a) `;` vec($b, Char(`,`)) `>`")]
+struct OptAndVec {
+    a: Option<u64>,
+    b: Vec<u64>,
+}
+
+#[test]
+fn opt_and_vec() {
+    let ctx = &mut setup_context_dialects();
+    let test_ty = OptAndVec {
+        a: Some(42),
+        b: vec![1, 2, 3],
+    };
+
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("<42;1,2,3>", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = OptAndVec::parser(())
+        .parse(state_stream)
+        .expect("OptAndVec parser failed");
+    assert_eq!(res.disp(ctx).to_string(), printed);
+
+    // Test empty vector
+    let test_ty = OptAndVec { a: None, b: vec![] };
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("<;>", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = OptAndVec::parser(())
+        .parse(state_stream)
+        .expect("OptAndVec parser failed");
+    assert_eq!(res.disp(ctx).to_string(), printed);
+}

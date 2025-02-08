@@ -112,10 +112,22 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_op::def_op(args, input))
 }
 
-/// Derive [Format](../pliron/irfmt/trait.Format.html) for Rust types.
+/// Derive [Printable](../pliron/printable/trait.Printable.html) and
+/// [Parsable](../pliron/parsable/trait.Parsable.html) for Rust types.
 /// Use this is for types other than `Op`, `Type` and `Attribute`s.
 ///   1. A named variable `$name` specifies a named struct field.
 ///   2. An unnamed variable `$i` specifies the i'th field of a tuple struct.
+///
+/// Struct (or tuple) fields that are either [Option] or [Vec] must to be specified
+/// using the `opt` and `vec` directives respectively. The `opt` directive takes one argument,
+/// a variable specifying the field name with type `Option`. The `vec` directive takes two
+/// arguments, the first is a variable specifying the field name with type `Vec` and the second
+/// is another directive to specify a [ListSeparator](../pliron/printable/enum.ListSeparator.html).
+/// The following directives are supported:
+///   1. `NewLine`: takes no argument, and specifies a newline to be used as list separator.
+///   2. ``CharNewline(`c`)``: takes a single character argument that will be followed by a newline.
+///   3. ``Char(`c`)``: takes a single character argument that will be used as separator.
+///   4. ``CharSpace(`c`)``: takes a single character argument that will be followed by a space.
 ///
 /// Examples:
 /// 1. Derive for a struct, with no format string (default format):
@@ -153,6 +165,16 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
 ///         lower: u64,
 ///     },
 /// }
+/// ```
+/// 4. An example with `Option` and `Vec` fields
+/// ```
+/// use pliron::derive::format;
+/// #[format("`<` opt($a) `;` vec($b, Char(`,`)) `>`")]
+/// struct OptAndVec {
+///    a: Option<u64>,
+///    b: Vec<u64>,
+///}
+/// ```
 #[proc_macro_attribute]
 pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_format::derive(
@@ -162,7 +184,8 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
     ))
 }
 
-/// Derive [Format](../pliron/irfmt/trait.Format.html) for [Op](../pliron/op/trait.Op.html)s
+/// Derive [Printable](../pliron/printable/trait.Printable.html) and
+/// [Parsable](../pliron/parsable/trait.Parsable.html) for [Op](../pliron/op/trait.Op.html)s
 /// This derive only supports a syntax in which results appear before the opid:
 ///   `res1, ... = opid ...`
 /// The format string specifies what comes after the opid.
@@ -205,7 +228,8 @@ pub fn format_op(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_format::derive(args, input, DeriveIRObject::Op))
 }
 
-/// Derive [Format](../pliron/irfmt/trait.Format.html) for
+/// Derive [Printable](../pliron/printable/trait.Printable.html) and
+/// [Parsable](../pliron/parsable/trait.Parsable.html) for
 /// [Attribute](../pliron/attribute/trait.Attribute.html)s
 ///   1. A named variable `$name` specifies a named struct field.
 ///   2. An unnamed variable `$i` specifies the i'th field of a tuple struct.
@@ -219,7 +243,8 @@ pub fn format_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
         DeriveIRObject::Attribute,
     ))
 }
-/// Derive [Format](../pliron/irfmt/trait.Format.html) for
+/// Derive [Printable](../pliron/printable/trait.Printable.html) and
+/// [Parsable](../pliron/parsable/trait.Parsable.html) for
 /// [Type](../pliron/type/trait.Type.html)s
 ///   1. A named variable `$name` specifies a named struct field.
 ///   2. An unnamed variable `$i` specifies the i'th field of a tuple struct.

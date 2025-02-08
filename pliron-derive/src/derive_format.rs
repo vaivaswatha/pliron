@@ -1,4 +1,4 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 use rustc_hash::FxHashMap;
 use syn::{spanned::Spanned, Data, DeriveInput, LitStr, Result};
@@ -299,8 +299,85 @@ impl PrintableBuilder<()> for DeriveBasePrintable {
         Ok(quote! { ::pliron::printable::Printable::fmt(#field, ctx, state, fmt)?; })
     }
 
-    fn build_directive(_input: &FmtInput, _state: &mut (), _d: &Directive) -> Result<TokenStream> {
-        unimplemented!("No directives supported in DeriveBasePrintable")
+    fn build_directive(input: &FmtInput, _state: &mut (), d: &Directive) -> Result<TokenStream> {
+        if d.name == "opt" {
+            let err = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `opt` directive takes a single variable argument referring
+                            to a struct or tuple field with type Option"
+                    .to_string(),
+            ));
+            if d.args.len() != 1 {
+                return err;
+            }
+            let FmtData::Struct(ref r#struct) = input.data else {
+                return err;
+            };
+
+            let name = match &d.args[0] {
+                Elem::Var(Var { name, .. }) => {
+                    format_ident!("{}", name)
+                }
+                Elem::UnnamedVar(idx) => {
+                    format_ident!("field_at_{}", idx.index)
+                }
+                _ => {
+                    return err;
+                }
+            };
+            let name_access = if r#struct.is_enum_variant {
+                quote! { #name }
+            } else {
+                quote! { &self.#name }
+            };
+            Ok(quote! {
+                if let Some(val) = #name_access {
+                    ::pliron::printable::Printable::fmt(val, ctx, state, fmt)?;
+                }
+            })
+        } else if d.name == "vec" {
+            let err = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `vec` directive takes two arguments, the first referring
+                          to a struct or tuple field with type Vec, and the second one,
+                          a directive specifying the separator"
+                    .to_string(),
+            ));
+            if d.args.len() != 2 {
+                return err;
+            }
+            let FmtData::Struct(ref r#struct) = input.data else {
+                return err;
+            };
+
+            let name = match &d.args[0] {
+                Elem::Var(Var { name, .. }) => {
+                    format_ident!("{}", name)
+                }
+                Elem::UnnamedVar(idx) => {
+                    format_ident!("field_at_{}", idx.index)
+                }
+                _ => {
+                    return err;
+                }
+            };
+
+            let Elem::Directive(sep) = &d.args[1] else {
+                return err;
+            };
+            let sep = directive_to_list_separator(sep, true, input.ident.span())?;
+
+            let name_access = if r#struct.is_enum_variant {
+                quote! { #name }
+            } else {
+                quote! { &self.#name }
+            };
+            Ok(quote! {
+                ::pliron::irfmt::printers::list_with_sep(#name_access, #sep).fmt(ctx, state, fmt)?;
+            })
+        } else {
+            unimplemented!("Unknown directive {}", d.name)
+        }
     }
 }
 
@@ -641,9 +718,7 @@ trait ParsableBuilder<State: Default> {
         _input: &FmtInput,
         _state: &mut State,
         _d: &Directive,
-    ) -> Result<TokenStream> {
-        unimplemented!("No directives supported in default trait implementation")
-    }
+    ) -> Result<TokenStream>;
 
     /// After the entire body is built, build the parsed value to be finally returned.
     fn build_final_ret_value(_input: &FmtInput, _state: &mut State) -> TokenStream {
@@ -659,8 +734,107 @@ trait ParsableBuilder<State: Default> {
 struct DeriveBaseParsable;
 
 impl ParsableBuilder<()> for DeriveBaseParsable {
-    fn build_directive(_input: &FmtInput, _state: &mut (), _d: &Directive) -> Result<TokenStream> {
-        unimplemented!("No directives supported in DeriveBaseParsable")
+    fn build_directive(input: &FmtInput, _state: &mut (), d: &Directive) -> Result<TokenStream> {
+        if d.name == "opt" {
+            let err = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `opt` directive takes a single variable argument referring
+                            to a struct or tuple field with type Option"
+                    .to_string(),
+            ));
+            if d.args.len() != 1 {
+                return err;
+            }
+            let FmtData::Struct(ref r#struct) = input.data else {
+                return err;
+            };
+
+            let (name, ty) = match &d.args[0] {
+                Elem::Var(Var { name, .. }) => {
+                    let name = format_ident!("{}", name);
+                    let Some(crate::irfmt::Field { ty, .. }) = r#struct.fields.iter().find(
+                        |f| matches!(&f.ident, FieldIdent::Named(field_name) if name == field_name),
+                    ) else {
+                        return Err(syn::Error::new_spanned(
+                            input.ident.clone(),
+                            format!("{} field not found", name),
+                        ));
+                    };
+                    (name, ty)
+                }
+                Elem::UnnamedVar(UnnamedVar { pos: _, index }) => {
+                    let name = format_ident!("field_at_{}", index);
+                    let crate::irfmt::Field { ty, .. } =
+                        r#struct.fields.get(*index).ok_or(syn::Error::new_spanned(
+                            input.ident.clone(),
+                            format!("field index \"{}\" is invalid", *index),
+                        ))?;
+                    (name, ty)
+                }
+                _ => {
+                    return err;
+                }
+            };
+            let inner_ty = get_inner_type_option_vec(ty)?;
+            Ok(quote! {
+                let #name = ::combine::parser::choice::optional(<#inner_ty>::parser(()))
+                    .parse_stream(state_stream).into_result()?.0;
+            })
+        } else if d.name == "vec" {
+            let err = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `vec` directive takes two arguments, the first referring
+                          to a struct or tuple field with type Vec, and the second one,
+                          a directive specifying the separator"
+                    .to_string(),
+            ));
+            if d.args.len() != 2 {
+                return err;
+            }
+            let FmtData::Struct(ref r#struct) = input.data else {
+                return err;
+            };
+
+            let (name, ty) = match &d.args[0] {
+                Elem::Var(Var { name, .. }) => {
+                    let name = format_ident!("{}", name);
+                    let Some(crate::irfmt::Field { ty, .. }) = r#struct.fields.iter().find(
+                        |f| matches!(&f.ident, FieldIdent::Named(field_name) if name == field_name),
+                    ) else {
+                        return Err(syn::Error::new_spanned(
+                            input.ident.clone(),
+                            format!("{} field not found", name),
+                        ));
+                    };
+                    (name, ty)
+                }
+                Elem::UnnamedVar(UnnamedVar { pos: _, index }) => {
+                    let name = format_ident!("field_at_{}", index);
+                    let crate::irfmt::Field { ty, .. } =
+                        r#struct.fields.get(*index).ok_or(syn::Error::new_spanned(
+                            input.ident.clone(),
+                            format!("field index \"{}\" is invalid", *index),
+                        ))?;
+                    (name, ty)
+                }
+                _ => {
+                    return err;
+                }
+            };
+
+            let Elem::Directive(sep) = &d.args[1] else {
+                return err;
+            };
+            let sep = directive_to_list_separator(sep, false, input.ident.span())?;
+
+            let inner_ty = get_inner_type_option_vec(ty)?;
+            Ok(quote! {
+                let #name: Vec<_> = ::combine::parser::repeat::sep_by(<#inner_ty>::parser(()), #sep)
+                    .parse_stream(state_stream).into_result()?.0;
+            })
+        } else {
+            unimplemented!("Unknown directive {}", d.name)
+        }
     }
 }
 
@@ -972,4 +1146,89 @@ fn parse_attr_directive_args(d: &Directive, input: &FmtInput) -> Result<(String,
     let attr_type_path = syn::parse_str::<syn::Type>(&attr_type)?;
     let attr_name_str = attr_name.to_string();
     Ok((attr_name_str, attr_type_path))
+}
+
+use syn::{
+    AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, Type,
+    TypePath,
+};
+
+/// For [Option] and [Vec] types, get the inner type.
+/// This is based on the guidance in
+/// [the procedural macro workshop](https://github.com/dtolnay/proc-macro-workshop/blob/master/builder/tests/06-optional-field.rs).
+fn get_inner_type_option_vec(ty: &Type) -> Result<Type> {
+    let err = Err(syn::Error::new_spanned(
+        ty.clone(),
+        "Expected Option or Vec".to_string(),
+    ));
+
+    if let Type::Path(TypePath {
+        qself: None,
+        path: Path { segments, .. },
+    }) = ty
+    {
+        if let Some(PathSegment {
+            ident,
+            arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }),
+        }) = segments.first()
+        {
+            if let Some(GenericArgument::Type(inner_ty)) = args.first() {
+                if ident == "Option" || ident == "Vec" {
+                    return Ok(inner_ty.clone());
+                } else {
+                    return err;
+                }
+            }
+        }
+    }
+
+    err
+}
+
+/// Parse directive into ListSeparator
+fn directive_to_list_separator(
+    d: &Directive,
+    use_pliron_list_separator: bool,
+    span: Span,
+) -> Result<TokenStream> {
+    let err: Result<TokenStream> = Err(syn::Error::new(
+        span,
+        "Please refer to the documentation on correctly specifiying a list separator".to_string(),
+    ));
+
+    if d.name == "NewLine" {
+        if use_pliron_list_separator {
+            return Ok(quote! { ::pliron::printable::ListSeparator::NewLine });
+        } else {
+            return Ok(quote! { ::combine::token('\n') });
+        }
+    }
+
+    if d.args.len() != 1 {
+        return err;
+    }
+
+    let Elem::Lit(Lit { lit: sep_char, .. }) = &d.args[0] else {
+        return err;
+    };
+
+    if sep_char.len() != 1 {
+        return err;
+    }
+
+    let sep_char = sep_char.chars().next().unwrap();
+
+    if !use_pliron_list_separator {
+        return Ok(quote! { ::combine::token(#sep_char) });
+    }
+
+    if d.name == "CharNewline" {
+        return Ok(quote! { ::pliron::printable::ListSeparator::CharNewline(#sep_char) });
+    } else if d.name == "Char" {
+        return Ok(quote! { ::pliron::printable::ListSeparator::Char(#sep_char) });
+    } else if d.name == "CharSpace" {
+        return Ok(quote! { ::pliron::printable::ListSeparator::CharSpace(#sep_char) });
+    }
+
+    err
 }
