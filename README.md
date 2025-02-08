@@ -41,3 +41,7 @@ in your Rust project.
 with other compiler projects, touching upon some design decisions.
 * Code documentation can be found on
   [docs.rs](https://docs.rs/pliron/latest/pliron/).
+
+### Some talks on `pliron`
+* [pliron: An Extensible IR Framework in Rust - IICT'24](https://www.youtube.com/watch?v=LobYuwcUaZA)
+* [Rust(ing) the Future of Compilers: Pliron as the MLIR Alternative (No C/C++)](https://www.youtube.com/watch?v=rRgYGBAhKQ0)
