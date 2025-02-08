@@ -438,6 +438,17 @@ impl NameTracker {
     }
 }
 
+impl Parsable for usize {
+    type Arg = ();
+    type Parsed = usize;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        int_parser::<usize>().parse_stream(state_stream).into()
+    }
+}
 impl Parsable for u64 {
     type Arg = ();
     type Parsed = u64;
@@ -447,5 +458,17 @@ impl Parsable for u64 {
         _arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
         int_parser::<u64>().parse_stream(state_stream).into()
+    }
+}
+
+impl Parsable for u32 {
+    type Arg = ();
+    type Parsed = u32;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        int_parser::<u32>().parse_stream(state_stream).into()
     }
 }

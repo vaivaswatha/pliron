@@ -94,14 +94,18 @@ pub fn delimited_list_parser<Input: Stream<Token = char>, Output>(
     sep: char,
     parser: impl Parser<Input, Output = Output>,
 ) -> impl Parser<Input, Output = Vec<Output>> {
-    between(
-        token(open),
-        token(close),
-        spaces().with(sep_by::<Vec<_>, _, _, _>(
-            parser.skip(spaces()),
-            token(sep).skip(spaces()),
-        )),
-    )
+    between(token(open), token(close), list_parser(sep, parser))
+}
+
+/// Parse a list of objects.
+pub fn list_parser<Input: Stream<Token = char>, Output>(
+    sep: char,
+    parser: impl Parser<Input, Output = Output>,
+) -> impl Parser<Input, Output = Vec<Output>> {
+    spaces().with(sep_by::<Vec<_>, _, _, _>(
+        parser.skip(spaces()),
+        token(sep).skip(spaces()),
+    ))
 }
 
 /// Parse zero-or-more occurrences (ignoring spaces) of `parser`.

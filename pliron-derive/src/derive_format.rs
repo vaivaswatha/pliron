@@ -30,7 +30,7 @@ fn erase_helper_attributes(mut input: DeriveInput) -> DeriveInput {
         Data::Struct(_) | Data::Union(_) => input,
         Data::Enum(ref mut data) => {
             for variant in &mut data.variants {
-                variant.attrs.clear();
+                variant.attrs.retain(|attr| !attr.path().is_ident("format"));
             }
             input
         }
@@ -300,6 +300,32 @@ impl PrintableBuilder<()> for DeriveBasePrintable {
     }
 
     fn build_directive(input: &FmtInput, _state: &mut (), d: &Directive) -> Result<TokenStream> {
+        fn var_name_from_elem(
+            elem: &Elem,
+            is_enum_variant: bool,
+            err: Result<TokenStream>,
+        ) -> Result<TokenStream> {
+            match elem {
+                Elem::Var(Var { name, .. }) => {
+                    let name = format_ident!("{}", name);
+                    if is_enum_variant {
+                        Ok(quote! { #name })
+                    } else {
+                        Ok(quote! { &self.#name })
+                    }
+                }
+                Elem::UnnamedVar(idx) => {
+                    if is_enum_variant {
+                        let name = format_ident!("field_at_{}", idx.index);
+                        Ok(quote! { #name })
+                    } else {
+                        let index = syn::Index::from(idx.index);
+                        Ok(quote! { &self.#index })
+                    }
+                }
+                _ => err,
+            }
+        }
         if d.name == "opt" {
             let err = Err(syn::Error::new_spanned(
                 input.ident.clone(),
@@ -314,24 +340,10 @@ impl PrintableBuilder<()> for DeriveBasePrintable {
                 return err;
             };
 
-            let name = match &d.args[0] {
-                Elem::Var(Var { name, .. }) => {
-                    format_ident!("{}", name)
-                }
-                Elem::UnnamedVar(idx) => {
-                    format_ident!("field_at_{}", idx.index)
-                }
-                _ => {
-                    return err;
-                }
-            };
-            let name_access = if r#struct.is_enum_variant {
-                quote! { #name }
-            } else {
-                quote! { &self.#name }
-            };
+            let name = var_name_from_elem(&d.args[0], r#struct.is_enum_variant, err)?;
+
             Ok(quote! {
-                if let Some(val) = #name_access {
+                if let Some(val) = #name {
                     ::pliron::printable::Printable::fmt(val, ctx, state, fmt)?;
                 }
             })
@@ -350,30 +362,15 @@ impl PrintableBuilder<()> for DeriveBasePrintable {
                 return err;
             };
 
-            let name = match &d.args[0] {
-                Elem::Var(Var { name, .. }) => {
-                    format_ident!("{}", name)
-                }
-                Elem::UnnamedVar(idx) => {
-                    format_ident!("field_at_{}", idx.index)
-                }
-                _ => {
-                    return err;
-                }
-            };
-
             let Elem::Directive(sep) = &d.args[1] else {
                 return err;
             };
             let sep = directive_to_list_separator(sep, true, input.ident.span())?;
 
-            let name_access = if r#struct.is_enum_variant {
-                quote! { #name }
-            } else {
-                quote! { &self.#name }
-            };
+            let name = var_name_from_elem(&d.args[0], r#struct.is_enum_variant, err)?;
+
             Ok(quote! {
-                ::pliron::irfmt::printers::list_with_sep(#name_access, #sep).fmt(ctx, state, fmt)?;
+                ::pliron::irfmt::printers::list_with_sep(#name, #sep).fmt(ctx, state, fmt)?;
             })
         } else {
             unimplemented!("Unknown directive {}", d.name)
@@ -829,7 +826,7 @@ impl ParsableBuilder<()> for DeriveBaseParsable {
 
             let inner_ty = get_inner_type_option_vec(ty)?;
             Ok(quote! {
-                let #name: Vec<_> = ::combine::parser::repeat::sep_by(<#inner_ty>::parser(()), #sep)
+                let #name: Vec<_> = ::pliron::irfmt::parsers::list_parser(#sep, <#inner_ty>::parser(()))
                     .parse_stream(state_stream).into_result()?.0;
             })
         } else {
@@ -1200,7 +1197,7 @@ fn directive_to_list_separator(
         if use_pliron_list_separator {
             return Ok(quote! { ::pliron::printable::ListSeparator::NewLine });
         } else {
-            return Ok(quote! { ::combine::token('\n') });
+            return Ok(quote! { '\n' });
         }
     }
 
@@ -1219,7 +1216,7 @@ fn directive_to_list_separator(
     let sep_char = sep_char.chars().next().unwrap();
 
     if !use_pliron_list_separator {
-        return Ok(quote! { ::combine::token(#sep_char) });
+        return Ok(quote! { #sep_char });
     }
 
     if d.name == "CharNewline" {

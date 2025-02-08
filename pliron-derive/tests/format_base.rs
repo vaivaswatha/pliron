@@ -95,17 +95,29 @@ fn double_wrap() {
 
 #[format]
 enum Enum {
+    /// Some comment
     A(TypePtr<IntegerType>),
     B {
         one: TypePtr<IntegerType>,
         two: IntWrapper,
     },
     C,
+    /// Some other comment
     #[format("`<` $upper `/` $lower `>`")]
     Op {
         upper: u64,
         lower: u64,
     },
+    #[format("`<` opt($a) `>`")]
+    WithOpt {
+        a: Option<u64>,
+    },
+    #[format("`<` vec($a, Char(`,`)) `>`")]
+    WithVec {
+        a: Vec<u64>,
+    },
+    #[format("`<` opt($0) `;` vec($1, CharSpace(`,`)) `>`")]
+    WithOptTuple(Option<u64>, Vec<u64>),
 }
 
 #[test]
@@ -176,6 +188,48 @@ fn enum_test() {
         .expect("Enum parser failed");
 
     assert_eq!(res.disp(ctx).to_string(), printed);
+
+    let test_ty = Enum::WithOpt { a: Some(42) };
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("WithOpt<42>", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = Enum::parser(())
+        .parse(state_stream)
+        .expect("Enum parser failed");
+
+    assert_eq!(res.disp(ctx).to_string(), printed);
+
+    let test_ty = Enum::WithVec { a: vec![1, 2, 3] };
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("WithVec<1,2,3>", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = Enum::parser(())
+        .parse(state_stream)
+        .expect("Enum parser failed");
+
+    assert_eq!(res.disp(ctx).to_string(), printed);
+
+    let test_ty = Enum::WithOptTuple(Some(42), vec![1, 2, 3]);
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("WithOptTuple<42;1, 2, 3>", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = Enum::parser(())
+        .parse(state_stream)
+        .expect("Enum parser failed");
+
+    assert_eq!(res.disp(ctx).to_string(), printed);
 }
 
 #[format]
@@ -230,6 +284,7 @@ fn int_div() {
 
 #[format("`<` opt($a) `>`")]
 struct OptionalField {
+    /// Some comment
     a: Option<u64>,
 }
 
@@ -340,5 +395,40 @@ fn opt_and_vec() {
     let (res, _) = OptAndVec::parser(())
         .parse(state_stream)
         .expect("OptAndVec parser failed");
+    assert_eq!(res.disp(ctx).to_string(), printed);
+}
+
+#[format("`<` opt($0) `;` vec($1, Char(`,`)) `>`")]
+struct OptAndVecTuple(Option<u64>, Vec<u64>);
+
+#[test]
+fn opt_and_vec_tuple() {
+    let ctx = &mut setup_context_dialects();
+    let test_ty = OptAndVecTuple(Some(42), vec![1, 2, 3]);
+
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("<42;1,2,3>", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = OptAndVecTuple::parser(())
+        .parse(state_stream)
+        .expect("OptAndVecTuple parser failed");
+    assert_eq!(res.disp(ctx).to_string(), printed);
+
+    // Test empty vector
+    let test_ty = OptAndVecTuple(None, vec![]);
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("<;>", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = OptAndVecTuple::parser(())
+        .parse(state_stream)
+        .expect("OptAndVecTuple parser failed");
     assert_eq!(res.disp(ctx).to_string(), printed);
 }

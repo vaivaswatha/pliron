@@ -177,7 +177,9 @@ macro_rules! impl_printable_for_display {
 
 impl_printable_for_display!(&str);
 impl_printable_for_display!(String);
+impl_printable_for_display!(usize);
 impl_printable_for_display!(u64);
+impl_printable_for_display!(u32);
 
 impl<T: Printable + ?Sized> Printable for &T {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
