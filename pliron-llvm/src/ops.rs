@@ -90,12 +90,11 @@ impl ReturnOp {
 impl_canonical_syntax!(ReturnOp);
 impl_verify_succ!(ReturnOp);
 
-macro_rules! new_int_bin_op {
+macro_rules! new_int_bin_op_without_format {
     (   $(#[$outer:meta])*
         $op_name:ident, $op_id:literal
     ) => {
         #[def_op($op_id)]
-        #[format_op("$0 `,` $1 `:` type($0)")]
         $(#[$outer])*
         /// ### Operands:
         ///
@@ -119,17 +118,31 @@ macro_rules! new_int_bin_op {
     }
 }
 
+macro_rules! new_int_bin_op {
+    (   $(#[$outer:meta])*
+        $op_name:ident, $op_id:literal
+    ) => {
+        new_int_bin_op_without_format!(
+            $(#[$outer])*
+            #[format_op("$0 `,` $1 `:` type($0)")]
+            $op_name,
+            $op_id
+        );
+    }
+}
+
 macro_rules! new_int_bin_op_with_overflow {
     (   $(#[$outer:meta])*
         $op_name:ident, $op_id:literal
     ) => {
-        new_int_bin_op!(
+        new_int_bin_op_without_format!(
             $(#[$outer])*
             /// ### Attributes:
             ///
             /// | key | value | via Interface |
             /// |-----|-------| --------------
             /// | [ATTR_KEY_INTEGER_OVERFLOW_FLAGS](super::op_interfaces::ATTR_KEY_INTEGER_OVERFLOW_FLAGS) | [IntegerOverflowFlagsAttr](super::attributes::IntegerOverflowFlagsAttr) | [IntBinArithOpWithOverflowFlag] |
+            #[format_op("$0 `,` $1 `<` attr($llvm_integer_overflow_flags, `super::attributes::IntegerOverflowFlagsAttr`) `>` `:` type($0)")]
             $op_name,
             $op_id
         );
@@ -137,6 +150,7 @@ macro_rules! new_int_bin_op_with_overflow {
         impl IntBinArithOpWithOverflowFlag for $op_name {}
     }
 }
+
 new_int_bin_op_with_overflow!(
     /// Equivalent to LLVM's Add opcode.
     AddOp,

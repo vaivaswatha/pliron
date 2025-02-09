@@ -34,6 +34,7 @@ rustc-hash.workspace = true
 thiserror.workspace = true
 linkme.workspace = true
 combine.workspace = true
+utf8-chars = "3"
 regex = "1"
 dyn-clone = "1"
 

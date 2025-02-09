@@ -1,8 +1,11 @@
 //! Attributes belonging to the LLVM dialect.
 
+use pliron::attribute::Attribute;
+use pliron::context::Context;
 use pliron::derive::{def_attribute, format, format_attribute};
 
 use pliron::impl_verify_succ;
+use pliron::parsable::Parsable;
 
 /// Integer overflow flags for arithmetic operations.
 /// The description below is from LLVM's
@@ -57,3 +60,9 @@ pub enum GepIndexAttr {
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct GepIndicesAttr(pub Vec<GepIndexAttr>);
 impl_verify_succ!(GepIndicesAttr);
+
+pub fn register(ctx: &mut Context) {
+    IntegerOverflowFlagsAttr::register_attr_in_dialect(ctx, IntegerOverflowFlagsAttr::parser_fn);
+    ICmpPredicateAttr::register_attr_in_dialect(ctx, ICmpPredicateAttr::parser_fn);
+    GepIndicesAttr::register_attr_in_dialect(ctx, GepIndicesAttr::parser_fn);
+}

@@ -31,6 +31,7 @@ use combine::{
 };
 use rustc_hash::FxHashMap;
 use thiserror::Error;
+use utf8_chars::BufReadCharsExt;
 
 /// State during parsing of any [Parsable] object.
 /// Every parser implemented using [Parsable] will be passed
@@ -202,6 +203,14 @@ pub fn state_stream_from_iterator<'a, T: Iterator<Item = char> + 'a>(
         ),
         state,
     }
+}
+
+/// Build a [StateStream] from a file, for use with [Parsable].
+pub fn state_stream_from_file<'a>(
+    file_reader: &'a mut std::io::BufReader<std::fs::File>,
+    state: State<'a>,
+) -> StateStream<'a> {
+    state_stream_from_iterator(file_reader.chars().map(|c| c.unwrap()), state)
 }
 
 /// A storable parser function. This allows storing a function pointer

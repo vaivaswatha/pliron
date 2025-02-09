@@ -177,6 +177,18 @@ impl Parsable for Region {
 
         let result = region_parser.parse_stream(state_stream);
 
+        // If the parsing failed, there may be unresolved references,
+        // and `exit_region` will flag those, thus masking the real error.
+        // So we ignore any errors from `exit_region` itself.
+        if result.is_err() {
+            let _ =
+                state_stream
+                    .state
+                    .name_tracker
+                    .exit_region(state_stream.state.ctx, parent_op, loc);
+            return result.into();
+        }
+
         state_stream
             .state
             .name_tracker

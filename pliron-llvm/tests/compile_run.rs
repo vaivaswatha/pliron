@@ -4,6 +4,21 @@ use std::{path::PathBuf, sync::LazyLock};
 
 use assert_cmd::Command;
 use expect_test::expect;
+use pliron::{
+    arg_error_noloc, builtin,
+    common_traits::Verify,
+    context::Context,
+    location,
+    op::Op,
+    operation::Operation,
+    parsable::{self, state_stream_from_file, Parsable},
+    printable::Printable,
+    result::Result,
+};
+use pliron_llvm::{
+    from_llvm_ir,
+    llvm_sys::core::{LLVMContext, LLVMModule},
+};
 use tempfile::{tempdir, TempDir};
 
 const CLANG_BINARY: &str = "clang-18";
@@ -102,4 +117,61 @@ fn test_fib_after_mem2reg() {
     // Create a tempdir() to place the temporary compiled files.
     let tmp_dir = tempdir().unwrap();
     test_fib(&tmp_dir, "fib.mem2reg.ll")
+}
+
+pub fn setup_context_dialects() -> Context {
+    let mut ctx = Context::new();
+    builtin::register(&mut ctx);
+    pliron_llvm::register(&mut ctx);
+
+    ctx
+}
+
+/// Test Fibonacci by reading in pliron's llvm-dialect IR.
+#[test]
+fn test_fib_plir() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    let llvm_context = LLVMContext::default();
+
+    let fib_mem2reg_ll_path = RESOURCES_DIR.join("fib.mem2reg.ll");
+    let module = LLVMModule::from_ir_in_file(&llvm_context, fib_mem2reg_ll_path.to_str().unwrap())
+        .map_err(|err| arg_error_noloc!("{}", err))?;
+    let pliron_module = from_llvm_ir::convert_module(ctx, &module)?;
+    pliron_module.get_operation().verify(ctx)?;
+
+    // Create a temp dir to place the plir file.
+    let tmp_dir = tempdir().unwrap();
+    let fib_mem2reg_plir_path = tmp_dir.path().join("fib.mem2reg.plir");
+    // Write the plir to a file.
+    std::fs::write(
+        fib_mem2reg_plir_path.clone(),
+        pliron_module.disp(ctx).to_string(),
+    )
+    .map_err(|e| arg_error_noloc!(e))?;
+
+    // println!("plir file created:\n{}", std::fs::read_to_string(&fib_mem2reg_plir_path).unwrap());
+
+    // Now parse the plir file and verify it.
+    let fib_mem2reg_plir = std::fs::File::open(&fib_mem2reg_plir_path).unwrap();
+    let mut fib_mem2reg_plir = std::io::BufReader::new(fib_mem2reg_plir);
+
+    let source = location::Source::new_from_file(ctx, fib_mem2reg_plir_path);
+    let state_stream =
+        state_stream_from_file(&mut fib_mem2reg_plir, parsable::State::new(ctx, source));
+
+    let parsed_res = match Operation::parser(()).parse(state_stream) {
+        Ok((parsed_res, _)) => parsed_res,
+        Err(err) => {
+            eprint!("{}", err);
+            panic!("Error parsing fib.mem2reg.plir");
+        }
+    };
+
+    match parsed_res.verify(ctx) {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            eprint!("{}", err.disp(ctx));
+            panic!("Error verifying fib.mem2reg.plir");
+        }
+    }
 }

@@ -19,4 +19,5 @@ pub fn register(ctx: &mut Context) {
     dialect.register(ctx);
     ops::register(ctx);
     types::register(ctx);
+    attributes::register(ctx);
 }
