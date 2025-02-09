@@ -202,6 +202,15 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 ///      to a rust type (e.g. `` `::pliron::builtin::attributes::IntegerAttr` ``).
 ///      The advantage over specifying the attribute as a named variable is that the attribute-id
 ///      is not a part of the syntax here, allowing it to be more succinct.
+///   6. The "succ" directive specifies an operation's successor. It takes one argument,
+///      which is an unnamed variable `$i` with `i` specifying `successor[i]`.
+///   7. The "operands" directive specifies all the operands of an operation. It takes one argument
+///      which is a directive specifying the separator between operands.
+///      The following directives are supported:
+///        1. `NewLine`: takes no argument, and specifies a newline to be used as list separator.
+///        2. ``CharNewline(`c`)``: takes a single character argument that will be followed by a newline.
+///        3. ``Char(`c`)``: takes a single character argument that will be used as separator.
+///        4. ``CharSpace(`c`)``: takes a single character argument that will be followed by a space.
 ///
 /// Examples:
 /// 1. Derive for a struct, with no format string (default format):

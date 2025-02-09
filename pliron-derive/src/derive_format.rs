@@ -459,6 +459,42 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
                 ).expect("Missing attribute");
                 ::pliron::printable::Printable::fmt(attr, ctx, state, fmt)?;
             })
+        } else if d.name == "succ" {
+            let err = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `succ` directive takes a single unnamed variable argument to specify the successor index".to_string(),
+            ));
+            if d.args.len() != 1 {
+                return err;
+            }
+            let Elem::UnnamedVar(UnnamedVar { index, .. }) = &d.args[0] else {
+                return err;
+            };
+            Ok(quote! {
+                let succ = self.get_operation().deref(ctx).get_successor(#index);
+                let succ_name = "^".to_string() + &succ.unique_name(ctx);
+                ::pliron::printable::Printable::fmt(&succ_name, ctx, state, fmt)?;
+            })
+        } else if d.name == "operands" {
+            let err = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `operands` directive takes a single argument to specify the separator.
+                    Refer to the documentation for details"
+                    .to_string(),
+            ));
+            if d.args.len() != 1 {
+                return err;
+            }
+            let Elem::Directive(sep) = &d.args[0] else {
+                return err;
+            };
+            let sep = directive_to_list_separator(sep, true, input.ident.span())?;
+            Ok(quote! {
+                let op = self.get_operation().deref(ctx);
+                let operands = op.operands();
+                let operands = ::pliron::irfmt::printers::iter_with_sep(operands, #sep);
+                ::pliron::printable::Printable::fmt(&operands, ctx, state, fmt)?;
+            })
         } else {
             unimplemented!("Unknown directive {}", d.name)
         }
@@ -471,6 +507,7 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
             output.extend(quote! {
                 use ::pliron::op::Op;
                 use ::pliron::irfmt::printers::iter_with_sep;
+                use ::pliron::common_traits::Named;
                 let op = self.get_operation().deref(ctx);
                 if op.get_num_results() > 0 {
                     let sep = ::pliron::printable::ListSeparator::CharSpace(',');
@@ -829,10 +866,22 @@ struct DeriveBaseParsable;
 
 impl ParsableBuilder<()> for DeriveBaseParsable {}
 
+enum OperandsSpec {
+    Individual(FxHashMap<usize, syn::Ident>),
+    All(syn::Ident),
+}
+
+impl Default for OperandsSpec {
+    fn default() -> Self {
+        OperandsSpec::Individual(FxHashMap::default())
+    }
+}
+
 #[derive(Default)]
 struct OpParserState {
     is_canonical: bool,
-    operands: FxHashMap<usize, syn::Ident>,
+    operands: OperandsSpec,
+    successors: FxHashMap<usize, syn::Ident>,
     result_types: FxHashMap<usize, syn::Ident>,
     attributes: FxHashMap<String, syn::Ident>,
     regions: FxHashMap<usize, syn::Ident>,
@@ -845,7 +894,8 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
         let mut output = quote! {
             use ::pliron::op::Op;
             use ::pliron::operation::Operation;
-            use ::pliron::irfmt::parsers::{process_parsed_ssa_defs, ssa_opd_parser, attr_parser};
+            use ::pliron::irfmt::parsers::
+                {process_parsed_ssa_defs, ssa_opd_parser, block_opd_parser, attr_parser};
         };
 
         let built_format = Self::build_format(input, state)?;
@@ -855,8 +905,8 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             return Ok(output);
         }
 
-        let num_operands = state
-            .operands
+        let num_successors = state
+            .successors
             .keys()
             .map(|idx| idx + 1)
             .max()
@@ -874,11 +924,11 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             .max()
             .unwrap_or_default();
 
-        for i in 0..num_operands {
-            if !state.operands.contains_key(&i) {
+        for i in 0..num_successors {
+            if !state.successors.contains_key(&i) {
                 return Err(syn::Error::new_spanned(
                     input.ident.clone(),
-                    format!("missing operand {}", i),
+                    format!("missing successor {}", i),
                 ));
             }
         }
@@ -914,9 +964,31 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
 
         output.extend(results_check);
 
-        let operand_indices = (0..num_operands).map(|i| state.operands[&i].clone());
-        let operands = quote! {
-            vec![#( #operand_indices ),*]
+        let operands = match state.operands {
+            OperandsSpec::Individual(ref operands) => {
+                let num_operands = operands.keys().map(|idx| idx + 1).max().unwrap_or_default();
+                for i in 0..num_operands {
+                    if !operands.contains_key(&i) {
+                        return Err(syn::Error::new_spanned(
+                            input.ident.clone(),
+                            format!("missing operand {}", i),
+                        ));
+                    }
+                }
+                let operand_indices = (0..num_operands).map(|i| operands[&i].clone());
+                quote! {
+                    vec![#( #operand_indices ),*]
+                }
+            }
+            OperandsSpec::All(ref all) => {
+                quote! {
+                    #all
+                }
+            }
+        };
+        let successors_indices = (0..num_successors).map(|i| state.successors[&i].clone());
+        let successors = quote! {
+            vec![#( #successors_indices ),*]
         };
         let result_indices = (0..num_result_types).map(|i| state.result_types[&i].clone());
         let results = quote! {
@@ -942,7 +1014,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                 Self::get_opid_static(),
                 #results,
                 #operands,
-                vec![],   // successors
+                #successors,
                 0,        // regions
             );
             for region in #regions {
@@ -981,7 +1053,17 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
         index: usize,
     ) -> Result<TokenStream> {
         let opd_name = format_ident!("opd_{}", index);
-        state.operands.insert(index, opd_name.clone());
+        match state.operands {
+            OperandsSpec::Individual(ref mut operands) => {
+                operands.insert(index, opd_name.clone());
+            }
+            OperandsSpec::All(_) => {
+                return Err(syn::Error::new_spanned(
+                    _input.ident.clone(),
+                    "Cannot mix operands directive with unnamed operands".to_string(),
+                ));
+            }
+        }
         Ok(quote! {
             let #opd_name = ssa_opd_parser().parse_stream(state_stream).into_result()?.0;
         })
@@ -1048,6 +1130,51 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                     .parse_stream(state_stream)
                     .into_result()?
                     .0);
+            })
+        } else if d.name == "succ" {
+            let err = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `succ` directive takes a single unnamed variable argument to specify the successor index".to_string(),
+            ));
+            if d.args.len() != 1 {
+                return err;
+            }
+            let Elem::UnnamedVar(UnnamedVar { index, .. }) = &d.args[0] else {
+                return err;
+            };
+            let succ_name = format_ident!("succ_{}", index);
+            state.successors.insert(*index, succ_name.clone());
+            Ok(quote! {
+                let #succ_name = block_opd_parser().parse_stream(state_stream).into_result()?.0;
+            })
+        } else if d.name == "operands" {
+            let err = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `operands` directive takes a single argument to specify the separator.
+                    Refer to the documentation for details"
+                    .to_string(),
+            ));
+            if d.args.len() != 1 {
+                return err;
+            }
+            let Elem::Directive(sep) = &d.args[0] else {
+                return err;
+            };
+            let sep = directive_to_list_separator(sep, false, input.ident.span())?;
+            let operands_var_name = format_ident!("{}", "operands");
+            if matches!(&state.operands, OperandsSpec::Individual(operands) if !operands.is_empty())
+            {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "Cannot mix operands directive with unnamed operands".to_string(),
+                ));
+            }
+            state.operands = OperandsSpec::All(operands_var_name.clone());
+            Ok(quote! {
+                let #operands_var_name = ::pliron::irfmt::parsers::list_parser(#sep, ssa_opd_parser())
+                    .parse_stream(state_stream)
+                    .into_result()?
+                    .0;
             })
         } else {
             unimplemented!("Unknown directive {}", d.name)

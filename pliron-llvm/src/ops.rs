@@ -8,21 +8,30 @@ use pliron::{
         attr_interfaces::TypedAttrInterface,
         attributes::{FloatAttr, IdentifierAttr, IntegerAttr, TypeAttr},
         op_interfaces::{
-            BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
+            self, BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
             OneOpdInterface, OneResultInterface, SameOperandsAndResultType, SameOperandsType,
             SameResultsType, ZeroOpdInterface, ZeroResultInterface, ATTR_KEY_CALLEE_TYPE,
         },
         types::{FunctionType, IntegerType, Signedness},
     },
-    common_traits::Verify,
+    common_traits::{Named, Verify},
     context::{Context, Ptr},
     derive::format_op,
     identifier::Identifier,
-    impl_canonical_syntax, impl_verify_succ,
-    location::Located,
-    op::Op,
+    impl_canonical_syntax, impl_verify_succ, input_err,
+    irfmt::{
+        self,
+        parsers::{
+            block_opd_parser, delimited_list_parser, process_parsed_ssa_defs, spaced,
+            ssa_opd_parser,
+        },
+        printers::iter_with_sep,
+    },
+    location::{Located, Location},
+    op::{Op, OpObj},
     operation::Operation,
-    parsable::Parsable,
+    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
+    printable::Printable,
     r#type::{TypeObj, TypePtr},
     result::{Error, ErrorKind, Result},
     utils::vec_exns::VecExtns,
@@ -443,9 +452,9 @@ impl BitcastOp {
 /// |-----|-------|
 /// | `dest` | Any successor |
 #[def_op("llvm.br")]
-#[derive_op_interface_impl(IsTerminatorInterface)]
+#[format_op("succ($0) `(` operands(CharSpace(`,`)) `)`")]
+#[derive_op_interface_impl(IsTerminatorInterface, ZeroResultInterface)]
 pub struct BrOp;
-impl_canonical_syntax!(BrOp);
 impl_verify_succ!(BrOp);
 
 #[op_interface_impl]
@@ -487,7 +496,7 @@ impl BrOp {
 /// | `true_dest` | Any successor |
 /// | `false_dest` | Any successor |
 #[def_op("llvm.cond_br")]
-#[derive_op_interface_impl(IsTerminatorInterface)]
+#[derive_op_interface_impl(IsTerminatorInterface, ZeroResultInterface)]
 pub struct CondBrOp;
 impl CondBrOp {
     /// Create anew [CondBrOp].
@@ -519,7 +528,101 @@ impl CondBrOp {
         self.op.deref(ctx).get_operand(0)
     }
 }
-impl_canonical_syntax!(CondBrOp);
+
+impl Printable for CondBrOp {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &pliron::printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let op = self.get_operation().deref(ctx);
+        let condition = op.get_operand(0);
+        let true_dest_opds = self.successor_operands(ctx, 0);
+        let false_dest_opds = self.successor_operands(ctx, 1);
+        let res = write!(
+            f,
+            "{} if {} ^{}({}) else ^{}({})",
+            op.get_opid(),
+            condition.disp(ctx),
+            op.get_successor(0).deref(ctx).unique_name(ctx),
+            iter_with_sep(
+                true_dest_opds.iter(),
+                pliron::printable::ListSeparator::CharSpace(',')
+            )
+            .disp(ctx),
+            op.get_successor(1).deref(ctx).unique_name(ctx),
+            iter_with_sep(
+                false_dest_opds.iter(),
+                pliron::printable::ListSeparator::CharSpace(',')
+            )
+            .disp(ctx),
+        );
+        res
+    }
+}
+
+impl Parsable for CondBrOp {
+    type Arg = Vec<(Identifier, Location)>;
+    type Parsed = OpObj;
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        results: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        if !results.is_empty() {
+            input_err!(
+                state_stream.loc(),
+                op_interfaces::ZeroResultVerifyErr(Self::get_opid_static().to_string())
+            )?
+        }
+
+        // Parse the condition operand.
+        let r#if = irfmt::parsers::spaced::<StateStream, _>(combine::parser::char::string("if"));
+
+        let condition = ssa_opd_parser();
+
+        let true_operands = delimited_list_parser('(', ')', ',', ssa_opd_parser());
+
+        let r_else =
+            irfmt::parsers::spaced::<StateStream, _>(combine::parser::char::string("else"));
+
+        let false_operands = delimited_list_parser('(', ')', ',', ssa_opd_parser());
+
+        let final_parser = r#if
+            .with(spaced(condition))
+            .and(spaced(block_opd_parser()))
+            .and(true_operands)
+            .and(spaced(r_else).with(spaced(block_opd_parser()).and(false_operands)));
+
+        final_parser
+            .then(
+                move |(((condition, true_dest), true_dest_opds), (false_dest, false_dest_opds))| {
+                    let results = results.clone();
+                    let mut operands = vec![condition];
+                    operands.extend(true_dest_opds);
+                    operands.extend(false_dest_opds);
+                    combine::parser(move |parsable_state: &mut StateStream<'a>| {
+                        let ctx = &mut parsable_state.state.ctx;
+                        let op = Operation::new(
+                            ctx,
+                            Self::get_opid_static(),
+                            vec![],
+                            operands.clone(),
+                            vec![true_dest, false_dest],
+                            0,
+                        );
+
+                        process_parsed_ssa_defs(parsable_state, &results, op)?;
+                        let op: OpObj = Box::new(CondBrOp { op });
+                        Ok(op).into_parse_result()
+                    })
+                },
+            )
+            .parse_stream(state_stream)
+            .into()
+    }
+}
+
 impl_verify_succ!(CondBrOp);
 
 #[op_interface_impl]

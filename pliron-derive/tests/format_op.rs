@@ -3,8 +3,8 @@
 use expect_test::expect;
 use pliron::{
     builtin::op_interfaces::{
-        OneOpdInterface, OneRegionInterface, OneResultInterface, ZeroOpdInterface,
-        ZeroResultInterface,
+        IsTerminatorInterface, OneOpdInterface, OneRegionInterface, OneResultInterface,
+        ZeroOpdInterface, ZeroResultInterface,
     },
     common_traits::Verify,
     impl_verify_succ, location,
@@ -386,6 +386,49 @@ fn if_else_op() {
                 test.return res2_op_6v1_res0
             };
             test.return res0_op_3v1_res0
+        }"#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+}
+
+#[def_op("test.br")]
+#[format_op("succ($0) `(` operands(CharSpace(`,`)) `)`")]
+#[derive_op_interface_impl(IsTerminatorInterface)]
+pub struct BrOp;
+impl_verify_succ!(BrOp);
+
+#[test]
+fn br_op() {
+    let ctx = &mut setup_context_dialects();
+    AttrOp::register(ctx, AttrOp::parser_fn);
+    BrOp::register(ctx, BrOp::parser_fn);
+
+    let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.attr_op <0x0: builtin.int <si64>> :builtin.int <si64>;
+            test.br ^bb1(res0)
+          ^bb1(arg0 : builtin.int <si64>):
+            test.return arg0
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::parser(())
+        .parse(state_stream)
+        .expect("BrOp parser failed");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <()->()> 
+        {
+          ^entry_block_2v1():
+            res0_op_3v1_res0 = test.attr_op <0x0: builtin.int <si64>>:builtin.int <si64>;
+            test.br ^bb1_block_3v1(res0_op_3v1_res0)
+          ^bb1_block_3v1(arg0_block_3v1_arg0:builtin.int <si64>):
+            test.return arg0_block_3v1_arg0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
