@@ -210,7 +210,13 @@ pub fn state_stream_from_file<'a>(
     file_reader: &'a mut std::io::BufReader<std::fs::File>,
     state: State<'a>,
 ) -> StateStream<'a> {
-    state_stream_from_iterator(file_reader.chars().map(|c| c.unwrap()), state)
+    state_stream_from_iterator(
+        file_reader.chars().map(|c| {
+            c.map_err(|e| eprintln!("Error reading chars from file: {}", e))
+                .unwrap()
+        }),
+        state,
+    )
 }
 
 /// A storable parser function. This allows storing a function pointer
