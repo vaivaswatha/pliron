@@ -709,9 +709,9 @@ pub enum GetElementPtrOpErr {
 /// |-----|-------|
 /// | `res` | LLVM pointer type |
 #[def_op("llvm.gep")]
+#[format_op("`<` attr($llvm_gep_src_elem_type, $TypeAttr) `>` `(` operands(CharSpace(`,`)) `)` attr($llvm_gep_indices, $GepIndicesAttr) `:` type($0)")]
 #[derive_op_interface_impl(OneResultInterface)]
 pub struct GetElementPtrOp;
-impl_canonical_syntax!(GetElementPtrOp);
 
 #[op_interface_impl]
 impl PointerTypeResult for GetElementPtrOp {
