@@ -31,20 +31,21 @@ use crate::{
         basic_block_iter, function_iter, incoming_iter, instruction_iter,
         llvm_const_int_get_zext_value, llvm_get_allocated_type, llvm_get_array_length2,
         llvm_get_basic_block_name, llvm_get_basic_block_terminator, llvm_get_called_function_type,
-        llvm_get_called_value, llvm_get_element_type, llvm_get_icmp_predicate,
-        llvm_get_instruction_opcode, llvm_get_instruction_parent, llvm_get_int_type_width,
-        llvm_get_module_identifier, llvm_get_nsw, llvm_get_num_arg_operands, llvm_get_num_operands,
-        llvm_get_nuw, llvm_get_operand, llvm_get_param_types, llvm_get_return_type,
-        llvm_get_struct_element_types, llvm_get_struct_name, llvm_get_type_kind,
-        llvm_get_value_kind, llvm_get_value_name, llvm_global_get_value_type, llvm_is_a,
-        llvm_is_opaque_struct, llvm_type_of, llvm_value_as_basic_block, llvm_value_is_basic_block,
-        param_iter, LLVMBasicBlock, LLVMModule, LLVMType, LLVMValue,
+        llvm_get_called_value, llvm_get_element_type, llvm_get_gep_source_element_type,
+        llvm_get_icmp_predicate, llvm_get_instruction_opcode, llvm_get_instruction_parent,
+        llvm_get_int_type_width, llvm_get_module_identifier, llvm_get_nsw,
+        llvm_get_num_arg_operands, llvm_get_num_operands, llvm_get_nuw, llvm_get_operand,
+        llvm_get_param_types, llvm_get_return_type, llvm_get_struct_element_types,
+        llvm_get_struct_name, llvm_get_type_kind, llvm_get_value_kind, llvm_get_value_name,
+        llvm_global_get_value_type, llvm_is_a, llvm_is_opaque_struct, llvm_type_of,
+        llvm_value_as_basic_block, llvm_value_is_basic_block, param_iter, LLVMBasicBlock,
+        LLVMModule, LLVMType, LLVMValue,
     },
-    op_interfaces::{BinArithOp, IntBinArithOpWithOverflowFlag},
+    op_interfaces::{BinArithOp, CastOpInterface, IntBinArithOpWithOverflowFlag},
     ops::{
-        AShrOp, AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp, ICmpOp,
-        LShrOp, LoadOp, MulOp, OrOp, ReturnOp, SDivOp, SRemOp, ShlOp, StoreOp, SubOp, UDivOp,
-        URemOp, UndefOp, XorOp,
+        AShrOp, AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp, GepIndex,
+        GetElementPtrOp, ICmpOp, LShrOp, LoadOp, MulOp, OrOp, ReturnOp, SDivOp, SExtOp, SRemOp,
+        ShlOp, StoreOp, SubOp, UDivOp, URemOp, UndefOp, XorOp, ZExtOp,
     },
     types::{ArrayType, PointerType, StructErr, StructType, VoidType},
 };
@@ -468,7 +469,16 @@ fn convert_instruction(
         LLVMOpcode::LLVMFreeze => todo!(),
         LLVMOpcode::LLVMFRem => todo!(),
         LLVMOpcode::LLVMFSub => todo!(),
-        LLVMOpcode::LLVMGetElementPtr => todo!(),
+        LLVMOpcode::LLVMGetElementPtr => {
+            let mut opds = opds.iter();
+            let base = opds
+                .next()
+                .ok_or_else(|| input_error_noloc!(ConversionErr::OpdMissing(0)))?;
+            // We don't worry about GepIndex::Constant right now. That'll be canonicalized later.
+            let indices = opds.map(|v| GepIndex::Value(*v)).collect::<Vec<_>>();
+            let src_elm_type = convert_type(ctx, cctx, llvm_get_gep_source_element_type(inst))?;
+            Ok(GetElementPtrOp::new(ctx, *base, indices, src_elm_type)?.get_operation())
+        }
         LLVMOpcode::LLVMICmp => {
             let pred = convert_ipredicate(llvm_get_icmp_predicate(inst));
             Ok(
@@ -519,7 +529,16 @@ fn convert_instruction(
             Ok(SDivOp::new(ctx, lhs, rhs).get_operation())
         }
         LLVMOpcode::LLVMSelect => todo!(),
-        LLVMOpcode::LLVMSExt => todo!(),
+        LLVMOpcode::LLVMSExt => {
+            let arg = get_operand(opds, 0)?;
+            let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
+            Ok(SExtOp::new(ctx, arg, res_ty).get_operation())
+        }
+        LLVMOpcode::LLVMZExt => {
+            let arg = get_operand(opds, 0)?;
+            let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
+            Ok(ZExtOp::new(ctx, arg, res_ty).get_operation())
+        }
         LLVMOpcode::LLVMShl => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             Ok(
@@ -563,7 +582,6 @@ fn convert_instruction(
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             Ok(XorOp::new(ctx, lhs, rhs).get_operation())
         }
-        LLVMOpcode::LLVMZExt => todo!(),
     }
 }
 

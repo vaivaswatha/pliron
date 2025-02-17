@@ -2,7 +2,7 @@
 
 use std::sync::LazyLock;
 
-use pliron::derive::op_interface;
+use pliron::{builtin::op_interfaces::OneOpdInterface, derive::op_interface};
 use thiserror::Error;
 
 use pliron::{
@@ -179,6 +179,33 @@ pub trait PointerTypeResult: OneResultInterface {
             );
         }
 
+        Ok(())
+    }
+}
+
+/// A Cast [Op] has one argument and one result.
+#[op_interface]
+pub trait CastOpInterface: OneResultInterface + OneOpdInterface {
+    /// Create a new cast operation given the operand.
+    fn new(ctx: &mut Context, operand: Value, res_type: Ptr<TypeObj>) -> Self
+    where
+        Self: Sized,
+    {
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![res_type],
+            vec![operand],
+            vec![],
+            0,
+        );
+        *Operation::get_op(op, ctx).downcast::<Self>().ok().unwrap()
+    }
+
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
         Ok(())
     }
 }

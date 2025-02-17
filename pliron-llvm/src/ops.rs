@@ -16,7 +16,7 @@ use pliron::{
     },
     common_traits::{Named, Verify},
     context::{Context, Ptr},
-    derive::format_op,
+    derive::{format, format_op},
     identifier::Identifier,
     impl_canonical_syntax, impl_verify_succ, input_err,
     irfmt::{
@@ -40,7 +40,10 @@ use pliron::{
 };
 
 use crate::{
-    op_interfaces::{BinArithOp, IntBinArithOp, IntBinArithOpWithOverflowFlag, PointerTypeResult},
+    op_interfaces::{
+        BinArithOp, CastOpInterface, IntBinArithOp, IntBinArithOpWithOverflowFlag,
+        PointerTypeResult,
+    },
     types::{ArrayType, StructType},
 };
 
@@ -257,6 +260,7 @@ pub enum ICmpOpVerifyErr {
 /// |-----|-------| --------------|
 /// | [ATTR_KEY_PREDICATE](icmp_op::ATTR_KEY_PREDICATE) | [ICmpPredicateAttr](ICmpPredicateAttr) | N/A |
 #[def_op("llvm.icmp")]
+#[format_op("$0 `<` attr($llvm_icmp_predicate, $ICmpPredicateAttr) `>` $1 `:` type($0)")]
 #[derive_op_interface_impl(SameOperandsType, OneResultInterface)]
 pub struct ICmpOp;
 
@@ -329,7 +333,6 @@ impl Verify for ICmpOp {
         Ok(())
     }
 }
-impl_canonical_syntax!(ICmpOp);
 
 #[derive(Error, Debug)]
 pub enum AllocaOpVerifyErr {
@@ -357,9 +360,9 @@ pub enum AllocaOpVerifyErr {
 /// |-----|-------| --------------|
 /// | [ATTR_KEY_ELEM_TYPE](alloca_op::ATTR_KEY_ELEM_TYPE) | [TypeAttr](pliron::builtin::attributes::TypeAttr) | N/A |
 #[def_op("llvm.alloca")]
+#[format_op("$0 `<` attr($llvm_alloca_element_type, $TypeAttr) `>` `:` type($0)")]
 #[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
 pub struct AllocaOp;
-impl_canonical_syntax!(AllocaOp);
 impl Verify for AllocaOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let loc = self.get_operation().deref(ctx).loc();
@@ -763,8 +766,9 @@ impl GetElementPtrOp {
         ctx: &mut Context,
         base: Value,
         indices: Vec<GepIndex>,
-        elem_type: TypeAttr,
-    ) -> Self {
+        src_elem_type: Ptr<TypeObj>,
+    ) -> Result<Self> {
+        let result_type = PointerType::get(ctx).into();
         let mut attr: Vec<GepIndexAttr> = Vec::new();
         let mut opds: Vec<Value> = vec![base];
         for idx in indices {
@@ -777,14 +781,22 @@ impl GetElementPtrOp {
                 }
             }
         }
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], opds, vec![], 0);
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![result_type],
+            opds,
+            vec![],
+            0,
+        );
+        let src_elem_type = TypeAttr::new(src_elem_type);
         op.deref_mut(ctx)
             .attributes
             .set(gep_op::ATTR_KEY_INDICES.clone(), GepIndicesAttr(attr));
         op.deref_mut(ctx)
             .attributes
-            .set(gep_op::ATTR_KEY_SRC_ELEM_TYPE.clone(), elem_type);
-        GetElementPtrOp { op }
+            .set(gep_op::ATTR_KEY_SRC_ELEM_TYPE.clone(), src_elem_type);
+        Ok(GetElementPtrOp { op })
     }
 
     /// Get the source pointer's element type.
@@ -873,6 +885,7 @@ pub enum LoadOpVerifyErr {
 /// ### Attributes:
 ///
 #[def_op("llvm.load")]
+#[format_op("$0 `:` type($0)")]
 #[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
 pub struct LoadOp;
 impl LoadOp {
@@ -890,7 +903,7 @@ impl LoadOp {
         }
     }
 }
-impl_canonical_syntax!(LoadOp);
+
 impl Verify for LoadOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let loc = self.get_operation().deref(ctx).loc();
@@ -920,6 +933,7 @@ pub enum StoreOpVerifyErr {
 /// ### Attributes:
 ///
 #[def_op("llvm.store")]
+#[format_op("`*` $1 `<-` $0")]
 #[derive_op_interface_impl(ZeroResultInterface)]
 pub struct StoreOp;
 impl StoreOp {
@@ -947,7 +961,7 @@ impl StoreOp {
         self.op.deref(ctx).get_operand(1)
     }
 }
-impl_canonical_syntax!(StoreOp);
+
 impl Verify for StoreOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let loc = self.get_operation().deref(ctx).loc();
@@ -1168,6 +1182,71 @@ impl Verify for ConstantOp {
 
 impl_canonical_syntax!(ConstantOp);
 
+#[derive(Error, Debug)]
+enum IntExtVerifyErr {
+    #[error("Result must be an integer, wider than the operand type")]
+    ResultTypeErr,
+    #[error("Operand must be an integer")]
+    OperandTypeErr,
+}
+
+fn integer_ext_verify(op: &Operation, ctx: &Context) -> Result<()> {
+    use pliron::r#type::Typed;
+
+    let loc = op.loc();
+    let res_ty = op.get_type(0).deref(ctx);
+    let opd_ty = op.get_operand(0).get_type(ctx).deref(ctx);
+    let Some(res_ty) = res_ty.downcast_ref::<IntegerType>() else {
+        return verify_err!(loc, IntExtVerifyErr::ResultTypeErr);
+    };
+    let Some(opd_ty) = opd_ty.downcast_ref::<IntegerType>() else {
+        return verify_err!(loc, IntExtVerifyErr::OperandTypeErr);
+    };
+    if res_ty.get_width() <= opd_ty.get_width() {
+        return verify_err!(loc, IntExtVerifyErr::ResultTypeErr);
+    }
+    Ok(())
+}
+
+/// Equivalent to LLVM's sext opcode.
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `arg` | Signless integer |
+/// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | Signless integer |
+#[def_op("llvm.sext")]
+#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface)]
+#[format_op("$0 `=>` type($0)")]
+pub struct SExtOp;
+impl Verify for SExtOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        integer_ext_verify(&self.get_operation().deref(ctx), ctx)
+    }
+}
+
+/// Equivalent to LLVM's zext opcode.
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `arg` | Signless integer |
+/// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | Signless integer |
+#[def_op("llvm.zext")]
+#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface)]
+#[format_op("$0 `=>` type($0)")]
+pub struct ZExtOp;
+
+impl Verify for ZExtOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        integer_ext_verify(&self.get_operation().deref(ctx), ctx)
+    }
+}
+
 /// Register ops in the LLVM dialect.
 pub fn register(ctx: &mut Context) {
     AddOp::register(ctx, AddOp::parser_fn);
@@ -1193,6 +1272,8 @@ pub fn register(ctx: &mut Context) {
     StoreOp::register(ctx, StoreOp::parser_fn);
     CallOp::register(ctx, CallOp::parser_fn);
     ConstantOp::register(ctx, ConstantOp::parser_fn);
+    SExtOp::register(ctx, SExtOp::parser_fn);
+    ZExtOp::register(ctx, ZExtOp::parser_fn);
     UndefOp::register(ctx, UndefOp::parser_fn);
     ReturnOp::register(ctx, ReturnOp::parser_fn);
 }

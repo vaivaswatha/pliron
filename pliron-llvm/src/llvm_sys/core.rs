@@ -11,18 +11,19 @@ use llvm_sys::{
     core::{
         LLVMAddFunction, LLVMAddIncoming, LLVMAppendBasicBlockInContext, LLVMArrayType2,
         LLVMBasicBlockAsValue, LLVMBuildAdd, LLVMBuildAnd, LLVMBuildArrayAlloca, LLVMBuildBitCast,
-        LLVMBuildBr, LLVMBuildCall2, LLVMBuildCondBr, LLVMBuildICmp, LLVMBuildLoad2, LLVMBuildMul,
-        LLVMBuildOr, LLVMBuildPhi, LLVMBuildRet, LLVMBuildRetVoid, LLVMBuildSDiv, LLVMBuildSRem,
-        LLVMBuildShl, LLVMBuildStore, LLVMBuildSub, LLVMBuildUDiv, LLVMBuildURem, LLVMBuildXor,
-        LLVMClearInsertionPosition, LLVMConstInt, LLVMConstIntGetZExtValue, LLVMContextCreate,
-        LLVMContextDispose, LLVMCountIncoming, LLVMCountParamTypes, LLVMCountParams,
-        LLVMCountStructElementTypes, LLVMCreateBuilderInContext,
-        LLVMCreateMemoryBufferWithContentsOfFile, LLVMDisposeMemoryBuffer, LLVMDisposeMessage,
-        LLVMDisposeModule, LLVMDumpModule, LLVMDumpType, LLVMDumpValue, LLVMFunctionType,
-        LLVMGetAllocatedType, LLVMGetArrayLength2, LLVMGetBasicBlockName,
-        LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType, LLVMGetCalledValue,
-        LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFirstBasicBlock, LLVMGetFirstFunction,
-        LLVMGetFirstInstruction, LLVMGetFirstParam, LLVMGetICmpPredicate, LLVMGetIncomingBlock,
+        LLVMBuildBr, LLVMBuildCall2, LLVMBuildCondBr, LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildLoad2,
+        LLVMBuildMul, LLVMBuildOr, LLVMBuildPhi, LLVMBuildRet, LLVMBuildRetVoid, LLVMBuildSDiv,
+        LLVMBuildSExt, LLVMBuildSRem, LLVMBuildShl, LLVMBuildStore, LLVMBuildSub, LLVMBuildUDiv,
+        LLVMBuildURem, LLVMBuildXor, LLVMBuildZExt, LLVMClearInsertionPosition, LLVMConstInt,
+        LLVMConstIntGetZExtValue, LLVMContextCreate, LLVMContextDispose, LLVMCountIncoming,
+        LLVMCountParamTypes, LLVMCountParams, LLVMCountStructElementTypes,
+        LLVMCreateBuilderInContext, LLVMCreateMemoryBufferWithContentsOfFile,
+        LLVMDisposeMemoryBuffer, LLVMDisposeMessage, LLVMDisposeModule, LLVMDumpModule,
+        LLVMDumpType, LLVMDumpValue, LLVMFunctionType, LLVMGetAllocatedType, LLVMGetArrayLength2,
+        LLVMGetBasicBlockName, LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType,
+        LLVMGetCalledValue, LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFirstBasicBlock,
+        LLVMGetFirstFunction, LLVMGetFirstInstruction, LLVMGetFirstParam,
+        LLVMGetGEPSourceElementType, LLVMGetICmpPredicate, LLVMGetIncomingBlock,
         LLVMGetIncomingValue, LLVMGetInsertBlock, LLVMGetInstructionOpcode,
         LLVMGetInstructionParent, LLVMGetIntTypeWidth, LLVMGetModuleIdentifier, LLVMGetNSW,
         LLVMGetNUW, LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextInstruction,
@@ -160,8 +161,8 @@ pub fn llvm_dump_module(module: &LLVMModule) {
 pub mod llvm_is_a {
     use llvm_sys::core::{
         LLVMIsAAllocaInst, LLVMIsAArgument, LLVMIsACallInst, LLVMIsAConstantExpr,
-        LLVMIsAConstantInt, LLVMIsAGlobalValue, LLVMIsAICmpInst, LLVMIsAInstruction,
-        LLVMIsAInvokeInst, LLVMIsAPHINode,
+        LLVMIsAConstantInt, LLVMIsAGetElementPtrInst, LLVMIsAGlobalValue, LLVMIsAICmpInst,
+        LLVMIsAInstruction, LLVMIsAInvokeInst, LLVMIsAPHINode,
     };
 
     use super::*;
@@ -224,6 +225,11 @@ pub mod llvm_is_a {
     /// LLVMIsAInvokeInst
     pub fn invoke_inst(val: LLVMValue) -> bool {
         unsafe { !LLVMIsAInvokeInst(val.into()).is_null() }
+    }
+
+    /// LLVMIsAGetElementPtrInst
+    pub fn get_element_ptr_inst(val: LLVMValue) -> bool {
+        unsafe { !LLVMIsAGetElementPtrInst(val.into()).is_null() }
     }
 }
 
@@ -980,6 +986,67 @@ pub fn llvm_build_bitcast(
     }
 }
 
+/// LLVMBuildSExt
+pub fn llvm_build_sext(
+    builder: &LLVMBuilder,
+    val: LLVMValue,
+    dest_ty: LLVMType,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildSExt(
+            builder.0,
+            val.into(),
+            dest_ty.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+
+/// LLVMBuildZExt
+pub fn llvm_build_zext(
+    builder: &LLVMBuilder,
+    val: LLVMValue,
+    dest_ty: LLVMType,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildZExt(
+            builder.0,
+            val.into(),
+            dest_ty.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+
+/// LLVMBuildGEP2
+pub fn llvm_build_gep2(
+    builder: &LLVMBuilder,
+    ty: LLVMType,
+    ptr: LLVMValue,
+    indices: &[LLVMValue],
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    let mut indices: Vec<_> = indices.iter().cloned().map(Into::into).collect();
+    unsafe {
+        LLVMBuildGEP2(
+            builder.0,
+            ty.into(),
+            ptr.into(),
+            indices.as_mut_ptr(),
+            indices.len().try_into().unwrap(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+
 /// LLVMAddIncoming
 pub fn llvm_add_incoming(
     phi_node: LLVMValue,
@@ -1168,6 +1235,12 @@ pub fn llvm_get_nuw(arith_inst: LLVMValue) -> bool {
 pub fn llvm_get_nsw(arith_inst: LLVMValue) -> bool {
     assert!(llvm_is_a::instruction(arith_inst));
     unsafe { LLVMGetNSW(arith_inst.into()).to_bool() }
+}
+
+/// LLVMGetGEPSourceElementType
+pub fn llvm_get_gep_source_element_type(gep_inst: LLVMValue) -> LLVMType {
+    assert!(llvm_is_a::get_element_ptr_inst(gep_inst));
+    unsafe { LLVMGetGEPSourceElementType(gep_inst.into()).into() }
 }
 
 /// RAII wrapper around LLVMModuleRef
