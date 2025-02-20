@@ -315,7 +315,7 @@ impl_verify_succ!(PointerType);
 /// Array type, corresponding to LLVM's array type.
 #[def_type("llvm.array")]
 #[derive(Hash, PartialEq, Eq, Debug)]
-#[format_type("`[` $size `x` $elem `]`")]
+#[format_type("`[` $size ` x ` $elem `]`")]
 pub struct ArrayType {
     elem: Ptr<TypeObj>,
     size: u64,

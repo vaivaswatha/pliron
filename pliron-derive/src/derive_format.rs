@@ -565,8 +565,9 @@ trait ParsableBuilder<State: Default> {
     }
 
     fn build_lit(_input: &FmtInput, lit: &str, _state: &mut State) -> TokenStream {
+        let trimmed_lit = lit.trim();
         quote! {
-            ::pliron::irfmt::parsers::spaced(::combine::parser::char::string(#lit))
+            ::pliron::irfmt::parsers::spaced(::combine::parser::char::string(#trimmed_lit))
             .parse_stream(state_stream)
             .into_result()?;
         }

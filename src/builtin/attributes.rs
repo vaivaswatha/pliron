@@ -353,7 +353,7 @@ impl_verify_succ!(UnitAttr);
 /// Same as MLIR's [TypeAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#typeattr).
 #[def_attribute("builtin.type")]
 #[derive(PartialEq, Eq, Clone, Debug)]
-#[format_attribute("`<` $0 `>`")]
+#[format_attribute("$0")]
 pub struct TypeAttr(Ptr<TypeObj>);
 
 impl TypeAttr {

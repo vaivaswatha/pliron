@@ -127,7 +127,7 @@ macro_rules! new_int_bin_op {
     ) => {
         new_int_bin_op_without_format!(
             $(#[$outer])*
-            #[format_op("$0 `,` $1 `:` type($0)")]
+            #[format_op("$0 `, ` $1 ` : ` type($0)")]
             $op_name,
             $op_id
         );
@@ -145,7 +145,7 @@ macro_rules! new_int_bin_op_with_overflow {
             /// | key | value | via Interface |
             /// |-----|-------| --------------
             /// | [ATTR_KEY_INTEGER_OVERFLOW_FLAGS](super::op_interfaces::ATTR_KEY_INTEGER_OVERFLOW_FLAGS) | [IntegerOverflowFlagsAttr](super::attributes::IntegerOverflowFlagsAttr) | [IntBinArithOpWithOverflowFlag] |
-            #[format_op("$0 `,` $1 `<` attr($llvm_integer_overflow_flags, `super::attributes::IntegerOverflowFlagsAttr`) `>` `:` type($0)")]
+            #[format_op("$0 `, ` $1 ` <` attr($llvm_integer_overflow_flags, `super::attributes::IntegerOverflowFlagsAttr`) `>` `: ` type($0)")]
             $op_name,
             $op_id
         );
@@ -260,7 +260,7 @@ pub enum ICmpOpVerifyErr {
 /// |-----|-------| --------------|
 /// | [ATTR_KEY_PREDICATE](icmp_op::ATTR_KEY_PREDICATE) | [ICmpPredicateAttr](ICmpPredicateAttr) | N/A |
 #[def_op("llvm.icmp")]
-#[format_op("$0 `<` attr($llvm_icmp_predicate, $ICmpPredicateAttr) `>` $1 `:` type($0)")]
+#[format_op("$0 ` <` attr($llvm_icmp_predicate, $ICmpPredicateAttr) `> ` $1 ` : ` type($0)")]
 #[derive_op_interface_impl(SameOperandsType, OneResultInterface)]
 pub struct ICmpOp;
 
@@ -360,7 +360,7 @@ pub enum AllocaOpVerifyErr {
 /// |-----|-------| --------------|
 /// | [ATTR_KEY_ELEM_TYPE](alloca_op::ATTR_KEY_ELEM_TYPE) | [TypeAttr](pliron::builtin::attributes::TypeAttr) | N/A |
 #[def_op("llvm.alloca")]
-#[format_op("$0 `<` attr($llvm_alloca_element_type, $TypeAttr) `>` `:` type($0)")]
+#[format_op("`[` attr($llvm_alloca_element_type, $TypeAttr) ` x ` $0 `]` ` : ` type($0)")]
 #[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
 pub struct AllocaOp;
 impl Verify for AllocaOp {
@@ -436,7 +436,7 @@ impl AllocaOp {
 /// |-----|-------|
 /// | `res` | non-aggregate LLVM type |
 #[def_op("llvm.bitcast")]
-#[format_op("$0 `:` type($0)")]
+#[format_op("$0 ` : ` type($0)")]
 #[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
 pub struct BitcastOp;
 impl_verify_succ!(BitcastOp);
@@ -709,7 +709,7 @@ pub enum GetElementPtrOpErr {
 /// |-----|-------|
 /// | `res` | LLVM pointer type |
 #[def_op("llvm.gep")]
-#[format_op("`<` attr($llvm_gep_src_elem_type, $TypeAttr) `>` `(` operands(CharSpace(`,`)) `)` attr($llvm_gep_indices, $GepIndicesAttr) `:` type($0)")]
+#[format_op("`<` attr($llvm_gep_src_elem_type, $TypeAttr) `>` ` (` operands(CharSpace(`,`)) `)` attr($llvm_gep_indices, $GepIndicesAttr) ` : ` type($0)")]
 #[derive_op_interface_impl(OneResultInterface)]
 pub struct GetElementPtrOp;
 
@@ -885,7 +885,7 @@ pub enum LoadOpVerifyErr {
 /// ### Attributes:
 ///
 #[def_op("llvm.load")]
-#[format_op("$0 `:` type($0)")]
+#[format_op("$0 ` : ` type($0)")]
 #[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
 pub struct LoadOp;
 impl LoadOp {
@@ -933,7 +933,7 @@ pub enum StoreOpVerifyErr {
 /// ### Attributes:
 ///
 #[def_op("llvm.store")]
-#[format_op("`*` $1 `<-` $0")]
+#[format_op("`*` $1 ` <- ` $0")]
 #[derive_op_interface_impl(ZeroResultInterface)]
 pub struct StoreOp;
 impl StoreOp {
@@ -1219,7 +1219,7 @@ fn integer_ext_verify(op: &Operation, ctx: &Context) -> Result<()> {
 /// | `res` | Signless integer |
 #[def_op("llvm.sext")]
 #[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface)]
-#[format_op("$0 `=>` type($0)")]
+#[format_op("$0 ` to ` type($0)")]
 pub struct SExtOp;
 impl Verify for SExtOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
@@ -1238,7 +1238,7 @@ impl Verify for SExtOp {
 /// | `res` | Signless integer |
 #[def_op("llvm.zext")]
 #[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface)]
-#[format_op("$0 `=>` type($0)")]
+#[format_op("$0 ` to ` type($0)")]
 pub struct ZExtOp;
 
 impl Verify for ZExtOp {
