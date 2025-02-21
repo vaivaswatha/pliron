@@ -357,6 +357,11 @@ impl Operation {
         ArenaObj::dealloc(reg, ctx);
     }
 
+    /// Get an iterator on the regions.
+    pub fn regions(&self) -> impl Iterator<Item = Ptr<Region>> + Clone + '_ {
+        self.regions.iter().cloned()
+    }
+
     /// Get the OpId of the Op of this Operation.
     pub fn get_opid(&self) -> OpId {
         self.opid.clone()

@@ -475,6 +475,46 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
                 let succ_name = "^".to_string() + &succ.unique_name(ctx);
                 ::pliron::printable::Printable::fmt(&succ_name, ctx, state, fmt)?;
             })
+        } else if d.name == "successors" {
+            let err = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `successors` directive takes a single argument to specify the separator.
+                    Refer to the documentation for details"
+                    .to_string(),
+            ));
+            if d.args.len() != 1 {
+                return err;
+            }
+            let Elem::Directive(sep) = &d.args[0] else {
+                return err;
+            };
+            let sep = directive_to_list_separator(sep, true, input.ident.span())?;
+            Ok(quote! {
+                let op = self.get_operation().deref(ctx);
+                let succs = op.successors().map(|succ| "^".to_string() + &succ.unique_name(ctx));
+                let succs = ::pliron::irfmt::printers::iter_with_sep(succs, #sep);
+                ::pliron::printable::Printable::fmt(&succs, ctx, state, fmt)?;
+            })
+        } else if d.name == "regions" {
+            let err = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `regions` directive takes a single argument to specify the separator.
+                    Refer to the documentation for details"
+                    .to_string(),
+            ));
+            if d.args.len() != 1 {
+                return err;
+            }
+            let Elem::Directive(sep) = &d.args[0] else {
+                return err;
+            };
+            let sep = directive_to_list_separator(sep, true, input.ident.span())?;
+            Ok(quote! {
+                let op = self.get_operation().deref(ctx);
+                let regions = op.regions();
+                let regions = ::pliron::irfmt::printers::iter_with_sep(regions, #sep);
+                ::pliron::printable::Printable::fmt(&regions, ctx, state, fmt)?;
+            })
         } else if d.name == "operands" {
             let err = Err(syn::Error::new_spanned(
                 input.ident.clone(),
@@ -494,6 +534,11 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
                 let operands = op.operands();
                 let operands = ::pliron::irfmt::printers::iter_with_sep(operands, #sep);
                 ::pliron::printable::Printable::fmt(&operands, ctx, state, fmt)?;
+            })
+        } else if d.name == "attr_dict" {
+            Ok(quote! {
+                let self_op = self.get_operation().deref(ctx);
+                ::pliron::printable::Printable::fmt(&self_op.attributes, ctx, state, fmt)?;
             })
         } else {
             unimplemented!("Unknown directive {}", d.name)
@@ -867,25 +912,26 @@ struct DeriveBaseParsable;
 
 impl ParsableBuilder<()> for DeriveBaseParsable {}
 
-enum OperandsSpec {
-    Individual(FxHashMap<usize, syn::Ident>),
+/// Specify various elements individually or all at once.
+enum ElementSpec<T> {
+    Individual(FxHashMap<T, syn::Ident>),
     All(syn::Ident),
 }
 
-impl Default for OperandsSpec {
+impl<T> Default for ElementSpec<T> {
     fn default() -> Self {
-        OperandsSpec::Individual(FxHashMap::default())
+        ElementSpec::Individual(FxHashMap::default())
     }
 }
 
 #[derive(Default)]
 struct OpParserState {
     is_canonical: bool,
-    operands: OperandsSpec,
-    successors: FxHashMap<usize, syn::Ident>,
+    operands: ElementSpec<usize>,
+    successors: ElementSpec<usize>,
     result_types: FxHashMap<usize, syn::Ident>,
-    attributes: FxHashMap<String, syn::Ident>,
-    regions: FxHashMap<usize, syn::Ident>,
+    attributes: ElementSpec<String>,
+    regions: ElementSpec<usize>,
 }
 
 struct DeriveOpParsable;
@@ -906,33 +952,12 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             return Ok(output);
         }
 
-        let num_successors = state
-            .successors
-            .keys()
-            .map(|idx| idx + 1)
-            .max()
-            .unwrap_or_default();
         let num_result_types = state
             .result_types
             .keys()
             .map(|idx| idx + 1)
             .max()
             .unwrap_or_default();
-        let num_regions = state
-            .regions
-            .keys()
-            .map(|idx| idx + 1)
-            .max()
-            .unwrap_or_default();
-
-        for i in 0..num_successors {
-            if !state.successors.contains_key(&i) {
-                return Err(syn::Error::new_spanned(
-                    input.ident.clone(),
-                    format!("missing successor {}", i),
-                ));
-            }
-        }
 
         for i in 0..num_result_types {
             if !state.result_types.contains_key(&i) {
@@ -954,19 +979,10 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             }
         };
 
-        for i in 0..num_regions {
-            if !state.regions.contains_key(&i) {
-                return Err(syn::Error::new_spanned(
-                    input.ident.clone(),
-                    format!("missing region {}", i),
-                ));
-            }
-        }
-
         output.extend(results_check);
 
         let operands = match state.operands {
-            OperandsSpec::Individual(ref operands) => {
+            ElementSpec::Individual(ref operands) => {
                 let num_operands = operands.keys().map(|idx| idx + 1).max().unwrap_or_default();
                 for i in 0..num_operands {
                     if !operands.contains_key(&i) {
@@ -981,32 +997,85 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                     vec![#( #operand_indices ),*]
                 }
             }
-            OperandsSpec::All(ref all) => {
+            ElementSpec::All(ref all) => {
                 quote! {
                     #all
                 }
             }
         };
-        let successors_indices = (0..num_successors).map(|i| state.successors[&i].clone());
-        let successors = quote! {
-            vec![#( #successors_indices ),*]
+
+        let successors = match state.successors {
+            ElementSpec::Individual(ref successors) => {
+                let num_successors = successors
+                    .keys()
+                    .map(|idx| idx + 1)
+                    .max()
+                    .unwrap_or_default();
+                for i in 0..num_successors {
+                    if !successors.contains_key(&i) {
+                        return Err(syn::Error::new_spanned(
+                            input.ident.clone(),
+                            format!("missing successor {}", i),
+                        ));
+                    }
+                }
+                let successor_indices = (0..num_successors).map(|i| successors[&i].clone());
+                quote! {
+                    vec![#( #successor_indices ),*]
+                }
+            }
+            ElementSpec::All(ref all) => {
+                quote! {
+                    #all
+                }
+            }
         };
+
+        let regions = match state.regions {
+            ElementSpec::Individual(ref regions) => {
+                let num_regions = regions.keys().map(|idx| idx + 1).max().unwrap_or_default();
+                for i in 0..num_regions {
+                    if !regions.contains_key(&i) {
+                        return Err(syn::Error::new_spanned(
+                            input.ident.clone(),
+                            format!("missing region {}", i),
+                        ));
+                    }
+                }
+                let region_indices = (0..num_regions).map(|i| regions[&i].clone());
+                quote! {
+                    vec![#( #region_indices ),*]
+                }
+            }
+            ElementSpec::All(ref all) => {
+                quote! {
+                    #all
+                }
+            }
+        };
+
         let result_indices = (0..num_result_types).map(|i| state.result_types[&i].clone());
         let results = quote! {
             vec![#( #result_indices ),*]
         };
-        let region_indices = (0..num_regions).map(|i| state.regions[&i].clone());
-        let regions = quote! {
-            vec![#( #region_indices ),*]
-        };
+
         let mut attribute_sets = quote! {};
-        for (attr_name, attr_ident) in &state.attributes {
-            attribute_sets.extend(quote! {
-                op.deref_mut(state_stream.state.ctx).attributes.0.insert(
-                    ::pliron::identifier::Identifier::try_from(#attr_name).unwrap(),
-                    #attr_ident,
-                );
-            });
+        match &state.attributes {
+            ElementSpec::Individual(attributes) => {
+                for (attr_name, attr_ident) in attributes {
+                    attribute_sets.extend(quote! {
+                        op.deref_mut(state_stream.state.ctx).attributes.0.insert(
+                            ::pliron::identifier::Identifier::try_from(#attr_name).unwrap(),
+                            #attr_ident,
+                        );
+                    });
+                }
+            }
+            ElementSpec::All(attr_sets_name) => {
+                attribute_sets = quote! {
+                    op.deref_mut(state_stream.state.ctx).attributes = #attr_sets_name;
+                }
+            }
         }
 
         output.extend(quote! {
@@ -1021,7 +1090,10 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             for region in #regions {
                 ::pliron::region::Region::move_to_op(region, op, state_stream.state.ctx);
             }
-            process_parsed_ssa_defs(state_stream, &arg, op)?;
+
+            if !arg.is_empty() {
+                process_parsed_ssa_defs(state_stream, &arg, op)?;
+            }
             let final_ret_value = Operation::get_op(op, state_stream.state.ctx);
         });
 
@@ -1037,9 +1109,19 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
     ) -> Result<TokenStream> {
         let attr_name = attr_name.to_string();
         let attr_name_ident = format_ident!("{}", attr_name);
-        state
-            .attributes
-            .insert(attr_name.clone(), attr_name_ident.clone());
+
+        match state.attributes {
+            ElementSpec::Individual(ref mut attributes) => {
+                attributes.insert(attr_name.clone(), attr_name_ident.clone());
+            }
+            ElementSpec::All(_) => {
+                return Err(syn::Error::new_spanned(
+                    _input.ident.clone(),
+                    "Cannot mix attributes directive with named attributes".to_string(),
+                ));
+            }
+        }
+
         Ok(quote! {
             let #attr_name_ident = attr_parser()
                 .parse_stream(state_stream)
@@ -1055,10 +1137,10 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
     ) -> Result<TokenStream> {
         let opd_name = format_ident!("opd_{}", index);
         match state.operands {
-            OperandsSpec::Individual(ref mut operands) => {
+            ElementSpec::Individual(ref mut operands) => {
                 operands.insert(index, opd_name.clone());
             }
-            OperandsSpec::All(_) => {
+            ElementSpec::All(_) => {
                 return Err(syn::Error::new_spanned(
                     _input.ident.clone(),
                     "Cannot mix operands directive with unnamed operands".to_string(),
@@ -1103,29 +1185,46 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                 return err;
             }
         } else if d.name == "region" {
-            let err = Err(syn::Error::new_spanned(
-                input.ident.clone(),
-                "The `region` directive takes a single unnamed variable argument to specify the region index".to_string(),
-            ));
-            if d.args.len() != 1 {
-                return err;
+            let Some(Elem::UnnamedVar(UnnamedVar { index: reg_idx, .. })) = &d.args.first() else {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "The `region` directive takes a single unnamed variable argument to specify the region index".to_string(),
+                ));
+            };
+
+            let reg_name = format_ident!("reg_{}", *reg_idx);
+            match state.regions {
+                ElementSpec::Individual(ref mut regions) => {
+                    regions.insert(*reg_idx, reg_name.clone());
+                }
+                ElementSpec::All(_) => {
+                    return Err(syn::Error::new_spanned(
+                        input.ident.clone(),
+                        "Cannot mix regions directive with numbered regions".to_string(),
+                    ));
+                }
             }
-            if let Elem::UnnamedVar(UnnamedVar { index, .. }) = &d.args[0] {
-                let reg_parsed = format_ident!("reg_{}", index);
-                state.regions.insert(*index, reg_parsed.clone());
-                Ok(quote! {
-                    let #reg_parsed = ::pliron::region::Region::parser
-                        (state_stream.state.parent_for_regions).parse_stream(state_stream).into_result()?.0;
-                })
-            } else {
-                return err;
-            }
+
+            Ok(quote! {
+                let #reg_name = ::pliron::region::Region::parser
+                    (state_stream.state.parent_for_regions).parse_stream(state_stream).into_result()?.0;
+            })
         } else if d.name == "attr" {
             let (attr_name_str, attr_type_path) = parse_attr_directive_args(d, input)?;
             let attr_name_ident = format_ident!("{}", attr_name_str);
-            state
-                .attributes
-                .insert(attr_name_str.clone(), attr_name_ident.clone());
+
+            match state.attributes {
+                ElementSpec::Individual(ref mut attributes) => {
+                    attributes.insert(attr_name_str.clone(), attr_name_ident.clone());
+                }
+                ElementSpec::All(_) => {
+                    return Err(syn::Error::new_spanned(
+                        input.ident.clone(),
+                        "Cannot mix attributes directive with named attributes".to_string(),
+                    ));
+                }
+            }
+
             Ok(quote! {
                 let #attr_name_ident = Box::new(#attr_type_path::parser(())
                     .parse_stream(state_stream)
@@ -1133,49 +1232,117 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                     .0);
             })
         } else if d.name == "succ" {
-            let err = Err(syn::Error::new_spanned(
-                input.ident.clone(),
-                "The `succ` directive takes a single unnamed variable argument to specify the successor index".to_string(),
-            ));
-            if d.args.len() != 1 {
-                return err;
-            }
-            let Elem::UnnamedVar(UnnamedVar { index, .. }) = &d.args[0] else {
-                return err;
+            let Some(Elem::UnnamedVar(UnnamedVar { index, .. })) = &d.args.first() else {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "The `succ` directive takes a single unnamed variable argument to specify the successor index".to_string(),
+                ));
             };
+
             let succ_name = format_ident!("succ_{}", index);
-            state.successors.insert(*index, succ_name.clone());
+            match state.successors {
+                ElementSpec::Individual(ref mut successors) => {
+                    successors.insert(*index, succ_name.clone());
+                }
+                ElementSpec::All(_) => {
+                    return Err(syn::Error::new_spanned(
+                        input.ident.clone(),
+                        "Cannot mix successors directive with numbered successors".to_string(),
+                    ));
+                }
+            }
             Ok(quote! {
                 let #succ_name = block_opd_parser().parse_stream(state_stream).into_result()?.0;
             })
-        } else if d.name == "operands" {
-            let err = Err(syn::Error::new_spanned(
-                input.ident.clone(),
-                "The `operands` directive takes a single argument to specify the separator.
-                    Refer to the documentation for details"
-                    .to_string(),
-            ));
-            if d.args.len() != 1 {
-                return err;
-            }
-            let Elem::Directive(sep) = &d.args[0] else {
-                return err;
+        } else if d.name == "regions" {
+            let Some(Elem::Directive(sep)) = &d.args.first() else {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "The `regions` directive takes a single argument to specify the separator.
+                        Refer to the documentation for details"
+                        .to_string(),
+                ));
             };
             let sep = directive_to_list_separator(sep, false, input.ident.span())?;
-            let operands_var_name = format_ident!("{}", "operands");
-            if matches!(&state.operands, OperandsSpec::Individual(operands) if !operands.is_empty())
+            let regions_var_name = format_ident!("{}", "regions");
+            if matches!(&state.regions, ElementSpec::Individual(regions) if !regions.is_empty()) {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "Cannot mix regions directive with numbered regions".to_string(),
+                ));
+            }
+            state.regions = ElementSpec::All(regions_var_name.clone());
+            Ok(quote! {
+                let #regions_var_name =
+                    ::pliron::irfmt::parsers::list_parser
+                        (#sep, ::pliron::region::Region::parser(state_stream.state.parent_for_regions))
+                    .parse_stream(state_stream)
+                    .into_result()?
+                    .0;
+            })
+        } else if d.name == "successors" {
+            let Some(Elem::Directive(sep)) = &d.args.first() else {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "The `successors` directive takes a single argument to specify the separator.
+                    Refer to the documentation for details"
+                        .to_string(),
+                ));
+            };
+            let sep = directive_to_list_separator(sep, false, input.ident.span())?;
+            let succ_var_name = format_ident!("{}", "successors");
+            if matches!(&state.successors, ElementSpec::Individual(successors) if !successors.is_empty())
             {
                 return Err(syn::Error::new_spanned(
                     input.ident.clone(),
-                    "Cannot mix operands directive with unnamed operands".to_string(),
+                    "Cannot mix successors directive with numbered successors".to_string(),
                 ));
             }
-            state.operands = OperandsSpec::All(operands_var_name.clone());
+            state.successors = ElementSpec::All(succ_var_name.clone());
+            Ok(quote! {
+                let #succ_var_name = ::pliron::irfmt::parsers::list_parser(#sep, block_opd_parser())
+                    .parse_stream(state_stream)
+                    .into_result()?
+                    .0;
+            })
+        } else if d.name == "operands" {
+            let Some(Elem::Directive(sep)) = &d.args.first() else {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "The `operands` directive takes a single argument to specify the separator.
+                    Refer to the documentation for details"
+                        .to_string(),
+                ));
+            };
+            let sep = directive_to_list_separator(sep, false, input.ident.span())?;
+            let operands_var_name = format_ident!("{}", "operands");
+            if matches!(&state.operands, ElementSpec::Individual(operands) if !operands.is_empty())
+            {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "Cannot mix operands directive with numbered operands".to_string(),
+                ));
+            }
+            state.operands = ElementSpec::All(operands_var_name.clone());
             Ok(quote! {
                 let #operands_var_name = ::pliron::irfmt::parsers::list_parser(#sep, ssa_opd_parser())
                     .parse_stream(state_stream)
                     .into_result()?
                     .0;
+            })
+        } else if d.name == "attr_dict" {
+            let attr_sets_name = format_ident!("attr_sets");
+            if matches!(&state.attributes, ElementSpec::Individual(attributes) if !attributes.is_empty())
+            {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "Cannot mix attributes directive with named attributes".to_string(),
+                ));
+            }
+            state.attributes = ElementSpec::All(attr_sets_name.clone());
+            Ok(quote! {
+                let #attr_sets_name =
+                    ::pliron::attribute::AttributeDict::parser(()).parse_stream(state_stream).into_result()?.0;
             })
         } else {
             unimplemented!("Unknown directive {}", d.name)

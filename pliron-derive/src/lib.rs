@@ -190,11 +190,14 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 ///   `res1, ... = opid ...`
 /// The format string specifies what comes after the opid.
 ///   1. A named variable `$name` specifies a named attribute of the operation.
+///      This cannot be combined with the "attr_dict" directive.
 ///   2. An unnamed variable `$i` specifies `operands[i]`, except when inside some directives.
+///      This cannot be combined with the "operands" directive.
 ///   3. The "type" directive specifies that a type must be parsed. It takes one argument,
 ///      which is an unnamed variable `$i` with `i` specifying `result[i]`.
 ///   4. The "region" directive specifies that a region must be parsed. It takes one argument,
-///      which is an unnamed variable `$i` with `i` specifying `region[i]`.
+///      which is an unnamed variable `$i` with `i` specifying `region[i]`. This cannot be
+///      combined with the "regions" directive.
 ///   5. The "attr" directive can be used to specify attribute on an `Op` when the attribute's
 ///      rust type is fixed at compile time. It takes two arguments, the first is the attribute name
 ///      and the second is the concrete rust type of the attribute. This second argument can be a
@@ -202,6 +205,7 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 ///      to a rust type (e.g. `` `::pliron::builtin::attributes::IntegerAttr` ``).
 ///      The advantage over specifying the attribute as a named variable is that the attribute-id
 ///      is not a part of the syntax here, allowing it to be more succinct.
+///      This cannot be combined with the "attr_dict" directive.
 ///   6. The "succ" directive specifies an operation's successor. It takes one argument,
 ///      which is an unnamed variable `$i` with `i` specifying `successor[i]`.
 ///   7. The "operands" directive specifies all the operands of an operation. It takes one argument
@@ -211,6 +215,15 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 ///        2. ``CharNewline(`c`)``: takes a single character argument that will be followed by a newline.
 ///        3. ``Char(`c`)``: takes a single character argument that will be used as separator.
 ///        4. ``CharSpace(`c`)``: takes a single character argument that will be followed by a space.
+///   8. The "successors" directive specifies all the successors of an operation. It takes one argument
+///      which is a directive specifying the separator between successors. The separator directive is same
+///      as that for "operands" above. This cannot be combined with the "succ" directive.
+///   9. The "regions" directive specifies all the regions of an operation. It takes one argument
+///      which is a directive specifying the separator between regions. The separator directive is same
+///      as that for "operands" above. This cannot be combined with the "region" directive.
+///  10. The "attr_dict" directive specifies an [AttributeDict](../pliron/attribute/struct.AttributeDict.html).
+///      It cannot be combined with either the "attr" directive or a named variable (`$name`).
+///      
 ///
 /// Examples:
 /// 1. Derive for a struct, with no format string (default format):

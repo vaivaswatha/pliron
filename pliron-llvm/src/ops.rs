@@ -64,6 +64,7 @@ use super::{
 /// |-----|-------|
 /// | `arg` | any type |
 #[def_op("llvm.return")]
+#[format_op("operands(CharSpace(`,`))")]
 #[derive_op_interface_impl(IsTerminatorInterface)]
 pub struct ReturnOp;
 impl ReturnOp {
@@ -90,7 +91,6 @@ impl ReturnOp {
         }
     }
 }
-impl_canonical_syntax!(ReturnOp);
 impl_verify_succ!(ReturnOp);
 
 macro_rules! new_int_bin_op_without_format {

@@ -434,3 +434,154 @@ fn br_op() {
 
     assert!(res.verify(ctx).is_ok());
 }
+
+#[def_op("test.multiple_successors")]
+#[format_op("`[` successors(CharSpace(`,`)) `]`")]
+#[derive_op_interface_impl(IsTerminatorInterface)]
+pub struct MultipleSuccessorsOp;
+impl_verify_succ!(MultipleSuccessorsOp);
+
+#[test]
+fn multiple_successors_op() {
+    let ctx = &mut setup_context_dialects();
+    AttrOp::register(ctx, AttrOp::parser_fn);
+    MultipleSuccessorsOp::register(ctx, MultipleSuccessorsOp::parser_fn);
+
+    let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.attr_op <0x0: builtin.int <si64>> :builtin.int <si64>;
+            test.multiple_successors [^bb1, ^bb2]
+          ^bb1():
+            test.return res0
+          ^bb2():
+            test.return res0
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::parser(())
+        .parse(state_stream)
+        .expect("MultipleSuccessorsOp parser failed");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <()->()> 
+        {
+          ^entry_block_3v1():
+            res0_op_3v1_res0 = test.attr_op <0x0: builtin.int <si64>>:builtin.int <si64>;
+            test.multiple_successors [^bb1_block_4v1, ^bb2_block_1v3]
+          ^bb1_block_4v1():
+            test.return res0_op_3v1_res0
+          ^bb2_block_1v3():
+            test.return res0_op_3v1_res0
+        }"#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+}
+
+#[def_op("test.multiple_regions")]
+#[format_op("`[` regions(CharSpace(`,`)) `]`")]
+pub struct MultipleRegionsOp;
+impl_verify_succ!(MultipleRegionsOp);
+
+#[test]
+fn multiple_regions_op() {
+    let ctx = &mut setup_context_dialects();
+    AttrOp::register(ctx, AttrOp::parser_fn);
+    MultipleRegionsOp::register(ctx, MultipleRegionsOp::parser_fn);
+
+    let printed = "
+    builtin.func @testfunc: builtin.function <()->()> {
+      ^entry():
+        res = test.attr_op <0x0: builtin.int <si64>> :builtin.int <si64>;
+        test.multiple_regions [
+            {
+                ^reg1_entry():
+                    res0 = test.attr_op <0x0: builtin.int <si64>> :builtin.int <si64>;
+                    test.return res0
+            }, {
+                ^reg2_entry():
+                    res1 = test.attr_op <0x1: builtin.int <si64>> :builtin.int <si64>;
+                    test.return res1
+            }
+        ];
+        test.return res
+    }";
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::parser(())
+        .parse(state_stream)
+        .expect("MultipleRegionsOp parser failed");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <()->()> 
+        {
+          ^entry_block_3v1():
+            res_op_3v1_res0 = test.attr_op <0x0: builtin.int <si64>>:builtin.int <si64>;
+            test.multiple_regions [
+            {
+              ^reg1_entry_block_1v1():
+                res0_op_4v1_res0 = test.attr_op <0x0: builtin.int <si64>>:builtin.int <si64>;
+                test.return res0_op_4v1_res0
+            }, 
+            {
+              ^reg2_entry_block_2v1():
+                res1_op_6v1_res0 = test.attr_op <0x1: builtin.int <si64>>:builtin.int <si64>;
+                test.return res1_op_6v1_res0
+            }];
+            test.return res_op_3v1_res0
+        }"#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+}
+
+#[def_op("test.attr_dict")]
+#[format_op("attr_dict")]
+struct AttrDictOp;
+impl_verify_succ!(AttrDictOp);
+
+#[test]
+fn attr_dict_op() {
+    let ctx = &mut setup_context_dialects();
+    AttrDictOp::register(ctx, AttrDictOp::parser_fn);
+    AttrOp::register(ctx, AttrOp::parser_fn);
+
+    let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.attr_op <0x11: builtin.int <si64>> :builtin.int <si64>;
+            test.attr_dict [
+                (attr1: builtin.integer <0x0: builtin.int <si64>>),
+                (attr2: builtin.integer <0x1: builtin.int <si64>>)
+            ];
+            test.return res0
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::parser(())
+        .parse(state_stream)
+        .expect("AttrDictOp parser failed");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <()->()> 
+        {
+          ^entry_block_1v1():
+            res0_op_3v1_res0 = test.attr_op <0x11: builtin.int <si64>>:builtin.int <si64>;
+            test.attr_dict [(attr1: builtin.integer <0x0: builtin.int <si64>>), (attr2: builtin.integer <0x1: builtin.int <si64>>)];
+            test.return res0_op_3v1_res0
+        }"#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+}
