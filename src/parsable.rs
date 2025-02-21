@@ -13,21 +13,20 @@ use crate::{
     input_err,
     irfmt::parsers::int_parser,
     location::{self, Located, Location},
-    op::{op_impls, Op},
+    op::{Op, op_impls},
     operation::Operation,
     result::{self, Result},
     value::Value,
 };
 use combine::{
+    Parser, Positioned, StreamOnce,
     easy::{self, Errors, ParseError},
     error::{StdParseResult2, Tracked},
     stream::{
-        self, buffered,
+        self, IteratorStream, buffered,
         position::{self, SourcePosition},
         state::Stream,
-        IteratorStream,
     },
-    Parser, Positioned, StreamOnce,
 };
 use rustc_hash::FxHashMap;
 use thiserror::Error;

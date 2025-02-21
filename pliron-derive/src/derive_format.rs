@@ -1,11 +1,11 @@
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use rustc_hash::FxHashMap;
-use syn::{spanned::Spanned, Data, DeriveInput, LitStr, Result};
+use syn::{Data, DeriveInput, LitStr, Result, spanned::Spanned};
 
 use crate::irfmt::{
-    canonical_format_for_enums, canonical_format_for_structs, canonical_op_format, Directive, Elem,
-    FieldIdent, FmtData, Format, Lit, UnnamedVar, Var,
+    Directive, Elem, FieldIdent, FmtData, Format, Lit, UnnamedVar, Var, canonical_format_for_enums,
+    canonical_format_for_structs, canonical_op_format,
 };
 
 /// Data parsed from the macro to derive formatting for Rust types
@@ -227,7 +227,7 @@ trait PrintableBuilder<State: Default> {
             Elem::UnnamedVar(UnnamedVar { index, .. }) => {
                 Self::build_unnamed_var(input, state, *index)
             }
-            Elem::Directive(ref d) => Self::build_directive(input, state, d),
+            Elem::Directive(d) => Self::build_directive(input, state, d),
         }
     }
 
@@ -593,7 +593,7 @@ trait ParsableBuilder<State: Default> {
             Elem::UnnamedVar(UnnamedVar { index, .. }) => {
                 Self::build_unnamed_var(input, state, *index)
             }
-            Elem::Directive(ref d) => Self::build_directive(input, state, d),
+            Elem::Directive(d) => Self::build_directive(input, state, d),
         }
     }
 

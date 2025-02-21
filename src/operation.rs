@@ -4,26 +4,26 @@
 
 use std::marker::PhantomData;
 
-use combine::{attempt, parser::char::spaces, token, Parser};
+use combine::{Parser, attempt, parser::char::spaces, token};
 use thiserror::Error;
 
 use crate::{
     attribute::AttributeDict,
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
-    context::{private::ArenaObj, ArenaCell, Context, Ptr},
+    context::{ArenaCell, Context, Ptr, private::ArenaObj},
     debug_info,
     identifier::Identifier,
     input_err,
     irfmt::parsers::{location, spaced},
-    linked_list::{private, LinkedList},
+    linked_list::{LinkedList, private},
     location::{Located, Location},
     op::{self, OpId, OpObj},
     parsable::{self, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{TypeObj, Typed},
     region::Region,
     result::Result,
+    r#type::{TypeObj, Typed},
     utils::vec_exns::VecExtns,
     value::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
     verify_err,

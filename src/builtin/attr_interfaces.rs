@@ -3,8 +3,8 @@ use pliron::derive::attr_interface;
 use crate::{
     attribute::Attribute,
     context::{Context, Ptr},
-    r#type::TypeObj,
     result::Result,
+    r#type::TypeObj,
 };
 
 /// [Attribute]s that have an associated [Type](crate::type::Type).

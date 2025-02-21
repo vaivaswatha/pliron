@@ -10,7 +10,7 @@ use pliron::{
     impl_verify_succ, location,
     op::Op,
     operation::Operation,
-    parsable::{self, state_stream_from_iterator, Parsable},
+    parsable::{self, Parsable, state_stream_from_iterator},
     printable::Printable,
 };
 use pliron_derive::{def_op, derive_op_interface_impl, format_op};

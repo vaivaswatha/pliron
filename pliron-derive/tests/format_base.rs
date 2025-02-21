@@ -3,7 +3,7 @@
 use pliron::{
     builtin::types::IntegerType,
     location,
-    parsable::{self, state_stream_from_iterator, Parsable},
+    parsable::{self, Parsable, state_stream_from_iterator},
     printable::Printable,
     r#type::TypePtr,
 };

@@ -1,8 +1,8 @@
 use apint::ApInt;
 use combine::{
-    any, between, many, many1, none_of,
+    Parser, any, between, many, many1, none_of,
     parser::char::{self, hex_digit, string},
-    token, Parser,
+    token,
 };
 use pliron::derive::{attr_interface_impl, def_attribute};
 use pliron_derive::format_attribute;
@@ -17,8 +17,8 @@ use crate::{
     location::Located,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{TypeObj, TypePtr, Typed},
     result::Result,
+    r#type::{TypeObj, TypePtr, Typed},
 };
 
 use super::{attr_interfaces::TypedAttrInterface, types::IntegerType};
@@ -297,22 +297,22 @@ impl DictAttr {
 
     /// Add an entry to the dictionary.
     pub fn insert(&mut self, key: &Identifier, val: AttrObj) {
-        self.0 .0.insert(key.clone(), val);
+        self.0.0.insert(key.clone(), val);
     }
 
     /// Remove an entry from the dictionary.
     pub fn remove(&mut self, key: &Identifier) {
-        self.0 .0.remove(key);
+        self.0.0.remove(key);
     }
 
     /// Lookup a name in the dictionary.
     pub fn lookup<'a>(&'a self, key: &Identifier) -> Option<&'a AttrObj> {
-        self.0 .0.get(key)
+        self.0.0.get(key)
     }
 
     /// Lookup a name in the dictionary, get a mutable reference.
     pub fn lookup_mut<'a>(&'a mut self, key: &Identifier) -> Option<&'a mut AttrObj> {
-        self.0 .0.get_mut(key)
+        self.0.0.get_mut(key)
     }
 }
 
@@ -393,7 +393,7 @@ mod tests {
     use expect_test::expect;
 
     use crate::{
-        attribute::{attr_cast, AttrObj},
+        attribute::{AttrObj, attr_cast},
         builtin::{
             self,
             attr_interfaces::TypedAttrInterface,
@@ -534,9 +534,11 @@ mod tests {
         let dict2_attr = dict2.as_mut().downcast_mut::<DictAttr>().unwrap();
         assert!(dict1_attr.lookup(&hello_id).unwrap() == &hello_attr);
         assert!(dict1_attr.lookup(&world_id).unwrap() == &world_attr);
-        assert!(dict1_attr
-            .lookup(&"hello_world".try_into().unwrap())
-            .is_none());
+        assert!(
+            dict1_attr
+                .lookup(&"hello_world".try_into().unwrap())
+                .is_none()
+        );
         dict2_attr.insert(&world_id, world_attr);
         assert!(dict1_attr == dict2_attr);
 

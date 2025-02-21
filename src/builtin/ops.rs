@@ -1,4 +1,4 @@
-use combine::{token, Parser};
+use combine::{Parser, token};
 use pliron::derive::{def_op, derive_op_interface_impl};
 use thiserror::Error;
 
@@ -19,9 +19,9 @@ use crate::{
     operation::Operation,
     parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{TypeObj, TypePtr, Typed},
     region::Region,
     result::Result,
+    r#type::{TypeObj, TypePtr, Typed},
     verify_err,
 };
 

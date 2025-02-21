@@ -9,7 +9,7 @@ pub mod op;
 
 use crate::{
     context::Context,
-    printable::{fmt_iter, ListSeparator, Printable, State},
+    printable::{ListSeparator, Printable, State, fmt_iter},
 };
 
 /// Wrap a function to implement the Printable trait

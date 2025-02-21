@@ -20,10 +20,10 @@ use pliron::{
     input_err, input_err_noloc, input_error_noloc,
     linked_list::{ContainsLinkedList, LinkedList},
     location::Located,
-    op::{op_cast, Op},
+    op::{Op, op_cast},
     operation::Operation,
-    r#type::{type_cast, Type, TypeObj, TypePtr, Typed},
     result::Result,
+    r#type::{Type, TypeObj, TypePtr, Typed, type_cast},
     value::Value,
 };
 
@@ -34,6 +34,7 @@ use thiserror::Error;
 use crate::{
     attributes::ICmpPredicateAttr,
     llvm_sys::core::{
+        LLVMBasicBlock, LLVMBuilder, LLVMContext, LLVMModule, LLVMType, LLVMValue,
         instruction_iter, llvm_add_function, llvm_add_incoming, llvm_append_basic_block_in_context,
         llvm_array_type2, llvm_build_add, llvm_build_and, llvm_build_array_alloca,
         llvm_build_bitcast, llvm_build_br, llvm_build_call2, llvm_build_cond_br, llvm_build_gep2,
@@ -44,7 +45,6 @@ use crate::{
         llvm_get_param, llvm_get_undef, llvm_int_type_in_context, llvm_is_a,
         llvm_pointer_type_in_context, llvm_position_builder_at_end, llvm_struct_create_named,
         llvm_struct_set_body, llvm_struct_type_in_context, llvm_void_type_in_context,
-        LLVMBasicBlock, LLVMBuilder, LLVMContext, LLVMModule, LLVMType, LLVMValue,
     },
     op_interfaces::PointerTypeResult,
     ops::{

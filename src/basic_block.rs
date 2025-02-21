@@ -1,14 +1,14 @@
 //! A [BasicBlock] is a list of [Operation]s.
 
 use combine::{
-    parser::{char::spaces, Parser},
+    parser::{Parser, char::spaces},
     sep_by, token,
 };
 
 use crate::{
     attribute::AttributeDict,
     common_traits::{Named, Verify},
-    context::{private::ArenaObj, ArenaCell, Context, Ptr},
+    context::{ArenaCell, Context, Ptr, private::ArenaObj},
     debug_info::{get_block_arg_name, set_block_arg_name},
     identifier::Identifier,
     indented_block,
@@ -16,14 +16,14 @@ use crate::{
         parsers::{delimited_list_parser, location, spaced, type_parser},
         printers::{iter_with_sep, list_with_sep},
     },
-    linked_list::{private, ContainsLinkedList, LinkedList},
+    linked_list::{ContainsLinkedList, LinkedList, private},
     location::{Located, Location},
     operation::Operation,
     parsable::{self, IntoParseResult, Parsable, ParseResult},
-    printable::{self, indented_nl, ListSeparator, Printable},
-    r#type::{TypeObj, Typed},
+    printable::{self, ListSeparator, Printable, indented_nl},
     region::Region,
     result::Result,
+    r#type::{TypeObj, Typed},
     utils::vec_exns::VecExtns,
     value::{DefNode, Value},
 };

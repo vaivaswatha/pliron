@@ -11,7 +11,7 @@ use pliron::{
     location,
     op::Op,
     operation::Operation,
-    parsable::{self, state_stream_from_file, Parsable},
+    parsable::{self, Parsable, state_stream_from_file},
     printable::Printable,
     result::Result,
 };
@@ -20,7 +20,7 @@ use pliron_llvm::{
     llvm_sys::core::{LLVMContext, LLVMModule},
     to_llvm_ir,
 };
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 
 const CLANG_BINARY: &str = "clang-18";
 const LLI_BINARY: &str = "lli-18";

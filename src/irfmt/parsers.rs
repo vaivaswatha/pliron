@@ -11,14 +11,14 @@ use crate::{
     location::{Located, Location},
     operation::Operation,
     parsable::{Parsable, ParseResult, StateStream},
-    r#type::TypeObj,
     result::Result,
+    r#type::TypeObj,
     value::Value,
 };
 use combine::{
-    between, many, many1,
+    Parser, Stream, between, many, many1,
     parser::char::{digit, spaces},
-    sep_by, token, Parser, Stream,
+    sep_by, token,
 };
 
 /// Parse from `parser`, ignoring whitespace(s) before and after.
@@ -53,8 +53,8 @@ pub fn location<'a>() -> Box<dyn Parser<StateStream<'a>, Output = Location, Part
 }
 
 /// A parser combinator to parse [TypeId](crate::type::TypeId) followed by the type's contents.
-pub fn type_parser<'a>(
-) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
+pub fn type_parser<'a>()
+-> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a> {
     Ptr::<TypeObj>::parser(())
 }
 
@@ -71,8 +71,8 @@ where
 }
 
 /// Get a parser combinator that can parse any Rust integer type.
-pub fn int_parser<'a, IntT>(
-) -> Box<dyn Parser<StateStream<'a>, Output = IntT, PartialState = ()> + 'a>
+pub fn int_parser<'a, IntT>()
+-> Box<dyn Parser<StateStream<'a>, Output = IntT, PartialState = ()> + 'a>
 where
     IntT: FromStr,
     IntT::Err: std::error::Error + Send + Sync + 'static,
@@ -82,8 +82,8 @@ where
 }
 
 /// A parser combinator to parse [AttrId](crate::attribute::AttrId) followed by the attribute's contents.
-pub fn attr_parser<'a>(
-) -> Box<dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a> {
+pub fn attr_parser<'a>()
+-> Box<dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a> {
     AttrObj::parser(())
 }
 
@@ -133,8 +133,8 @@ pub fn ssa_opd_parse<'a>(state_stream: &mut StateStream<'a>, _arg: ()) -> ParseR
 /// A parser to parse an identifier into an SSA [Value]. Typically called to parse
 /// the SSA operands of an [Operation]. If the SSA value hasn't been defined yet,
 /// a [forward reference](crate::builtin::ops::ForwardRefOp) is returned.
-pub fn ssa_opd_parser<'a>(
-) -> Box<dyn Parser<StateStream<'a>, Output = Value, PartialState = ()> + 'a> {
+pub fn ssa_opd_parser<'a>()
+-> Box<dyn Parser<StateStream<'a>, Output = Value, PartialState = ()> + 'a> {
     combine::parser(move |parsable_state: &mut StateStream<'a>| ssa_opd_parse(parsable_state, ()))
         .boxed()
 }
@@ -159,8 +159,8 @@ pub fn block_opd_parse<'a>(
 
 /// A parser to parse a block label into a [`Ptr<BasicBlock>`]. Typically called to parse
 /// the block operands of an [Operation]. If the block doesn't exist, it's created,
-pub fn block_opd_parser<'a>(
-) -> Box<dyn Parser<StateStream<'a>, Output = Ptr<BasicBlock>, PartialState = ()> + 'a> {
+pub fn block_opd_parser<'a>()
+-> Box<dyn Parser<StateStream<'a>, Output = Ptr<BasicBlock>, PartialState = ()> + 'a> {
     combine::parser(move |parsable_state: &mut StateStream<'a>| block_opd_parse(parsable_state, ()))
         .boxed()
 }

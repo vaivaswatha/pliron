@@ -6,8 +6,8 @@ use crate::{
     attribute::{AttrObj, AttributeDict},
     basic_block::BasicBlock,
     builtin::{
-        attributes::{DictAttr, IdentifierAttr, UnitAttr, VecAttr},
         ATTR_KEY_DEBUG_INFO,
+        attributes::{DictAttr, IdentifierAttr, UnitAttr, VecAttr},
     },
     context::{Context, Ptr},
     identifier::Identifier,

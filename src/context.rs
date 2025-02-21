@@ -8,14 +8,14 @@ use crate::{
     op::{OpCreator, OpId},
     operation::Operation,
     printable::{self, Printable},
-    r#type::TypeObj,
     region::Region,
     result::Result,
     storage_uniquer::UniqueStore,
+    r#type::TypeObj,
     uniqued_any::UniquedAny,
 };
 use rustc_hash::FxHashMap;
-use slotmap::{new_key_type, SlotMap};
+use slotmap::{SlotMap, new_key_type};
 use std::{
     any::TypeId,
     cell::{Ref, RefCell, RefMut},

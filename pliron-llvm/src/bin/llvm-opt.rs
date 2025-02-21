@@ -33,7 +33,7 @@ fn run(cli: Cli, ctx: &mut Context) -> Result<()> {
         .map_err(|err| arg_error_noloc!("{}", err))?;
 
     let pliron_module = from_llvm_ir::convert_module(ctx, &module)?;
-    println!("{}", pliron_module.disp(ctx));
+    // println!("{}", pliron_module.disp(ctx));
     pliron_module.get_operation().verify(ctx)?;
 
     let module = to_llvm_ir::convert_module(ctx, &llvm_context, pliron_module)?;

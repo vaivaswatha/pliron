@@ -2,7 +2,7 @@
 
 use crate::{
     context::Context,
-    identifier::{underscore, Identifier},
+    identifier::{Identifier, underscore},
     result::Result,
 };
 

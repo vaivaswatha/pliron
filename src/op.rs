@@ -29,10 +29,11 @@
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 
 use combine::{
+    Parser,
     parser::{self, char::spaces},
-    token, Parser,
+    token,
 };
-use downcast_rs::{impl_downcast, Downcast};
+use downcast_rs::{Downcast, impl_downcast};
 use linkme::distributed_slice;
 use rustc_hash::FxHashMap;
 use std::{
@@ -61,9 +62,9 @@ use crate::{
     operation::Operation,
     parsable::{IntoParseResult, Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
-    r#type::Typed,
     region::Region,
     result::Result,
+    r#type::Typed,
 };
 
 #[derive(Clone, Hash, PartialEq, Eq)]

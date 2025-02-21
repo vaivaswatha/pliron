@@ -1,16 +1,16 @@
 //! Attribute macros for defining and implementing Interfaces.
 
-use quote::quote;
 use quote::ToTokens;
-use syn::parse::Parse;
-use syn::parse_quote;
-use syn::punctuated::Punctuated;
+use quote::quote;
 use syn::DeriveInput;
 use syn::Ident;
 use syn::ItemImpl;
 use syn::Path;
 use syn::Token;
 use syn::TypeParamBound;
+use syn::parse::Parse;
+use syn::parse_quote;
+use syn::punctuated::Punctuated;
 use syn::{ItemTrait, Result};
 
 /// This macro does two things:

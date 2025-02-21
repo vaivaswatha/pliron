@@ -39,8 +39,8 @@ use std::{
     sync::LazyLock,
 };
 
-use combine::{between, parser, token, Parser};
-use downcast_rs::{impl_downcast, Downcast};
+use combine::{Parser, between, parser, token};
+use downcast_rs::{Downcast, impl_downcast};
 use dyn_clone::DynClone;
 use linkme::distributed_slice;
 use rustc_hash::FxHashMap;

@@ -1,16 +1,16 @@
 //! Regions are containers for [BasicBlock]s within an [Operation].
-use combine::{parser::char::spaces, token, Parser};
+use combine::{Parser, parser::char::spaces, token};
 
 use crate::{
     basic_block::BasicBlock,
     common_traits::Verify,
-    context::{private::ArenaObj, Context, Ptr},
+    context::{Context, Ptr, private::ArenaObj},
     indented_block,
-    linked_list::{private, ContainsLinkedList},
+    linked_list::{ContainsLinkedList, private},
     location::Located,
     operation::Operation,
     parsable::{self, IntoParseResult, Parsable, ParseResult},
-    printable::{self, fmt_indented_newline, fmt_iter, ListSeparator, Printable},
+    printable::{self, ListSeparator, Printable, fmt_indented_newline, fmt_iter},
     result::Result,
 };
 

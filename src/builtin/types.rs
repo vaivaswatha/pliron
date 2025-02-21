@@ -1,4 +1,4 @@
-use combine::{between, choice, parser::char::string, token, Parser};
+use combine::{Parser, between, choice, parser::char::string, token};
 use pliron::derive::def_type;
 use pliron_derive::format_type;
 
@@ -166,7 +166,7 @@ pub fn register(ctx: &mut Context) {
 
 #[cfg(test)]
 mod tests {
-    use combine::{eof, Parser};
+    use combine::{Parser, eof};
     use expect_test::expect;
 
     use super::FunctionType;
@@ -177,7 +177,7 @@ mod tests {
         },
         context::Context,
         location,
-        parsable::{self, state_stream_from_iterator, Parsable},
+        parsable::{self, Parsable, state_stream_from_iterator},
         r#type::Type,
     };
     #[test]
@@ -232,7 +232,7 @@ mod tests {
             .parse(state_stream)
             .unwrap()
             .0
-             .0;
+            .0;
         assert!(res == IntegerType::get_existing(&ctx, 64, Signedness::Signed).unwrap())
     }
 
@@ -273,7 +273,7 @@ mod tests {
             .parse(state_stream)
             .unwrap()
             .0
-             .0;
+            .0;
         assert!(res == FunctionType::get_existing(&ctx, vec![], vec![si32.into()]).unwrap())
     }
 }

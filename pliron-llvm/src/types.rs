@@ -1,6 +1,6 @@
 //! [Type]s defined in the LLVM dialect.
 
-use combine::{between, optional, token, Parser};
+use combine::{Parser, between, optional, token};
 use pliron::derive::{def_type, format_type};
 use pliron::{
     common_traits::Verify,
@@ -14,8 +14,8 @@ use pliron::{
     location::Located,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, ListSeparator, Printable},
-    r#type::{Type, TypeObj, TypePtr},
     result::Result,
+    r#type::{Type, TypeObj, TypePtr},
     verify_err_noloc,
 };
 use thiserror::Error;
@@ -387,7 +387,7 @@ pub fn register(ctx: &mut Context) {
 mod tests {
 
     use crate as llvm;
-    use combine::{eof, token, Parser};
+    use combine::{Parser, eof, token};
     use expect_test::expect;
     use pliron::derive::def_type;
 
@@ -402,10 +402,10 @@ mod tests {
         impl_verify_succ,
         irfmt::parsers::{spaced, type_parser},
         location,
-        parsable::{self, state_stream_from_iterator, Parsable, ParseResult, StateStream},
+        parsable::{self, Parsable, ParseResult, StateStream, state_stream_from_iterator},
         printable::{self, Printable},
-        r#type::{Type, TypeObj, TypePtr},
         result::Result,
+        r#type::{Type, TypeObj, TypePtr},
     };
 
     #[test]
@@ -418,20 +418,24 @@ mod tests {
         // Create an opaque struct since we want a recursive type.
         let list_struct: Ptr<TypeObj> =
             StructType::get_named(&mut ctx, linked_list_id.clone(), None)?.into();
-        assert!(list_struct
-            .deref(&ctx)
-            .downcast_ref::<StructType>()
-            .unwrap()
-            .is_opaque());
+        assert!(
+            list_struct
+                .deref(&ctx)
+                .downcast_ref::<StructType>()
+                .unwrap()
+                .is_opaque()
+        );
         let list_struct_ptr = TypedPointerType::get(&mut ctx, list_struct).into();
         let fields = vec![int64_ptr, list_struct_ptr];
         // Set the struct body now.
         StructType::get_named(&mut ctx, linked_list_id.clone(), Some(fields))?;
-        assert!(!list_struct
-            .deref(&ctx)
-            .downcast_ref::<StructType>()
-            .unwrap()
-            .is_opaque());
+        assert!(
+            !list_struct
+                .deref(&ctx)
+                .downcast_ref::<StructType>()
+                .unwrap()
+                .is_opaque()
+        );
 
         let list_struct_2 = StructType::get_existing_named(&ctx, &linked_list_id)
             .unwrap()
@@ -645,7 +649,7 @@ mod tests {
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
-        let res = type_parser().and(eof()).parse(state_stream).unwrap().0 .0;
+        let res = type_parser().and(eof()).parse(state_stream).unwrap().0.0;
 
         let void_ty = VoidType::get(&mut ctx);
         assert!(res == FuncType::get(&mut ctx, void_ty.to_ptr(), vec![si32.into()]).into());

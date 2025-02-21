@@ -32,7 +32,7 @@
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 
 use crate::common_traits::Verify;
-use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
+use crate::context::{ArenaCell, Context, Ptr, private::ArenaObj};
 use crate::dialect::DialectName;
 use crate::identifier::Identifier;
 use crate::irfmt::parsers::spaced;
@@ -43,8 +43,8 @@ use crate::result::Result;
 use crate::storage_uniquer::TypeValueHash;
 use crate::{arg_err_noloc, impl_printable_for_display, input_err};
 
-use combine::{parser, Parser};
-use downcast_rs::{impl_downcast, Downcast};
+use combine::{Parser, parser};
+use downcast_rs::{Downcast, impl_downcast};
 use linkme::distributed_slice;
 use rustc_hash::FxHashMap;
 use std::cell::Ref;

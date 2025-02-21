@@ -22,12 +22,12 @@ use pliron::{
     identifier::Identifier,
     impl_canonical_syntax, impl_verify_succ,
     location::Location,
-    op::{op_cast, Op, OpObj},
+    op::{Op, OpObj, op_cast},
     operation::Operation,
     parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable},
-    r#type::{Type, TypeObj},
     result::{Error, ErrorKind, Result},
+    r#type::{Type, TypeObj},
     utils::trait_cast::any_to_trait,
 };
 use pliron_derive::format_attribute;

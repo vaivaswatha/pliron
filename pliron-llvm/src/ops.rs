@@ -2,15 +2,15 @@
 
 use pliron::{
     arg_err_noloc,
-    attribute::{attr_cast, AttrObj},
+    attribute::{AttrObj, attr_cast},
     basic_block::BasicBlock,
     builtin::{
         attr_interfaces::TypedAttrInterface,
         attributes::{FloatAttr, IdentifierAttr, IntegerAttr, TypeAttr},
         op_interfaces::{
-            self, BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
-            OneOpdInterface, OneResultInterface, SameOperandsAndResultType, SameOperandsType,
-            SameResultsType, ZeroOpdInterface, ZeroResultInterface, ATTR_KEY_CALLEE_TYPE,
+            self, ATTR_KEY_CALLEE_TYPE, BranchOpInterface, CallOpCallable, CallOpInterface,
+            IsTerminatorInterface, OneOpdInterface, OneResultInterface, SameOperandsAndResultType,
+            SameOperandsType, SameResultsType, ZeroOpdInterface, ZeroResultInterface,
         },
         types::{FunctionType, IntegerType, Signedness},
     },
@@ -32,8 +32,8 @@ use pliron::{
     operation::Operation,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::Printable,
-    r#type::{TypeObj, TypePtr},
     result::{Error, ErrorKind, Result},
+    r#type::{TypeObj, TypePtr},
     utils::vec_exns::VecExtns,
     value::Value,
     verify_err,
@@ -709,7 +709,9 @@ pub enum GetElementPtrOpErr {
 /// |-----|-------|
 /// | `res` | LLVM pointer type |
 #[def_op("llvm.gep")]
-#[format_op("`<` attr($llvm_gep_src_elem_type, $TypeAttr) `>` ` (` operands(CharSpace(`,`)) `)` attr($llvm_gep_indices, $GepIndicesAttr) ` : ` type($0)")]
+#[format_op(
+    "`<` attr($llvm_gep_src_elem_type, $TypeAttr) `>` ` (` operands(CharSpace(`,`)) `)` attr($llvm_gep_indices, $GepIndicesAttr) ` : ` type($0)"
+)]
 #[derive_op_interface_impl(OneResultInterface)]
 pub struct GetElementPtrOp;
 

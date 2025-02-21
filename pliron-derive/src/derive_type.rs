@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::{DeriveInput, LitStr, Result};
 
 const PROC_MACRO_NAME: &str = "def_type";

@@ -1,5 +1,5 @@
 use combine::{
-    between, choice, many, one_of, optional,
+    Parser, between, choice, many, one_of, optional,
     parser::{
         char::spaces,
         range::{recognize, take_while1},
@@ -7,7 +7,7 @@ use combine::{
     },
     position, sep_by,
     stream::position::IndexPositioner,
-    token, Parser,
+    token,
 };
 
 use super::{Elem, Format};

@@ -84,11 +84,7 @@ impl<T: 'static> UniqueStore<T> {
             Entry::Occupied(mut possible_matches) => {
                 let index = possible_matches.get().iter().find_map(|index| {
                     let iref = &*self.unique_store.get(*index).unwrap().borrow_mut();
-                    if eq(&t, iref) {
-                        Some(*index)
-                    } else {
-                        None
-                    }
+                    if eq(&t, iref) { Some(*index) } else { None }
                 });
                 let index = index.unwrap_or(self.unique_store.insert(RefCell::new(t)));
                 possible_matches.get_mut().push(index);
@@ -147,8 +143,10 @@ mod tests {
             .unwrap();
         assert!(u32_0_2_idx == u32_0_idx && u32_1_2_idx == u32_1_idx);
 
-        assert!(u32_store
-            .get(TypeValueHash::new(&2u32), &|x| *x == 2)
-            .is_none());
+        assert!(
+            u32_store
+                .get(TypeValueHash::new(&2u32), &|x| *x == 2)
+                .is_none()
+        );
     }
 }

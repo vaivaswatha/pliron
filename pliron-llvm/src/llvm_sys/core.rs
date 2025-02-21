@@ -1,11 +1,12 @@
 //! Safe wrappers around llvm_sys::core.
 
 use std::{
-    mem::{forget, MaybeUninit},
+    mem::{MaybeUninit, forget},
     ptr,
 };
 
 use llvm_sys::{
+    LLVMIntPredicate, LLVMOpcode, LLVMTypeKind, LLVMValueKind,
     analysis::LLVMVerifyModule,
     bit_writer::LLVMWriteBitcodeToFile,
     core::{
@@ -43,10 +44,9 @@ use llvm_sys::{
         LLVMBasicBlockRef, LLVMBuilderRef, LLVMContextRef, LLVMMemoryBufferRef, LLVMModuleRef,
         LLVMTypeRef, LLVMValueRef,
     },
-    LLVMIntPredicate, LLVMOpcode, LLVMTypeKind, LLVMValueKind,
 };
 
-use crate::llvm_sys::{cstr_to_string, uninitialized_vec, ToBool};
+use crate::llvm_sys::{ToBool, cstr_to_string, uninitialized_vec};
 
 use super::{sized_cstr_to_string, to_c_str};
 
@@ -753,9 +753,11 @@ pub fn llvm_is_valid_function_return_type(ret_ty: LLVMType) -> bool {
 /// LLVMFunctionType
 pub fn llvm_function_type(ret_ty: LLVMType, param_tys: &[LLVMType], is_var_arg: bool) -> LLVMType {
     assert!(llvm_is_valid_function_return_type(ret_ty));
-    assert!(param_tys
-        .iter()
-        .all(|param_ty| llvm_is_valid_function_argument_type(*param_ty)));
+    assert!(
+        param_tys
+            .iter()
+            .all(|param_ty| llvm_is_valid_function_argument_type(*param_ty))
+    );
     let mut param_tys: Vec<_> = param_tys.iter().cloned().map(Into::into).collect();
     unsafe {
         LLVMFunctionType(
@@ -801,9 +803,11 @@ pub fn llvm_struct_type_in_context(
     elem_tys: &[LLVMType],
     is_packed: bool,
 ) -> LLVMType {
-    assert!(elem_tys
-        .iter()
-        .all(|elem_ty| llvm_is_valid_struct_element_type(*elem_ty)));
+    assert!(
+        elem_tys
+            .iter()
+            .all(|elem_ty| llvm_is_valid_struct_element_type(*elem_ty))
+    );
     let mut elem_tys: Vec<_> = elem_tys.iter().cloned().map(Into::into).collect();
     unsafe {
         LLVMStructTypeInContext(
@@ -819,9 +823,11 @@ pub fn llvm_struct_type_in_context(
 /// LLVMStructSetBody
 pub fn llvm_struct_set_body(struct_ty: LLVMType, elem_tys: &[LLVMType], is_packed: bool) {
     assert!(llvm_get_type_kind(struct_ty) == LLVMTypeKind::LLVMStructTypeKind);
-    assert!(elem_tys
-        .iter()
-        .all(|elem_ty| llvm_is_valid_struct_element_type(*elem_ty)));
+    assert!(
+        elem_tys
+            .iter()
+            .all(|elem_ty| llvm_is_valid_struct_element_type(*elem_ty))
+    );
     let mut elem_tys: Vec<_> = elem_tys.iter().cloned().map(Into::into).collect();
     unsafe {
         LLVMStructSetBody(

@@ -13,10 +13,10 @@ use pliron::{
     context::{Context, Ptr},
     identifier::Identifier,
     location::Located,
-    op::{op_cast, Op},
+    op::{Op, op_cast},
     operation::Operation,
-    r#type::{TypeObj, Typed},
     result::Result,
+    r#type::{TypeObj, Typed},
     value::Value,
     verify_err,
 };

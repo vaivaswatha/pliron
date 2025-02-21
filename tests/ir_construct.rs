@@ -1,5 +1,5 @@
 use common::{ConstantOp, ReturnOp};
-use expect_test::{expect, Expect};
+use expect_test::{Expect, expect};
 use pliron::derive::def_op;
 use pliron::{
     basic_block::BasicBlock,
@@ -11,17 +11,16 @@ use pliron::{
     context::Context,
     debug_info::set_operation_result_name,
     graph::walkers::{
-        self,
-        interruptible::{self, walk_advance, walk_break},
-        IRNode, WALKCONFIG_POSTORDER_FORWARD, WALKCONFIG_POSTORDER_REVERSE,
+        self, IRNode, WALKCONFIG_POSTORDER_FORWARD, WALKCONFIG_POSTORDER_REVERSE,
         WALKCONFIG_PREORDER_FORWARD,
+        interruptible::{self, walk_advance, walk_break},
     },
     impl_canonical_syntax, impl_verify_succ,
     irfmt::parsers::spaced,
     location,
     op::Op,
     operation::Operation,
-    parsable::{self, state_stream_from_iterator, Parsable},
+    parsable::{self, Parsable, state_stream_from_iterator},
     printable::Printable,
     result::Result,
 };

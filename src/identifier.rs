@@ -5,7 +5,7 @@ use std::{
     ops::{Add, Deref},
 };
 
-use combine::{token, Parser};
+use combine::{Parser, token};
 use rustc_hash::FxHashMap;
 use thiserror::Error;
 

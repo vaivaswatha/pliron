@@ -6,7 +6,7 @@ use crate::context::{Context, Ptr};
 /// But Rust doesn't allow private trait functions. Hence this
 /// [workaround](https://jack.wrenn.fyi/blog/private-trait-methods/)
 pub(crate) mod private {
-    use crate::context::{private::ArenaObj, Ptr};
+    use crate::context::{Ptr, private::ArenaObj};
 
     pub trait ContainsLinkedList<T: LinkedList> {
         /// Simply set the head pointer.
@@ -307,8 +307,8 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::{private, ContainsLinkedList, LinkedList};
-    use crate::context::{private::ArenaObj, ArenaCell, Context, Ptr};
+    use super::{ContainsLinkedList, LinkedList, private};
+    use crate::context::{ArenaCell, Context, Ptr, private::ArenaObj};
 
     #[derive(PartialEq)]
     struct LLNode {
