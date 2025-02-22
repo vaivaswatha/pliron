@@ -403,6 +403,11 @@ fn test_preorder_forward_walk() {
         test.return c0_op_3v1_res0
     "#]]
     .assert_eq(&ops);
+
+    Operation::erase(module_op, ctx);
+    assert!(ctx.operations.is_empty());
+    assert!(ctx.regions.is_empty());
+    assert!(ctx.basic_blocks.is_empty());
 }
 
 #[test]

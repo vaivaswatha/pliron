@@ -350,22 +350,14 @@ pub fn canonical_syntax_parse<'a>(
     state_stream: &mut StateStream<'a>,
     results: Vec<(Identifier, Location)>,
 ) -> ParseResult<'a, OpObj> {
-    let parent_for_regions = state_stream.state.parent_for_regions;
     // Results and opid have already been parsed. Continue after that.
-    delimited_list_parser('(', ')', ',', ssa_opd_parser())
+    let mut without_regions = delimited_list_parser('(', ')', ',', ssa_opd_parser())
         .and(spaces().with(delimited_list_parser('[', ']', ',', block_opd_parser())))
         .and(spaces().with(AttributeDict::parser(())))
         .skip(spaced(token(':')))
         .and((location(), FunctionType::parser(())))
-        .and((
-            location(),
-            zero_or_more_parser(Region::parser(parent_for_regions)),
-        ))
         .then(
-            move |(
-                (((operands, successors), attr_dict), (fty_loc, fty)),
-                (_regions_loc, regions),
-            )| {
+            move |(((operands, successors), attr_dict), (fty_loc, fty))| {
                 let opid = opid.clone();
                 let results = results.clone();
                 let fty_loc = fty_loc.clone();
@@ -401,17 +393,18 @@ pub fn canonical_syntax_parse<'a>(
                         0,
                     );
                     opr.deref_mut(ctx).attributes = attr_dict.clone();
-                    let op = from_operation(ctx, opr);
-                    for region in regions.iter() {
-                        Region::move_to_op(*region, opr, ctx);
-                    }
                     process_parsed_ssa_defs(parsable_state, &results, opr)?;
-                    Ok(op).into_parse_result()
+                    Ok(opr).into_parse_result()
                 })
             },
-        )
+        );
+
+    let op = without_regions.parse_stream(state_stream).into_result()?.0;
+    zero_or_more_parser(Region::parser(op))
         .parse_stream(state_stream)
-        .into()
+        .into_result()?;
+    let op = from_operation(state_stream.state.ctx, op);
+    Ok(op).into_parse_result()
 }
 
 /// Parser for an [Op] in canonical syntax.

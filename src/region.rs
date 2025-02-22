@@ -157,7 +157,7 @@ impl Parsable for Region {
         state_stream
             .state
             .name_tracker
-            .enter_region(state_stream.state.ctx, parent_op);
+            .enter_region(state_stream.state.ctx, parent_op)?;
 
         let block_list_parser = spaces().with(combine::many::<Vec<_>, _, _>(
             BasicBlock::parser(()).skip(spaces()),

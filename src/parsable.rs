@@ -13,7 +13,7 @@ use crate::{
     input_err,
     irfmt::parsers::int_parser,
     location::{self, Located, Location},
-    op::{Op, op_impls},
+    op::op_impls,
     operation::Operation,
     result::{self, Result},
     value::Value,
@@ -39,40 +39,16 @@ pub struct State<'a> {
     pub ctx: &'a mut Context,
     pub(crate) name_tracker: NameTracker,
     pub src: location::Source,
-    /// Constructing a [Region](crate::region::Region) requires a parent [Operation],
-    /// but during parsing, the parent itself may not be constructed yet.
-    /// So we use a dummy [ForwardRefOp] to represent the parent until it is actually constructed,
-    /// and then move the region to the actual parent.
-    pub parent_for_regions: Ptr<Operation>,
 }
 
 impl<'a> State<'a> {
     /// Create a new empty [State].
     pub fn new(ctx: &'a mut Context, src: location::Source) -> State<'a> {
-        let parent_for_regions = ForwardRefOp::new(ctx).get_operation();
         State {
             ctx,
             name_tracker: NameTracker::default(),
             src,
-            parent_for_regions,
         }
-    }
-}
-
-impl Drop for State<'_> {
-    // Ensure that `parent_for_regions` doesn't have any regions left and erase it.
-    fn drop(&mut self) {
-        let parent_for_regions = self.parent_for_regions;
-        // This assert is disabled because, if the parser fails, then we could have
-        // regions that were constructed but not moved to their parents.
-        /*
-            assert!(
-                parent_for_regions.deref(self.ctx).num_regions() == 0,
-                "Regions constructed during parsing must be moved to \
-                their respective parents before the end of parsing"
-            );
-        */
-        Operation::erase(parent_for_regions, self.ctx);
     }
 }
 
@@ -289,8 +265,12 @@ pub(crate) struct NameTracker {
 pub struct UnresolvedReference(Identifier);
 
 #[derive(Error, Debug)]
-#[error("Identifier {0} defined more than once in the scope")]
-pub struct MultipleDefinitions(Identifier);
+pub enum ParserNameTrackerError {
+    #[error("Identifier {0} defined more than once in the scope")]
+    MultipleDefinitions(Identifier),
+    #[error("Regions in a top-level operation must be IsolatedFromAbove")]
+    TopLevelOpRegionNotIsolatedFromAbove,
+}
 
 impl NameTracker {
     /// An SSA use is seen. Get its [definition value][Value]
@@ -338,12 +318,18 @@ impl NameTracker {
                         occ.insert(def);
                     } else {
                         // There's another def and it isn't a forward ref.
-                        input_err!(id.1.clone(), MultipleDefinitions(id.0.clone()))?
+                        input_err!(
+                            id.1.clone(),
+                            ParserNameTrackerError::MultipleDefinitions(id.0.clone())
+                        )?
                     }
                 }
                 Value::BlockArgument { .. } => {
                     // There's another def and it isn't a forward ref.
-                    input_err!(id.1.clone(), MultipleDefinitions(id.0.clone()))?
+                    input_err!(
+                        id.1.clone(),
+                        ParserNameTrackerError::MultipleDefinitions(id.0.clone())
+                    )?
                 }
             },
             Entry::Vacant(vac) => {
@@ -391,9 +377,10 @@ impl NameTracker {
                     BasicBlock::erase(*fref, ctx);
                     occ.insert(LabelRef::Defined(block));
                 }
-                LabelRef::Defined(_) => {
-                    input_err!(id.1.clone(), MultipleDefinitions(id.0.clone()))?
-                }
+                LabelRef::Defined(_) => input_err!(
+                    id.1.clone(),
+                    ParserNameTrackerError::MultipleDefinitions(id.0.clone())
+                )?,
             },
             Entry::Vacant(vac) => {
                 vac.insert(LabelRef::Defined(block));
@@ -406,11 +393,17 @@ impl NameTracker {
     /// - If the parent op is [IsolatedFromAboveInterface],
     ///   then a new independent SSA name scope is created.
     /// - A new independent block label scope is always created.
-    pub(crate) fn enter_region(&mut self, ctx: &Context, parent_op: Ptr<Operation>) {
+    pub(crate) fn enter_region(&mut self, ctx: &Context, parent_op: Ptr<Operation>) -> Result<()> {
         if op_impls::<dyn IsolatedFromAboveInterface>(&*Operation::get_op(parent_op, ctx)) {
             self.ssa_name_scope.push(FxHashMap::default());
+        } else if self.ssa_name_scope.is_empty() {
+            input_err!(
+                parent_op.deref(ctx).loc(),
+                ParserNameTrackerError::TopLevelOpRegionNotIsolatedFromAbove
+            )?
         }
         self.block_label_scope.push(FxHashMap::default());
+        Ok(())
     }
 
     /// Exit a region.

@@ -927,6 +927,10 @@ impl<T> Default for ElementSpec<T> {
 #[derive(Default)]
 struct OpParserState {
     is_canonical: bool,
+    // If there is a region(s) specified in the syntax,
+    // we build a temporary Op to hold the region(s) before
+    // building the actual Op.
+    regions_temp_parent_op: Option<syn::Ident>,
     operands: ElementSpec<usize>,
     successors: ElementSpec<usize>,
     result_types: FxHashMap<usize, syn::Ident>,
@@ -944,6 +948,32 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             use ::pliron::irfmt::parsers::
                 {process_parsed_ssa_defs, ssa_opd_parser, block_opd_parser, attr_parser};
         };
+
+        // Is region parsing specified as part of the syntax?
+        fn has_regions(input: &FmtInput) -> bool {
+            input.format.elems.iter().any(|f| {
+                matches!(f, Elem::Directive(directive)
+                        if directive.name == "region" || directive.name == "regions")
+            })
+        }
+
+        if has_regions(input) {
+            // For Operations with regions, we create a temporary Op of the same type
+            // (with no operands, successors, etc.) to hold the regions before
+            // building the actual Op. This temporary Op is later erased.
+            let regions_temp_parent_op = format_ident!("regions_temp_parent_op");
+            state.regions_temp_parent_op = Some(regions_temp_parent_op.clone());
+            output.extend(quote! {
+                let #regions_temp_parent_op = Operation::new(
+                    state_stream.state.ctx,
+                    Self::get_opid_static(),
+                    vec![],
+                    vec![],
+                    vec![],
+                    0,
+                );
+            });
+        }
 
         let built_format = Self::build_format(input, state)?;
         output.extend(built_format);
@@ -1087,6 +1117,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                 #successors,
                 0,        // regions
             );
+
             for region in #regions {
                 ::pliron::region::Region::move_to_op(region, op, state_stream.state.ctx);
             }
@@ -1094,6 +1125,15 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             if !arg.is_empty() {
                 process_parsed_ssa_defs(state_stream, &arg, op)?;
             }
+        });
+
+        if let Some(regions_temp_parent_op) = &state.regions_temp_parent_op {
+            output.extend(quote! {
+                Operation::erase(#regions_temp_parent_op, state_stream.state.ctx);
+            });
+        }
+
+        output.extend(quote! {
             let final_ret_value = Operation::get_op(op, state_stream.state.ctx);
         });
 
@@ -1205,9 +1245,14 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                 }
             }
 
+            let regions_temp_parent_op = state
+                .regions_temp_parent_op
+                .as_ref()
+                .expect("There is a region directive but a temporary parent Op is not created");
+
             Ok(quote! {
                 let #reg_name = ::pliron::region::Region::parser
-                    (state_stream.state.parent_for_regions).parse_stream(state_stream).into_result()?.0;
+                    (#regions_temp_parent_op).parse_stream(state_stream).into_result()?.0;
             })
         } else if d.name == "attr" {
             let (attr_name_str, attr_type_path) = parse_attr_directive_args(d, input)?;
@@ -1272,10 +1317,15 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                 ));
             }
             state.regions = ElementSpec::All(regions_var_name.clone());
+            let regions_temp_parent_op = state
+                .regions_temp_parent_op
+                .as_ref()
+                .expect("There is a region directive but a temporary parent Op is not created");
+
             Ok(quote! {
                 let #regions_var_name =
                     ::pliron::irfmt::parsers::list_parser
-                        (#sep, ::pliron::region::Region::parser(state_stream.state.parent_for_regions))
+                        (#sep, ::pliron::region::Region::parser(#regions_temp_parent_op))
                     .parse_stream(state_stream)
                     .into_result()?
                     .0;
