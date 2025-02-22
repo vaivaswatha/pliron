@@ -223,7 +223,6 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 ///      as that for "operands" above. This cannot be combined with the "region" directive.
 ///  10. The "attr_dict" directive specifies an [AttributeDict](../pliron/attribute/struct.AttributeDict.html).
 ///      It cannot be combined with either the "attr" directive or a named variable (`$name`).
-///      
 ///
 /// Examples:
 /// 1. Derive for a struct, with no format string (default format):
@@ -253,10 +252,8 @@ pub fn format_op(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Derive [Printable](../pliron/printable/trait.Printable.html) and
 /// [Parsable](../pliron/parsable/trait.Parsable.html) for
 /// [Attribute](../pliron/attribute/trait.Attribute.html)s
-///   1. A named variable `$name` specifies a named struct field.
-///   2. An unnamed variable `$i` specifies the i'th field of a tuple struct.
 ///
-/// See [macro@format] for examples.
+/// Refer to [macro@format] for the syntax specification and examples.
 #[proc_macro_attribute]
 pub fn format_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_format::derive(
@@ -268,10 +265,8 @@ pub fn format_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Derive [Printable](../pliron/printable/trait.Printable.html) and
 /// [Parsable](../pliron/parsable/trait.Parsable.html) for
 /// [Type](../pliron/type/trait.Type.html)s
-///   1. A named variable `$name` specifies a named struct field.
-///   2. An unnamed variable `$i` specifies the i'th field of a tuple struct.
 ///
-/// See [macro@format] for examples.
+/// Refer to [macro@format] for the syntax specification and examples.
 #[proc_macro_attribute]
 pub fn format_type(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_format::derive(args, input, DeriveIRObject::Type))
