@@ -187,85 +187,101 @@ fn test_fib_plir_noopt() -> Result<()> {
     test_fib_plir("fib.ll")
 }
 
-/// Test simple-loop by compiling simple-loop.ll via pliron.
-#[test]
-fn test_simple_loop_via_pliron() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
+/// Test an LLVM-IR file by executing it and comparing the output.
+/// The input file is `input_file`, which contains LLVM IR / Bitcode.
+/// The expected output is `expected_output`.
+fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
     let llvm_context = LLVMContext::default();
+    let module = LLVMModule::from_ir_in_file(&llvm_context, input_file)
+        .map_err(|err| arg_error_noloc!("{}", err))
+        .unwrap();
+    let ctx = &mut setup_context_dialects();
+    let pliron_module = from_llvm_ir::convert_module(ctx, &module)
+        .map_err(|err| arg_error_noloc!("{}", err))
+        .unwrap();
+    pliron_module.get_operation().verify(ctx).unwrap();
 
-    let simple_loop_ll_path = RESOURCES_DIR.join("simple-loop.ll");
-    let module = LLVMModule::from_ir_in_file(&llvm_context, simple_loop_ll_path.to_str().unwrap())
-        .map_err(|err| arg_error_noloc!("{}", err))?;
-    let pliron_module = from_llvm_ir::convert_module(ctx, &module)?;
-    pliron_module.get_operation().verify(ctx)?;
-
-    // Create a temp dir to place the plir file.
-    let tmp_dir = tempdir().unwrap();
-    let simple_loop_plir_path = tmp_dir.path().join("simple-loop.plir");
     // Write the plir to a file.
-    std::fs::write(
-        simple_loop_plir_path.clone(),
-        pliron_module.disp(ctx).to_string(),
-    )
-    .map_err(|e| arg_error_noloc!(e))?;
+    let tmp_dir = tempdir().unwrap();
+    let plir_path = tmp_dir.path().join("output.plir");
+    // Write the plir to a file.
+    std::fs::write(plir_path.clone(), pliron_module.disp(ctx).to_string())
+        .map_err(|e| arg_error_noloc!(e))
+        .unwrap();
 
-    // println!(
-    //     "plir file created:\n{}",
-    //     std::fs::read_to_string(&simple_loop_plir_path).unwrap()
-    // );
+    println!(
+        "plir file created:\n{}",
+        std::fs::read_to_string(&plir_path).unwrap()
+    );
 
-    // Now parse the plir file and verify it.
-    let fib_mem2reg_plir = std::fs::File::open(&simple_loop_plir_path).unwrap();
-    let mut fib_mem2reg_plir = std::io::BufReader::new(fib_mem2reg_plir);
+    // Parse the plir file and verify it.
+    let plir_file = std::fs::File::open(&plir_path).unwrap();
+    let mut plir_file = std::io::BufReader::new(plir_file);
 
-    let source = location::Source::new_from_file(ctx, simple_loop_plir_path.clone());
-    let state_stream =
-        state_stream_from_file(&mut fib_mem2reg_plir, parsable::State::new(ctx, source));
+    let source = location::Source::new_from_file(ctx, plir_path.clone());
+    let state_stream = state_stream_from_file(&mut plir_file, parsable::State::new(ctx, source));
 
     let parsed_res = match Operation::parser(()).parse(state_stream) {
         Ok((parsed_res, _)) => parsed_res,
         Err(err) => {
             eprint!("{}", err);
-            panic!("Error parsing {}", simple_loop_plir_path.to_str().unwrap());
+            panic!("Error parsing {}", plir_path.to_str().unwrap());
         }
     };
 
     match parsed_res.verify(ctx) {
-        Ok(_) => Ok(()),
+        Ok(_) => (),
         Err(err) => {
             eprint!("{}", err.disp(ctx));
-            panic!(
-                "Error verifying {}",
-                simple_loop_plir_path.to_str().unwrap()
-            );
+            panic!("Error verifying {}", plir_path.to_str().unwrap());
         }
-    }?;
+    }
 
     // Execute it and try.
-    let module = to_llvm_ir::convert_module(ctx, &llvm_context, pliron_module)?;
+    let module = to_llvm_ir::convert_module(ctx, &llvm_context, pliron_module)
+        .map_err(|err| arg_error_noloc!("{}", err))
+        .unwrap();
     module
         .verify()
-        .map_err(|err| arg_error_noloc!("{}", err.to_string()))?;
+        .map_err(|err| arg_error_noloc!("{}", err.to_string()))
+        .unwrap();
 
     // Write the bitcode to a file.
-    let simple_loop_bc_path = tmp_dir.path().join("simple-loop.bc");
+    let bc_path = tmp_dir.path().join("output.bc");
     module
-        .bitcode_to_file(simple_loop_bc_path.to_str().unwrap())
-        .map_err(|_err| arg_error_noloc!("{}", "Error writing bitcode to file"))?;
+        .bitcode_to_file(bc_path.to_str().unwrap())
+        .map_err(|_err| arg_error_noloc!("{}", "Error writing bitcode to file"))
+        .unwrap();
 
     let mut cmd = Command::new(LLI_BINARY);
 
-    let run_simple_loop = cmd
+    let run_output = cmd
         .current_dir(&*RESOURCES_DIR)
-        .args([simple_loop_bc_path.to_str().unwrap()])
+        .args([bc_path.to_str().unwrap()])
         .output()
-        .expect("failed to execute clang to compile fib.c");
+        .expect("failed to execute LLi to execute output.bc");
     assert_eq!(
-        run_simple_loop.status.code(),
-        Some(15),
+        run_output.status.code(),
+        Some(expected_output),
         "{}",
-        String::from_utf8(run_simple_loop.stderr).unwrap()
+        String::from_utf8(run_output.stderr).unwrap()
     );
+}
 
-    Ok(())
+/// Test simple-loop by compiling simple-loop.ll via pliron.
+#[test]
+fn test_simple_loop_via_pliron() {
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("simple-loop.ll").to_str().unwrap(), 15);
+}
+
+/// Test insert_extract_value by compiling insert_extract_value.ll via pliron.
+#[test]
+fn test_insert_extract_value_via_pliron() {
+    test_llvm_ir_via_pliron(
+        RESOURCES_DIR
+            .join("insert_extract_value.ll")
+            .to_str()
+            .unwrap(),
+        103,
+    );
 }

@@ -66,3 +66,9 @@ pub fn register(ctx: &mut Context) {
     ICmpPredicateAttr::register_attr_in_dialect(ctx, ICmpPredicateAttr::parser_fn);
     GepIndicesAttr::register_attr_in_dialect(ctx, GepIndicesAttr::parser_fn);
 }
+
+#[def_attribute("llvm.insert_extract_value_indices")]
+#[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct InsertExtractValueIndicesAttr(pub Vec<u32>);
+impl_verify_succ!(InsertExtractValueIndicesAttr);

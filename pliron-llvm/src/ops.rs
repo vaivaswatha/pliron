@@ -40,6 +40,7 @@ use pliron::{
 };
 
 use crate::{
+    attributes::InsertExtractValueIndicesAttr,
     op_interfaces::{
         BinArithOp, CastOpInterface, IntBinArithOp, IntBinArithOpWithOverflowFlag,
         PointerTypeResult,
@@ -1249,6 +1250,249 @@ impl Verify for ZExtOp {
     }
 }
 
+/// Equivalent to LLVM's InsertValue opcode.
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `aggregate` | LLVM aggregate type |
+/// | `value` | LLVM type |
+/// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | LLVM aggregate type |
+/// ### Attributes:
+/// | key | value | via Interface |
+/// |-----|-------| --------------|
+/// | [ATTR_KEY_INDICES](insert_extract_value_op::ATTR_KEY_INDICES) | [InsertExtractValueIndicesAttr] | N/A |
+///
+#[def_op("llvm.insert_value")]
+#[format_op(
+    "$0 attr($llvm_insert_extract_value_indices, $InsertExtractValueIndicesAttr) `, ` $1 ` : ` type($0)"
+)]
+#[derive_op_interface_impl(OneResultInterface)]
+pub struct InsertValueOp;
+
+impl InsertValueOp {
+    /// Create a new [InsertValueOp].
+    /// `aggregate` is the aggregate type and `value` is the value to insert.
+    /// `indices` is the list of indices to insert the value at.
+    /// The `indices` must be valid for the given `aggregate` type.
+    pub fn new(
+        ctx: &mut Context,
+        aggregate: Value,
+        value: Value,
+        indices: Vec<u32>,
+    ) -> Result<Self> {
+        use pliron::r#type::Typed;
+
+        let result_type = aggregate.get_type(ctx);
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![result_type],
+            vec![aggregate, value],
+            vec![],
+            0,
+        );
+        op.deref_mut(ctx).attributes.set(
+            insert_extract_value_op::ATTR_KEY_INDICES.clone(),
+            InsertExtractValueIndicesAttr(indices),
+        );
+        Ok(InsertValueOp { op })
+    }
+
+    /// Get the indices for inserting value into aggregate.
+    pub fn indices(&self, ctx: &Context) -> Vec<u32> {
+        self.get_operation()
+            .deref(ctx)
+            .attributes
+            .get::<InsertExtractValueIndicesAttr>(&insert_extract_value_op::ATTR_KEY_INDICES)
+            .unwrap()
+            .0
+            .clone()
+    }
+}
+
+impl Verify for InsertValueOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        let loc = self.get_operation().deref(ctx).loc();
+        let op = &*self.op.deref(ctx);
+        // Ensure that we have the indices as an attribute.
+        if op
+            .attributes
+            .get::<InsertExtractValueIndicesAttr>(&insert_extract_value_op::ATTR_KEY_INDICES)
+            .is_none()
+        {
+            verify_err!(loc.clone(), InsertExtractValueError::IndicesAttrErr)?
+        }
+
+        use pliron::r#type::Typed;
+
+        // Check that the value we are inserting is of the correct type.
+        let aggr_type = self.get_operation().deref(ctx).get_operand(0).get_type(ctx);
+        let indices = self.indices(ctx);
+        match ExtractValueOp::indexed_type(ctx, aggr_type, &indices) {
+            Err(e @ Error { .. }) => {
+                // We reset the error type and error origin to be from here
+                return Err(Error {
+                    kind: ErrorKind::VerificationFailed,
+                    backtrace: std::backtrace::Backtrace::capture(),
+                    ..e
+                });
+            }
+            Ok(indexed_type) => {
+                if indexed_type != self.get_operation().deref(ctx).get_operand(1).get_type(ctx) {
+                    return verify_err!(loc, InsertExtractValueError::ValueTypeErr);
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Equivalent to LLVM's ExtractValue opcode.
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `aggregate` | LLVM aggregate type |
+/// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | LLVM type |
+/// ### Attributes:
+/// | key | value | via Interface |
+/// |-----|-------| --------------|
+/// | [ATTR_KEY_INDICES](insert_extract_value_op::ATTR_KEY_INDICES) | [InsertExtractValueIndicesAttr] | N/A |
+#[def_op("llvm.extract_value")]
+#[format_op(
+    "$0 attr($llvm_insert_extract_value_indices, $InsertExtractValueIndicesAttr) ` : ` type($0)"
+)]
+#[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
+pub struct ExtractValueOp;
+
+impl Verify for ExtractValueOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        let loc = self.get_operation().deref(ctx).loc();
+        let op = &*self.op.deref(ctx);
+        // Ensure that we have the indices as an attribute.
+        if op
+            .attributes
+            .get::<InsertExtractValueIndicesAttr>(&insert_extract_value_op::ATTR_KEY_INDICES)
+            .is_none()
+        {
+            verify_err!(loc.clone(), InsertExtractValueError::IndicesAttrErr)?
+        }
+
+        use pliron::r#type::Typed;
+        // Check that the result type matches the indexed type
+        let aggr_type = self.get_operation().deref(ctx).get_operand(0).get_type(ctx);
+        let indices = self.indices(ctx);
+        match Self::indexed_type(ctx, aggr_type, &indices) {
+            Err(e @ Error { .. }) => {
+                // We reset the error type and error origin to be from here
+                return Err(Error {
+                    kind: ErrorKind::VerificationFailed,
+                    backtrace: std::backtrace::Backtrace::capture(),
+                    ..e
+                });
+            }
+            Ok(indexed_type) => {
+                if indexed_type != self.get_operation().deref(ctx).get_type(0) {
+                    return verify_err!(loc, InsertExtractValueError::ValueTypeErr);
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl ExtractValueOp {
+    /// Create a new [ExtractValueOp].
+    /// `aggregate` is the aggregate type and `indices` is the list of indices to extract the value from.
+    /// The `indices` must be valid for the given `aggregate` type.
+    /// The result type of the operation is the type of the value at the given indices.
+    pub fn new(ctx: &mut Context, aggregate: Value, indices: Vec<u32>) -> Result<Self> {
+        use pliron::r#type::Typed;
+        let result_type = Self::indexed_type(ctx, aggregate.get_type(ctx), &indices)?;
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![result_type],
+            vec![aggregate],
+            vec![],
+            0,
+        );
+        op.deref_mut(ctx).attributes.set(
+            insert_extract_value_op::ATTR_KEY_INDICES.clone(),
+            InsertExtractValueIndicesAttr(indices),
+        );
+        Ok(ExtractValueOp { op })
+    }
+
+    /// Get the indices for extracting value from aggregate.
+    pub fn indices(&self, ctx: &Context) -> Vec<u32> {
+        self.get_operation()
+            .deref(ctx)
+            .attributes
+            .get::<InsertExtractValueIndicesAttr>(&insert_extract_value_op::ATTR_KEY_INDICES)
+            .unwrap()
+            .0
+            .clone()
+    }
+
+    /// Returns the type of the value at the given indices in the given aggregate type.
+    pub fn indexed_type(
+        ctx: &Context,
+        aggr_type: Ptr<TypeObj>,
+        indices: &[u32],
+    ) -> Result<Ptr<TypeObj>> {
+        fn indexed_type_inner(
+            ctx: &Context,
+            aggr_type: Ptr<TypeObj>,
+            mut idx_itr: impl Iterator<Item = u32>,
+        ) -> Result<Ptr<TypeObj>> {
+            let Some(idx) = idx_itr.next() else {
+                return Ok(aggr_type);
+            };
+            let aggr_type = &*aggr_type.deref(ctx);
+            if let Some(st) = aggr_type.downcast_ref::<StructType>() {
+                if st.is_opaque() || idx as usize >= st.num_fields() {
+                    return arg_err_noloc!(InsertExtractValueError::InvalidIndicesErr);
+                }
+                indexed_type_inner(ctx, st.field_type(idx as usize), idx_itr)
+            } else if let Some(at) = aggr_type.downcast_ref::<ArrayType>() {
+                if idx as u64 >= at.size() {
+                    return arg_err_noloc!(InsertExtractValueError::InvalidIndicesErr);
+                }
+                indexed_type_inner(ctx, at.elem_type(), idx_itr)
+            } else {
+                arg_err_noloc!(InsertExtractValueError::InvalidIndicesErr)
+            }
+        }
+        indexed_type_inner(ctx, aggr_type, indices.iter().cloned())
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum InsertExtractValueError {
+    #[error("Insert/Extract value instruction has no or incorrect indices attribute")]
+    IndicesAttrErr,
+    #[error("Invalid indices on insert/extract value instruction")]
+    InvalidIndicesErr,
+    #[error("Value being inserted / extracted does not match the type of the indexed aggregate")]
+    ValueTypeErr,
+}
+
+pub mod insert_extract_value_op {
+    use std::sync::LazyLock;
+
+    use super::*;
+    pub static ATTR_KEY_INDICES: LazyLock<Identifier> =
+        LazyLock::new(|| "llvm_insert_extract_value_indices".try_into().unwrap());
+}
+
 /// Register ops in the LLVM dialect.
 pub fn register(ctx: &mut Context) {
     AddOp::register(ctx, AddOp::parser_fn);
@@ -1276,6 +1520,8 @@ pub fn register(ctx: &mut Context) {
     ConstantOp::register(ctx, ConstantOp::parser_fn);
     SExtOp::register(ctx, SExtOp::parser_fn);
     ZExtOp::register(ctx, ZExtOp::parser_fn);
+    InsertValueOp::register(ctx, InsertValueOp::parser_fn);
+    ExtractValueOp::register(ctx, ExtractValueOp::parser_fn);
     UndefOp::register(ctx, UndefOp::parser_fn);
     ReturnOp::register(ctx, ReturnOp::parser_fn);
 }

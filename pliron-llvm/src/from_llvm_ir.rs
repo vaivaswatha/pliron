@@ -32,10 +32,10 @@ use crate::{
         incoming_iter, instruction_iter, llvm_const_int_get_zext_value, llvm_get_allocated_type,
         llvm_get_array_length2, llvm_get_basic_block_name, llvm_get_basic_block_terminator,
         llvm_get_called_function_type, llvm_get_called_value, llvm_get_element_type,
-        llvm_get_gep_source_element_type, llvm_get_icmp_predicate, llvm_get_instruction_opcode,
-        llvm_get_instruction_parent, llvm_get_int_type_width, llvm_get_module_identifier,
-        llvm_get_nsw, llvm_get_num_arg_operands, llvm_get_num_operands, llvm_get_nuw,
-        llvm_get_operand, llvm_get_param_types, llvm_get_return_type,
+        llvm_get_gep_source_element_type, llvm_get_icmp_predicate, llvm_get_indices,
+        llvm_get_instruction_opcode, llvm_get_instruction_parent, llvm_get_int_type_width,
+        llvm_get_module_identifier, llvm_get_nsw, llvm_get_num_arg_operands, llvm_get_num_operands,
+        llvm_get_nuw, llvm_get_operand, llvm_get_param_types, llvm_get_return_type,
         llvm_get_struct_element_types, llvm_get_struct_name, llvm_get_type_kind,
         llvm_get_value_kind, llvm_get_value_name, llvm_global_get_value_type, llvm_is_a,
         llvm_is_opaque_struct, llvm_type_of, llvm_value_as_basic_block, llvm_value_is_basic_block,
@@ -43,9 +43,10 @@ use crate::{
     },
     op_interfaces::{BinArithOp, CastOpInterface, IntBinArithOpWithOverflowFlag},
     ops::{
-        AShrOp, AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp, GepIndex,
-        GetElementPtrOp, ICmpOp, LShrOp, LoadOp, MulOp, OrOp, ReturnOp, SDivOp, SExtOp, SRemOp,
-        ShlOp, StoreOp, SubOp, UDivOp, URemOp, UndefOp, XorOp, ZExtOp,
+        AShrOp, AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
+        ExtractValueOp, GepIndex, GetElementPtrOp, ICmpOp, InsertValueOp, LShrOp, LoadOp, MulOp,
+        OrOp, ReturnOp, SDivOp, SExtOp, SRemOp, ShlOp, StoreOp, SubOp, UDivOp, URemOp, UndefOp,
+        XorOp, ZExtOp,
     },
     types::{ArrayType, PointerType, StructErr, StructType, VoidType},
 };
@@ -455,7 +456,6 @@ fn convert_instruction(
         LLVMOpcode::LLVMCleanupPad => todo!(),
         LLVMOpcode::LLVMCleanupRet => todo!(),
         LLVMOpcode::LLVMExtractElement => todo!(),
-        LLVMOpcode::LLVMExtractValue => todo!(),
         LLVMOpcode::LLVMFNeg => todo!(),
         LLVMOpcode::LLVMFAdd => todo!(),
         LLVMOpcode::LLVMFCmp => todo!(),
@@ -488,7 +488,16 @@ fn convert_instruction(
         }
         LLVMOpcode::LLVMIndirectBr => todo!(),
         LLVMOpcode::LLVMInsertElement => todo!(),
-        LLVMOpcode::LLVMInsertValue => todo!(),
+        LLVMOpcode::LLVMInsertValue => {
+            let (aggr, val) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
+            let indices = llvm_get_indices(inst);
+            Ok(InsertValueOp::new(ctx, aggr, val, indices)?.get_operation())
+        }
+        LLVMOpcode::LLVMExtractValue => {
+            let aggr = get_operand(opds, 0)?;
+            let indices = llvm_get_indices(inst);
+            Ok(ExtractValueOp::new(ctx, aggr, indices)?.get_operation())
+        }
         LLVMOpcode::LLVMIntToPtr => todo!(),
         LLVMOpcode::LLVMInvoke => todo!(),
         LLVMOpcode::LLVMLandingPad => todo!(),

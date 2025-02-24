@@ -37,20 +37,21 @@ use crate::{
         LLVMBasicBlock, LLVMBuilder, LLVMContext, LLVMModule, LLVMType, LLVMValue,
         instruction_iter, llvm_add_function, llvm_add_incoming, llvm_append_basic_block_in_context,
         llvm_array_type2, llvm_build_add, llvm_build_and, llvm_build_array_alloca,
-        llvm_build_bitcast, llvm_build_br, llvm_build_call2, llvm_build_cond_br, llvm_build_gep2,
-        llvm_build_icmp, llvm_build_load2, llvm_build_mul, llvm_build_or, llvm_build_phi,
-        llvm_build_ret, llvm_build_ret_void, llvm_build_sdiv, llvm_build_sext, llvm_build_shl,
-        llvm_build_srem, llvm_build_store, llvm_build_sub, llvm_build_udiv, llvm_build_urem,
-        llvm_build_xor, llvm_clear_insertion_position, llvm_const_int, llvm_function_type,
-        llvm_get_param, llvm_get_undef, llvm_int_type_in_context, llvm_is_a,
-        llvm_pointer_type_in_context, llvm_position_builder_at_end, llvm_struct_create_named,
-        llvm_struct_set_body, llvm_struct_type_in_context, llvm_void_type_in_context,
+        llvm_build_bitcast, llvm_build_br, llvm_build_call2, llvm_build_cond_br,
+        llvm_build_extract_value, llvm_build_gep2, llvm_build_icmp, llvm_build_insert_value,
+        llvm_build_load2, llvm_build_mul, llvm_build_or, llvm_build_phi, llvm_build_ret,
+        llvm_build_ret_void, llvm_build_sdiv, llvm_build_sext, llvm_build_shl, llvm_build_srem,
+        llvm_build_store, llvm_build_sub, llvm_build_udiv, llvm_build_urem, llvm_build_xor,
+        llvm_clear_insertion_position, llvm_const_int, llvm_function_type, llvm_get_param,
+        llvm_get_undef, llvm_int_type_in_context, llvm_is_a, llvm_pointer_type_in_context,
+        llvm_position_builder_at_end, llvm_struct_create_named, llvm_struct_set_body,
+        llvm_struct_type_in_context, llvm_void_type_in_context,
     },
     op_interfaces::PointerTypeResult,
     ops::{
-        AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp, GetElementPtrOp,
-        ICmpOp, LoadOp, MulOp, OrOp, ReturnOp, SDivOp, SExtOp, SRemOp, ShlOp, StoreOp, SubOp,
-        UDivOp, URemOp, UndefOp, XorOp, ZExtOp,
+        AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp, ExtractValueOp,
+        GetElementPtrOp, ICmpOp, InsertValueOp, LoadOp, MulOp, OrOp, ReturnOp, SDivOp, SExtOp,
+        SRemOp, ShlOp, StoreOp, SubOp, UDivOp, URemOp, UndefOp, XorOp, ZExtOp,
     },
     types::{ArrayType, PointerType, StructType, VoidType},
 };
@@ -98,6 +99,10 @@ pub enum ToLLVMErr {
     NumBlockArgsNumPhisMismatch,
     #[error("ConstantOp must have integer or float value")]
     ConstOpNotIntOrFloat,
+    #[error(
+        "Insert/Extract value instructions must specify exactly one index, an LLVM-C API limitation"
+    )]
+    InsertExtractValueIndices,
 }
 
 pub fn convert_ipredicate(pred: ICmpPredicateAttr) -> LLVMIntPredicate {
@@ -640,6 +645,56 @@ impl ToLLVMValue for GetElementPtrOp {
             &self.get_result(ctx).unique_name(ctx),
         );
         Ok(gep_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for InsertValueOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        _llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let base = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        let value = convert_value_operand(cctx, ctx, &op.get_operand(1))?;
+        let indices = self.indices(ctx);
+        if indices.len() != 1 {
+            return input_err!(op.loc(), ToLLVMErr::InsertExtractValueIndices);
+        }
+        let insert_op = llvm_build_insert_value(
+            &cctx.builder,
+            base,
+            value,
+            indices[0],
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        Ok(insert_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for ExtractValueOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        _llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let base = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        let indices = self.indices(ctx);
+        if indices.len() != 1 {
+            return input_err!(op.loc(), ToLLVMErr::InsertExtractValueIndices);
+        }
+        let extract_op = llvm_build_extract_value(
+            &cctx.builder,
+            base,
+            indices[0],
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        Ok(extract_op)
     }
 }
 

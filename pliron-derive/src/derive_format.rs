@@ -452,11 +452,16 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
             }
         } else if d.name == "attr" {
             let (attr_name_str, attr_type_path) = parse_attr_directive_args(d, input)?;
+            let missing_attr_err = format!(
+                "Missing attribute {} on Op {}",
+                &attr_name_str,
+                &input.ident.clone()
+            );
             Ok(quote! {
                 let self_op = self.get_operation().deref(ctx);
                 let attr = self_op.attributes.get::<#attr_type_path>(
                     &::pliron::identifier::Identifier::try_from(#attr_name_str).unwrap()
-                ).expect("Missing attribute");
+                ).expect(#missing_attr_err);
                 ::pliron::printable::Printable::fmt(attr, ctx, state, fmt)?;
             })
         } else if d.name == "succ" {

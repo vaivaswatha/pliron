@@ -62,6 +62,11 @@ fn sized_cstr_to_string(ptr: *const ::core::ffi::c_char, len: usize) -> Option<S
     )
 }
 
+/// Convert a C array to a Rust vec.
+fn c_array_to_vec<T: Clone>(ptr: *const T, len: usize) -> Vec<T> {
+    unsafe { std::slice::from_raw_parts(ptr, len).to_vec() }
+}
+
 /// Convert a value to `bool`
 trait ToBool {
     fn to_bool(&self) -> bool;
