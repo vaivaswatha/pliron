@@ -163,7 +163,7 @@ fn test_fib_plir(filename: &str) -> Result<()> {
     let parsed_res = match Operation::parser(()).parse(state_stream) {
         Ok((parsed_res, _)) => parsed_res,
         Err(err) => {
-            eprint!("{}", err);
+            eprintln!("{}", err);
             panic!("Error parsing {}", filename);
         }
     };
@@ -171,7 +171,7 @@ fn test_fib_plir(filename: &str) -> Result<()> {
     match parsed_res.verify(ctx) {
         Ok(_) => Ok(()),
         Err(err) => {
-            eprint!("{}", err.disp(ctx));
+            eprintln!("{}", err.disp(ctx));
             panic!("Error verifying {}", filename);
         }
     }
@@ -199,7 +199,14 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
     let pliron_module = from_llvm_ir::convert_module(ctx, &module)
         .map_err(|err| arg_error_noloc!("{}", err))
         .unwrap();
-    pliron_module.get_operation().verify(ctx).unwrap();
+
+    match pliron_module.get_operation().verify(ctx) {
+        Ok(_) => (),
+        Err(err) => {
+            eprintln!("{}", err.disp(ctx));
+            panic!("Error verifying {}", input_file);
+        }
+    }
 
     // Write the plir to a file.
     let tmp_dir = tempdir().unwrap();
@@ -224,7 +231,7 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
     let parsed_res = match Operation::parser(()).parse(state_stream) {
         Ok((parsed_res, _)) => parsed_res,
         Err(err) => {
-            eprint!("{}", err);
+            eprintln!("{}", err);
             panic!("Error parsing {}", plir_path.to_str().unwrap());
         }
     };
@@ -232,7 +239,7 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
     match parsed_res.verify(ctx) {
         Ok(_) => (),
         Err(err) => {
-            eprint!("{}", err.disp(ctx));
+            eprintln!("{}", err.disp(ctx));
             panic!("Error verifying {}", plir_path.to_str().unwrap());
         }
     }

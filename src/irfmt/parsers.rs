@@ -221,7 +221,7 @@ mod test {
         expected_err_msg.assert_eq(&err_msg);
 
         let state_stream = state_stream_from_iterator(
-            "builtin.int a".chars(),
+            "builtin.integer a".chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
@@ -229,18 +229,18 @@ mod test {
         let err_msg = format!("{}", res.err().unwrap());
 
         let expected_err_msg = expect![[r#"
-            Parse error at line: 1, column: 13
+            Parse error at line: 1, column: 17
             Unexpected `a`
-            Expected `<`
+            Expected whitespaces, si, ui or i
         "#]];
         expected_err_msg.assert_eq(&err_msg);
 
         let state_stream = state_stream_from_iterator(
-            "builtin.int <si32>".chars(),
+            "builtin.integer si32".chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
         let parsed = type_parser().parse(state_stream).unwrap().0;
-        assert_eq!(parsed.disp(&ctx).to_string(), "builtin.int <si32>");
+        assert_eq!(parsed.disp(&ctx).to_string(), "builtin.integer si32");
     }
 }

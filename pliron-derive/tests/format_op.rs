@@ -64,7 +64,7 @@ fn one_result_zero_operands() {
 
     let printed = "builtin.func @testfunc : builtin.function <() -> ()> {
           ^entry():
-            res0 = test.one_result_zero_operands : builtin.int <si64>;
+            res0 = test.one_result_zero_operands : builtin.integer si64;
             test.return res0
         }";
 
@@ -81,7 +81,7 @@ fn one_result_zero_operands() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block_1v1():
-            res0_op_2v1_res0 = test.one_result_zero_operands :builtin.int <si64>;
+            res0_op_2v1_res0 = test.one_result_zero_operands :builtin.integer si64;
             test.return res0_op_2v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
@@ -103,8 +103,8 @@ fn one_result_one_operand() {
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
-            res0 = test.one_result_zero_operands : builtin.int <si64>;
-            res1 = test.one_result_one_operand res0 : builtin.int <si64>;
+            res0 = test.one_result_zero_operands : builtin.integer si64;
+            res1 = test.one_result_one_operand res0 : builtin.integer si64;
             test.return res1
         }";
 
@@ -121,8 +121,8 @@ fn one_result_one_operand() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block_1v1():
-            res0_op_2v1_res0 = test.one_result_zero_operands :builtin.int <si64>;
-            res1_op_3v1_res0 = test.one_result_one_operand res0_op_2v1_res0:builtin.int <si64>;
+            res0_op_2v1_res0 = test.one_result_zero_operands :builtin.integer si64;
+            res1_op_3v1_res0 = test.one_result_one_operand res0_op_2v1_res0:builtin.integer si64;
             test.return res1_op_3v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
@@ -143,8 +143,8 @@ fn two_result_two_operands() {
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
-            res0 = test.one_result_zero_operands :builtin.int <si64>;
-            res1a, res1b = test.two_results_two_operands res0, res0 : (builtin.int <si64>, builtin.int <si64>);
+            res0 = test.one_result_zero_operands :builtin.integer si64;
+            res1a, res1b = test.two_results_two_operands res0, res0 : (builtin.integer si64, builtin.integer si64);
             test.return res1a
         }";
 
@@ -161,8 +161,8 @@ fn two_result_two_operands() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block_1v1():
-            res0_op_2v1_res0 = test.one_result_zero_operands :builtin.int <si64>;
-            res1a_op_3v1_res0, res1b_op_3v1_res1 = test.two_results_two_operands res0_op_2v1_res0,res0_op_2v1_res0:(builtin.int <si64>,builtin.int <si64>);
+            res0_op_2v1_res0 = test.one_result_zero_operands :builtin.integer si64;
+            res1a_op_3v1_res0, res1b_op_3v1_res1 = test.two_results_two_operands res0_op_2v1_res0,res0_op_2v1_res0:(builtin.integer si64,builtin.integer si64);
             test.return res1a_op_3v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
@@ -184,7 +184,7 @@ fn attr_op() {
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
-            res0 = test.attr_op <0x0: builtin.int <si64>> :builtin.int <si64>;
+            res0 = test.attr_op <0: si64> :builtin.integer si64;
             test.return res0
         }";
 
@@ -201,7 +201,7 @@ fn attr_op() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block_1v1():
-            res0_op_2v1_res0 = test.attr_op <0x0: builtin.int <si64>>:builtin.int <si64>;
+            res0_op_2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
             test.return res0_op_2v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
@@ -221,7 +221,7 @@ fn attr_op2() {
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
-            res0 = test.attr_op2 \"Hello World\" :builtin.int <si64>;
+            res0 = test.attr_op2 \"Hello World\" :builtin.integer si64;
             test.return res0
         }";
 
@@ -238,7 +238,7 @@ fn attr_op2() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block_1v1():
-            res0_op_2v1_res0 = test.attr_op2 "Hello World":builtin.int <si64>;
+            res0_op_2v1_res0 = test.attr_op2 "Hello World":builtin.integer si64;
             test.return res0_op_2v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
@@ -258,7 +258,7 @@ fn attr_op3() {
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
-            res0 = test.attr_op3 builtin.integer <0x0: builtin.int <si64>> :builtin.int <si64>;
+            res0 = test.attr_op3 builtin.integer <0: si64> :builtin.integer si64;
             test.return res0
         }";
 
@@ -275,7 +275,7 @@ fn attr_op3() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block_1v1():
-            res0_op_2v1_res0 = test.attr_op3 builtin.integer <0x0: builtin.int <si64>>:builtin.int <si64>;
+            res0_op_2v1_res0 = test.attr_op3 builtin.integer <0: si64>:builtin.integer si64;
             test.return res0_op_2v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
@@ -297,10 +297,10 @@ fn if_op() {
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
-            res0 = test.attr_op <0x0: builtin.int <si64>> :builtin.int <si64>;
+            res0 = test.attr_op <0: si64> :builtin.integer si64;
             test.if_op (res0) {
               ^then():
-                res1 = test.attr_op <0x1: builtin.int <si64>> :builtin.int <si64>;
+                res1 = test.attr_op <1: si64> :builtin.integer si64;
                 test.return res1
             };
             test.return res0
@@ -319,11 +319,11 @@ fn if_op() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block_2v1():
-            res0_op_2v1_res0 = test.attr_op <0x0: builtin.int <si64>>:builtin.int <si64>;
+            res0_op_2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
             test.if_op (res0_op_2v1_res0)
             {
               ^then_block_1v1():
-                res1_op_4v1_res0 = test.attr_op <0x1: builtin.int <si64>>:builtin.int <si64>;
+                res1_op_4v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
                 test.return res1_op_4v1_res0
             };
             test.return res0_op_2v1_res0
@@ -347,14 +347,14 @@ fn if_else_op() {
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
-            res0 = test.attr_op <0x0: builtin.int <si64>> :builtin.int <si64>;
+            res0 = test.attr_op <0: si64> :builtin.integer si64;
             test.if_else_op (res0) {
               ^then():
-                res1 = test.attr_op <0x1: builtin.int <si64>> :builtin.int <si64>;
+                res1 = test.attr_op <1: si64> :builtin.integer si64;
                 test.return res1
             } else {
               ^else():
-                res2 = test.attr_op <0x2: builtin.int <si64>> :builtin.int <si64>;
+                res2 = test.attr_op <2: si64> :builtin.integer si64;
                 test.return res2
             };
             test.return res0
@@ -373,16 +373,16 @@ fn if_else_op() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block_3v1():
-            res0_op_2v1_res0 = test.attr_op <0x0: builtin.int <si64>>:builtin.int <si64>;
+            res0_op_2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
             test.if_else_op (res0_op_2v1_res0)
             {
               ^then_block_1v1():
-                res1_op_4v1_res0 = test.attr_op <0x1: builtin.int <si64>>:builtin.int <si64>;
+                res1_op_4v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
                 test.return res1_op_4v1_res0
             }else
             {
               ^else_block_2v1():
-                res2_op_6v1_res0 = test.attr_op <0x2: builtin.int <si64>>:builtin.int <si64>;
+                res2_op_6v1_res0 = test.attr_op <2: si64>:builtin.integer si64;
                 test.return res2_op_6v1_res0
             };
             test.return res0_op_2v1_res0
@@ -406,9 +406,9 @@ fn br_op() {
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
-            res0 = test.attr_op <0x0: builtin.int <si64>> :builtin.int <si64>;
+            res0 = test.attr_op <0: si64> :builtin.integer si64;
             test.br ^bb1(res0)
-          ^bb1(arg0 : builtin.int <si64>):
+          ^bb1(arg0 : builtin.integer si64):
             test.return arg0
         }";
 
@@ -425,9 +425,9 @@ fn br_op() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block_2v1():
-            res0_op_2v1_res0 = test.attr_op <0x0: builtin.int <si64>>:builtin.int <si64>;
+            res0_op_2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
             test.br ^bb1_block_3v1(res0_op_2v1_res0)
-          ^bb1_block_3v1(arg0_block_3v1_arg0:builtin.int <si64>):
+          ^bb1_block_3v1(arg0_block_3v1_arg0:builtin.integer si64):
             test.return arg0_block_3v1_arg0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
@@ -449,7 +449,7 @@ fn multiple_successors_op() {
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
-            res0 = test.attr_op <0x0: builtin.int <si64>> :builtin.int <si64>;
+            res0 = test.attr_op <0: si64> :builtin.integer si64;
             test.multiple_successors [^bb1, ^bb2]
           ^bb1():
             test.return res0
@@ -470,7 +470,7 @@ fn multiple_successors_op() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block_3v1():
-            res0_op_2v1_res0 = test.attr_op <0x0: builtin.int <si64>>:builtin.int <si64>;
+            res0_op_2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
             test.multiple_successors [^bb1_block_4v1, ^bb2_block_1v3]
           ^bb1_block_4v1():
             test.return res0_op_2v1_res0
@@ -496,15 +496,15 @@ fn multiple_regions_op() {
     let printed = "
     builtin.func @testfunc: builtin.function <()->()> {
       ^entry():
-        res = test.attr_op <0x0: builtin.int <si64>> :builtin.int <si64>;
+        res = test.attr_op <0: si64> :builtin.integer si64;
         test.multiple_regions [
             {
                 ^reg1_entry():
-                    res0 = test.attr_op <0x0: builtin.int <si64>> :builtin.int <si64>;
+                    res0 = test.attr_op <0: si64> :builtin.integer si64;
                     test.return res0
             }, {
                 ^reg2_entry():
-                    res1 = test.attr_op <0x1: builtin.int <si64>> :builtin.int <si64>;
+                    res1 = test.attr_op <1: si64> :builtin.integer si64;
                     test.return res1
             }
         ];
@@ -524,16 +524,16 @@ fn multiple_regions_op() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block_3v1():
-            res_op_2v1_res0 = test.attr_op <0x0: builtin.int <si64>>:builtin.int <si64>;
+            res_op_2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
             test.multiple_regions [
             {
               ^reg1_entry_block_1v1():
-                res0_op_4v1_res0 = test.attr_op <0x0: builtin.int <si64>>:builtin.int <si64>;
+                res0_op_4v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
                 test.return res0_op_4v1_res0
             }, 
             {
               ^reg2_entry_block_2v1():
-                res1_op_6v1_res0 = test.attr_op <0x1: builtin.int <si64>>:builtin.int <si64>;
+                res1_op_6v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
                 test.return res1_op_6v1_res0
             }];
             test.return res_op_2v1_res0
@@ -556,10 +556,10 @@ fn attr_dict_op() {
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
-            res0 = test.attr_op <0x11: builtin.int <si64>> :builtin.int <si64>;
+            res0 = test.attr_op <3: si64> :builtin.integer si64;
             test.attr_dict [
-                (attr1: builtin.integer <0x0: builtin.int <si64>>),
-                (attr2: builtin.integer <0x1: builtin.int <si64>>)
+                (attr1: builtin.integer <0: si64>),
+                (attr2: builtin.integer <1: si64>)
             ];
             test.return res0
         }";
@@ -577,8 +577,8 @@ fn attr_dict_op() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block_1v1():
-            res0_op_2v1_res0 = test.attr_op <0x11: builtin.int <si64>>:builtin.int <si64>;
-            test.attr_dict [(attr1: builtin.integer <0x0: builtin.int <si64>>), (attr2: builtin.integer <0x1: builtin.int <si64>>)];
+            res0_op_2v1_res0 = test.attr_op <3: si64>:builtin.integer si64;
+            test.attr_dict [(attr1: builtin.integer <0: si64>), (attr2: builtin.integer <1: si64>)];
             test.return res0_op_2v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
@@ -601,11 +601,11 @@ fn multiple_regions2_op() {
         test.multiple_regions2 () [] [] : <()->()> 
         {
             ^reg1_entry():
-                res0 = test.attr_op <0x0: builtin.int <si64>> :builtin.int <si64>;
+                res0 = test.attr_op <0: si64> :builtin.integer si64;
                 test.return res0
         }, {
             ^reg2_entry():
-                res1 = test.attr_op <0x1: builtin.int <si64>> :builtin.int <si64>;
+                res1 = test.attr_op <1: si64> :builtin.integer si64;
                 test.return res1
         }";
 
@@ -637,11 +637,11 @@ fn multiple_regions3_op() {
         test.multiple_regions3 [
             {
                 ^reg1_entry():
-                    res0 = test.attr_op <0x0: builtin.int <si64>> :builtin.int <si64>;
+                    res0 = test.attr_op <0: si64> :builtin.integer si64;
                     test.return res0
             }, {
                 ^reg2_entry():
-                    res1 = test.attr_op <0x1: builtin.int <si64>> :builtin.int <si64>;
+                    res1 = test.attr_op <1: si64> :builtin.integer si64;
                     test.return res1
             }
         ]";
@@ -675,11 +675,11 @@ fn multiple_regions4_op() {
         test.multiple_regions4 [
             {
                 ^reg1_entry():
-                    res0 = test.attr_op <0x0: builtin.int <si64>> :builtin.int <si64>;
+                    res0 = test.attr_op <0: si64> :builtin.integer si64;
                     test.return res0
             }, {
                 ^reg2_entry():
-                    res1 = test.attr_op <0x1: builtin.int <si64>> :builtin.int <si64>;
+                    res1 = test.attr_op <1: si64> :builtin.integer si64;
                     test.return res1
             }
         ]";
@@ -696,12 +696,12 @@ fn multiple_regions4_op() {
         test.multiple_regions4 [
         {
           ^reg1_entry_block_1v1():
-            res0_op_2v1_res0 = test.attr_op <0x0: builtin.int <si64>>:builtin.int <si64>;
+            res0_op_2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
             test.return res0_op_2v1_res0
         }, 
         {
           ^reg2_entry_block_2v1():
-            res1_op_4v1_res0 = test.attr_op <0x1: builtin.int <si64>>:builtin.int <si64>;
+            res1_op_4v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
             test.return res1_op_4v1_res0
         }]"#]]
     .assert_eq(&res.disp(ctx).to_string());

@@ -1,7 +1,8 @@
 use std::sync::LazyLock;
 
-use apint::ApInt;
+use awint::bw;
 use pliron::derive::{def_op, derive_op_interface_impl};
+use pliron::utils::apint::APInt;
 use pliron::{
     attribute::AttrObj,
     builtin::{
@@ -54,7 +55,7 @@ impl ConstantOp {
 
     pub fn new(ctx: &mut Context, value: u64) -> Self {
         let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
-        let int_attr = IntegerAttr::new(i64_ty, ApInt::from_u64(value));
+        let int_attr = IntegerAttr::new(i64_ty, APInt::from_u64(value, bw(64)));
         let op = Operation::new(
             ctx,
             Self::get_opid_static(),
@@ -117,7 +118,7 @@ impl Parsable for ConstantOp {
                 attr.disp(state_stream.state.ctx)
             )?,
         };
-        let int_val: u64 = Into::<ApInt>::into(*int_attr).try_to_u64().unwrap();
+        let int_val: u64 = Into::<APInt>::into(*int_attr).to_u64();
         let op = Box::new(Self::new(state_stream.state.ctx, int_val));
         process_parsed_ssa_defs(state_stream, &results, op.get_operation())?;
 

@@ -1,11 +1,14 @@
-use combine::{Parser, between, choice, parser::char::string, token};
+use combine::{
+    Parser, choice,
+    parser::char::{spaces, string},
+};
 use pliron::derive::def_type;
 use pliron_derive::format_type;
 
 use crate::{
     context::{Context, Ptr},
     impl_verify_succ,
-    irfmt::parsers::{int_parser, spaced},
+    irfmt::parsers::int_parser,
     parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::{Type, TypeObj, TypePtr},
@@ -18,7 +21,7 @@ pub enum Signedness {
     Signless,
 }
 
-#[def_type("builtin.int")]
+#[def_type("builtin.integer")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct IntegerType {
     width: u32,
@@ -68,9 +71,7 @@ impl Parsable for IntegerType {
         ));
 
         // followed by an integer.
-        let parser = choicer.and(int_parser());
-
-        let mut parser = between(token('<'), token('>'), spaced(parser));
+        let mut parser = spaces().with(choicer.and(int_parser()));
         parser
             .parse_stream(state_stream)
             .map(|(signedness, width)| IntegerType::get(state_stream.state.ctx, width, signedness))
@@ -85,13 +86,12 @@ impl Printable for IntegerType {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "<",)?;
         match &self.signedness {
             Signedness::Signed => write!(f, "si{}", self.width)?,
             Signedness::Unsigned => write!(f, "ui{}", self.width)?,
             Signedness::Signless => write!(f, "i{}", self.width)?,
-        }
-        write!(f, ">")
+        };
+        Ok(())
     }
 }
 
@@ -223,7 +223,7 @@ mod tests {
     fn test_integer_parsing() {
         let mut ctx = Context::new();
         let state_stream = state_stream_from_iterator(
-            "<si64>".chars(),
+            "si64".chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
@@ -239,7 +239,7 @@ mod tests {
     #[test]
     fn test_integer_parsing_errs() {
         let mut ctx = Context::new();
-        let a = "<asi64>".to_string();
+        let a = "asi64".to_string();
         let state_stream = state_stream_from_iterator(
             a.chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
@@ -249,7 +249,7 @@ mod tests {
         let err_msg = format!("{}", res.err().unwrap());
 
         let expected_err_msg = expect![[r#"
-            Parse error at line: 1, column: 2
+            Parse error at line: 1, column: 1
             Unexpected `a`
             Expected whitespaces, si, ui or i
         "#]];
@@ -264,7 +264,7 @@ mod tests {
         let si32 = IntegerType::get(&mut ctx, 32, Signedness::Signed);
 
         let state_stream = state_stream_from_iterator(
-            "<() -> (builtin.int <si32>)>".chars(),
+            "<() -> (builtin.integer si32)>".chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 

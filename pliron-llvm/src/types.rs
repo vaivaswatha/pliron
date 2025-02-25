@@ -445,7 +445,7 @@ mod tests {
 
         assert_eq!(
             list_struct.disp(&ctx).to_string(),
-            "llvm.struct <LinkedList { builtin.int <i64>, llvm.typed_ptr <llvm.struct <LinkedList>> }>"
+            "llvm.struct <LinkedList { builtin.integer i64, llvm.typed_ptr <llvm.struct <LinkedList>> }>"
         );
 
         let head_fields = vec![int64_ptr, list_struct_ptr];
@@ -523,7 +523,7 @@ mod tests {
         let int64pointer_ptr = Type::register_instance(int64pointer_ptr, &mut ctx);
         assert_eq!(
             int64pointer_ptr.disp(&ctx).to_string(),
-            "llvm.typed_ptr <builtin.int <si64>>"
+            "llvm.typed_ptr <builtin.integer si64>"
         );
         assert!(int64pointer_ptr == TypedPointerType::get(&mut ctx, int64_ptr));
 
@@ -549,14 +549,14 @@ mod tests {
         TypedPointerType::register_type_in_dialect(&mut ctx, TypedPointerType::parser_fn);
 
         let state_stream = state_stream_from_iterator(
-            "llvm.typed_ptr <builtin.int <si64>>".chars(),
+            "llvm.typed_ptr <builtin.integer si64>".chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
         let res = type_parser().parse(state_stream).unwrap().0;
         assert_eq!(
             &res.disp(&ctx).to_string(),
-            "llvm.typed_ptr <builtin.int <si64>>"
+            "llvm.typed_ptr <builtin.integer si64>"
         );
     }
 
@@ -568,7 +568,7 @@ mod tests {
         TypedPointerType::register_type_in_dialect(&mut ctx, TypedPointerType::parser_fn);
 
         let state_stream = state_stream_from_iterator(
-            "llvm.struct <LinkedList { builtin.int <i64>, llvm.typed_ptr <llvm.struct <LinkedList>> }>"
+            "llvm.struct <LinkedList { builtin.integer i64, llvm.typed_ptr <llvm.struct <LinkedList>> }>"
                 .chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
@@ -576,7 +576,7 @@ mod tests {
         let res = type_parser().parse(state_stream).unwrap().0;
         assert_eq!(
             &res.disp(&ctx).to_string(),
-            "llvm.struct <LinkedList { builtin.int <i64>, llvm.typed_ptr <llvm.struct <LinkedList>> }>"
+            "llvm.struct <LinkedList { builtin.integer i64, llvm.typed_ptr <llvm.struct <LinkedList>> }>"
         );
 
         // Test parsing an opaque struct.
@@ -594,7 +594,7 @@ mod tests {
         }
 
         // Test parsing an unnamed struct.
-        let test_string = "llvm.struct <{ builtin.int <i8> }>";
+        let test_string = "llvm.struct <{ builtin.integer i8 }>";
         let state_stream = state_stream_from_iterator(
             test_string.chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
@@ -615,13 +615,13 @@ mod tests {
         llvm::register(&mut ctx);
 
         let state_stream = state_stream_from_iterator(
-            "llvm.struct < My1 { builtin.int <i8> } >".chars(),
+            "llvm.struct < My1 { builtin.integer i8 } >".chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
         let _ = type_parser().parse(state_stream).unwrap().0;
 
         let state_stream = state_stream_from_iterator(
-            "llvm.struct < My1 { builtin.int <i16> } >".chars(),
+            "llvm.struct < My1 { builtin.integer i16 } >".chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
         );
 
@@ -643,7 +643,7 @@ mod tests {
 
         let si32 = IntegerType::get(&mut ctx, 32, Signedness::Signed);
 
-        let input = "llvm.func <llvm.void (builtin.int <si32>)>";
+        let input = "llvm.func <llvm.void (builtin.integer si32)>";
         let state_stream = state_stream_from_iterator(
             input.chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),

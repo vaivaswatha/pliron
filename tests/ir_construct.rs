@@ -96,11 +96,11 @@ fn replace_c0_with_c1_operand() -> Result<()> {
         builtin.module @bar 
         {
           ^block_1v1():
-            builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block_2v1():
-                c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
-                c1_op_5v1_res0 = test.constant builtin.integer <0x1: builtin.int <si64>>;
+                c0_op_3v1_res0 = test.constant builtin.integer <0: si64>;
+                c1_op_5v1_res0 = test.constant builtin.integer <1: si64>;
                 test.return c0_op_3v1_res0
             }
         }"#]]
@@ -114,10 +114,10 @@ fn replace_c0_with_c1_operand() -> Result<()> {
         builtin.module @bar 
         {
           ^block_1v1():
-            builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block_2v1():
-                c1_op_5v1_res0 = test.constant builtin.integer <0x1: builtin.int <si64>>;
+                c1_op_5v1_res0 = test.constant builtin.integer <1: si64>;
                 test.return c1_op_5v1_res0
             }
         }"#]]
@@ -167,11 +167,11 @@ fn test_replace_within_same_def_site() {
         builtin.module @bar 
         {
           ^block_1v1():
-            builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block_2v1():
-                c0_op_4v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
-                op_1v1_res0, op_1v1_res1 = test.dual_def () [] []: <() -> (builtin.int <si64>, builtin.int <si64>)>;
+                c0_op_4v1_res0 = test.constant builtin.integer <0: si64>;
+                op_1v1_res0, op_1v1_res1 = test.dual_def () [] []: <() -> (builtin.integer si64, builtin.integer si64)>;
                 test.return op_1v1_res1
             }
         }"#]]
@@ -192,13 +192,13 @@ fn test_replace_within_same_def_site() {
         builtin.module @bar 
         {
           ^block_1v1():
-            builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block_2v1():
-                c0_op_4v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
-                op_1v1_res0, op_1v1_res1 = test.dual_def () [] []: <() -> (builtin.int <si64>, builtin.int <si64>)>;
+                c0_op_4v1_res0 = test.constant builtin.integer <0: si64>;
+                op_1v1_res0, op_1v1_res1 = test.dual_def () [] []: <() -> (builtin.integer si64, builtin.integer si64)>;
                 test.return op_1v1_res1
-              ^block_3v1(block_3v1_arg0:builtin.int <si64>,block_3v1_arg1:builtin.int <si64>):
+              ^block_3v1(block_3v1_arg0:builtin.integer si64,block_3v1_arg1:builtin.integer si64):
                 test.return block_3v1_arg1
             }
         }"#]]
@@ -215,10 +215,10 @@ fn print_simple() -> Result<()> {
         builtin.module @bar 
         {
           ^block_1v1():
-            builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block_2v1():
-                c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
+                c0_op_3v1_res0 = test.constant builtin.integer <0: si64>;
                 test.return c0_op_3v1_res0
             }
         }"#]]
@@ -232,11 +232,11 @@ fn parse_simple() -> Result<()> {
     let input = r#"
         builtin.module @bar {
         ^block_0_0():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function <() -> (builtin.integer si64)> {
             ^entry_block_1_0():
-                c0_op_2_0_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
+                c0_op_2_0_res0 = test.constant builtin.integer <0: si64>;
                 test.return c0_op_2_0_res0
-            ^exit(a : builtin.int <si32>):
+            ^exit(a : builtin.integer si32):
             }
         }"#;
 
@@ -271,10 +271,10 @@ fn parse_err_multiple_def() {
     let input_multiple_ssa_defs = r#"
         builtin.module @bar {
         ^block_0_0():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function <() -> (builtin.integer si64)> {
             ^entry_block_1_0():
-                c0_op_2_0_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
-                c0_op_2_0_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
+                c0_op_2_0_res0 = test.constant builtin.integer <0 : si64>;
+                c0_op_2_0_res0 = test.constant builtin.integer <0 : si64>;
                 test.return c0_op_2_0_res0
             ^exit():
             }
@@ -289,9 +289,9 @@ fn parse_err_multiple_def() {
     let input_multiple_label_defs = r#"
         builtin.module @bar {
         ^block_0_0():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function <() -> (builtin.integer si64)> {
             ^entry_block_1_0():
-                c0_op_2_0_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
+                c0_op_2_0_res0 = test.constant builtin.integer <0: si64>;
                 test.return c0_op_2_0_res0
             ^entry_block_1_0():
             }
@@ -309,14 +309,14 @@ fn parse_err_unresolved_def() {
     let input_multiple_defs = r#"
         builtin.module @bar {
         ^block_0_0():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function <() -> (builtin.integer si64)> {
             ^entry_block_1_0():
                 test.return c0_op_2_0_res0
             }
         }"#;
 
     let expected_err = expect![[r#"
-        Parse error at line: 4, column: 78
+        Parse error at line: 4, column: 80
         Identifier c0_op_2_0_res0 was not resolved to any definition in the scope
     "#]];
     expect_parse_error(input_multiple_defs, expected_err);
@@ -327,9 +327,9 @@ fn parse_err_block_label_colon() {
     let input_label_colon_missing = r#"
         builtin.module @bar {
         ^block_0_0():
-            builtin.func @foo: builtin.function <() -> (builtin.int <si64>)> {
+            builtin.func @foo: builtin.function <() -> (builtin.integer si64)> {
             ^entry_block_1_0():
-                c0_op_2_0_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
+                c0_op_2_0_res0 = test.constant builtin.integer <0: si64>;
                 test.return c0_op_2_0_res0
             ^exit()
             }
@@ -348,11 +348,11 @@ fn parse_err_block_label_colon() {
 fn parse_err_block_args() {
     let input_label_colon_missing = r#"
         builtin.module @bar {
-        ^block_0_0(a : builtin.int <si32>, b):
+        ^block_0_0(a : builtin.integer si32, b):
         }"#;
 
     let expected_err = expect![[r#"
-        Parse error at line: 3, column: 45
+        Parse error at line: 3, column: 47
         Unexpected `)`
         Expected whitespaces or `:`
     "#]];
@@ -386,20 +386,20 @@ fn test_preorder_forward_walk() {
         builtin.module @bar 
         {
           ^block_1v1():
-            builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block_2v1():
-                c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
+                c0_op_3v1_res0 = test.constant builtin.integer <0: si64>;
                 test.return c0_op_3v1_res0
             }
         }
-        builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
+        builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
         {
           ^entry_block_2v1():
-            c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
+            c0_op_3v1_res0 = test.constant builtin.integer <0: si64>;
             test.return c0_op_3v1_res0
         }
-        c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>
+        c0_op_3v1_res0 = test.constant builtin.integer <0: si64>
         test.return c0_op_3v1_res0
     "#]]
     .assert_eq(&ops);
@@ -433,21 +433,21 @@ fn test_postorder_forward_walk() {
         accum + &op.disp(ctx).to_string() + "\n"
     });
     expect![[r#"
-        c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>
+        c0_op_3v1_res0 = test.constant builtin.integer <0: si64>
         test.return c0_op_3v1_res0
-        builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
+        builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
         {
           ^entry_block_2v1():
-            c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
+            c0_op_3v1_res0 = test.constant builtin.integer <0: si64>;
             test.return c0_op_3v1_res0
         }
         builtin.module @bar 
         {
           ^block_1v1():
-            builtin.func @foo: builtin.function <()->(builtin.int <si64>)> 
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block_2v1():
-                c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
+                c0_op_3v1_res0 = test.constant builtin.integer <0: si64>;
                 test.return c0_op_3v1_res0
             }
         }

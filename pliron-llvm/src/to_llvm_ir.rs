@@ -1,6 +1,5 @@
 //! Translate from pliron's LLVM dialect to LLVM-IR
 
-use apint::ApInt;
 use llvm_sys::LLVMIntPredicate;
 use pliron::{
     basic_block::BasicBlock,
@@ -24,6 +23,7 @@ use pliron::{
     operation::Operation,
     result::Result,
     r#type::{Type, TypeObj, TypePtr, Typed, type_cast},
+    utils::apint::APInt,
     value::Value,
 };
 
@@ -518,8 +518,8 @@ impl ToLLVMValue for ConstantOp {
         if let Some(int_val) = value.downcast_ref::<IntegerAttr>() {
             let int_ty = TypePtr::<IntegerType>::from_ptr(int_val.get_type(ctx), ctx).unwrap();
             let int_ty_llvm = convert_type(ctx, llvm_ctx, int_ty.into())?;
-            let ap_int_val: ApInt = int_val.clone().into();
-            let const_val = llvm_const_int(int_ty_llvm, ap_int_val.resize_to_u64(), false);
+            let ap_int_val: APInt = int_val.clone().into();
+            let const_val = llvm_const_int(int_ty_llvm, ap_int_val.to_u64(), false);
             Ok(const_val)
         } else if let Some(_float_val) = value.downcast_ref::<FloatAttr>() {
             todo!()

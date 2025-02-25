@@ -1,11 +1,11 @@
-use apint::ApInt;
 use combine::{
     Parser, any, between, many, many1, none_of,
-    parser::char::{self, hex_digit, string},
+    parser::char::{self, char, digit, spaces},
     token,
 };
 use pliron::derive::{attr_interface_impl, def_attribute};
 use pliron_derive::format_attribute;
+use thiserror::Error;
 
 use crate::{
     attribute::{AttrObj, Attribute, AttributeDict},
@@ -13,15 +13,20 @@ use crate::{
     context::{Context, Ptr},
     identifier::Identifier,
     impl_verify_succ, input_err,
-    irfmt::printers::quoted,
+    irfmt::{parsers::spaced, printers::quoted},
     location::Located,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     result::Result,
     r#type::{TypeObj, TypePtr, Typed},
+    utils::apint::APInt,
+    verify_err_noloc,
 };
 
-use super::{attr_interfaces::TypedAttrInterface, types::IntegerType};
+use super::{
+    attr_interfaces::TypedAttrInterface,
+    types::{IntegerType, Signedness},
+};
 
 #[def_attribute("builtin.identifier")]
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -122,7 +127,7 @@ impl Parsable for StringAttr {
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct IntegerAttr {
     ty: TypePtr<IntegerType>,
-    val: ApInt,
+    val: APInt,
 }
 
 impl Printable for IntegerAttr {
@@ -132,20 +137,38 @@ impl Printable for IntegerAttr {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "<0x{:x}: {}>", self.val, self.ty.disp(ctx))
+        let ty = &*self.ty.deref(ctx);
+        write!(
+            f,
+            "<{}: {}>",
+            self.val
+                .to_string_decimal(ty.get_signedness() == Signedness::Signed),
+            ty.disp(ctx)
+        )
     }
 }
 
-impl_verify_succ!(IntegerAttr);
+#[derive(Debug, Error)]
+#[error("The bitwidth type does not match the bitwidth of the value.")]
+pub struct IntegerAttrBitwidthErr;
+
+impl Verify for IntegerAttr {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        if self.ty.deref(ctx).get_width() as usize != self.val.bw() {
+            return verify_err_noloc!(IntegerAttrBitwidthErr);
+        }
+        Ok(())
+    }
+}
 
 impl IntegerAttr {
     /// Create a new [IntegerAttr].
-    pub fn new(ty: TypePtr<IntegerType>, val: ApInt) -> Self {
+    pub fn new(ty: TypePtr<IntegerType>, val: APInt) -> Self {
         IntegerAttr { ty, val }
     }
 }
 
-impl From<IntegerAttr> for ApInt {
+impl From<IntegerAttr> for APInt {
     fn from(value: IntegerAttr) -> Self {
         value.val
     }
@@ -162,15 +185,22 @@ impl Parsable for IntegerAttr {
         between(
             token('<'),
             token('>'),
-            string("0x")
-                .with(many1::<String, _, _>(hex_digit()))
-                .skip(token(':'))
-                .and(TypePtr::<IntegerType>::parser(())),
+            spaces()
+                .with(many1::<String, _, _>(digit().or(char('-').or(char('+')))))
+                .skip(spaced(token(':')))
+                .and(IntegerType::parser(())),
         )
-        .parse_stream(state_stream)
-        .map(|(digits, ty)| {
-            IntegerAttr::new(ty, ApInt::from_str_radix(16, digits.clone()).unwrap())
+        .then(|(digits, ty)| {
+            combine::parser(move |state_stream: &mut StateStream<'a>| {
+                let ty_ref = &*ty.deref(state_stream.state.ctx);
+                let apint = match APInt::from_str(&digits, ty_ref.get_width() as usize, 10) {
+                    Ok(val) => Ok(val).into_parse_result(),
+                    Err(err) => input_err!(state_stream.loc(), "{}", err).into_parse_result(),
+                }?;
+                Ok(IntegerAttr::new(ty, apint.0)).into_parse_result()
+            })
         })
+        .parse_stream(state_stream)
         .into_result()
     }
 }
@@ -389,7 +419,7 @@ pub fn register(ctx: &mut Context) {
 
 #[cfg(test)]
 mod tests {
-    use apint::ApInt;
+    use awint::bw;
     use expect_test::expect;
 
     use crate::{
@@ -406,6 +436,7 @@ mod tests {
         location,
         parsable::{self, state_stream_from_iterator},
         printable::Printable,
+        utils::apint::APInt,
     };
 
     use super::{DictAttr, TypeAttr, VecAttr};
@@ -416,27 +447,27 @@ mod tests {
 
         let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
 
-        let int64_0_ptr: AttrObj = IntegerAttr::new(i64_ty, ApInt::from_i64(0)).into();
-        let int64_1_ptr: AttrObj = IntegerAttr::new(i64_ty, ApInt::from_i64(15)).into();
+        let int64_0_ptr: AttrObj = IntegerAttr::new(i64_ty, APInt::from_i64(0, bw(64))).into();
+        let int64_1_ptr: AttrObj = IntegerAttr::new(i64_ty, APInt::from_i64(15, bw(64))).into();
         assert!(int64_0_ptr.is::<IntegerAttr>() && &int64_0_ptr != &int64_1_ptr);
-        let int64_0_ptr2: AttrObj = IntegerAttr::new(i64_ty, ApInt::from_i64(0)).into();
+        let int64_0_ptr2: AttrObj = IntegerAttr::new(i64_ty, APInt::from_i64(0, bw(64))).into();
         assert!(int64_0_ptr == int64_0_ptr2);
         assert_eq!(
             int64_0_ptr.disp(&ctx).to_string(),
-            "builtin.integer <0x0: builtin.int <si64>>"
+            "builtin.integer <0: si64>"
         );
         assert_eq!(
             int64_1_ptr.disp(&ctx).to_string(),
-            "builtin.integer <0xf: builtin.int <si64>>"
+            "builtin.integer <15: si64>"
         );
         assert!(
-            ApInt::from(int64_0_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()).is_zero()
-                && ApInt::resize_to_i64(&ApInt::from(
+            APInt::from(int64_0_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()).is_zero()
+                && APInt::to_i64(&APInt::from(
                     int64_1_ptr.downcast_ref::<IntegerAttr>().unwrap().clone()
                 )) == 15
         );
 
-        let attr_input = "builtin.integer <0x0: builtin.unit>";
+        let attr_input = "builtin.integer <0: builtin.unit>";
         let state_stream = state_stream_from_iterator(
             attr_input.chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
@@ -447,8 +478,9 @@ mod tests {
             .err()
             .expect("Integer attribute with non-integer type shouldn't be parsed successfully");
         let expected_err_msg = expect![[r#"
-            Parse error at line: 1, column: 22
-            Expected type builtin.int, but found builtin.unit
+            Parse error at line: 1, column: 21
+            Unexpected `b`
+            Expected whitespaces, si, ui, i or whitespace
         "#]];
         expected_err_msg.assert_eq(&parse_err.to_string());
     }

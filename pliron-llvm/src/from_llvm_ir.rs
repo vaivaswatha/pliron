@@ -1,6 +1,6 @@
 //! Translate from LLVM-IR to pliron's LLVM dialect
 
-use apint::ApInt;
+use std::num::NonZero;
 
 use llvm_sys::{LLVMIntPredicate, LLVMOpcode, LLVMTypeKind, LLVMValueKind};
 use pliron::{
@@ -20,6 +20,7 @@ use pliron::{
     operation::Operation,
     result::Result,
     r#type::{TypeObj, TypePtr},
+    utils::apint::APInt,
     value::Value,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -221,6 +222,8 @@ pub enum ConversionErr {
     UndefinedValue(String),
     #[error("Block definition {0} not seen yet")]
     UndefinedBlock(String),
+    #[error("Integer constant has bit-width 0")]
+    ZeroWidthIntConst,
 }
 
 /// Checks if a constant has been processed already, and if not
@@ -243,7 +246,12 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             // TODO: Zero extend or sign extend?
             let u64 = llvm_const_int_get_zext_value(val);
             let int_ty = TypePtr::<IntegerType>::from_ptr(ty, ctx)?;
-            let val_attr = IntegerAttr::new(int_ty, ApInt::from_u64(u64));
+            let width = int_ty.deref(ctx).get_width() as usize;
+            if width == 0 {
+                return input_err_noloc!(ConversionErr::ZeroWidthIntConst);
+            }
+            let val_attr =
+                IntegerAttr::new(int_ty, APInt::from_u64(u64, NonZero::new(width).unwrap()));
             let const_op = ConstantOp::new(ctx, Box::new(val_attr));
             // Insert at the beginning of the entry block.
             const_op
