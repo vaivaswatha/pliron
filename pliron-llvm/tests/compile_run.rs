@@ -292,3 +292,9 @@ fn test_insert_extract_value_via_pliron() {
         103,
     );
 }
+
+/// Test SelectOp by compiling select.ll via pliron.
+#[test]
+fn test_select_via_pliron() {
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("select.ll").to_str().unwrap(), 100);
+}

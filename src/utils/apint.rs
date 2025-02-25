@@ -330,6 +330,12 @@ mod tests {
         assert_eq!(apint.to_u8(), 15);
         assert_eq!(apint.to_string(10, true), "-1");
         assert_eq!(apint.to_string(10, false), "15");
+
+        let apint = APInt::from_str("-2", width, 10).unwrap();
+        assert_eq!(apint.to_i8(), -2);
+        assert_eq!(apint.to_u8(), 14);
+        assert_eq!(apint.to_string(10, true), "-2");
+        assert_eq!(apint.to_string(10, false), "14");
     }
 
     #[test]

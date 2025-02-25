@@ -46,8 +46,8 @@ use crate::{
     ops::{
         AShrOp, AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
         ExtractValueOp, GepIndex, GetElementPtrOp, ICmpOp, InsertValueOp, LShrOp, LoadOp, MulOp,
-        OrOp, ReturnOp, SDivOp, SExtOp, SRemOp, ShlOp, StoreOp, SubOp, UDivOp, URemOp, UndefOp,
-        XorOp, ZExtOp,
+        OrOp, ReturnOp, SDivOp, SExtOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp, UDivOp, URemOp,
+        UndefOp, XorOp, ZExtOp,
     },
     types::{ArrayType, PointerType, StructErr, StructType, VoidType},
 };
@@ -545,7 +545,14 @@ fn convert_instruction(
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             Ok(SDivOp::new(ctx, lhs, rhs).get_operation())
         }
-        LLVMOpcode::LLVMSelect => todo!(),
+        LLVMOpcode::LLVMSelect => {
+            let (cond, true_val, false_val) = (
+                get_operand(opds, 0)?,
+                get_operand(opds, 1)?,
+                get_operand(opds, 2)?,
+            );
+            Ok(SelectOp::new(ctx, cond, true_val, false_val).get_operation())
+        }
         LLVMOpcode::LLVMSExt => {
             let arg = get_operand(opds, 0)?;
             let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;

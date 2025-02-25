@@ -15,30 +15,30 @@ use llvm_sys::{
         LLVMBuildBr, LLVMBuildCall2, LLVMBuildCondBr, LLVMBuildExtractValue, LLVMBuildGEP2,
         LLVMBuildICmp, LLVMBuildInsertValue, LLVMBuildLoad2, LLVMBuildMul, LLVMBuildOr,
         LLVMBuildPhi, LLVMBuildRet, LLVMBuildRetVoid, LLVMBuildSDiv, LLVMBuildSExt, LLVMBuildSRem,
-        LLVMBuildShl, LLVMBuildStore, LLVMBuildSub, LLVMBuildUDiv, LLVMBuildURem, LLVMBuildXor,
-        LLVMBuildZExt, LLVMClearInsertionPosition, LLVMConstInt, LLVMConstIntGetZExtValue,
-        LLVMContextCreate, LLVMContextDispose, LLVMCountIncoming, LLVMCountParamTypes,
-        LLVMCountParams, LLVMCountStructElementTypes, LLVMCreateBuilderInContext,
-        LLVMCreateMemoryBufferWithContentsOfFile, LLVMDisposeMemoryBuffer, LLVMDisposeMessage,
-        LLVMDisposeModule, LLVMDumpModule, LLVMDumpType, LLVMDumpValue, LLVMFunctionType,
-        LLVMGetAllocatedType, LLVMGetArrayLength2, LLVMGetBasicBlockName,
-        LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType, LLVMGetCalledValue,
-        LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFirstBasicBlock, LLVMGetFirstFunction,
-        LLVMGetFirstInstruction, LLVMGetFirstParam, LLVMGetGEPSourceElementType,
-        LLVMGetICmpPredicate, LLVMGetIncomingBlock, LLVMGetIncomingValue, LLVMGetIndices,
-        LLVMGetInsertBlock, LLVMGetInstructionOpcode, LLVMGetInstructionParent,
-        LLVMGetIntTypeWidth, LLVMGetModuleIdentifier, LLVMGetNSW, LLVMGetNUW,
-        LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextInstruction, LLVMGetNextParam,
-        LLVMGetNumArgOperands, LLVMGetNumIndices, LLVMGetNumOperands, LLVMGetOperand, LLVMGetParam,
-        LLVMGetParamTypes, LLVMGetPreviousBasicBlock, LLVMGetPreviousFunction,
-        LLVMGetPreviousInstruction, LLVMGetPreviousParam, LLVMGetReturnType,
-        LLVMGetStructElementTypes, LLVMGetStructName, LLVMGetTypeKind, LLVMGetUndef,
-        LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType, LLVMIntTypeInContext,
-        LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser, LLVMIsOpaqueStruct,
-        LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext, LLVMPositionBuilderAtEnd,
-        LLVMPositionBuilderBefore, LLVMPrintModuleToFile, LLVMStructCreateNamed, LLVMStructSetBody,
-        LLVMStructTypeInContext, LLVMTypeIsSized, LLVMTypeOf, LLVMValueAsBasicBlock,
-        LLVMValueIsBasicBlock, LLVMVoidTypeInContext,
+        LLVMBuildSelect, LLVMBuildShl, LLVMBuildStore, LLVMBuildSub, LLVMBuildUDiv, LLVMBuildURem,
+        LLVMBuildXor, LLVMBuildZExt, LLVMClearInsertionPosition, LLVMConstInt,
+        LLVMConstIntGetZExtValue, LLVMContextCreate, LLVMContextDispose, LLVMCountIncoming,
+        LLVMCountParamTypes, LLVMCountParams, LLVMCountStructElementTypes,
+        LLVMCreateBuilderInContext, LLVMCreateMemoryBufferWithContentsOfFile,
+        LLVMDisposeMemoryBuffer, LLVMDisposeMessage, LLVMDisposeModule, LLVMDumpModule,
+        LLVMDumpType, LLVMDumpValue, LLVMFunctionType, LLVMGetAllocatedType, LLVMGetArrayLength2,
+        LLVMGetBasicBlockName, LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType,
+        LLVMGetCalledValue, LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFirstBasicBlock,
+        LLVMGetFirstFunction, LLVMGetFirstInstruction, LLVMGetFirstParam,
+        LLVMGetGEPSourceElementType, LLVMGetICmpPredicate, LLVMGetIncomingBlock,
+        LLVMGetIncomingValue, LLVMGetIndices, LLVMGetInsertBlock, LLVMGetInstructionOpcode,
+        LLVMGetInstructionParent, LLVMGetIntTypeWidth, LLVMGetModuleIdentifier, LLVMGetNSW,
+        LLVMGetNUW, LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextInstruction,
+        LLVMGetNextParam, LLVMGetNumArgOperands, LLVMGetNumIndices, LLVMGetNumOperands,
+        LLVMGetOperand, LLVMGetParam, LLVMGetParamTypes, LLVMGetPreviousBasicBlock,
+        LLVMGetPreviousFunction, LLVMGetPreviousInstruction, LLVMGetPreviousParam,
+        LLVMGetReturnType, LLVMGetStructElementTypes, LLVMGetStructName, LLVMGetTypeKind,
+        LLVMGetUndef, LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType,
+        LLVMIntTypeInContext, LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser,
+        LLVMIsOpaqueStruct, LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext,
+        LLVMPositionBuilderAtEnd, LLVMPositionBuilderBefore, LLVMPrintModuleToFile,
+        LLVMStructCreateNamed, LLVMStructSetBody, LLVMStructTypeInContext, LLVMTypeIsSized,
+        LLVMTypeOf, LLVMValueAsBasicBlock, LLVMValueIsBasicBlock, LLVMVoidTypeInContext,
     },
     ir_reader::LLVMParseIRInContext,
     prelude::{
@@ -1096,6 +1096,27 @@ pub fn llvm_build_extract_value(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildExtractValue(builder.0, agg_val.into(), index, to_c_str(name).as_ptr()).into()
+    }
+}
+
+/// LLVMBuildSelect
+pub fn llvm_build_select(
+    builder: &LLVMBuilder,
+    if_val: LLVMValue,
+    then_val: LLVMValue,
+    else_val: LLVMValue,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildSelect(
+            builder.0,
+            if_val.into(),
+            then_val.into(),
+            else_val.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
     }
 }
 

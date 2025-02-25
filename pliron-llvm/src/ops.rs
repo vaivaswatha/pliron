@@ -1493,6 +1493,71 @@ pub mod insert_extract_value_op {
         LazyLock::new(|| "llvm_insert_extract_value_indices".try_into().unwrap());
 }
 
+/// Equivalent to LLVM's Select opcode.
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `condition` | i1 |
+/// | `true_dest` | any type |
+/// | `false_dest` | any type |
+/// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | any type |
+#[def_op("llvm.select")]
+#[derive_op_interface_impl(OneResultInterface)]
+#[format_op("$0 ` ? ` $1 ` : ` $2 ` : ` type($0)")]
+pub struct SelectOp;
+
+impl SelectOp {
+    /// Create a new [SelectOp].
+    pub fn new(ctx: &mut Context, cond: Value, true_val: Value, false_val: Value) -> Self {
+        use pliron::r#type::Typed;
+
+        let result_type = true_val.get_type(ctx);
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![result_type],
+            vec![cond, true_val, false_val],
+            vec![],
+            0,
+        );
+        SelectOp { op }
+    }
+}
+
+impl Verify for SelectOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        use pliron::r#type::Typed;
+
+        let loc = self.get_operation().deref(ctx).loc();
+        let op = &*self.op.deref(ctx);
+        let ty = op.get_type(0);
+        let cond_ty = op.get_operand(0).get_type(ctx);
+        let true_ty = op.get_operand(1).get_type(ctx);
+        let false_ty = op.get_operand(2).get_type(ctx);
+        if ty != true_ty || ty != false_ty {
+            return verify_err!(loc, SelectOpVerifyErr::ResultTypeErr);
+        }
+
+        let cond_ty = cond_ty.deref(ctx);
+        let cond_ty = cond_ty.downcast_ref::<IntegerType>();
+        if cond_ty.is_none_or(|ty| ty.get_width() != 1) {
+            return verify_err!(loc, SelectOpVerifyErr::ConditionTypeErr);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum SelectOpVerifyErr {
+    #[error("Result must be the same as the true and false destination types")]
+    ResultTypeErr,
+    #[error("Condition must be an i1")]
+    ConditionTypeErr,
+}
+
 /// Register ops in the LLVM dialect.
 pub fn register(ctx: &mut Context) {
     AddOp::register(ctx, AddOp::parser_fn);
@@ -1522,6 +1587,7 @@ pub fn register(ctx: &mut Context) {
     ZExtOp::register(ctx, ZExtOp::parser_fn);
     InsertValueOp::register(ctx, InsertValueOp::parser_fn);
     ExtractValueOp::register(ctx, ExtractValueOp::parser_fn);
+    SelectOp::register(ctx, SelectOp::parser_fn);
     UndefOp::register(ctx, UndefOp::parser_fn);
     ReturnOp::register(ctx, ReturnOp::parser_fn);
 }
