@@ -8,6 +8,8 @@ use pliron::derive::{
     attr_interface, attr_interface_impl, def_attribute, def_op, def_type, derive_op_interface_impl,
     op_interface, op_interface_impl, type_interface, type_interface_impl,
 };
+use pliron::location::Located;
+use pliron::verify_err;
 use pliron::{
     attribute::Attribute,
     builtin::{
@@ -31,6 +33,7 @@ use pliron::{
     utils::trait_cast::any_to_trait,
 };
 use pliron_derive::format_attribute;
+use thiserror::Error;
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
 
@@ -331,5 +334,84 @@ fn test_type_intr_verify_order() -> Result<()> {
         TestTypeInterface2 verified
     "#]]
     .assert_eq(&TEST_TYPE_VERIFIERS_OUTPUT.lock().unwrap());
+    Ok(())
+}
+
+#[op_interface]
+trait TestNoInbuiltVerifyInterface {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized;
+}
+
+#[def_op("test.no_inbuilt_verify_op")]
+struct NoInbuiltVerifyOp {}
+impl_canonical_syntax!(NoInbuiltVerifyOp);
+impl_verify_succ!(NoInbuiltVerifyOp);
+impl NoInbuiltVerifyOp {
+    fn new(ctx: &mut Context) -> NoInbuiltVerifyOp {
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
+        *Operation::get_op(op, ctx).downcast_ref().unwrap()
+    }
+}
+
+#[op_interface_impl]
+impl TestNoInbuiltVerifyInterface for NoInbuiltVerifyOp {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn test_no_inbuilt_verify() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    NoInbuiltVerifyOp::register(ctx, NoInbuiltVerifyOp::parser_fn);
+
+    let vio = NoInbuiltVerifyOp::new(ctx);
+
+    vio.get_operation().deref(ctx).verify(ctx)?;
+
+    Ok(())
+}
+
+#[def_op("test.no_inbuilt_verify_op2")]
+struct NoInbuiltVerifyOp2 {}
+impl_canonical_syntax!(NoInbuiltVerifyOp2);
+impl_verify_succ!(NoInbuiltVerifyOp2);
+impl NoInbuiltVerifyOp2 {
+    fn new(ctx: &mut Context) -> NoInbuiltVerifyOp2 {
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
+        *Operation::get_op(op, ctx).downcast_ref().unwrap()
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("No inbuilt verify op2 error")]
+pub struct NoInbuiltVerifyOp2Error;
+
+#[op_interface_impl]
+impl TestNoInbuiltVerifyInterface for NoInbuiltVerifyOp2 {
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<()> {
+        verify_err!(op.get_operation().deref(ctx).loc(), NoInbuiltVerifyOp2Error)
+    }
+}
+
+#[test]
+fn test_no_inbuilt_verify2() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    NoInbuiltVerifyOp2::register(ctx, NoInbuiltVerifyOp2::parser_fn);
+
+    let vio = NoInbuiltVerifyOp2::new(ctx);
+
+    assert!(matches!(
+        vio.get_operation().verify(ctx),
+        Err(Error {
+            kind: ErrorKind::VerificationFailed,
+            err,
+            ..
+        })
+        if err.is::<NoInbuiltVerifyOp2Error>()
+    ));
+
     Ok(())
 }
