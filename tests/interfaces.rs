@@ -8,7 +8,6 @@ use pliron::derive::{
     attr_interface, attr_interface_impl, def_attribute, def_op, def_type, derive_op_interface_impl,
     op_interface, op_interface_impl, type_interface, type_interface_impl,
 };
-use pliron::location::Located;
 use pliron::verify_err;
 use pliron::{
     attribute::Attribute,
@@ -392,7 +391,7 @@ pub struct NoInbuiltVerifyOp2Error;
 #[op_interface_impl]
 impl TestNoInbuiltVerifyInterface for NoInbuiltVerifyOp2 {
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()> {
-        verify_err!(op.get_operation().deref(ctx).loc(), NoInbuiltVerifyOp2Error)
+        verify_err!(op.loc(ctx), NoInbuiltVerifyOp2Error)
     }
 }
 

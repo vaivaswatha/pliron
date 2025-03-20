@@ -305,7 +305,7 @@ impl ICmpOp {
 
 impl Verify for ICmpOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        let loc = self.get_operation().deref(ctx).loc();
+        let loc = self.loc(ctx);
         let op = &*self.op.deref(ctx);
 
         if op
@@ -366,7 +366,7 @@ pub enum AllocaOpVerifyErr {
 pub struct AllocaOp;
 impl Verify for AllocaOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        let loc = self.get_operation().deref(ctx).loc();
+        let loc = self.loc(ctx);
         // Ensure correctness of operand type.
         if !self.operand_type(ctx).deref(ctx).is::<IntegerType>() {
             return verify_err!(loc, AllocaOpVerifyErr::OperandType);
@@ -909,7 +909,7 @@ impl LoadOp {
 
 impl Verify for LoadOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        let loc = self.get_operation().deref(ctx).loc();
+        let loc = self.loc(ctx);
         // Ensure correctness of operand type.
         if !self.operand_type(ctx).deref(ctx).is::<PointerType>() {
             return verify_err!(loc, LoadOpVerifyErr::OperandTypeErr);
@@ -967,7 +967,7 @@ impl StoreOp {
 
 impl Verify for StoreOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        let loc = self.get_operation().deref(ctx).loc();
+        let loc = self.loc(ctx);
         let op = &*self.op.deref(ctx);
 
         if op.get_num_operands() != 2 {
@@ -1174,7 +1174,7 @@ pub struct ConstantOpVerifyErr;
 
 impl Verify for ConstantOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        let loc = self.get_operation().deref(ctx).loc();
+        let loc = self.loc(ctx);
         let value = self.get_value(ctx);
         if !(value.is::<IntegerAttr>() || value.is::<FloatAttr>()) {
             return verify_err!(loc, ConstantOpVerifyErr);
@@ -1315,7 +1315,7 @@ impl InsertValueOp {
 
 impl Verify for InsertValueOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        let loc = self.get_operation().deref(ctx).loc();
+        let loc = self.loc(ctx);
         let op = &*self.op.deref(ctx);
         // Ensure that we have the indices as an attribute.
         if op
@@ -1373,7 +1373,7 @@ pub struct ExtractValueOp;
 
 impl Verify for ExtractValueOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        let loc = self.get_operation().deref(ctx).loc();
+        let loc = self.loc(ctx);
         let op = &*self.op.deref(ctx);
         // Ensure that we have the indices as an attribute.
         if op
@@ -1531,7 +1531,7 @@ impl Verify for SelectOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         use pliron::r#type::Typed;
 
-        let loc = self.get_operation().deref(ctx).loc();
+        let loc = self.loc(ctx);
         let op = &*self.op.deref(ctx);
         let ty = op.get_type(0);
         let cond_ty = op.get_operand(0).get_type(ctx);

@@ -70,7 +70,7 @@ pub trait BranchOpInterface: IsTerminatorInterface {
             let operands = self_op.successor_operands(ctx, succ_idx);
             if succ.get_num_arguments() != operands.len() {
                 return verify_err!(
-                    op.get_operation().deref(ctx).loc(),
+                    op.loc(ctx),
                     BranchOpInterfaceVerifyErr::SuccessorOperandsMismatch {
                         provided: operands.len(),
                         expected: succ.get_num_arguments()
@@ -81,7 +81,7 @@ pub trait BranchOpInterface: IsTerminatorInterface {
                 let block_arg = succ.get_argument(idx);
                 if operand.get_type(ctx) != block_arg.get_type(ctx) {
                     return verify_err!(
-                        op.get_operation().deref(ctx).loc(),
+                        op.loc(ctx),
                         BranchOpInterfaceVerifyErr::SuccessorOperandTypeMismatch {
                             idx,
                             forwarded: operand.get_type(ctx).disp(ctx).to_string(),
@@ -199,7 +199,7 @@ pub struct SymbolOpInterfaceErr;
 /// [Op] that defines or declares a [symbol](https://mlir.llvm.org/docs/SymbolsAndSymbolTables/#symbol).
 #[op_interface]
 pub trait SymbolOpInterface {
-    // Get the name of the symbol defined by this operation.
+    /// Get the name of the symbol defined by this operation.
     fn get_symbol_name(&self, ctx: &Context) -> Identifier {
         let self_op = self.get_operation().deref(ctx);
         let s_attr = self_op
@@ -226,7 +226,7 @@ pub trait SymbolOpInterface {
             .get::<IdentifierAttr>(&ATTR_KEY_SYM_NAME)
             .is_none()
         {
-            return verify_err!(op.get_operation().deref(ctx).loc(), SymbolOpInterfaceErr);
+            return verify_err!(op.loc(ctx), SymbolOpInterfaceErr);
         }
         Ok(())
     }
@@ -500,10 +500,7 @@ pub trait SameOperandsAndResultType: SameOperandsType + SameResultsType {
             .operand_type(ctx);
 
         if res_ty != opd_ty {
-            return verify_err!(
-                op.get_operation().deref(ctx).loc(),
-                SameOperandsAndResultTypeVerifyErr
-            );
+            return verify_err!(op.loc(ctx), SameOperandsAndResultTypeVerifyErr);
         }
 
         Ok(())
