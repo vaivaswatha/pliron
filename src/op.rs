@@ -58,7 +58,7 @@ use crate::{
         },
         printers::{functional_type, iter_with_sep},
     },
-    location::Location,
+    location::{Located, Location},
     operation::Operation,
     parsable::{IntoParseResult, Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
@@ -189,6 +189,11 @@ pub trait Op: Downcast + Verify + Printable {
                 dialect.add_op(Self::get_opid_static(), op_parser);
             }
         }
+    }
+
+    /// Get Op's location
+    fn loc(&self, ctx: &Context) -> Location {
+        self.get_operation().deref(ctx).loc()
     }
 }
 impl_downcast!(Op);

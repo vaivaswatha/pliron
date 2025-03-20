@@ -320,7 +320,7 @@ pub struct ForwardRefOpExistenceErr(String);
 impl Verify for ForwardRefOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         verify_err!(
-            self.get_operation().deref(ctx).loc(),
+            self.loc(ctx),
             ForwardRefOpExistenceErr(self.get_result(ctx).unique_name(ctx).into())
         )
     }

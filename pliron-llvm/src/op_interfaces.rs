@@ -75,11 +75,11 @@ pub trait IntBinArithOp: BinArithOp {
             .get_type(ctx)
             .deref(ctx);
         let Some(int_ty) = ty.downcast_ref::<IntegerType>() else {
-            return verify_err!(op.get_operation().deref(ctx).loc(), IntBinArithOpErr);
+            return verify_err!(op.loc(ctx), IntBinArithOpErr);
         };
 
         if int_ty.get_signedness() != Signedness::Signless {
-            return verify_err!(op.get_operation().deref(ctx).loc(), IntBinArithOpErr);
+            return verify_err!(op.loc(ctx), IntBinArithOpErr);
         }
 
         Ok(())
@@ -173,10 +173,7 @@ pub trait PointerTypeResult: OneResultInterface {
             .deref(ctx)
             .is::<PointerType>()
         {
-            return verify_err!(
-                op.get_operation().deref(ctx).loc(),
-                PointerTypeResultVerifyErr
-            );
+            return verify_err!(op.loc(ctx), PointerTypeResultVerifyErr);
         }
 
         Ok(())
