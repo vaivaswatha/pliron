@@ -86,31 +86,31 @@ impl<T: DefUseParticipant> DefNode<T> {
     where
         T: DefTrait + UseTrait,
     {
-        if std::ptr::eq(&*this.get_defnode_ref(ctx), &*other.get_defnode_ref(ctx)) {
+        if std::ptr::eq(&*this.defnode_ref(ctx), &*other.defnode_ref(ctx)) {
             return;
         }
 
         // Add r#use as a use of `other` and replace the [UseNode].
-        let new_use_node = other.get_defnode_mut(ctx).add_use(*other, *r#use);
-        *T::get_usenode_mut(r#use, ctx) = new_use_node;
+        let new_use_node = other.defnode_mut(ctx).add_use(*other, *r#use);
+        *T::usenode_mut(r#use, ctx) = new_use_node;
 
         // `this` will no longer have r#use as a use.
-        this.get_defnode_mut(ctx).uses.remove(r#use);
+        this.defnode_mut(ctx).uses.remove(r#use);
     }
 }
 
 /// Interface for [UseNode] wrappers.
 pub(crate) trait UseTrait: DefUseParticipant {
     /// Get a mutable reference to the [UseNode] described by this  use.
-    fn get_usenode_mut<'a>(r#use: &Use<Self>, ctx: &'a Context) -> RefMut<'a, UseNode<Self>>;
+    fn usenode_mut<'a>(r#use: &Use<Self>, ctx: &'a Context) -> RefMut<'a, UseNode<Self>>;
 }
 
 /// Interface for [DefNode] wrappers.
 pub(crate) trait DefTrait: DefUseParticipant {
     /// Get a reference to the underlying [DefNode].
-    fn get_defnode_ref<'a>(&self, ctx: &'a Context) -> Ref<'a, DefNode<Self>>;
+    fn defnode_ref<'a>(&self, ctx: &'a Context) -> Ref<'a, DefNode<Self>>;
     /// Get a mutable reference to the underlying [DefNode].
-    fn get_defnode_mut<'a>(&self, ctx: &'a Context) -> RefMut<'a, DefNode<Self>>;
+    fn defnode_mut<'a>(&self, ctx: &'a Context) -> RefMut<'a, DefNode<Self>>;
 }
 
 /// Describes a value definition.
@@ -129,17 +129,17 @@ pub enum Value {
 impl Value {
     /// How many uses does this definition have?
     pub fn num_uses(&self, ctx: &Context) -> usize {
-        self.get_defnode_ref(ctx).num_uses()
+        self.defnode_ref(ctx).num_uses()
     }
 
     /// Get all uses of this value.
     pub fn uses(&self, ctx: &Context) -> Vec<Use<Value>> {
-        self.get_defnode_ref(ctx).uses().collect()
+        self.defnode_ref(ctx).uses().collect()
     }
 
     /// Does this definition have any [Use]?
     pub fn is_used(&self, ctx: &Context) -> bool {
-        self.get_defnode_ref(ctx).is_used()
+        self.defnode_ref(ctx).is_used()
     }
 
     /// Replace uses of the underlying definition, that satisfy `pred`, with `other`.
@@ -151,7 +151,7 @@ impl Value {
     ) {
         // We collect because we don't want to keep the defnode locked up.
         let touched_uses: FxHashSet<_> = self
-            .get_defnode_ref(ctx)
+            .defnode_ref(ctx)
             .uses
             .iter()
             .filter(|r#use| predicate(ctx, r#use))
@@ -171,9 +171,9 @@ impl Value {
 impl Typed for Value {
     fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         match self {
-            Value::OpResult { op, res_idx } => op.deref(ctx).get_result_ref(*res_idx).get_type(),
+            Value::OpResult { op, res_idx } => op.deref(ctx).result_ref(*res_idx).get_type(),
             Value::BlockArgument { block, arg_idx } => {
-                block.deref(ctx).get_argument_ref(*arg_idx).get_type(ctx)
+                block.deref(ctx).argument_ref(*arg_idx).get_type(ctx)
             }
         }
     }
@@ -182,20 +182,18 @@ impl Typed for Value {
 impl Named for Value {
     fn given_name(&self, ctx: &Context) -> Option<Identifier> {
         match self {
-            Value::OpResult { op, res_idx } => {
-                op.deref(ctx).get_result_ref(*res_idx).given_name(ctx)
-            }
+            Value::OpResult { op, res_idx } => op.deref(ctx).result_ref(*res_idx).given_name(ctx),
             Value::BlockArgument { block, arg_idx } => {
-                block.deref(ctx).get_argument_ref(*arg_idx).given_name(ctx)
+                block.deref(ctx).argument_ref(*arg_idx).given_name(ctx)
             }
         }
     }
 
     fn id(&self, ctx: &Context) -> Identifier {
         match self {
-            Value::OpResult { op, res_idx } => op.deref(ctx).get_result_ref(*res_idx).id(ctx),
+            Value::OpResult { op, res_idx } => op.deref(ctx).result_ref(*res_idx).id(ctx),
             Value::BlockArgument { block, arg_idx } => {
-                block.deref(ctx).get_argument_ref(*arg_idx).id(ctx)
+                block.deref(ctx).argument_ref(*arg_idx).id(ctx)
             }
         }
     }
@@ -213,39 +211,37 @@ impl Printable for Value {
 }
 
 impl DefTrait for Value {
-    fn get_defnode_ref<'a>(&self, ctx: &'a Context) -> Ref<'a, DefNode<Self>> {
+    fn defnode_ref<'a>(&self, ctx: &'a Context) -> Ref<'a, DefNode<Self>> {
         match self {
             Self::OpResult { op, res_idx } => {
                 let op = op.deref(ctx);
-                Ref::map(op, |opref| &opref.get_result_ref(*res_idx).def)
+                Ref::map(op, |opref| &opref.result_ref(*res_idx).def)
             }
             Self::BlockArgument { block, arg_idx } => {
                 let block = block.deref(ctx);
-                Ref::map(block, |blockref| &blockref.get_argument_ref(*arg_idx).def)
+                Ref::map(block, |blockref| &blockref.argument_ref(*arg_idx).def)
             }
         }
     }
 
-    fn get_defnode_mut<'a>(&self, ctx: &'a Context) -> RefMut<'a, DefNode<Self>> {
+    fn defnode_mut<'a>(&self, ctx: &'a Context) -> RefMut<'a, DefNode<Self>> {
         match self {
             Self::OpResult { op, res_idx } => {
                 let op = op.deref_mut(ctx);
-                RefMut::map(op, |opref| &mut opref.get_result_mut(*res_idx).def)
+                RefMut::map(op, |opref| &mut opref.result_mut(*res_idx).def)
             }
             Self::BlockArgument { block, arg_idx } => {
                 let block = block.deref_mut(ctx);
-                RefMut::map(block, |blockref| {
-                    &mut blockref.get_argument_mut(*arg_idx).def
-                })
+                RefMut::map(block, |blockref| &mut blockref.argument_mut(*arg_idx).def)
             }
         }
     }
 }
 
 impl UseTrait for Value {
-    fn get_usenode_mut<'a>(r#use: &Use<Self>, ctx: &'a Context) -> RefMut<'a, UseNode<Value>> {
+    fn usenode_mut<'a>(r#use: &Use<Self>, ctx: &'a Context) -> RefMut<'a, UseNode<Value>> {
         let op = r#use.op.deref_mut(ctx);
-        RefMut::map(op, |opref| &mut opref.get_operand_mut(r#use.opd_idx).r#use)
+        RefMut::map(op, |opref| &mut opref.operand_mut(r#use.opd_idx).r#use)
     }
 }
 
@@ -269,7 +265,7 @@ impl Ptr<BasicBlock> {
                 r#use
                     .op
                     .deref(ctx)
-                    .get_container()
+                    .container()
                     .expect("Terminator branching to this block is not in any basic block")
             })
             .collect()
@@ -278,11 +274,11 @@ impl Ptr<BasicBlock> {
     /// Checks whether self is a successor of `pred`.
     /// O(n) in the number of successors of `pred`.
     pub fn is_succ_of(&self, ctx: &Context, pred: Ptr<BasicBlock>) -> bool {
-        // We do not check [Self::get_defnode_ref].uses here because
+        // We do not check [Self::defnode_ref].uses here because
         // we'd have to go through them all. We do not have a Use<_>
         // object to directly check membership.
         pred.deref(ctx)
-            .get_tail()
+            .tail()
             .is_some_and(|pred_term| pred_term.deref(ctx).successors().any(|succ| self == &succ))
     }
     /// Retarget predecessors (that satisfy pred) to `other`.
@@ -296,14 +292,14 @@ impl Ptr<BasicBlock> {
             let pred_block = r#use
                 .op
                 .deref(ctx)
-                .get_container()
+                .container()
                 .expect("Predecessor block must be in a Region");
             predicate(ctx, pred_block)
         };
 
         // We collect because we don't want to keep the defnode locked up.
         let touched_uses: FxHashSet<_> = self
-            .get_defnode_ref(ctx)
+            .defnode_ref(ctx)
             .uses
             .iter()
             .filter(|r#use| predicate(ctx, r#use))
@@ -336,26 +332,24 @@ impl Named for Ptr<BasicBlock> {
 }
 
 impl DefTrait for Ptr<BasicBlock> {
-    fn get_defnode_ref<'a>(&self, ctx: &'a Context) -> Ref<'a, DefNode<Self>> {
+    fn defnode_ref<'a>(&self, ctx: &'a Context) -> Ref<'a, DefNode<Self>> {
         let block = self.deref(ctx);
         Ref::map(block, |blockref| &blockref.preds)
     }
 
-    fn get_defnode_mut<'a>(&self, ctx: &'a Context) -> RefMut<'a, DefNode<Self>> {
+    fn defnode_mut<'a>(&self, ctx: &'a Context) -> RefMut<'a, DefNode<Self>> {
         let block = self.deref_mut(ctx);
         RefMut::map(block, |blockref| &mut blockref.preds)
     }
 }
 
 impl UseTrait for Ptr<BasicBlock> {
-    fn get_usenode_mut<'a>(
+    fn usenode_mut<'a>(
         r#use: &Use<Ptr<BasicBlock>>,
         ctx: &'a Context,
     ) -> RefMut<'a, UseNode<Ptr<BasicBlock>>> {
         let op = r#use.op.deref_mut(ctx);
-        RefMut::map(op, |opref| {
-            &mut opref.get_successor_mut(r#use.opd_idx).r#use
-        })
+        RefMut::map(op, |opref| &mut opref.successor_mut(r#use.opd_idx).r#use)
     }
 }
 
@@ -367,7 +361,7 @@ pub(crate) struct UseNode<T: DefUseParticipant> {
 }
 
 impl<T: DefUseParticipant> UseNode<T> {
-    pub(crate) fn get_def(&self) -> T {
+    pub(crate) fn def(&self) -> T {
         self.def
     }
 }

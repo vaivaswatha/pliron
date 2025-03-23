@@ -356,14 +356,14 @@ pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let interface_verifiers_slice = parse_quote! { ::pliron::op::OP_INTERFACE_VERIFIERS };
     let id = parse_quote! { ::pliron::op::OpId };
-    let get_id_static = format_ident!("{}", "get_opid_static");
+    let id_static = format_ident!("{}", "opid_static");
     let verifier_type = parse_quote! { ::pliron::op::OpInterfaceVerifier };
     to_token_stream(interfaces::interface_impl(
         item,
         interface_verifiers_slice,
         id,
         verifier_type,
-        get_id_static,
+        id_static,
     ))
 }
 
@@ -503,7 +503,7 @@ pub fn attr_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn attr_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let interface_verifiers_slice = parse_quote! { ::pliron::attribute::ATTR_INTERFACE_VERIFIERS };
     let id = parse_quote! { ::pliron::attribute::AttrId };
-    let get_id_static = format_ident!("{}", "get_attr_id_static");
+    let get_id_static = format_ident!("{}", "attr_id_static");
     let verifier_type = parse_quote! { ::pliron::attribute::AttrInterfaceVerifier };
     to_token_stream(interfaces::interface_impl(
         item,

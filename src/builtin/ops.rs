@@ -83,12 +83,12 @@ impl Parsable for ModuleOp {
         if !results.is_empty() {
             input_err!(
                 state_stream.loc(),
-                op_interfaces::ZeroResultVerifyErr(Self::get_opid_static().to_string())
+                op_interfaces::ZeroResultVerifyErr(Self::opid_static().to_string())
             )?
         }
         let op = Operation::new(
             state_stream.state.ctx,
-            Self::get_opid_static(),
+            Self::opid_static(),
             vec![],
             vec![],
             vec![],
@@ -114,12 +114,12 @@ impl ModuleOp {
     /// The underlying [Operation] is not linked to a [BasicBlock].
     /// The returned module has a single [crate::region::Region] with a single (BasicBlock)[crate::basic_block::BasicBlock].
     pub fn new(ctx: &mut Context, name: &Identifier) -> ModuleOp {
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
+        let op = Operation::new(ctx, Self::opid_static(), vec![], vec![], vec![], 1);
         let opop = ModuleOp { op };
         opop.set_symbol_name(ctx, name);
 
         // Create an empty block.
-        let region = op.deref_mut(ctx).get_region(0);
+        let region = op.deref_mut(ctx).region(0);
         let block = BasicBlock::new(ctx, None, vec![]);
         block.insert_at_front(region, ctx);
 
@@ -160,11 +160,11 @@ impl FuncOp {
     /// The returned function has a single region with an empty `entry` block.
     pub fn new(ctx: &mut Context, name: &Identifier, ty: TypePtr<FunctionType>) -> Self {
         let ty_attr = TypeAttr::new(ty.into());
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
+        let op = Operation::new(ctx, Self::opid_static(), vec![], vec![], vec![], 1);
 
         // Create an empty entry block.
-        let arg_types = ty.deref(ctx).get_inputs().clone();
-        let region = op.deref_mut(ctx).get_region(0);
+        let arg_types = ty.deref(ctx).inputs().clone();
+        let region = op.deref_mut(ctx).region(0);
         let body = BasicBlock::new(ctx, Some("entry".try_into().unwrap()), arg_types);
         body.insert_at_front(region, ctx);
         {
@@ -182,7 +182,7 @@ impl FuncOp {
 
     /// Get the function signature (type).
     pub fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        let opref = self.get_operation().deref(ctx);
+        let opref = self.operation().deref(ctx);
         opref
             .attributes
             .get_as::<dyn TypedAttrInterface>(&func_op::ATTR_KEY_FUNC_TYPE)
@@ -192,12 +192,12 @@ impl FuncOp {
 
     /// Get the entry block of this function.
     pub fn get_entry_block(&self, ctx: &Context) -> Ptr<BasicBlock> {
-        self.get_region(ctx).deref(ctx).get_head().unwrap()
+        self.region(ctx).deref(ctx).head().unwrap()
     }
 
     /// Get an iterator over all operations.
     pub fn op_iter<'a>(&self, ctx: &'a Context) -> impl Iterator<Item = Ptr<Operation>> + 'a {
-        self.get_region(ctx)
+        self.region(ctx)
             .deref(ctx)
             .iter(ctx)
             .flat_map(|bb| bb.deref(ctx).iter(ctx))
@@ -234,13 +234,13 @@ impl Parsable for FuncOp {
         if !results.is_empty() {
             input_err!(
                 state_stream.loc(),
-                op_interfaces::ZeroResultVerifyErr(Self::get_opid_static().to_string())
+                op_interfaces::ZeroResultVerifyErr(Self::opid_static().to_string())
             )?
         }
 
         let op = Operation::new(
             state_stream.state.ctx,
-            Self::get_opid_static(),
+            Self::opid_static(),
             vec![],
             vec![],
             vec![],
@@ -280,7 +280,7 @@ pub struct FuncOpTypeErr;
 
 impl Verify for FuncOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        let op = &*self.get_operation().deref(ctx);
+        let op = &*self.operation().deref(ctx);
         let ty = self.get_type(ctx);
         if !(ty.deref(ctx).is::<FunctionType>()) {
             return verify_err!(op.loc(), FuncOpTypeErr);
@@ -307,8 +307,8 @@ impl Printable for ForwardRefOp {
         write!(
             f,
             "{} = {}",
-            self.get_result(ctx).unique_name(ctx),
-            self.get_opid().disp(ctx),
+            self.result(ctx).unique_name(ctx),
+            self.opid().disp(ctx),
         )
     }
 }
@@ -321,7 +321,7 @@ impl Verify for ForwardRefOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         verify_err!(
             self.loc(ctx),
-            ForwardRefOpExistenceErr(self.get_result(ctx).unique_name(ctx).into())
+            ForwardRefOpExistenceErr(self.result(ctx).unique_name(ctx).into())
         )
     }
 }
@@ -337,7 +337,7 @@ impl Parsable for ForwardRefOp {
         input_err!(
             state_stream.loc(),
             ForwardRefOpExistenceErr(
-                ForwardRefOp::get_opid_static()
+                ForwardRefOp::opid_static()
                     .disp(state_stream.state.ctx)
                     .to_string()
             )
@@ -349,7 +349,7 @@ impl ForwardRefOp {
     /// Create a new [ForwardRefOp].
     pub fn new(ctx: &mut Context) -> Self {
         let ty = UnitType::get(ctx).into();
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![ty], vec![], vec![], 0);
+        let op = Operation::new(ctx, Self::opid_static(), vec![ty], vec![], vec![], 0);
         ForwardRefOp { op }
     }
 }

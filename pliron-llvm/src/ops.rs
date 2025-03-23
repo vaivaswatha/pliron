@@ -73,7 +73,7 @@ impl ReturnOp {
     pub fn new(ctx: &mut Context, value: Option<Value>) -> Self {
         let op = Operation::new(
             ctx,
-            Self::get_opid_static(),
+            Self::opid_static(),
             vec![],
             value.into_iter().collect(),
             vec![],
@@ -84,9 +84,9 @@ impl ReturnOp {
 
     /// Get the returned value, if it exists.
     pub fn retval(&self, ctx: &Context) -> Option<Value> {
-        let op = &*self.get_operation().deref(ctx);
-        if op.get_num_operands() == 1 {
-            Some(op.get_operand(0))
+        let op = &*self.operation().deref(ctx);
+        if op.num_operands() == 1 {
+            Some(op.operand(0))
         } else {
             None
         }
@@ -280,7 +280,7 @@ impl ICmpOp {
         let bool_ty = IntegerType::get(ctx, 1, Signedness::Signless);
         let op = Operation::new(
             ctx,
-            Self::get_opid_static(),
+            Self::opid_static(),
             vec![bool_ty.into()],
             vec![lhs, rhs],
             vec![],
@@ -294,7 +294,7 @@ impl ICmpOp {
 
     /// Get the predicate
     pub fn predicate(&self, ctx: &Context) -> ICmpPredicateAttr {
-        self.get_operation()
+        self.operation()
             .deref(ctx)
             .attributes
             .get::<ICmpPredicateAttr>(&icmp_op::ATTR_KEY_PREDICATE)
@@ -322,7 +322,7 @@ impl Verify for ICmpOp {
                 err
             })?;
 
-        if res_ty.deref(ctx).get_width() != 1 {
+        if res_ty.deref(ctx).width() != 1 {
             return verify_err!(loc, ICmpOpVerifyErr::ResultNotBool);
         }
 
@@ -411,7 +411,7 @@ impl AllocaOp {
         let ptr_ty = PointerType::get(ctx).into();
         let op = Operation::new(
             ctx,
-            Self::get_opid_static(),
+            Self::opid_static(),
             vec![ptr_ty],
             vec![size],
             vec![],
@@ -446,14 +446,7 @@ impl BitcastOp {
     /// Create a new [BitcastOp].
     pub fn new(ctx: &mut Context, res_ty: Ptr<TypeObj>, arg: Value) -> Self {
         BitcastOp {
-            op: Operation::new(
-                ctx,
-                Self::get_opid_static(),
-                vec![res_ty],
-                vec![arg],
-                vec![],
-                0,
-            ),
+            op: Operation::new(ctx, Self::opid_static(), vec![res_ty], vec![arg], vec![], 0),
         }
     }
 }
@@ -479,7 +472,7 @@ impl_verify_succ!(BrOp);
 impl BranchOpInterface for BrOp {
     fn successor_operands(&self, ctx: &Context, succ_idx: usize) -> Vec<Value> {
         assert!(succ_idx == 0, "BrOp has exactly one successor");
-        self.get_operation().deref(ctx).operands().collect()
+        self.operation().deref(ctx).operands().collect()
     }
 }
 
@@ -487,14 +480,7 @@ impl BrOp {
     /// Create anew [BrOp].
     pub fn new(ctx: &mut Context, dest: Ptr<BasicBlock>, dest_opds: Vec<Value>) -> Self {
         BrOp {
-            op: Operation::new(
-                ctx,
-                Self::get_opid_static(),
-                vec![],
-                dest_opds,
-                vec![dest],
-                0,
-            ),
+            op: Operation::new(ctx, Self::opid_static(), vec![], dest_opds, vec![dest], 0),
         }
     }
 }
@@ -532,7 +518,7 @@ impl CondBrOp {
         CondBrOp {
             op: Operation::new(
                 ctx,
-                Self::get_opid_static(),
+                Self::opid_static(),
                 vec![],
                 operands,
                 vec![true_dest, false_dest],
@@ -543,7 +529,7 @@ impl CondBrOp {
 
     /// Get the condition value for the branch.
     pub fn condition(&self, ctx: &Context) -> Value {
-        self.op.deref(ctx).get_operand(0)
+        self.op.deref(ctx).operand(0)
     }
 }
 
@@ -554,22 +540,22 @@ impl Printable for CondBrOp {
         _state: &pliron::printable::State,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        let op = self.get_operation().deref(ctx);
-        let condition = op.get_operand(0);
+        let op = self.operation().deref(ctx);
+        let condition = op.operand(0);
         let true_dest_opds = self.successor_operands(ctx, 0);
         let false_dest_opds = self.successor_operands(ctx, 1);
         let res = write!(
             f,
             "{} if {} ^{}({}) else ^{}({})",
-            op.get_opid(),
+            op.opid(),
             condition.disp(ctx),
-            op.get_successor(0).deref(ctx).unique_name(ctx),
+            op.successor(0).deref(ctx).unique_name(ctx),
             iter_with_sep(
                 true_dest_opds.iter(),
                 pliron::printable::ListSeparator::CharSpace(',')
             )
             .disp(ctx),
-            op.get_successor(1).deref(ctx).unique_name(ctx),
+            op.successor(1).deref(ctx).unique_name(ctx),
             iter_with_sep(
                 false_dest_opds.iter(),
                 pliron::printable::ListSeparator::CharSpace(',')
@@ -590,7 +576,7 @@ impl Parsable for CondBrOp {
         if !results.is_empty() {
             input_err!(
                 state_stream.loc(),
-                op_interfaces::ZeroResultVerifyErr(Self::get_opid_static().to_string())
+                op_interfaces::ZeroResultVerifyErr(Self::opid_static().to_string())
             )?
         }
 
@@ -623,7 +609,7 @@ impl Parsable for CondBrOp {
                         let ctx = &mut parsable_state.state.ctx;
                         let op = Operation::new(
                             ctx,
-                            Self::get_opid_static(),
+                            Self::opid_static(),
                             vec![],
                             operands.clone(),
                             vec![true_dest, false_dest],
@@ -651,14 +637,14 @@ impl BranchOpInterface for CondBrOp {
             "CondBrOp has exactly two successors"
         );
         let num_opds_succ0 = self
-            .get_operation()
+            .operation()
             .deref(ctx)
-            .get_successor(0)
+            .successor(0)
             .deref(ctx)
-            .get_num_arguments();
+            .num_arguments();
         if succ_idx == 0 {
             // Skip `condition` operand and take num_opds_succ0 operands after that.
-            self.get_operation()
+            self.operation()
                 .deref(ctx)
                 .operands()
                 .skip(1)
@@ -666,7 +652,7 @@ impl BranchOpInterface for CondBrOp {
                 .collect()
         } else {
             // Skip `condition` and `true_dest_opds`. Take the remaining.
-            self.get_operation()
+            self.operation()
                 .deref(ctx)
                 .operands()
                 .skip(1 + num_opds_succ0)
@@ -784,14 +770,7 @@ impl GetElementPtrOp {
                 }
             }
         }
-        let op = Operation::new(
-            ctx,
-            Self::get_opid_static(),
-            vec![result_type],
-            opds,
-            vec![],
-            0,
-        );
+        let op = Operation::new(ctx, Self::opid_static(), vec![result_type], opds, vec![], 0);
         let src_elem_type = TypeAttr::new(src_elem_type);
         op.deref_mut(ctx)
             .attributes
@@ -814,7 +793,7 @@ impl GetElementPtrOp {
 
     /// Get the base (source) pointer of this GEP.
     pub fn src_ptr(&self, ctx: &Context) -> Value {
-        self.get_operation().deref(ctx).get_operand(0)
+        self.operation().deref(ctx).operand(0)
     }
 
     /// Get the indices of this GEP.
@@ -827,7 +806,7 @@ impl GetElementPtrOp {
             .iter()
             .map(|index| match index {
                 GepIndexAttr::Constant(c) => GepIndex::Constant(*c),
-                GepIndexAttr::OperandIdx(i) => GepIndex::Value(op.get_operand(*i)),
+                GepIndexAttr::OperandIdx(i) => GepIndex::Value(op.operand(*i)),
             })
             .collect()
     }
@@ -895,14 +874,7 @@ impl LoadOp {
     /// Create a new [LoadOp]
     pub fn new(ctx: &mut Context, ptr: Value, res_ty: Ptr<TypeObj>) -> Self {
         LoadOp {
-            op: Operation::new(
-                ctx,
-                Self::get_opid_static(),
-                vec![res_ty],
-                vec![ptr],
-                vec![],
-                0,
-            ),
+            op: Operation::new(ctx, Self::opid_static(), vec![res_ty], vec![ptr], vec![], 0),
         }
     }
 }
@@ -945,7 +917,7 @@ impl StoreOp {
         StoreOp {
             op: Operation::new(
                 ctx,
-                Self::get_opid_static(),
+                Self::opid_static(),
                 vec![],
                 vec![value, ptr],
                 vec![],
@@ -956,12 +928,12 @@ impl StoreOp {
 
     /// Get the value operand
     pub fn value_opd(&self, ctx: &Context) -> Value {
-        self.op.deref(ctx).get_operand(0)
+        self.op.deref(ctx).operand(0)
     }
 
     /// Get the address operand
     pub fn address_opd(&self, ctx: &Context) -> Value {
-        self.op.deref(ctx).get_operand(1)
+        self.op.deref(ctx).operand(1)
     }
 }
 
@@ -970,18 +942,13 @@ impl Verify for StoreOp {
         let loc = self.loc(ctx);
         let op = &*self.op.deref(ctx);
 
-        if op.get_num_operands() != 2 {
+        if op.num_operands() != 2 {
             return verify_err!(loc, StoreOpVerifyErr::NumOpdsErr);
         }
 
         use pliron::r#type::Typed;
         // Ensure correctness of the address operand.
-        if !op
-            .get_operand(1)
-            .get_type(ctx)
-            .deref(ctx)
-            .is::<PointerType>()
-        {
+        if !op.operand(1).get_type(ctx).deref(ctx).is::<PointerType>() {
             return verify_err!(loc, StoreOpVerifyErr::AddrOpdTypeErr);
         }
         Ok(())
@@ -1026,11 +993,10 @@ impl CallOp {
         callee_ty: TypePtr<FunctionType>,
         mut args: Vec<Value>,
     ) -> Self {
-        let res_ty = callee_ty.deref(ctx).get_results()[0];
+        let res_ty = callee_ty.deref(ctx).results()[0];
         let op = match callee {
             CallOpCallable::Direct(cval) => {
-                let op =
-                    Operation::new(ctx, Self::get_opid_static(), vec![res_ty], args, vec![], 0);
+                let op = Operation::new(ctx, Self::opid_static(), vec![res_ty], args, vec![], 0);
                 op.deref_mut(ctx)
                     .attributes
                     .set(call_op::ATTR_KEY_CALLEE.clone(), IdentifierAttr::new(cval));
@@ -1038,7 +1004,7 @@ impl CallOp {
             }
             CallOpCallable::Indirect(csym) => {
                 args.insert(0, csym);
-                Operation::new(ctx, Self::get_opid_static(), vec![res_ty], args, vec![], 0)
+                Operation::new(ctx, Self::opid_static(), vec![res_ty], args, vec![], 0)
             }
         };
         op.deref_mut(ctx).attributes.set(
@@ -1059,10 +1025,10 @@ impl CallOpInterface for CallOp {
             CallOpCallable::Direct(callee_sym.clone().into())
         } else {
             assert!(
-                op.get_num_operands() > 0,
+                op.num_operands() > 0,
                 "Indirect call must have function pointer operand"
             );
-            CallOpCallable::Indirect(op.get_operand(0))
+            CallOpCallable::Indirect(op.operand(0))
         }
     }
 
@@ -1097,14 +1063,7 @@ impl_verify_succ!(UndefOp);
 impl UndefOp {
     /// Create a new [UndefOp].
     pub fn new(ctx: &mut Context, result_ty: Ptr<TypeObj>) -> Self {
-        let op = Operation::new(
-            ctx,
-            Self::get_opid_static(),
-            vec![result_ty],
-            vec![],
-            vec![],
-            0,
-        );
+        let op = Operation::new(ctx, Self::opid_static(), vec![result_ty], vec![], vec![], 0);
         UndefOp { op }
     }
 }
@@ -1139,7 +1098,7 @@ pub mod constant_op {
 impl ConstantOp {
     /// Get the constant value that this Op defines.
     pub fn get_value(&self, ctx: &Context) -> AttrObj {
-        let op = self.get_operation().deref(ctx);
+        let op = self.operation().deref(ctx);
         op.attributes
             .0
             .get(&constant_op::ATTR_KEY_VALUE)
@@ -1154,7 +1113,7 @@ impl ConstantOp {
             .get_type();
         let op = Operation::new(
             ctx,
-            Self::get_opid_static(),
+            Self::opid_static(),
             vec![result_type],
             vec![],
             vec![],
@@ -1169,7 +1128,7 @@ impl ConstantOp {
 }
 
 #[derive(Error, Debug)]
-#[error("{}: Unexpected type", ConstantOp::get_opid_static())]
+#[error("{}: Unexpected type", ConstantOp::opid_static())]
 pub struct ConstantOpVerifyErr;
 
 impl Verify for ConstantOp {
@@ -1198,14 +1157,14 @@ fn integer_ext_verify(op: &Operation, ctx: &Context) -> Result<()> {
 
     let loc = op.loc();
     let res_ty = op.get_type(0).deref(ctx);
-    let opd_ty = op.get_operand(0).get_type(ctx).deref(ctx);
+    let opd_ty = op.operand(0).get_type(ctx).deref(ctx);
     let Some(res_ty) = res_ty.downcast_ref::<IntegerType>() else {
         return verify_err!(loc, IntExtVerifyErr::ResultTypeErr);
     };
     let Some(opd_ty) = opd_ty.downcast_ref::<IntegerType>() else {
         return verify_err!(loc, IntExtVerifyErr::OperandTypeErr);
     };
-    if res_ty.get_width() <= opd_ty.get_width() {
+    if res_ty.width() <= opd_ty.width() {
         return verify_err!(loc, IntExtVerifyErr::ResultTypeErr);
     }
     Ok(())
@@ -1226,7 +1185,7 @@ fn integer_ext_verify(op: &Operation, ctx: &Context) -> Result<()> {
 pub struct SExtOp;
 impl Verify for SExtOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        integer_ext_verify(&self.get_operation().deref(ctx), ctx)
+        integer_ext_verify(&self.operation().deref(ctx), ctx)
     }
 }
 
@@ -1246,7 +1205,7 @@ pub struct ZExtOp;
 
 impl Verify for ZExtOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        integer_ext_verify(&self.get_operation().deref(ctx), ctx)
+        integer_ext_verify(&self.operation().deref(ctx), ctx)
     }
 }
 
@@ -1288,7 +1247,7 @@ impl InsertValueOp {
         let result_type = aggregate.get_type(ctx);
         let op = Operation::new(
             ctx,
-            Self::get_opid_static(),
+            Self::opid_static(),
             vec![result_type],
             vec![aggregate, value],
             vec![],
@@ -1303,7 +1262,7 @@ impl InsertValueOp {
 
     /// Get the indices for inserting value into aggregate.
     pub fn indices(&self, ctx: &Context) -> Vec<u32> {
-        self.get_operation()
+        self.operation()
             .deref(ctx)
             .attributes
             .get::<InsertExtractValueIndicesAttr>(&insert_extract_value_op::ATTR_KEY_INDICES)
@@ -1329,7 +1288,7 @@ impl Verify for InsertValueOp {
         use pliron::r#type::Typed;
 
         // Check that the value we are inserting is of the correct type.
-        let aggr_type = self.get_operation().deref(ctx).get_operand(0).get_type(ctx);
+        let aggr_type = self.operation().deref(ctx).operand(0).get_type(ctx);
         let indices = self.indices(ctx);
         match ExtractValueOp::indexed_type(ctx, aggr_type, &indices) {
             Err(e @ Error { .. }) => {
@@ -1341,7 +1300,7 @@ impl Verify for InsertValueOp {
                 });
             }
             Ok(indexed_type) => {
-                if indexed_type != self.get_operation().deref(ctx).get_operand(1).get_type(ctx) {
+                if indexed_type != self.operation().deref(ctx).operand(1).get_type(ctx) {
                     return verify_err!(loc, InsertExtractValueError::ValueTypeErr);
                 }
             }
@@ -1386,7 +1345,7 @@ impl Verify for ExtractValueOp {
 
         use pliron::r#type::Typed;
         // Check that the result type matches the indexed type
-        let aggr_type = self.get_operation().deref(ctx).get_operand(0).get_type(ctx);
+        let aggr_type = self.operation().deref(ctx).operand(0).get_type(ctx);
         let indices = self.indices(ctx);
         match Self::indexed_type(ctx, aggr_type, &indices) {
             Err(e @ Error { .. }) => {
@@ -1398,7 +1357,7 @@ impl Verify for ExtractValueOp {
                 });
             }
             Ok(indexed_type) => {
-                if indexed_type != self.get_operation().deref(ctx).get_type(0) {
+                if indexed_type != self.operation().deref(ctx).get_type(0) {
                     return verify_err!(loc, InsertExtractValueError::ValueTypeErr);
                 }
             }
@@ -1418,7 +1377,7 @@ impl ExtractValueOp {
         let result_type = Self::indexed_type(ctx, aggregate.get_type(ctx), &indices)?;
         let op = Operation::new(
             ctx,
-            Self::get_opid_static(),
+            Self::opid_static(),
             vec![result_type],
             vec![aggregate],
             vec![],
@@ -1433,7 +1392,7 @@ impl ExtractValueOp {
 
     /// Get the indices for extracting value from aggregate.
     pub fn indices(&self, ctx: &Context) -> Vec<u32> {
-        self.get_operation()
+        self.operation()
             .deref(ctx)
             .attributes
             .get::<InsertExtractValueIndicesAttr>(&insert_extract_value_op::ATTR_KEY_INDICES)
@@ -1517,7 +1476,7 @@ impl SelectOp {
         let result_type = true_val.get_type(ctx);
         let op = Operation::new(
             ctx,
-            Self::get_opid_static(),
+            Self::opid_static(),
             vec![result_type],
             vec![cond, true_val, false_val],
             vec![],
@@ -1534,16 +1493,16 @@ impl Verify for SelectOp {
         let loc = self.loc(ctx);
         let op = &*self.op.deref(ctx);
         let ty = op.get_type(0);
-        let cond_ty = op.get_operand(0).get_type(ctx);
-        let true_ty = op.get_operand(1).get_type(ctx);
-        let false_ty = op.get_operand(2).get_type(ctx);
+        let cond_ty = op.operand(0).get_type(ctx);
+        let true_ty = op.operand(1).get_type(ctx);
+        let false_ty = op.operand(2).get_type(ctx);
         if ty != true_ty || ty != false_ty {
             return verify_err!(loc, SelectOpVerifyErr::ResultTypeErr);
         }
 
         let cond_ty = cond_ty.deref(ctx);
         let cond_ty = cond_ty.downcast_ref::<IntegerType>();
-        if cond_ty.is_none_or(|ty| ty.get_width() != 1) {
+        if cond_ty.is_none_or(|ty| ty.width() != 1) {
             return verify_err!(loc, SelectOpVerifyErr::ConditionTypeErr);
         }
         Ok(())

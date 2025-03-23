@@ -100,7 +100,7 @@ pub trait Type: Printable + Verify + Downcast + Sync + Send + Debug {
     // Unlike in other [ArenaObj]s,
     // we do not store a self pointer inside the object itself
     // because that can upset taking automatic hashes of the object.
-    fn get_self_ptr(&self, ctx: &Context) -> Ptr<TypeObj> {
+    fn self_ptr(&self, ctx: &Context) -> Ptr<TypeObj> {
         let is = |other: &TypeObj| self.eq_type(&**other);
         let idx = ctx
             .type_store
@@ -132,7 +132,7 @@ pub trait Type: Printable + Verify + Downcast + Sync + Send + Debug {
 
     /// If an instance of `t` already exists, get a [Ptr] to it.
     /// Consumes `t` either way.
-    fn get_instance(t: Self, ctx: &Context) -> Option<TypePtr<Self>>
+    fn instance(t: Self, ctx: &Context) -> Option<TypePtr<Self>>
     where
         Self: Sized,
     {
@@ -218,7 +218,7 @@ impl Typed for Ptr<TypeObj> {
 
 impl Typed for dyn Type {
     fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.get_self_ptr(ctx)
+        self.self_ptr(ctx)
     }
 }
 
@@ -339,16 +339,16 @@ impl Hash for TypeObj {
 }
 
 impl ArenaObj for TypeObj {
-    fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
+    fn arena(ctx: &Context) -> &ArenaCell<Self> {
         &ctx.type_store.unique_store
     }
 
-    fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
+    fn arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
         &mut ctx.type_store.unique_store
     }
 
-    fn get_self_ptr(&self, ctx: &Context) -> Ptr<Self> {
-        self.as_ref().get_self_ptr(ctx)
+    fn self_ptr(&self, ctx: &Context) -> Ptr<Self> {
+        self.as_ref().self_ptr(ctx)
     }
 
     fn dealloc_sub_objects(_ptr: Ptr<Self>, _ctx: &mut Context) {

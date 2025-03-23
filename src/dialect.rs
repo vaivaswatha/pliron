@@ -141,7 +141,7 @@ impl Dialect {
     }
 
     /// This Dialect's name.
-    pub fn get_name(&self) -> &DialectName {
+    pub fn name(&self) -> &DialectName {
         &self.name
     }
 }

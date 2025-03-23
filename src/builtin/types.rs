@@ -34,21 +34,17 @@ impl IntegerType {
         Type::register_instance(IntegerType { width, signedness }, ctx)
     }
     /// Get, if it already exists, an integer type.
-    pub fn get_existing(
-        ctx: &Context,
-        width: u32,
-        signedness: Signedness,
-    ) -> Option<TypePtr<Self>> {
-        Type::get_instance(IntegerType { width, signedness }, ctx)
+    pub fn existing(ctx: &Context, width: u32, signedness: Signedness) -> Option<TypePtr<Self>> {
+        Type::instance(IntegerType { width, signedness }, ctx)
     }
 
     /// Get width.
-    pub fn get_width(&self) -> u32 {
+    pub fn width(&self) -> u32 {
         self.width
     }
 
     /// Get signedness.
-    pub fn get_signedness(&self) -> Signedness {
+    pub fn signedness(&self) -> Signedness {
         self.signedness
     }
 }
@@ -123,21 +119,21 @@ impl FunctionType {
         Type::register_instance(FunctionType { inputs, results }, ctx)
     }
     /// Get, if it already exists, a Function type.
-    pub fn get_existing(
+    pub fn existing(
         ctx: &Context,
         inputs: Vec<Ptr<TypeObj>>,
         results: Vec<Ptr<TypeObj>>,
     ) -> Option<TypePtr<Self>> {
-        Type::get_instance(FunctionType { inputs, results }, ctx)
+        Type::instance(FunctionType { inputs, results }, ctx)
     }
 
     /// Get a reference to the function input / argument types.
-    pub fn get_inputs(&self) -> &Vec<Ptr<TypeObj>> {
+    pub fn inputs(&self) -> &Vec<Ptr<TypeObj>> {
         &self.inputs
     }
 
     /// Get a reference to the function result / output types.
-    pub fn get_results(&self) -> &Vec<Ptr<TypeObj>> {
+    pub fn results(&self) -> &Vec<Ptr<TypeObj>> {
         &self.results
     }
 }
@@ -196,13 +192,13 @@ mod tests {
         assert!(int32_1_ptr != int64_ptr);
         assert!(int32_1_ptr != uint32_ptr);
 
-        assert!(int32_1_ptr.deref(&ctx).get_self_ptr(&ctx) == int32_1_ptr.into());
-        assert!(int32_2_ptr.deref(&ctx).get_self_ptr(&ctx) == int32_1_ptr.into());
-        assert!(int32_2_ptr.deref(&ctx).get_self_ptr(&ctx) == int32_2_ptr.into());
-        assert!(int64_ptr.deref(&ctx).get_self_ptr(&ctx) == int64_ptr.into());
-        assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) == uint32_ptr.into());
-        assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) != int32_1_ptr.into());
-        assert!(uint32_ptr.deref(&ctx).get_self_ptr(&ctx) != int64_ptr.into());
+        assert!(int32_1_ptr.deref(&ctx).self_ptr(&ctx) == int32_1_ptr.into());
+        assert!(int32_2_ptr.deref(&ctx).self_ptr(&ctx) == int32_1_ptr.into());
+        assert!(int32_2_ptr.deref(&ctx).self_ptr(&ctx) == int32_2_ptr.into());
+        assert!(int64_ptr.deref(&ctx).self_ptr(&ctx) == int64_ptr.into());
+        assert!(uint32_ptr.deref(&ctx).self_ptr(&ctx) == uint32_ptr.into());
+        assert!(uint32_ptr.deref(&ctx).self_ptr(&ctx) != int32_1_ptr.into());
+        assert!(uint32_ptr.deref(&ctx).self_ptr(&ctx) != int64_ptr.into());
     }
 
     #[test]
@@ -214,8 +210,7 @@ mod tests {
         let ft_ref = FunctionType::get(&mut ctx, vec![int32_1_ptr.into()], vec![int64_ptr.into()])
             .deref(&ctx);
         assert!(
-            ft_ref.get_inputs()[0] == int32_1_ptr.into()
-                && ft_ref.get_results()[0] == int64_ptr.into()
+            ft_ref.inputs()[0] == int32_1_ptr.into() && ft_ref.results()[0] == int64_ptr.into()
         );
     }
 
@@ -233,7 +228,7 @@ mod tests {
             .unwrap()
             .0
             .0;
-        assert!(res == IntegerType::get_existing(&ctx, 64, Signedness::Signed).unwrap())
+        assert!(res == IntegerType::existing(&ctx, 64, Signedness::Signed).unwrap())
     }
 
     #[test]
@@ -274,6 +269,6 @@ mod tests {
             .unwrap()
             .0
             .0;
-        assert!(res == FunctionType::get_existing(&ctx, vec![], vec![si32.into()]).unwrap())
+        assert!(res == FunctionType::existing(&ctx, vec![], vec![si32.into()]).unwrap())
     }
 }

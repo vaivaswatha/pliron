@@ -96,7 +96,7 @@ impl StructType {
 
     /// If a named struct already exists, get a pointer to it.
     pub fn get_existing_named(ctx: &Context, name: &Identifier) -> Option<TypePtr<Self>> {
-        Type::get_instance(
+        Type::instance(
             StructType {
                 name: Some(name.clone()),
                 // Named structs are uniqued only on the name.
@@ -108,7 +108,7 @@ impl StructType {
 
     /// If an unnamed struct already exists, get a pointer to it.
     pub fn get_existing_unnamed(ctx: &Context, fields: Vec<Ptr<TypeObj>>) -> Option<TypePtr<Self>> {
-        Type::get_instance(
+        Type::instance(
             StructType {
                 name: None,
                 fields: Some(fields),
@@ -306,7 +306,7 @@ impl PointerType {
     }
     /// Get, if it already exists, a pointer type.
     pub fn get_existing(ctx: &Context) -> Option<TypePtr<Self>> {
-        Type::get_instance(PointerType, ctx)
+        Type::instance(PointerType, ctx)
     }
 }
 
@@ -328,7 +328,7 @@ impl ArrayType {
     }
     /// Get, if it already exists, an array type.
     pub fn get_existing(ctx: &Context, elem: Ptr<TypeObj>, size: u64) -> Option<TypePtr<Self>> {
-        Type::get_instance(ArrayType { elem, size }, ctx)
+        Type::instance(ArrayType { elem, size }, ctx)
     }
 
     /// Get array element type.
@@ -473,7 +473,7 @@ mod tests {
         }
         /// Get, if it already exists, a pointer type.
         pub fn get_existing(ctx: &Context, to: Ptr<TypeObj>) -> Option<TypePtr<Self>> {
-            Type::get_instance(TypedPointerType { to }, ctx)
+            Type::instance(TypedPointerType { to }, ctx)
         }
 
         /// Get the pointee type.
@@ -532,11 +532,11 @@ mod tests {
                 .deref(&ctx)
                 .downcast_ref::<IntegerType>()
                 .unwrap()
-                .get_width()
+                .width()
                 == 64
         );
 
-        assert!(IntegerType::get_existing(&ctx, 32, Signedness::Signed).unwrap() == int32_1_ptr);
+        assert!(IntegerType::existing(&ctx, 32, Signedness::Signed).unwrap() == int32_1_ptr);
         assert!(TypedPointerType::get_existing(&ctx, int64_ptr).unwrap() == int64pointer_ptr);
         assert!(int64pointer_ptr.deref(&ctx).get_pointee_type() == int64_ptr);
     }

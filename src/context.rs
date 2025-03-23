@@ -68,11 +68,11 @@ pub(crate) mod private {
         Self: Sized,
     {
         /// Get the arena that has allocated this object.
-        fn get_arena(ctx: &Context) -> &ArenaCell<Self>;
+        fn arena(ctx: &Context) -> &ArenaCell<Self>;
         /// Get the arena that has allocated this object.
-        fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self>;
+        fn arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self>;
         /// Get a Ptr to self.
-        fn get_self_ptr(&self, ctx: &Context) -> Ptr<Self>;
+        fn self_ptr(&self, ctx: &Context) -> Ptr<Self>;
         /// If this object contains any ArenaObj itself, it must dealloc()
         /// all of those sub-objects. This is called when self is deallocated.
         fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context);
@@ -87,7 +87,7 @@ pub(crate) mod private {
                 RefCell::new(t)
             };
             Ptr::<Self> {
-                idx: Self::get_arena_mut(ctx).insert_with_key(creator),
+                idx: Self::arena_mut(ctx).insert_with_key(creator),
                 _dummy: PhantomData,
             }
         }
@@ -95,7 +95,7 @@ pub(crate) mod private {
         /// Deallocates this object from the arena.
         fn dealloc(ptr: Ptr<Self>, ctx: &mut Context) {
             Self::dealloc_sub_objects(ptr, ctx);
-            Self::get_arena_mut(ctx).remove(ptr.idx);
+            Self::arena_mut(ctx).remove(ptr.idx);
         }
     }
 }
@@ -114,32 +114,28 @@ impl<'a, T: ArenaObj> Ptr<T> {
     /// This borrows from a RefCell and the borrow is live
     /// as long as the returned Ref lives.
     pub fn deref(&self, ctx: &'a Context) -> Ref<'a, T> {
-        T::get_arena(ctx).get(self.idx).unwrap().borrow()
+        T::arena(ctx).get(self.idx).unwrap().borrow()
     }
 
     /// Return a RefMut to the pointee.
     /// This mutably borrows from a RefCell and the borrow is live
     /// as long as the returned RefMut lives.
     pub fn deref_mut(&self, ctx: &'a Context) -> RefMut<'a, T> {
-        T::get_arena(ctx).get(self.idx).unwrap().borrow_mut()
+        T::arena(ctx).get(self.idx).unwrap().borrow_mut()
     }
 
     /// Try and return a Ref to the pointee.
     /// This borrows from a RefCell and the borrow is live
     /// as long as the returned Ref lives.
     pub fn try_deref(&self, ctx: &'a Context) -> Option<Ref<'a, T>> {
-        T::get_arena(ctx).get(self.idx).unwrap().try_borrow().ok()
+        T::arena(ctx).get(self.idx).unwrap().try_borrow().ok()
     }
 
     /// Try and return a RefMut to the pointee.
     /// This mutably borrows from a RefCell and the borrow is live
     /// as long as the returned RefMut lives.
     pub fn try_deref_mut(&self, ctx: &'a Context) -> Option<RefMut<'a, T>> {
-        T::get_arena(ctx)
-            .get(self.idx)
-            .unwrap()
-            .try_borrow_mut()
-            .ok()
+        T::arena(ctx).get(self.idx).unwrap().try_borrow_mut().ok()
     }
 
     /// Create a unique (to the arena) name based on the arena index.

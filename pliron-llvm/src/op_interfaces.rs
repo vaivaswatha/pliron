@@ -37,21 +37,21 @@ pub trait BinArithOp: SameOperandsAndResultType + OneResultInterface {
     {
         let op = Operation::new(
             ctx,
-            Self::get_opid_static(),
+            Self::opid_static(),
             vec![lhs.get_type(ctx)],
             vec![lhs, rhs],
             vec![],
             0,
         );
-        *Operation::get_op(op, ctx).downcast::<Self>().ok().unwrap()
+        *Operation::op(op, ctx).downcast::<Self>().ok().unwrap()
     }
 
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
-        let op = op.get_operation().deref(ctx);
-        if op.get_num_operands() != 2 {
+        let op = op.operation().deref(ctx);
+        if op.num_operands() != 2 {
             return verify_err!(op.loc(), BinArithOpErr);
         }
 
@@ -78,7 +78,7 @@ pub trait IntBinArithOp: BinArithOp {
             return verify_err!(op.loc(ctx), IntBinArithOpErr);
         };
 
-        if int_ty.get_signedness() != Signedness::Signless {
+        if int_ty.signedness() != Signedness::Signless {
             return verify_err!(op.loc(ctx), IntBinArithOpErr);
         }
 
@@ -117,7 +117,7 @@ pub trait IntBinArithOpWithOverflowFlag: IntBinArithOp {
     where
         Self: Sized,
     {
-        self.get_operation()
+        self.operation()
             .deref(ctx)
             .attributes
             .get::<IntegerOverflowFlagsAttr>(&ATTR_KEY_INTEGER_OVERFLOW_FLAGS)
@@ -130,7 +130,7 @@ pub trait IntBinArithOpWithOverflowFlag: IntBinArithOp {
     where
         Self: Sized,
     {
-        self.get_operation()
+        self.operation()
             .deref_mut(ctx)
             .attributes
             .set(ATTR_KEY_INTEGER_OVERFLOW_FLAGS.clone(), flag);
@@ -140,7 +140,7 @@ pub trait IntBinArithOpWithOverflowFlag: IntBinArithOp {
     where
         Self: Sized,
     {
-        let op = op.get_operation().deref(ctx);
+        let op = op.operation().deref(ctx);
         if op
             .attributes
             .get::<IntegerOverflowFlagsAttr>(&ATTR_KEY_INTEGER_OVERFLOW_FLAGS)
@@ -190,13 +190,13 @@ pub trait CastOpInterface: OneResultInterface + OneOpdInterface {
     {
         let op = Operation::new(
             ctx,
-            Self::get_opid_static(),
+            Self::opid_static(),
             vec![res_type],
             vec![operand],
             vec![],
             0,
         );
-        *Operation::get_op(op, ctx).downcast::<Self>().ok().unwrap()
+        *Operation::op(op, ctx).downcast::<Self>().ok().unwrap()
     }
 
     fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>

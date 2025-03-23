@@ -154,7 +154,7 @@ pub mod interruptible {
                     reg_idx < root_ref.num_regions(),
                     "Region deleted during walk"
                 );
-                root_ref.get_region(reg_idx)
+                root_ref.region(reg_idx)
             };
             walk_region(ctx, state, config, region, callback)?;
         }
@@ -182,15 +182,15 @@ pub mod interruptible {
         }
 
         let mut cur_block_opt = match config.blocks_in_region.1 {
-            Direction::Forward => root.deref(ctx).get_head(),
-            Direction::Reverse => root.deref(ctx).get_tail(),
+            Direction::Forward => root.deref(ctx).head(),
+            Direction::Reverse => root.deref(ctx).tail(),
         };
 
         while let Some(cur_block) = cur_block_opt {
             walk_block(ctx, state, config, cur_block, callback)?;
             cur_block_opt = match config.blocks_in_region.1 {
-                Direction::Forward => cur_block.deref(ctx).get_next(),
-                Direction::Reverse => cur_block.deref(ctx).get_prev(),
+                Direction::Forward => cur_block.deref(ctx).next(),
+                Direction::Reverse => cur_block.deref(ctx).prev(),
             }
         }
 
@@ -217,15 +217,15 @@ pub mod interruptible {
         }
 
         let mut cur_op_opt = match config.ops_in_block.1 {
-            Direction::Forward => root.deref(ctx).get_head(),
-            Direction::Reverse => root.deref(ctx).get_tail(),
+            Direction::Forward => root.deref(ctx).head(),
+            Direction::Reverse => root.deref(ctx).tail(),
         };
 
         while let Some(cur_op) = cur_op_opt {
             walk_op(ctx, state, config, cur_op, callback)?;
             cur_op_opt = match config.ops_in_block.1 {
-                Direction::Forward => cur_op.deref(ctx).get_next(),
-                Direction::Reverse => cur_op.deref(ctx).get_prev(),
+                Direction::Forward => cur_op.deref(ctx).next(),
+                Direction::Reverse => cur_op.deref(ctx).prev(),
             }
         }
 

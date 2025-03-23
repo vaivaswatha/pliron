@@ -156,15 +156,15 @@ pub(crate) type OpCreator = fn(Ptr<Operation>) -> OpObj;
 /// See [module](crate::op) documentation for more information.
 pub trait Op: Downcast + Verify + Printable {
     /// Get the underlying IR Operation
-    fn get_operation(&self) -> Ptr<Operation>;
+    fn operation(&self) -> Ptr<Operation>;
     /// Create a new Op object, by wrapping around an operation.
     fn wrap_operation(op: Ptr<Operation>) -> OpObj
     where
         Self: Sized;
     /// Get this Op's OpId
-    fn get_opid(&self) -> OpId;
+    fn opid(&self) -> OpId;
     /// Get this Op's OpId, without self reference.
-    fn get_opid_static() -> OpId
+    fn opid_static() -> OpId
     where
         Self: Sized;
 
@@ -176,7 +176,7 @@ pub trait Op: Downcast + Verify + Printable {
     where
         Self: Sized,
     {
-        let opid = Self::get_opid_static();
+        let opid = Self::opid_static();
         let dialect = opid.dialect.clone();
         match ctx.ops.entry(opid) {
             std::collections::hash_map::Entry::Occupied(_) => (),
@@ -186,21 +186,21 @@ pub trait Op: Downcast + Verify + Printable {
                     .dialects
                     .get_mut(&dialect)
                     .unwrap_or_else(|| panic!("Unregistered dialect {}", dialect));
-                dialect.add_op(Self::get_opid_static(), op_parser);
+                dialect.add_op(Self::opid_static(), op_parser);
             }
         }
     }
 
     /// Get Op's location
     fn loc(&self, ctx: &Context) -> Location {
-        self.get_operation().deref(ctx).loc()
+        self.operation().deref(ctx).loc()
     }
 }
 impl_downcast!(Op);
 
 /// Create [OpObj] from [`Ptr<Operation>`](Operation)
 pub(crate) fn from_operation(ctx: &Context, op: Ptr<Operation>) -> OpObj {
-    let opid = op.deref(ctx).get_opid();
+    let opid = op.deref(ctx).opid();
     (ctx.ops
         .get(&opid)
         .unwrap_or_else(|| panic!("Unregistered Op {}", opid.disp(ctx))))(op)
@@ -306,7 +306,7 @@ pub fn canonical_syntax_print(
     f: &mut fmt::Formatter<'_>,
 ) -> fmt::Result {
     let sep = printable::ListSeparator::CharSpace(',');
-    let op = op.get_operation().deref(ctx);
+    let op = op.operation().deref(ctx);
     let operands = iter_with_sep(op.operands(), sep);
     let successors = iter_with_sep(
         op.successors()
@@ -319,7 +319,7 @@ pub fn canonical_syntax_print(
     );
     let regions = iter_with_sep(op.regions.iter(), printable::ListSeparator::Newline);
 
-    if op.get_num_results() != 0 {
+    if op.num_results() != 0 {
         let results = iter_with_sep(op.results(), sep);
         write!(f, "{} = ", results.disp(ctx))?;
     }
@@ -327,7 +327,7 @@ pub fn canonical_syntax_print(
     write!(
         f,
         "{} ({}) [{}] {}: {}",
-        op.get_opid().disp(ctx),
+        op.opid().disp(ctx),
         operands.disp(ctx),
         successors.disp(ctx),
         op.attributes.disp(ctx),
@@ -369,8 +369,8 @@ pub fn canonical_syntax_parse<'a>(
                 combine::parser(move |parsable_state: &mut StateStream<'a>| {
                     let results = results.clone();
                     let ctx = &mut parsable_state.state.ctx;
-                    let results_types = fty.deref(ctx).get_results().to_vec();
-                    let operands_types = fty.deref(ctx).get_inputs().to_vec();
+                    let results_types = fty.deref(ctx).results().to_vec();
+                    let operands_types = fty.deref(ctx).inputs().to_vec();
                     if results_types.len() != results.len() {
                         input_err!(
                             fty_loc.clone(),
@@ -457,7 +457,7 @@ macro_rules! impl_canonical_syntax {
                 results: Self::Arg,
             ) -> $crate::parsable::ParseResult<'a, Self::Parsed> {
                 $crate::op::canonical_syntax_parser(
-                    <Self as $crate::op::Op>::get_opid_static(),
+                    <Self as $crate::op::Op>::opid_static(),
                     results,
                 )
                 .parse_stream(state_stream)

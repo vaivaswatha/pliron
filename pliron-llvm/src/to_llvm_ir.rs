@@ -156,7 +156,7 @@ trait ToLLVMValue {
 #[type_interface_impl]
 impl ToLLVMType for IntegerType {
     fn convert(&self, _ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
-        Ok(llvm_int_type_in_context(llvm_ctx, self.get_width()))
+        Ok(llvm_int_type_in_context(llvm_ctx, self.width()))
     }
 }
 
@@ -172,12 +172,12 @@ impl ToLLVMType for ArrayType {
 impl ToLLVMType for FunctionType {
     fn convert(&self, ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
         let args_tys: Vec<_> = self
-            .get_inputs()
+            .inputs()
             .iter()
             .map(|ty| convert_type(ctx, llvm_ctx, *ty))
             .collect::<Result<_>>()?;
         let ret_ty = self
-            .get_results()
+            .results()
             .first()
             .map(|ty| convert_type(ctx, llvm_ctx, *ty))
             .unwrap_or(Ok(llvm_void_type_in_context(llvm_ctx)))?;
@@ -269,15 +269,15 @@ macro_rules! to_llvm_value_int_bin_op {
                 _llvm_ctx: &LLVMContext,
                 cctx: &mut ConversionContext,
             ) -> Result<LLVMValue> {
-                let op = self.get_operation().deref(ctx);
-                let (lhs, rhs) = (op.get_operand(0), op.get_operand(1));
+                let op = self.operation().deref(ctx);
+                let (lhs, rhs) = (op.operand(0), op.operand(1));
                 let lhs = convert_value_operand(cctx, ctx, &lhs)?;
                 let rhs = convert_value_operand(cctx, ctx, &rhs)?;
                 Ok($builder_function(
                     &cctx.builder,
                     lhs,
                     rhs,
-                    &self.get_result(ctx).unique_name(ctx),
+                    &self.result(ctx).unique_name(ctx),
                 ))
             }
         }
@@ -305,13 +305,9 @@ impl ToLLVMValue for AllocaOp {
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let ty = convert_type(ctx, llvm_ctx, self.result_pointee_type(ctx))?;
-        let size = convert_value_operand(cctx, ctx, &self.get_operand(ctx))?;
-        let alloca_op = llvm_build_array_alloca(
-            &cctx.builder,
-            ty,
-            size,
-            &self.get_result(ctx).unique_name(ctx),
-        );
+        let size = convert_value_operand(cctx, ctx, &self.operand(ctx))?;
+        let alloca_op =
+            llvm_build_array_alloca(&cctx.builder, ty, size, &self.result(ctx).unique_name(ctx));
         Ok(alloca_op)
     }
 }
@@ -324,14 +320,10 @@ impl ToLLVMValue for BitcastOp {
         llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let arg = convert_value_operand(cctx, ctx, &self.get_operand(ctx))?;
+        let arg = convert_value_operand(cctx, ctx, &self.operand(ctx))?;
         let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
-        let bitcast_op = llvm_build_bitcast(
-            &cctx.builder,
-            arg,
-            ty,
-            &self.get_result(ctx).unique_name(ctx),
-        );
+        let bitcast_op =
+            llvm_build_bitcast(&cctx.builder, arg, ty, &self.result(ctx).unique_name(ctx));
         Ok(bitcast_op)
     }
 }
@@ -375,8 +367,8 @@ impl ToLLVMValue for BrOp {
         _llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let op = self.get_operation().deref(ctx);
-        let succ = op.get_successor(0);
+        let op = self.operation().deref(ctx);
+        let succ = op.successor(0);
         let succ_llvm = convert_block_operand(cctx, ctx, succ)?;
         let branch_op = llvm_build_br(&cctx.builder, succ_llvm);
 
@@ -384,7 +376,7 @@ impl ToLLVMValue for BrOp {
         link_succ_operands_with_phis(
             ctx,
             cctx,
-            op.get_container().expect("Unlinked operation"),
+            op.container().expect("Unlinked operation"),
             succ_llvm,
             self.successor_operands(ctx, 0),
         )?;
@@ -401,8 +393,8 @@ impl ToLLVMValue for CondBrOp {
         _llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let op = self.get_operation().deref(ctx);
-        let (true_succ, false_succ) = (op.get_successor(0), op.get_successor(1));
+        let op = self.operation().deref(ctx);
+        let (true_succ, false_succ) = (op.successor(0), op.successor(1));
         let true_succ_llvm = convert_block_operand(cctx, ctx, true_succ)?;
         let false_succ_llvm = convert_block_operand(cctx, ctx, false_succ)?;
         let cond = convert_value_operand(cctx, ctx, &self.condition(ctx))?;
@@ -413,14 +405,14 @@ impl ToLLVMValue for CondBrOp {
         link_succ_operands_with_phis(
             ctx,
             cctx,
-            op.get_container().expect("Unlinked operation"),
+            op.container().expect("Unlinked operation"),
             true_succ_llvm,
             self.successor_operands(ctx, 0),
         )?;
         link_succ_operands_with_phis(
             ctx,
             cctx,
-            op.get_container().expect("Unlinked operation"),
+            op.container().expect("Unlinked operation"),
             false_succ_llvm,
             self.successor_operands(ctx, 1),
         )?;
@@ -438,12 +430,12 @@ impl ToLLVMValue for LoadOp {
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let pointee_ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
-        let ptr = convert_value_operand(cctx, ctx, &self.get_operand(ctx))?;
+        let ptr = convert_value_operand(cctx, ctx, &self.operand(ctx))?;
         let load_op = llvm_build_load2(
             &cctx.builder,
             pointee_ty,
             ptr,
-            &self.get_result(ctx).unique_name(ctx),
+            &self.result(ctx).unique_name(ctx),
         );
         Ok(load_op)
     }
@@ -472,16 +464,16 @@ impl ToLLVMValue for ICmpOp {
         _llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let op = self.get_operation().deref(ctx);
+        let op = self.operation().deref(ctx);
         let predicate = convert_ipredicate(self.predicate(ctx));
-        let lhs = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
-        let rhs = convert_value_operand(cctx, ctx, &op.get_operand(1))?;
+        let lhs = convert_value_operand(cctx, ctx, &op.operand(0))?;
+        let rhs = convert_value_operand(cctx, ctx, &op.operand(1))?;
         let icmp_op = llvm_build_icmp(
             &cctx.builder,
             predicate,
             lhs,
             rhs,
-            &self.get_result(ctx).unique_name(ctx),
+            &self.result(ctx).unique_name(ctx),
         );
         Ok(icmp_op)
     }
@@ -513,7 +505,7 @@ impl ToLLVMValue for ConstantOp {
         llvm_ctx: &LLVMContext,
         _cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let op = self.get_operation().deref(ctx);
+        let op = self.operation().deref(ctx);
         let value = self.get_value(ctx);
         if let Some(int_val) = value.downcast_ref::<IntegerAttr>() {
             let int_ty = TypePtr::<IntegerType>::from_ptr(int_val.get_type(ctx), ctx).unwrap();
@@ -565,7 +557,7 @@ impl ToLLVMValue for CallOp {
                 ty,
                 callee,
                 &args,
-                &self.get_result(ctx).unique_name(ctx),
+                &self.result(ctx).unique_name(ctx),
             );
             Ok(call_val)
         } else {
@@ -582,15 +574,10 @@ impl ToLLVMValue for SExtOp {
         llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let op = self.get_operation().deref(ctx);
-        let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        let op = self.operation().deref(ctx);
+        let arg = convert_value_operand(cctx, ctx, &op.operand(0))?;
         let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
-        let sext_op = llvm_build_sext(
-            &cctx.builder,
-            arg,
-            ty,
-            &self.get_result(ctx).unique_name(ctx),
-        );
+        let sext_op = llvm_build_sext(&cctx.builder, arg, ty, &self.result(ctx).unique_name(ctx));
         Ok(sext_op)
     }
 }
@@ -603,15 +590,10 @@ impl ToLLVMValue for ZExtOp {
         llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let op = self.get_operation().deref(ctx);
-        let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        let op = self.operation().deref(ctx);
+        let arg = convert_value_operand(cctx, ctx, &op.operand(0))?;
         let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
-        let zext_op = llvm_build_sext(
-            &cctx.builder,
-            arg,
-            ty,
-            &self.get_result(ctx).unique_name(ctx),
-        );
+        let zext_op = llvm_build_sext(&cctx.builder, arg, ty, &self.result(ctx).unique_name(ctx));
         Ok(zext_op)
     }
 }
@@ -624,7 +606,7 @@ impl ToLLVMValue for GetElementPtrOp {
         llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let op = self.get_operation().deref(ctx);
+        let op = self.operation().deref(ctx);
         let mut operands = op.operands();
         let base = convert_value_operand(
             cctx,
@@ -642,7 +624,7 @@ impl ToLLVMValue for GetElementPtrOp {
             src_elem_type,
             base,
             &indices,
-            &self.get_result(ctx).unique_name(ctx),
+            &self.result(ctx).unique_name(ctx),
         );
         Ok(gep_op)
     }
@@ -656,9 +638,9 @@ impl ToLLVMValue for InsertValueOp {
         _llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let op = self.get_operation().deref(ctx);
-        let base = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
-        let value = convert_value_operand(cctx, ctx, &op.get_operand(1))?;
+        let op = self.operation().deref(ctx);
+        let base = convert_value_operand(cctx, ctx, &op.operand(0))?;
+        let value = convert_value_operand(cctx, ctx, &op.operand(1))?;
         let indices = self.indices(ctx);
         if indices.len() != 1 {
             return input_err!(op.loc(), ToLLVMErr::InsertExtractValueIndices);
@@ -668,7 +650,7 @@ impl ToLLVMValue for InsertValueOp {
             base,
             value,
             indices[0],
-            &self.get_result(ctx).unique_name(ctx),
+            &self.result(ctx).unique_name(ctx),
         );
         Ok(insert_op)
     }
@@ -682,8 +664,8 @@ impl ToLLVMValue for ExtractValueOp {
         _llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let op = self.get_operation().deref(ctx);
-        let base = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        let op = self.operation().deref(ctx);
+        let base = convert_value_operand(cctx, ctx, &op.operand(0))?;
         let indices = self.indices(ctx);
         if indices.len() != 1 {
             return input_err!(op.loc(), ToLLVMErr::InsertExtractValueIndices);
@@ -692,7 +674,7 @@ impl ToLLVMValue for ExtractValueOp {
             &cctx.builder,
             base,
             indices[0],
-            &self.get_result(ctx).unique_name(ctx),
+            &self.result(ctx).unique_name(ctx),
         );
         Ok(extract_op)
     }
@@ -706,16 +688,16 @@ impl ToLLVMValue for SelectOp {
         _llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let op = self.get_operation().deref(ctx);
-        let cond = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
-        let true_val = convert_value_operand(cctx, ctx, &op.get_operand(1))?;
-        let false_val = convert_value_operand(cctx, ctx, &op.get_operand(2))?;
+        let op = self.operation().deref(ctx);
+        let cond = convert_value_operand(cctx, ctx, &op.operand(0))?;
+        let true_val = convert_value_operand(cctx, ctx, &op.operand(1))?;
+        let false_val = convert_value_operand(cctx, ctx, &op.operand(2))?;
         let select_op = llvm_build_select(
             &cctx.builder,
             cond,
             true_val,
             false_val,
-            &self.get_result(ctx).unique_name(ctx),
+            &self.result(ctx).unique_name(ctx),
         );
         Ok(select_op)
     }
@@ -734,19 +716,16 @@ fn convert_block(
     for (op, loc) in block
         .deref(ctx)
         .iter(ctx)
-        .map(|op| (Operation::get_op(op, ctx), op.deref(ctx).loc()))
+        .map(|op| (Operation::op(op, ctx), op.deref(ctx).loc()))
     {
         let Some(op_conv) = op_cast::<dyn ToLLVMValue>(&*op) else {
-            return input_err!(
-                loc,
-                ToLLVMErr::MissingOpConversion(op.get_opid().to_string())
-            );
+            return input_err!(loc, ToLLVMErr::MissingOpConversion(op.opid().to_string()));
         };
         let op_iw = op_conv.convert(ctx, llvm_ctx, cctx)?;
-        let op_ref = &*op.get_operation().deref(ctx);
+        let op_ref = &*op.operation().deref(ctx);
         // LLVM instructions have at most one result.
-        if op_ref.get_num_results() == 1 {
-            cctx.value_map.insert(op_ref.get_result(0), op_iw);
+        if op_ref.num_results() == 1 {
+            cctx.value_map.insert(op_ref.result(0), op_iw);
         }
     }
 
@@ -761,10 +740,10 @@ fn convert_function(
     func_op: FuncOp,
 ) -> Result<LLVMValue> {
     cctx.clear_per_function_data();
-    let func_llvm = cctx.function_map[&func_op.get_symbol_name(ctx)];
+    let func_llvm = cctx.function_map[&func_op.symbol_name(ctx)];
 
     // Map all blocks, staring with entry.
-    let mut block_iter = func_op.get_region(ctx).deref(ctx).iter(ctx);
+    let mut block_iter = func_op.region(ctx).deref(ctx).iter(ctx);
     {
         let entry = block_iter.next().expect("Missing entry block");
         assert!(entry == func_op.get_entry_block(ctx));
@@ -796,7 +775,7 @@ fn convert_function(
     }
 
     // Convert within every block.
-    for block in topological_order(ctx, func_op.get_region(ctx)) {
+    for block in topological_order(ctx, func_op.region(ctx)) {
         convert_block(ctx, llvm_ctx, cctx, block)?;
     }
 
@@ -809,29 +788,28 @@ pub fn convert_module(
     llvm_ctx: &LLVMContext,
     module: ModuleOp,
 ) -> Result<LLVMModule> {
-    let mod_name = module.get_symbol_name(ctx);
+    let mod_name = module.symbol_name(ctx);
     let llvm_module = LLVMModule::new(&mod_name, llvm_ctx);
     let cctx = &mut ConversionContext::new(llvm_ctx);
 
     // Create new functions and map them.
-    for op in module.get_body(ctx, 0).deref(ctx).iter(ctx) {
-        if let Some(func_op) = Operation::get_op(op, ctx).downcast_ref::<FuncOp>() {
+    for op in module.body(ctx, 0).deref(ctx).iter(ctx) {
+        if let Some(func_op) = Operation::op(op, ctx).downcast_ref::<FuncOp>() {
             let func_ty = func_op.get_type(ctx).deref(ctx);
             let func_ty_to_llvm =
                 type_cast::<dyn ToLLVMType>(&**func_ty).ok_or(input_error_noloc!(
                     ToLLVMErr::MissingOpConversion(func_ty.disp(ctx).to_string())
                 ))?;
             let fn_ty_llvm = func_ty_to_llvm.convert(ctx, llvm_ctx)?;
-            let func_llvm =
-                llvm_add_function(&llvm_module, &func_op.get_symbol_name(ctx), fn_ty_llvm);
+            let func_llvm = llvm_add_function(&llvm_module, &func_op.symbol_name(ctx), fn_ty_llvm);
             cctx.function_map
-                .insert(func_op.get_symbol_name(ctx), func_llvm);
+                .insert(func_op.symbol_name(ctx), func_llvm);
         }
         // TODO: Globals?
     }
 
-    for op in module.get_body(ctx, 0).deref(ctx).iter(ctx) {
-        if let Some(func_op) = Operation::get_op(op, ctx).downcast_ref::<FuncOp>() {
+    for op in module.body(ctx, 0).deref(ctx).iter(ctx) {
+        if let Some(func_op) = Operation::op(op, ctx).downcast_ref::<FuncOp>() {
             convert_function(ctx, llvm_ctx, cctx, *func_op)?;
         }
         // TODO: Globals

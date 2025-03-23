@@ -31,7 +31,7 @@ pub struct State(Rc<RefCell<StateInner>>);
 
 impl State {
     /// Number of spaces per indentation
-    pub fn get_indent_width(&self) -> u16 {
+    pub fn indent_width(&self) -> u16 {
         self.0.as_ref().borrow().indent_width
     }
 
@@ -41,7 +41,7 @@ impl State {
     }
 
     /// What's the indentation we're at right now?
-    pub fn get_current_indent(&self) -> u16 {
+    pub fn current_indent(&self) -> u16 {
         self.0.as_ref().borrow().cur_indent
     }
 
@@ -241,7 +241,7 @@ where
 
 /// Print a new line followed by indentation as per current state.
 pub fn fmt_indented_newline(state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    let align = state.get_current_indent().into();
+    let align = state.current_indent().into();
     write!(f, "\n{:>align$}", "")?;
     Ok(())
 }
@@ -272,14 +272,14 @@ mod test {
     #[test]
     fn test_state_cloning() {
         let state = State::default();
-        let cur_indent = state.get_current_indent();
+        let cur_indent = state.current_indent();
         state.push_indent();
-        assert!(cur_indent < state.get_current_indent());
+        assert!(cur_indent < state.current_indent());
         let state_new = state.replicate();
         state.pop_indent();
-        assert!(state_new.get_current_indent() != state.get_current_indent());
+        assert!(state_new.current_indent() != state.current_indent());
         let state_new_2 = state_new.share();
         state_new_2.push_indent();
-        assert!(state_new.get_current_indent() == state_new_2.get_current_indent());
+        assert!(state_new.current_indent() == state_new_2.current_indent());
     }
 }

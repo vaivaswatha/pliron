@@ -38,7 +38,7 @@ use pliron_derive::format_op;
 pub struct ReturnOp;
 impl ReturnOp {
     pub fn new(ctx: &mut Context, value: Value) -> Self {
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![value], vec![], 0);
+        let op = Operation::new(ctx, Self::opid_static(), vec![], vec![value], vec![], 0);
         ReturnOp { op }
     }
 }
@@ -58,7 +58,7 @@ impl ConstantOp {
         let int_attr = IntegerAttr::new(i64_ty, APInt::from_u64(value, bw(64)));
         let op = Operation::new(
             ctx,
-            Self::get_opid_static(),
+            Self::opid_static(),
             vec![i64_ty.into()],
             vec![],
             vec![],
@@ -72,7 +72,7 @@ impl ConstantOp {
     }
 
     pub fn get_value(&self, ctx: &Context) -> AttrObj {
-        let op = self.get_operation().deref(ctx);
+        let op = self.operation().deref(ctx);
         op.attributes.0.get(&Self::ATTR_KEY_VALUE).unwrap().clone()
     }
 }
@@ -86,8 +86,8 @@ impl Printable for ConstantOp {
         write!(
             f,
             "{} = {} {}",
-            self.get_result(ctx).disp(ctx),
-            self.get_opid().disp(ctx),
+            self.result(ctx).disp(ctx),
+            self.opid().disp(ctx),
             self.get_value(ctx).disp(ctx)
         )
     }
@@ -105,7 +105,7 @@ impl Parsable for ConstantOp {
         if results.len() != 1 {
             input_err!(
                 loc.clone(),
-                OneResultVerifyErr(Self::get_opid_static().to_string())
+                OneResultVerifyErr(Self::opid_static().to_string())
             )?
         }
 
@@ -120,7 +120,7 @@ impl Parsable for ConstantOp {
         };
         let int_val: u64 = Into::<APInt>::into(*int_attr).to_u64();
         let op = Box::new(Self::new(state_stream.state.ctx, int_val));
-        process_parsed_ssa_defs(state_stream, &results, op.get_operation())?;
+        process_parsed_ssa_defs(state_stream, &results, op.operation())?;
 
         Ok(op as OpObj).into_parse_result()
     }
@@ -145,19 +145,19 @@ pub fn const_ret_in_mod(ctx: &mut Context) -> Result<(ModuleOp, FuncOp, Constant
     // Our function is going to have type () -> ().
     let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
     let func = FuncOp::new(ctx, &"foo".try_into().unwrap(), func_ty);
-    module.append_operation(ctx, func.get_operation(), 0);
+    module.append_operation(ctx, func.operation(), 0);
     let bb = func.get_entry_block(ctx);
 
     // Create a `const 0` op and add it to bb.
     let const_op = ConstantOp::new(ctx, 0);
-    const_op.get_operation().insert_at_front(bb, ctx);
-    set_operation_result_name(ctx, const_op.get_operation(), 0, "c0".try_into().unwrap());
+    const_op.operation().insert_at_front(bb, ctx);
+    set_operation_result_name(ctx, const_op.operation(), 0, "c0".try_into().unwrap());
 
     // Return the constant.
-    let ret_op = ReturnOp::new(ctx, const_op.get_result(ctx));
-    ret_op.get_operation().insert_at_back(bb, ctx);
+    let ret_op = ReturnOp::new(ctx, const_op.result(ctx));
+    ret_op.operation().insert_at_back(bb, ctx);
 
-    module.get_operation().verify(ctx)?;
+    module.operation().verify(ctx)?;
 
     Ok((module, func, const_op, ret_op))
 }

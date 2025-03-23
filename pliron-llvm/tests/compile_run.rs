@@ -138,7 +138,7 @@ fn test_fib_plir(filename: &str) -> Result<()> {
     let module = LLVMModule::from_ir_in_file(&llvm_context, fib_mem2reg_ll_path.to_str().unwrap())
         .map_err(|err| arg_error_noloc!("{}", err))?;
     let pliron_module = from_llvm_ir::convert_module(ctx, &module)?;
-    pliron_module.get_operation().verify(ctx)?;
+    pliron_module.operation().verify(ctx)?;
 
     // Create a temp dir to place the plir file.
     let tmp_dir = tempdir().unwrap();
@@ -200,7 +200,7 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         .map_err(|err| arg_error_noloc!("{}", err))
         .unwrap();
 
-    match pliron_module.get_operation().verify(ctx) {
+    match pliron_module.operation().verify(ctx) {
         Ok(_) => (),
         Err(err) => {
             eprintln!("{}", err.disp(ctx));

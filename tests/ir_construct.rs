@@ -34,7 +34,7 @@ mod common;
 #[test]
 fn construct_and_erase() -> Result<()> {
     let ctx = &mut setup_context_dialects();
-    let module_op = const_ret_in_mod(ctx)?.0.get_operation();
+    let module_op = const_ret_in_mod(ctx)?.0.operation();
     Operation::erase(module_op, ctx);
     assert!(ctx.operations.is_empty() && ctx.basic_blocks.is_empty() && ctx.regions.is_empty());
     Ok(())
@@ -50,7 +50,7 @@ fn removed_used_op() {
     let (_, _, const_op, _) = const_ret_in_mod(ctx).unwrap();
 
     // const_op is used in the return. Erasing it must panic.
-    Operation::erase(const_op.get_operation(), ctx);
+    Operation::erase(const_op.operation(), ctx);
 }
 
 // Testing replacing all uses of c0 with c1.
@@ -63,15 +63,15 @@ fn replace_c0_with_c1() -> Result<()> {
 
     let const1_op = ConstantOp::new(ctx, 1);
     const1_op
-        .get_operation()
-        .insert_after(ctx, const_op.get_operation());
-    set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".try_into().unwrap());
-    let const0_val = const_op.get_result(ctx);
-    const0_val.replace_some_uses_with(ctx, |_, _| true, &const1_op.get_result(ctx));
+        .operation()
+        .insert_after(ctx, const_op.operation());
+    set_operation_result_name(ctx, const1_op.operation(), 0, "c1".try_into().unwrap());
+    let const0_val = const_op.result(ctx);
+    const0_val.replace_some_uses_with(ctx, |_, _| true, &const1_op.result(ctx));
 
-    Operation::erase(const_op.get_operation(), ctx);
+    Operation::erase(const_op.operation(), ctx);
 
-    module_op.get_operation().verify(ctx)?;
+    module_op.operation().verify(ctx)?;
 
     Ok(())
 }
@@ -87,9 +87,9 @@ fn replace_c0_with_c1_operand() -> Result<()> {
 
     let const1_op = ConstantOp::new(ctx, 1);
     const1_op
-        .get_operation()
-        .insert_after(ctx, const_op.get_operation());
-    set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".try_into().unwrap());
+        .operation()
+        .insert_after(ctx, const_op.operation());
+    set_operation_result_name(ctx, const1_op.operation(), 0, "c1".try_into().unwrap());
 
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
@@ -106,8 +106,8 @@ fn replace_c0_with_c1_operand() -> Result<()> {
         }"#]]
     .assert_eq(&printed);
 
-    Operation::replace_operand(ret_op.get_operation(), ctx, 0, const1_op.get_result(ctx));
-    Operation::erase(const_op.get_operation(), ctx);
+    Operation::replace_operand(ret_op.operation(), ctx, 0, const1_op.result(ctx));
+    Operation::erase(const_op.operation(), ctx);
 
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
@@ -123,7 +123,7 @@ fn replace_c0_with_c1_operand() -> Result<()> {
         }"#]]
     .assert_eq(&printed);
 
-    module_op.get_operation().verify(ctx)?;
+    module_op.operation().verify(ctx)?;
 
     Ok(())
 }
@@ -146,20 +146,20 @@ fn test_replace_within_same_def_site() {
 
     let dual_def_op = Operation::new(
         ctx,
-        DualDefOp::get_opid_static(),
+        DualDefOp::opid_static(),
         vec![u64_ty, u64_ty],
         vec![],
         vec![],
         0,
     );
     let (res1, res2) = (
-        dual_def_op.deref(ctx).get_result(0),
-        dual_def_op.deref(ctx).get_result(1),
+        dual_def_op.deref(ctx).result(0),
+        dual_def_op.deref(ctx).result(1),
     );
     let (module_op, func_op, const_op, ret_op) = const_ret_in_mod(ctx).unwrap();
-    dual_def_op.insert_before(ctx, ret_op.get_operation());
+    dual_def_op.insert_before(ctx, ret_op.operation());
     const_op
-        .get_result(ctx)
+        .result(ctx)
         .replace_some_uses_with(ctx, |_, _| true, &res1);
     res1.replace_some_uses_with(ctx, |_, _| true, &res2);
     let printed = format!("{}", module_op.disp(ctx));
@@ -179,12 +179,12 @@ fn test_replace_within_same_def_site() {
 
     let dual_arg_block = BasicBlock::new(ctx, None, vec![u64_ty, u64_ty]);
     let (arg1, arg2) = (
-        dual_arg_block.deref(ctx).get_argument(0),
-        dual_arg_block.deref(ctx).get_argument(1),
+        dual_arg_block.deref(ctx).argument(0),
+        dual_arg_block.deref(ctx).argument(1),
     );
     dual_arg_block.insert_after(ctx, func_op.get_entry_block(ctx));
     let ret_op = ReturnOp::new(ctx, arg1);
-    ret_op.get_operation().insert_at_back(dual_arg_block, ctx);
+    ret_op.operation().insert_at_back(dual_arg_block, ctx);
     arg1.replace_some_uses_with(ctx, |_, _| true, &arg2);
 
     let printed = format!("{}", module_op.disp(ctx));
@@ -209,7 +209,7 @@ fn test_replace_within_same_def_site() {
 /// A test to just print a constructed IR to stdout.
 fn print_simple() -> Result<()> {
     let ctx = &mut setup_context_dialects();
-    let module_op = const_ret_in_mod(ctx)?.0.get_operation();
+    let module_op = const_ret_in_mod(ctx)?.0.operation();
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
         builtin.module @bar 
@@ -363,7 +363,7 @@ fn parse_err_block_args() {
 #[test]
 fn test_preorder_forward_walk() {
     let ctx = &mut setup_context_dialects();
-    let module_op = const_ret_in_mod(ctx).unwrap().0.get_operation();
+    let module_op = const_ret_in_mod(ctx).unwrap().0.operation();
 
     let mut state = Vec::new();
 
@@ -413,7 +413,7 @@ fn test_preorder_forward_walk() {
 #[test]
 fn test_postorder_forward_walk() {
     let ctx = &mut setup_context_dialects();
-    let module_op = const_ret_in_mod(ctx).unwrap().0.get_operation();
+    let module_op = const_ret_in_mod(ctx).unwrap().0.operation();
 
     let mut state = Vec::new();
 
@@ -462,9 +462,9 @@ fn test_walker_find_op() {
 
     let const1_op = ConstantOp::new(ctx, 1);
     const1_op
-        .get_operation()
-        .insert_after(ctx, const_op.get_operation());
-    set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".try_into().unwrap());
+        .operation()
+        .insert_after(ctx, const_op.operation());
+    set_operation_result_name(ctx, const1_op.operation(), 0, "c1".try_into().unwrap());
 
     // A function to breaks the walk when a [ConstantOp] is found.
     fn finder(
@@ -473,7 +473,7 @@ fn test_walker_find_op() {
         node: IRNode,
     ) -> interruptible::WalkResult<ConstantOp> {
         if let IRNode::Operation(op) = node {
-            if let Some(const_op) = Operation::get_op(op, ctx).downcast_ref::<ConstantOp>() {
+            if let Some(const_op) = Operation::op(op, ctx).downcast_ref::<ConstantOp>() {
                 return walk_break(*const_op);
             }
         }
@@ -484,7 +484,7 @@ fn test_walker_find_op() {
         ctx,
         &mut (),
         &WALKCONFIG_PREORDER_FORWARD,
-        module_op.get_operation(),
+        module_op.operation(),
         finder,
     );
     assert!(matches!(res1, interruptible::WalkResult::Break(c) if c == const_op));
@@ -493,7 +493,7 @@ fn test_walker_find_op() {
         ctx,
         &mut (),
         &WALKCONFIG_POSTORDER_REVERSE,
-        module_op.get_operation(),
+        module_op.operation(),
         finder,
     );
     assert!(matches!(res2, interruptible::WalkResult::Break(c) if c == const1_op));

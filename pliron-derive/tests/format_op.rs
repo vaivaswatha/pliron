@@ -30,7 +30,7 @@ fn zero_results_zero_operands() {
 
     let op = Operation::new(
         ctx,
-        ZeroResultsZeroOperandsOp::get_opid_static(),
+        ZeroResultsZeroOperandsOp::opid_static(),
         vec![],
         vec![],
         vec![],

@@ -392,7 +392,7 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
         Ok(quote! {
             {
                 let name = #attr_name.try_into().expect("Invalid attribute name");
-                let self_op = self.get_operation().deref(ctx);
+                let self_op = self.operation().deref(ctx);
                 let attr = self_op.attributes.0.get(&name).expect(&#missing_attr_err);
                 ::pliron::printable::Printable::fmt(attr, ctx, state, fmt)?;
             }
@@ -405,7 +405,7 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
         index: usize,
     ) -> Result<TokenStream> {
         Ok(quote! {
-            let opd = self.get_operation().deref(ctx).get_operand(#index);
+            let opd = self.operation().deref(ctx).operand(#index);
             ::pliron::printable::Printable::fmt(&opd, ctx, state, fmt)?;
         })
     }
@@ -428,7 +428,7 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
             }
             if let Elem::UnnamedVar(UnnamedVar { index, .. }) = &d.args[0] {
                 Ok(quote! {
-                    let res = self.get_operation().deref(ctx).get_type(#index);
+                    let res = self.operation().deref(ctx).get_type(#index);
                     ::pliron::printable::Printable::fmt(&res, ctx, state, fmt)?;
                 })
             } else {
@@ -444,7 +444,7 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
             }
             if let Elem::UnnamedVar(UnnamedVar { index, .. }) = &d.args[0] {
                 Ok(quote! {
-                    let reg = self.get_operation().deref(ctx).get_region(#index);
+                    let reg = self.operation().deref(ctx).region(#index);
                     ::pliron::printable::Printable::fmt(&reg, ctx, state, fmt)?;
                 })
             } else {
@@ -458,7 +458,7 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
                 &input.ident.clone()
             );
             Ok(quote! {
-                let self_op = self.get_operation().deref(ctx);
+                let self_op = self.operation().deref(ctx);
                 let attr = self_op.attributes.get::<#attr_type_path>(
                     &::pliron::identifier::Identifier::try_from(#attr_name_str).unwrap()
                 ).expect(#missing_attr_err);
@@ -476,7 +476,7 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
                 return err;
             };
             Ok(quote! {
-                let succ = self.get_operation().deref(ctx).get_successor(#index);
+                let succ = self.operation().deref(ctx).successor(#index);
                 let succ_name = "^".to_string() + &succ.unique_name(ctx);
                 ::pliron::printable::Printable::fmt(&succ_name, ctx, state, fmt)?;
             })
@@ -495,7 +495,7 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
             };
             let sep = directive_to_list_separator(sep, true, input.ident.span())?;
             Ok(quote! {
-                let op = self.get_operation().deref(ctx);
+                let op = self.operation().deref(ctx);
                 let succs = op.successors().map(|succ| "^".to_string() + &succ.unique_name(ctx));
                 let succs = ::pliron::irfmt::printers::iter_with_sep(succs, #sep);
                 ::pliron::printable::Printable::fmt(&succs, ctx, state, fmt)?;
@@ -515,7 +515,7 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
             };
             let sep = directive_to_list_separator(sep, true, input.ident.span())?;
             Ok(quote! {
-                let op = self.get_operation().deref(ctx);
+                let op = self.operation().deref(ctx);
                 let regions = op.regions();
                 let regions = ::pliron::irfmt::printers::iter_with_sep(regions, #sep);
                 ::pliron::printable::Printable::fmt(&regions, ctx, state, fmt)?;
@@ -535,14 +535,14 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
             };
             let sep = directive_to_list_separator(sep, true, input.ident.span())?;
             Ok(quote! {
-                let op = self.get_operation().deref(ctx);
+                let op = self.operation().deref(ctx);
                 let operands = op.operands();
                 let operands = ::pliron::irfmt::printers::iter_with_sep(operands, #sep);
                 ::pliron::printable::Printable::fmt(&operands, ctx, state, fmt)?;
             })
         } else if d.name == "attr_dict" {
             Ok(quote! {
-                let self_op = self.get_operation().deref(ctx);
+                let self_op = self.operation().deref(ctx);
                 ::pliron::printable::Printable::fmt(&self_op.attributes, ctx, state, fmt)?;
             })
         } else {
@@ -558,13 +558,13 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
                 use ::pliron::op::Op;
                 use ::pliron::irfmt::printers::iter_with_sep;
                 use ::pliron::common_traits::Named;
-                let op = self.get_operation().deref(ctx);
-                if op.get_num_results() > 0 {
+                let op = self.operation().deref(ctx);
+                if op.num_results() > 0 {
                     let sep = ::pliron::printable::ListSeparator::CharSpace(',');
                     let results = iter_with_sep(op.results(), sep);
                     write!(fmt, "{} = ", results.disp(ctx))?;
                 }
-                write!(fmt, "{} ", self.get_opid())?;
+                write!(fmt, "{} ", self.opid())?;
             });
         }
         output.extend(formatted_tokens);
@@ -971,7 +971,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             output.extend(quote! {
                 let #regions_temp_parent_op = Operation::new(
                     state_stream.state.ctx,
-                    Self::get_opid_static(),
+                    Self::opid_static(),
                     vec![],
                     vec![],
                     vec![],
@@ -1116,7 +1116,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
         output.extend(quote! {
             let op = ::pliron::operation::Operation::new(
                 state_stream.state.ctx,
-                Self::get_opid_static(),
+                Self::opid_static(),
                 #results,
                 #operands,
                 #successors,
@@ -1139,7 +1139,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
         }
 
         output.extend(quote! {
-            let final_ret_value = Operation::get_op(op, state_stream.state.ctx);
+            let final_ret_value = Operation::op(op, state_stream.state.ctx);
         });
 
         output.extend(attribute_sets);
@@ -1206,7 +1206,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             state.is_canonical = true;
             Ok(quote! {
                 ::pliron::op::canonical_syntax_parser(
-                    <Self as ::pliron::op::Op>::get_opid_static(),
+                    <Self as ::pliron::op::Op>::opid_static(),
                     arg,
                 )
                 .parse_stream(state_stream)

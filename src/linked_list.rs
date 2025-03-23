@@ -33,14 +33,14 @@ pub(crate) mod private {
 /// An object that contains a linked list.
 pub trait ContainsLinkedList<T: LinkedList>: private::ContainsLinkedList<T> {
     /// Simply get the head of the list.
-    fn get_head(&self) -> Option<Ptr<T>>;
+    fn head(&self) -> Option<Ptr<T>>;
     /// Simply get the tail of the list.
-    fn get_tail(&self) -> Option<Ptr<T>>;
+    fn tail(&self) -> Option<Ptr<T>>;
     /// Get an iterator over the items. Context is borrowed throughout.
     fn iter<'a>(&self, ctx: &'a Context) -> Iter<'a, T> {
         Iter {
-            next: self.get_head(),
-            next_back: self.get_tail(),
+            next: self.head(),
+            next_back: self.tail(),
             ctx,
         }
     }
@@ -76,7 +76,7 @@ impl<T: LinkedList> Iterator for Iter<'_, T> {
                 self.next = None;
                 self.next_back = None;
             } else {
-                self.next = curr.deref(self.ctx).get_next();
+                self.next = curr.deref(self.ctx).next();
             }
         })
     }
@@ -93,7 +93,7 @@ impl<T: LinkedList> DoubleEndedIterator for Iter<'_, T> {
                 self.next_back = None;
                 self.next = None;
             } else {
-                self.next_back = curr.deref(self.ctx).get_prev();
+                self.next_back = curr.deref(self.ctx).prev();
             }
         })
     }
@@ -105,11 +105,11 @@ impl<T: LinkedList> DoubleEndedIterator for Iter<'_, T> {
 /// Actual linked list operations are implemented for `Ptr<T: LinkedList>`
 pub trait LinkedList: private::LinkedList {
     /// Simple getter for the item previous to this in the list.
-    fn get_next(&self) -> Option<Ptr<Self>>;
+    fn next(&self) -> Option<Ptr<Self>>;
     /// Simple getter for the item previous to this in the list.
-    fn get_prev(&self) -> Option<Ptr<Self>>;
+    fn prev(&self) -> Option<Ptr<Self>>;
     /// Get a reference to the object that contains this linked list.
-    fn get_container(&self) -> Option<Ptr<Self::ContainerType>>;
+    fn container(&self) -> Option<Ptr<Self::ContainerType>>;
 }
 
 /// Linked list operations on Ptr<T: LinkedList> for convenience and safety.
@@ -122,14 +122,12 @@ where
         {
             let node = self.deref(ctx);
             assert!(
-                node.get_prev().is_none()
-                    && node.get_next().is_none()
-                    && node.get_container().is_none(),
+                node.prev().is_none() && node.next().is_none() && node.container().is_none(),
                 "LinkedList node must be unlinked before relinking"
             );
             let mark = mark.deref(ctx);
             assert!(
-                mark.get_container().is_some(),
+                mark.container().is_some(),
                 "insert_after: Mark node itself is unlinked"
             );
         }
@@ -138,15 +136,15 @@ where
         // If mark == *self, we don't want two deref_mut() on it.
         {
             let mut mark_ref = mark.deref_mut(ctx);
-            container = mark_ref.get_container().unwrap();
-            next = mark_ref.get_next();
+            container = mark_ref.container().unwrap();
+            next = mark_ref.next();
             match next {
                 Some(next) => {
-                    assert!(next.deref(ctx).get_prev().unwrap() == mark);
+                    assert!(next.deref(ctx).prev().unwrap() == mark);
                     next.deref_mut(ctx).set_prev(Some(*self));
                 }
                 None => {
-                    assert!(container.deref(ctx).get_tail().unwrap() == mark);
+                    assert!(container.deref(ctx).tail().unwrap() == mark);
                     private::ContainsLinkedList::set_tail(
                         &mut (*container.deref_mut(ctx)),
                         Some(*self),
@@ -167,14 +165,12 @@ where
         {
             let node = self.deref(ctx);
             assert!(
-                node.get_prev().is_none()
-                    && node.get_next().is_none()
-                    && node.get_container().is_none(),
+                node.prev().is_none() && node.next().is_none() && node.container().is_none(),
                 "LinkedList node must be unlinked before relinking"
             );
             let mark = mark.deref(ctx);
             assert!(
-                mark.get_container().is_some(),
+                mark.container().is_some(),
                 "insert_before: Mark node itself is unlinked"
             );
         }
@@ -184,15 +180,15 @@ where
         // If mark == *self, we don't want two deref_mut() on it.
         {
             let mut mark_ref = mark.deref_mut(ctx);
-            container = mark_ref.get_container().unwrap();
-            prev = mark_ref.get_prev();
+            container = mark_ref.container().unwrap();
+            prev = mark_ref.prev();
             match prev {
                 Some(prev) => {
-                    assert!(prev.deref(ctx).get_next().unwrap() == mark);
+                    assert!(prev.deref(ctx).next().unwrap() == mark);
                     prev.deref_mut(ctx).set_next(Some(*self));
                 }
                 None => {
-                    assert!(container.deref(ctx).get_head().unwrap() == mark);
+                    assert!(container.deref(ctx).head().unwrap() == mark);
                     private::ContainsLinkedList::set_head(
                         &mut (*container.deref_mut(ctx)),
                         Some(*self),
@@ -212,16 +208,14 @@ where
     pub fn insert_at_front(&self, container: Ptr<T::ContainerType>, ctx: &Context) {
         let mut node = self.deref_mut(ctx);
         assert!(
-            node.get_prev().is_none()
-                && node.get_next().is_none()
-                && node.get_container().is_none(),
+            node.prev().is_none() && node.next().is_none() && node.container().is_none(),
             "LinkedList node must be unlinked before relinking"
         );
         let mut container_ref = container.deref_mut(ctx);
-        let head = container_ref.get_head();
+        let head = container_ref.head();
         match head {
             Some(head) => {
-                assert!(head.deref(ctx).get_prev().is_none());
+                assert!(head.deref(ctx).prev().is_none());
                 head.deref_mut(ctx).set_prev(Some(*self))
             }
             None => {
@@ -237,16 +231,14 @@ where
     pub fn insert_at_back(&self, container: Ptr<T::ContainerType>, ctx: &Context) {
         let mut node = self.deref_mut(ctx);
         assert!(
-            node.get_prev().is_none()
-                && node.get_next().is_none()
-                && node.get_container().is_none(),
+            node.prev().is_none() && node.next().is_none() && node.container().is_none(),
             "LinkedList node must be unlinked before relinking"
         );
         let mut container_ref = container.deref_mut(ctx);
-        let tail = container_ref.get_tail();
+        let tail = container_ref.tail();
         match tail {
             Some(tail) => {
-                assert!(tail.deref(ctx).get_next().is_none());
+                assert!(tail.deref(ctx).next().is_none());
                 tail.deref_mut(ctx).set_next(Some(*self));
             }
             None => {
@@ -260,10 +252,9 @@ where
 
     /// Is this node part of a linked list?
     pub fn is_linked(&self, ctx: &Context) -> bool {
-        let has_container = self.deref(ctx).get_container().is_some();
+        let has_container = self.deref(ctx).container().is_some();
         assert!(
-            has_container
-                || self.deref(ctx).get_next().is_none() && self.deref(ctx).get_prev().is_none(),
+            has_container || self.deref(ctx).next().is_none() && self.deref(ctx).prev().is_none(),
             "LinkedList node has no container, but has next/prev node"
         );
         has_container
@@ -271,29 +262,29 @@ where
 
     /// Unlink self from list.
     pub fn unlink(&self, ctx: &Context) {
-        let container = self.deref(ctx).get_container();
+        let container = self.deref(ctx).container();
         assert!(
             container.is_some(),
             "LinkedList: Attempt to remove unlinked node"
         );
         let container = container.unwrap();
-        match self.deref(ctx).get_next() {
-            Some(next) => next.deref_mut(ctx).set_prev(self.deref(ctx).get_prev()),
+        match self.deref(ctx).next() {
+            Some(next) => next.deref_mut(ctx).set_prev(self.deref(ctx).prev()),
             None => {
                 private::ContainsLinkedList::set_tail(
                     &mut (*container.deref_mut(ctx)),
-                    self.deref(ctx).get_prev(),
+                    self.deref(ctx).prev(),
                 );
             }
         }
-        match self.deref(ctx).get_prev() {
+        match self.deref(ctx).prev() {
             Some(prev) => {
-                prev.deref_mut(ctx).set_next(self.deref(ctx).get_next());
+                prev.deref_mut(ctx).set_next(self.deref(ctx).next());
             }
             None => {
                 private::ContainsLinkedList::set_head(
                     &mut (*container.deref_mut(ctx)),
-                    self.deref(ctx).get_next(),
+                    self.deref(ctx).next(),
                 );
             }
         }
@@ -319,15 +310,15 @@ pub(crate) mod tests {
         self_ptr: Ptr<LLNode>,
     }
     impl ArenaObj for LLNode {
-        fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
+        fn arena(ctx: &Context) -> &ArenaCell<Self> {
             &ctx.linked_list_store.nodes
         }
 
-        fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
+        fn arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
             &mut ctx.linked_list_store.nodes
         }
 
-        fn get_self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
+        fn self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
             self.self_ptr
         }
 
@@ -364,15 +355,15 @@ pub(crate) mod tests {
     }
 
     impl LinkedList for LLNode {
-        fn get_next(&self) -> Option<Ptr<Self>> {
+        fn next(&self) -> Option<Ptr<Self>> {
             self.next
         }
 
-        fn get_prev(&self) -> Option<Ptr<Self>> {
+        fn prev(&self) -> Option<Ptr<Self>> {
             self.prev
         }
 
-        fn get_container(&self) -> Option<Ptr<Self::ContainerType>> {
+        fn container(&self) -> Option<Ptr<Self::ContainerType>> {
             self.parent
         }
     }
@@ -395,15 +386,15 @@ pub(crate) mod tests {
     }
 
     impl ArenaObj for LLRoot {
-        fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
+        fn arena(ctx: &Context) -> &ArenaCell<Self> {
             &ctx.linked_list_store.containers
         }
 
-        fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
+        fn arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
             &mut ctx.linked_list_store.containers
         }
 
-        fn get_self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
+        fn self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
             self.self_ptr
         }
 
@@ -411,11 +402,11 @@ pub(crate) mod tests {
     }
 
     impl ContainsLinkedList<LLNode> for LLRoot {
-        fn get_head(&self) -> Option<Ptr<LLNode>> {
+        fn head(&self) -> Option<Ptr<LLNode>> {
             self.first
         }
 
-        fn get_tail(&self) -> Option<Ptr<LLNode>> {
+        fn tail(&self) -> Option<Ptr<LLNode>> {
             self.last
         }
     }
