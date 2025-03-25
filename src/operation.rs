@@ -76,7 +76,7 @@ impl From<&OpResult> for Value {
 
 impl Named for OpResult {
     fn given_name(&self, ctx: &Context) -> Option<Identifier> {
-        debug_info::get_operation_result_name(ctx, self.def_op, self.res_idx)
+        debug_info::operation_result_name(ctx, self.def_op, self.res_idx)
     }
 
     fn id(&self, _ctx: &Context) -> Identifier {
@@ -146,13 +146,13 @@ impl private::LinkedList for Operation {
 }
 
 impl LinkedList for Operation {
-    fn get_next(&self) -> Option<Ptr<Self>> {
+    fn next(&self) -> Option<Ptr<Self>> {
         self.block_links.next_op
     }
-    fn get_prev(&self) -> Option<Ptr<Self>> {
+    fn prev(&self) -> Option<Ptr<Self>> {
         self.block_links.prev_op
     }
-    fn get_container(&self) -> Option<Ptr<BasicBlock>> {
+    fn container(&self) -> Option<Ptr<BasicBlock>> {
         self.block_links.parent_block
     }
 }
@@ -212,12 +212,12 @@ impl Operation {
     }
 
     /// Number of results this operation has.
-    pub fn get_num_results(&self) -> usize {
+    pub fn num_results(&self) -> usize {
         self.results.len()
     }
 
     /// Get idx'th result as a Value.
-    pub fn get_result(&self, idx: usize) -> Value {
+    pub fn result(&self, idx: usize) -> Value {
         self.results
             .get(idx)
             .map(|res| res.into())
@@ -250,56 +250,53 @@ impl Operation {
     }
 
     /// Get number of operands.
-    pub fn get_num_operands(&self) -> usize {
+    pub fn num_operands(&self) -> usize {
         self.operands.len()
     }
 
     /// Get opd_idx'th operand of this [Operation]
-    pub fn get_operand(&self, opd_idx: usize) -> Value {
+    pub fn operand(&self, opd_idx: usize) -> Value {
         self.operands
             .get(opd_idx)
-            .map(|opd| opd.get_def())
+            .map(|opd| opd.def())
             .unwrap_or_else(|| panic!("Operand index {} out of bounds", opd_idx))
     }
 
     /// Get opd_idx'th operand as a [`Use<Value>`].
-    pub fn get_operand_as_use(&self, opd_idx: usize) -> Use<Value> {
-        self.get_operand_ref(opd_idx).into()
+    pub fn operand_as_use(&self, opd_idx: usize) -> Use<Value> {
+        self.operand_ref(opd_idx).into()
     }
 
     /// Get an iterator over the results of this operation.
     pub fn operands(&self) -> impl Iterator<Item = Value> + Clone + '_ {
-        self.operands.iter().map(Operand::get_def)
+        self.operands.iter().map(Operand::def)
     }
 
     /// Replace opd_idx'th operand of `this` with `other`.
     pub fn replace_operand(this: Ptr<Operation>, ctx: &Context, opd_idx: usize, other: Value) {
         let (cur_def, cur_use) = {
             let this_ref = this.deref(ctx);
-            (
-                this_ref.get_operand(opd_idx),
-                this_ref.get_operand_as_use(opd_idx),
-            )
+            (this_ref.operand(opd_idx), this_ref.operand_as_use(opd_idx))
         };
         cur_def.replace_use_with(ctx, cur_use, &other);
     }
 
     /// Get number of successors
-    pub fn get_num_successors(&self) -> usize {
+    pub fn num_successors(&self) -> usize {
         self.successors.len()
     }
 
     /// Get the opd_idx'th successor of this [Operation]
-    pub fn get_successor(&self, succ_idx: usize) -> Ptr<BasicBlock> {
+    pub fn successor(&self, succ_idx: usize) -> Ptr<BasicBlock> {
         self.successors
             .get(succ_idx)
-            .map(|succ| succ.get_def())
+            .map(|succ| succ.def())
             .unwrap_or_else(|| panic!("Successor index {} out of bounds", succ_idx))
     }
 
     /// Get the opd_idx'th successor as a [`Use<Ptr<BasicBlock>>`].
-    pub fn get_successor_as_use(&self, succ_idx: usize) -> Use<Ptr<BasicBlock>> {
-        self.get_successor_ref(succ_idx).into()
+    pub fn successor_as_use(&self, succ_idx: usize) -> Use<Ptr<BasicBlock>> {
+        self.successor_ref(succ_idx).into()
     }
 
     /// Replace opd_idx'th successor of `this` with `other`.
@@ -312,8 +309,8 @@ impl Operation {
         let (cur_target, cur_block_use) = {
             let this_ref = this.deref(ctx);
             (
-                this_ref.get_successor(succ_idx),
-                this_ref.get_successor_as_use(succ_idx),
+                this_ref.successor(succ_idx),
+                this_ref.successor_as_use(succ_idx),
             )
         };
         cur_target.retarget_pred_to(ctx, cur_block_use, other);
@@ -321,16 +318,16 @@ impl Operation {
 
     /// Get an iterator on the successors.
     pub fn successors(&self) -> impl Iterator<Item = Ptr<BasicBlock>> + Clone + '_ {
-        self.successors.iter().map(|opd| opd.get_def())
+        self.successors.iter().map(|opd| opd.def())
     }
 
     /// Create an OpObj corresponding to self.
-    pub fn get_op(ptr: Ptr<Self>, ctx: &Context) -> OpObj {
+    pub fn op(ptr: Ptr<Self>, ctx: &Context) -> OpObj {
         op::from_operation(ctx, ptr)
     }
 
     /// Get a [Ptr] to the `reg_idx`th region.
-    pub fn get_region(&self, reg_idx: usize) -> Ptr<Region> {
+    pub fn region(&self, reg_idx: usize) -> Ptr<Region> {
         self.regions
             .get(reg_idx)
             .cloned()
@@ -363,7 +360,7 @@ impl Operation {
     }
 
     /// Get the OpId of the Op of this Operation.
-    pub fn get_opid(&self) -> OpId {
+    pub fn opid(&self) -> OpId {
         self.opid.clone()
     }
 
@@ -401,42 +398,42 @@ impl Operation {
     }
 
     /// Get a reference to the idx'th result.
-    pub(crate) fn get_result_ref(&self, idx: usize) -> &OpResult {
+    pub(crate) fn result_ref(&self, idx: usize) -> &OpResult {
         self.results
             .get(idx)
             .unwrap_or_else(|| panic!("Result index {} out of bounds", idx))
     }
 
     /// Get a mutable reference to the idx'th result.
-    pub(crate) fn get_result_mut(&mut self, idx: usize) -> &mut OpResult {
+    pub(crate) fn result_mut(&mut self, idx: usize) -> &mut OpResult {
         self.results
             .get_mut(idx)
             .unwrap_or_else(|| panic!("Result index {} out of bounds", idx))
     }
 
     /// Get a reference to the opd_idx'th operand.
-    pub(crate) fn get_operand_ref(&self, opd_idx: usize) -> &Operand<Value> {
+    pub(crate) fn operand_ref(&self, opd_idx: usize) -> &Operand<Value> {
         self.operands
             .get(opd_idx)
             .unwrap_or_else(|| panic!("Operand index {} out of bounds", opd_idx))
     }
 
     /// Get a mutable reference to the opd_idx'th operand.
-    pub(crate) fn get_operand_mut(&mut self, opd_idx: usize) -> &mut Operand<Value> {
+    pub(crate) fn operand_mut(&mut self, opd_idx: usize) -> &mut Operand<Value> {
         self.operands
             .get_mut(opd_idx)
             .unwrap_or_else(|| panic!("Operand index {} out of bounds", opd_idx))
     }
 
     /// Get a reference to the succ_idx'th successor.
-    pub(crate) fn get_successor_ref(&self, succ_idx: usize) -> &Operand<Ptr<BasicBlock>> {
+    pub(crate) fn successor_ref(&self, succ_idx: usize) -> &Operand<Ptr<BasicBlock>> {
         self.successors
             .get(succ_idx)
             .unwrap_or_else(|| panic!("Successor index {} out of bounds", succ_idx))
     }
 
     /// Get a mutable reference to the opd_idx'th successor.
-    pub(crate) fn get_successor_mut(&mut self, succ_idx: usize) -> &mut Operand<Ptr<BasicBlock>> {
+    pub(crate) fn successor_mut(&mut self, succ_idx: usize) -> &mut Operand<Ptr<BasicBlock>> {
         self.successors
             .get_mut(succ_idx)
             .unwrap_or_else(|| panic!("Successor index {} out of bounds", succ_idx))
@@ -444,10 +441,10 @@ impl Operation {
 }
 
 impl ArenaObj for Operation {
-    fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
+    fn arena(ctx: &Context) -> &ArenaCell<Self> {
         &ctx.operations
     }
-    fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
+    fn arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
         &mut ctx.operations
     }
     fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context) {
@@ -456,7 +453,7 @@ impl ArenaObj for Operation {
             ArenaObj::dealloc(region, ctx);
         }
     }
-    fn get_self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
+    fn self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
         self.self_ptr
     }
 }
@@ -472,19 +469,19 @@ pub(crate) struct Operand<T: DefUseParticipant> {
 
 impl<T: DefUseParticipant + DefTrait> Operand<T> {
     /// Get the definition of this use.
-    fn get_def(&self) -> T {
-        self.r#use.get_def()
+    fn def(&self) -> T {
+        self.r#use.def()
     }
 
     /// Drop this use, removing self from its definition's uses list.
     fn drop_use(&self, ctx: &Context) {
-        self.get_def().get_defnode_mut(ctx).remove_use(self.into());
+        self.def().defnode_mut(ctx).remove_use(self.into());
     }
 
     /// As `user_op`'s `opd_idx`'th operand, create a new Operand.
     fn new(ctx: &Context, def: T, user_op: Ptr<Operation>, opd_idx: usize) -> Operand<T> {
         Operand {
-            r#use: def.get_defnode_mut(ctx).add_use(
+            r#use: def.defnode_mut(ctx).add_use(
                 def,
                 Use {
                     op: user_op,
@@ -515,13 +512,13 @@ impl<T: DefUseParticipant + Named> Printable for Operand<T> {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{}", self.r#use.get_def().unique_name(ctx))
+        write!(f, "{}", self.r#use.def().unique_name(ctx))
     }
 }
 
 impl<T: DefUseParticipant + Typed> Typed for Operand<T> {
     fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.r#use.get_def().get_type(ctx)
+        self.r#use.def().get_type(ctx)
     }
 }
 
@@ -531,12 +528,7 @@ pub struct DefUseVerifyErr;
 
 impl<T: DefUseParticipant + DefTrait> Verify for Operand<T> {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        if !self
-            .r#use
-            .get_def()
-            .get_defnode_ref(ctx)
-            .has_use_of(&self.into())
-        {
+        if !self.r#use.def().defnode_ref(ctx).has_use_of(&self.into()) {
             let loc = self.user_op.deref(ctx).loc();
             verify_err!(loc, DefUseVerifyErr)
         } else {
@@ -560,8 +552,8 @@ impl Verify for Operation {
         for region in &self.regions {
             region.verify(ctx)?;
         }
-        Self::get_op(self.self_ptr, ctx).verify_interfaces(ctx)?;
-        Self::get_op(self.self_ptr, ctx).verify(ctx)
+        Self::op(self.self_ptr, ctx).verify_interfaces(ctx)?;
+        Self::op(self.self_ptr, ctx).verify(ctx)
     }
 }
 
@@ -572,7 +564,7 @@ impl Printable for Operation {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        Self::get_op(self.self_ptr, ctx).fmt(ctx, state, f)
+        Self::op(self.self_ptr, ctx).fmt(ctx, state, f)
     }
 }
 
@@ -633,7 +625,7 @@ impl Parsable for Operation {
                     };
                     opid_parser(&(), results.clone())
                         .parse_stream(parsable_state)
-                        .map(|op| op.get_operation())
+                        .map(|op| op.operation())
                         .into()
                 })
             })

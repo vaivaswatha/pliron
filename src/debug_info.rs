@@ -51,7 +51,7 @@ fn set_name_from_attr_map(
     }
 }
 
-fn get_name_from_attr_map(
+fn name_from_attr_map(
     attributes: &AttributeDict,
     idx: usize,
     panic_msg: &str,
@@ -83,7 +83,7 @@ pub fn set_operation_result_name(
     name: Identifier,
 ) {
     let op = &mut *op.deref_mut(ctx);
-    let num_results = op.get_num_results();
+    let num_results = op.num_results();
     assert!(res_idx < num_results);
 
     set_name_from_attr_map(&mut op.attributes, res_idx, num_results, name);
@@ -91,7 +91,7 @@ pub fn set_operation_result_name(
 
 /// Get name for a result in an [Operation].
 //  See [set_operation_result_name] for attribute storage convention.
-pub fn get_operation_result_name(
+pub fn operation_result_name(
     ctx: &Context,
     op: Ptr<Operation>,
     res_idx: usize,
@@ -99,7 +99,7 @@ pub fn get_operation_result_name(
     let op = &*op.deref(ctx);
     let expect_msg = "Incorrect attribute for result names";
 
-    get_name_from_attr_map(&op.attributes, res_idx, expect_msg)
+    name_from_attr_map(&op.attributes, res_idx, expect_msg)
 }
 
 /// Set the name for an argumet in a [BasicBlock].
@@ -111,7 +111,7 @@ pub fn get_operation_result_name(
 //      this array is always the same as the number of arguments.
 pub fn set_block_arg_name(ctx: &Context, block: Ptr<BasicBlock>, arg_idx: usize, name: Identifier) {
     let block = &mut *block.deref_mut(ctx);
-    let num_args = block.get_num_arguments();
+    let num_args = block.num_arguments();
     assert!(arg_idx < num_args);
 
     set_name_from_attr_map(&mut block.attributes, arg_idx, num_args, name);
@@ -119,14 +119,10 @@ pub fn set_block_arg_name(ctx: &Context, block: Ptr<BasicBlock>, arg_idx: usize,
 
 /// Get name for an argument in a [BasicBlock].
 //  See [set_block_arg_name] for attribute storage convention.
-pub fn get_block_arg_name(
-    ctx: &Context,
-    block: Ptr<BasicBlock>,
-    arg_idx: usize,
-) -> Option<Identifier> {
+pub fn block_arg_name(ctx: &Context, block: Ptr<BasicBlock>, arg_idx: usize) -> Option<Identifier> {
     let block = &*block.deref(ctx);
     let expect_msg = "Incorrect attribute for block arg names";
-    get_name_from_attr_map(&block.attributes, arg_idx, expect_msg)
+    name_from_attr_map(&block.attributes, arg_idx, expect_msg)
 }
 
 #[cfg(test)]
@@ -142,7 +138,7 @@ mod tests {
         },
         common_traits::Verify,
         context::Context,
-        debug_info::{get_block_arg_name, set_block_arg_name},
+        debug_info::{block_arg_name, set_block_arg_name},
         dialect::{Dialect, DialectName},
         impl_canonical_syntax, impl_verify_succ,
         op::Op,
@@ -162,7 +158,7 @@ mod tests {
             ZeroOp {
                 op: Operation::new(
                     ctx,
-                    Self::get_opid_static(),
+                    Self::opid_static(),
                     vec![i64_ty.into()],
                     vec![],
                     vec![],
@@ -172,7 +168,7 @@ mod tests {
         }
     }
 
-    use super::{get_operation_result_name, set_operation_result_name};
+    use super::{operation_result_name, set_operation_result_name};
 
     #[test]
     fn test_op_result_name() -> Result<()> {
@@ -182,10 +178,10 @@ mod tests {
         ZeroOp::register(&mut ctx, ZeroOp::parser_fn);
 
         let cop = ZeroOp::new(&mut ctx);
-        let op = cop.get_operation();
+        let op = cop.operation();
         set_operation_result_name(&ctx, op, 0, "foo".try_into().unwrap());
         assert_eq!(
-            get_operation_result_name(&ctx, op, 0).unwrap(),
+            operation_result_name(&ctx, op, 0).unwrap(),
             "foo".try_into().unwrap()
         );
         op.deref(&ctx).verify(&ctx)?;
@@ -204,7 +200,7 @@ mod tests {
             vec![i64_ty.into()],
         );
         set_block_arg_name(&ctx, block, 0, "foo".try_into().unwrap());
-        assert!(get_block_arg_name(&ctx, block, 0).unwrap() == "foo".try_into().unwrap());
+        assert!(block_arg_name(&ctx, block, 0).unwrap() == "foo".try_into().unwrap());
         block.deref(&ctx).verify(&ctx)?;
         Ok(())
     }

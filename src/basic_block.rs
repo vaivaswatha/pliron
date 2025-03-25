@@ -9,7 +9,7 @@ use crate::{
     attribute::AttributeDict,
     common_traits::{Named, Verify},
     context::{ArenaCell, Context, Ptr, private::ArenaObj},
-    debug_info::{get_block_arg_name, set_block_arg_name},
+    debug_info::{block_arg_name, set_block_arg_name},
     identifier::Identifier,
     indented_block,
     irfmt::{
@@ -48,7 +48,7 @@ impl Typed for BlockArgument {
 
 impl Named for BlockArgument {
     fn given_name(&self, ctx: &Context) -> Option<Identifier> {
-        get_block_arg_name(ctx, self.def_block, self.arg_idx)
+        block_arg_name(ctx, self.def_block, self.arg_idx)
     }
     fn id(&self, ctx: &Context) -> Identifier {
         format!("{}_arg{}", self.def_block.deref(ctx).id(ctx), self.arg_idx)
@@ -154,7 +154,7 @@ impl BasicBlock {
     }
 
     /// Get idx'th argument as a Value.
-    pub fn get_argument(&self, arg_idx: usize) -> Value {
+    pub fn argument(&self, arg_idx: usize) -> Value {
         self.args
             .get(arg_idx)
             .map(|arg| arg.into())
@@ -177,27 +177,27 @@ impl BasicBlock {
     }
 
     /// Get a reference to the idx'th argument.
-    pub(crate) fn get_argument_ref(&self, arg_idx: usize) -> &BlockArgument {
+    pub(crate) fn argument_ref(&self, arg_idx: usize) -> &BlockArgument {
         self.args
             .get(arg_idx)
             .unwrap_or_else(|| panic!("Block argument index {} out of bounds", arg_idx))
     }
 
     /// Get a mutable reference to the idx'th argument.
-    pub(crate) fn get_argument_mut(&mut self, arg_idx: usize) -> &mut BlockArgument {
+    pub(crate) fn argument_mut(&mut self, arg_idx: usize) -> &mut BlockArgument {
         self.args
             .get_mut(arg_idx)
             .unwrap_or_else(|| panic!("Block argument index {} out of bounds", arg_idx))
     }
 
     /// Get the number of arguments.
-    pub fn get_num_arguments(&self) -> usize {
+    pub fn num_arguments(&self) -> usize {
         self.args.len()
     }
 
     /// Get all successors of this block.
     pub fn succs(&self, ctx: &Context) -> Vec<Ptr<BasicBlock>> {
-        self.get_tail()
+        self.tail()
             .expect("A well formed BasicBlock must have a terminator")
             .deref(ctx)
             .successors()
@@ -252,11 +252,11 @@ impl private::ContainsLinkedList<Operation> for BasicBlock {
 }
 
 impl ContainsLinkedList<Operation> for BasicBlock {
-    fn get_head(&self) -> Option<Ptr<Operation>> {
+    fn head(&self) -> Option<Ptr<Operation>> {
         self.ops_list.first
     }
 
-    fn get_tail(&self) -> Option<Ptr<Operation>> {
+    fn tail(&self) -> Option<Ptr<Operation>> {
         self.ops_list.last
     }
 }
@@ -281,22 +281,22 @@ impl private::LinkedList for BasicBlock {
 }
 
 impl LinkedList for BasicBlock {
-    fn get_next(&self) -> Option<Ptr<Self>> {
+    fn next(&self) -> Option<Ptr<Self>> {
         self.region_links.next_block
     }
-    fn get_prev(&self) -> Option<Ptr<Self>> {
+    fn prev(&self) -> Option<Ptr<Self>> {
         self.region_links.prev_block
     }
-    fn get_container(&self) -> Option<Ptr<Self::ContainerType>> {
+    fn container(&self) -> Option<Ptr<Self::ContainerType>> {
         self.region_links.parent_region
     }
 }
 
 impl ArenaObj for BasicBlock {
-    fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
+    fn arena(ctx: &Context) -> &ArenaCell<Self> {
         &ctx.basic_blocks
     }
-    fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
+    fn arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
         &mut ctx.basic_blocks
     }
     fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context) {
@@ -305,7 +305,7 @@ impl ArenaObj for BasicBlock {
             ArenaObj::dealloc(op, ctx);
         }
     }
-    fn get_self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
+    fn self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
         self.self_ptr
     }
 }

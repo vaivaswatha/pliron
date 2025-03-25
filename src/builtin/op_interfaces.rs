@@ -65,20 +65,20 @@ pub trait BranchOpInterface: IsTerminatorInterface {
         let self_op = op_cast::<dyn BranchOpInterface>(op).unwrap();
         // Verify that the values passed to a target block
         // matches the arguments of that block.
-        for (succ_idx, succ) in op.get_operation().deref(ctx).successors().enumerate() {
+        for (succ_idx, succ) in op.operation().deref(ctx).successors().enumerate() {
             let succ = &*succ.deref(ctx);
             let operands = self_op.successor_operands(ctx, succ_idx);
-            if succ.get_num_arguments() != operands.len() {
+            if succ.num_arguments() != operands.len() {
                 return verify_err!(
                     op.loc(ctx),
                     BranchOpInterfaceVerifyErr::SuccessorOperandsMismatch {
                         provided: operands.len(),
-                        expected: succ.get_num_arguments()
+                        expected: succ.num_arguments()
                     }
                 );
             }
             for (idx, operand) in operands.iter().enumerate() {
-                let block_arg = succ.get_argument(idx);
+                let block_arg = succ.argument(idx);
                 if operand.get_type(ctx) != block_arg.get_type(ctx) {
                     return verify_err!(
                         op.loc(ctx),
@@ -110,7 +110,7 @@ pub enum RegionKind {
 #[op_interface]
 pub trait RegionKindInterface {
     /// Return the kind of the region with the given index inside this operation.
-    fn get_region_kind(&self, idx: usize) -> RegionKind;
+    fn region_kind(&self, idx: usize) -> RegionKind;
     /// Return true if the region with the given index inside this operation
     /// must require dominance to hold.
     fn has_ssa_dominance(&self, idx: usize) -> bool;
@@ -131,8 +131,8 @@ pub struct OneRegionVerifyErr(String);
 #[op_interface]
 pub trait OneRegionInterface {
     /// Get the single region that this [Op] has.
-    fn get_region(&self, ctx: &Context) -> Ptr<Region> {
-        self.get_operation().deref(ctx).get_region(0)
+    fn region(&self, ctx: &Context) -> Ptr<Region> {
+        self.operation().deref(ctx).region(0)
     }
 
     /// Checks that the operation has exactly one region.
@@ -140,9 +140,9 @@ pub trait OneRegionInterface {
     where
         Self: Sized,
     {
-        let self_op = op.get_operation().deref(ctx);
+        let self_op = op.operation().deref(ctx);
         if self_op.regions.len() != 1 {
-            return verify_err!(self_op.loc(), OneRegionVerifyErr(op.get_opid().to_string()));
+            return verify_err!(self_op.loc(), OneRegionVerifyErr(op.opid().to_string()));
         }
         Ok(())
     }
@@ -156,18 +156,18 @@ pub struct SingleBlockRegionVerifyErr(String);
 #[op_interface]
 pub trait SingleBlockRegionInterface {
     /// Get the single body block in `region_idx`.
-    fn get_body(&self, ctx: &Context, region_idx: usize) -> Ptr<BasicBlock> {
-        self.get_operation()
+    fn body(&self, ctx: &Context, region_idx: usize) -> Ptr<BasicBlock> {
+        self.operation()
             .deref(ctx)
-            .get_region(region_idx)
+            .region(region_idx)
             .deref(ctx)
-            .get_head()
+            .head()
             .expect("Expected SingleBlockRegion Op to contain a block")
     }
 
     /// Insert an operation at the end of the single block in `region_idx`.
     fn append_operation(&self, ctx: &mut Context, op: Ptr<Operation>, region_idx: usize) {
-        op.insert_at_back(self.get_body(ctx, region_idx), ctx);
+        op.insert_at_back(self.body(ctx, region_idx), ctx);
     }
 
     /// Checks that the operation has regions with single block.
@@ -175,12 +175,12 @@ pub trait SingleBlockRegionInterface {
     where
         Self: Sized,
     {
-        let self_op = op.get_operation().deref(ctx);
+        let self_op = op.operation().deref(ctx);
         for region in &self_op.regions {
             if region.deref(ctx).iter(ctx).count() != 1 {
                 return verify_err!(
                     self_op.loc(),
-                    SingleBlockRegionVerifyErr(self_op.get_opid().to_string())
+                    SingleBlockRegionVerifyErr(self_op.opid().to_string())
                 );
             }
         }
@@ -200,8 +200,8 @@ pub struct SymbolOpInterfaceErr;
 #[op_interface]
 pub trait SymbolOpInterface {
     /// Get the name of the symbol defined by this operation.
-    fn get_symbol_name(&self, ctx: &Context) -> Identifier {
-        let self_op = self.get_operation().deref(ctx);
+    fn symbol_name(&self, ctx: &Context) -> Identifier {
+        let self_op = self.operation().deref(ctx);
         let s_attr = self_op
             .attributes
             .get::<IdentifierAttr>(&ATTR_KEY_SYM_NAME)
@@ -212,7 +212,7 @@ pub trait SymbolOpInterface {
     /// Set a name for the symbol defined by this operation.
     fn set_symbol_name(&self, ctx: &mut Context, name: &Identifier) {
         let name_attr = IdentifierAttr::new(name.clone());
-        let mut self_op = self.get_operation().deref_mut(ctx);
+        let mut self_op = self.operation().deref_mut(ctx);
         self_op.attributes.set(ATTR_KEY_SYM_NAME.clone(), name_attr);
     }
 
@@ -220,7 +220,7 @@ pub trait SymbolOpInterface {
     where
         Self: Sized,
     {
-        let self_op = op.get_operation().deref(ctx);
+        let self_op = op.operation().deref(ctx);
         if self_op
             .attributes
             .get::<IdentifierAttr>(&ATTR_KEY_SYM_NAME)
@@ -243,9 +243,9 @@ pub enum SymbolTableInterfaceErr {
 pub trait SymbolTableInterface: SingleBlockRegionInterface + OneRegionInterface {
     /// Lookup a symbol in this symbol table op. Linear search.
     fn lookup(&self, ctx: &Context, sym: &Identifier) -> Option<Ptr<Operation>> {
-        for op in self.get_body(ctx, 0).deref(ctx).iter(ctx) {
-            if let Some(sym_op) = op_cast::<dyn SymbolOpInterface>(&*Operation::get_op(op, ctx)) {
-                if &sym_op.get_symbol_name(ctx) == sym {
+        for op in self.body(ctx, 0).deref(ctx).iter(ctx) {
+            if let Some(sym_op) = op_cast::<dyn SymbolOpInterface>(&*Operation::op(op, ctx)) {
+                if &sym_op.symbol_name(ctx) == sym {
                     return Some(op);
                 }
             }
@@ -261,10 +261,10 @@ pub trait SymbolTableInterface: SingleBlockRegionInterface + OneRegionInterface 
         let mut seen = FxHashMap::<Identifier, Location>::default();
         let table_ops_block = op_cast::<dyn SingleBlockRegionInterface>(op)
             .unwrap()
-            .get_body(ctx, 0);
+            .body(ctx, 0);
         for op in table_ops_block.deref(ctx).iter(ctx) {
-            if let Some(sym_op) = op_cast::<dyn SymbolOpInterface>(&*Operation::get_op(op, ctx)) {
-                let sym = sym_op.get_symbol_name(ctx);
+            if let Some(sym_op) = op_cast::<dyn SymbolOpInterface>(&*Operation::op(op, ctx)) {
+                let sym = sym_op.symbol_name(ctx);
                 match seen.entry(sym.clone()) {
                     hash_map::Entry::Occupied(prev_loc) => {
                         return verify_err!(
@@ -294,22 +294,22 @@ pub struct OneResultVerifyErr(pub String);
 #[op_interface]
 pub trait OneResultInterface {
     /// Get the single result defined by this [Op].
-    fn get_result(&self, ctx: &Context) -> Value {
-        self.get_operation().deref(ctx).get_result(0)
+    fn result(&self, ctx: &Context) -> Value {
+        self.operation().deref(ctx).result(0)
     }
 
     /// Get the type of the single result defined by this [Op].
     fn result_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.get_operation().deref(ctx).get_type(0)
+        self.operation().deref(ctx).get_type(0)
     }
 
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
-        let op = &*op.get_operation().deref(ctx);
-        if op.get_num_results() != 1 {
-            return verify_err!(op.loc(), OneResultVerifyErr(op.get_opid().to_string()));
+        let op = &*op.operation().deref(ctx);
+        if op.num_results() != 1 {
+            return verify_err!(op.loc(), OneResultVerifyErr(op.opid().to_string()));
         }
         Ok(())
     }
@@ -326,9 +326,9 @@ pub trait ZeroResultInterface {
     where
         Self: Sized,
     {
-        let op = &*op.get_operation().deref(ctx);
-        if op.get_num_results() != 0 {
-            return verify_err!(op.loc(), ZeroResultVerifyErr(op.get_opid().to_string()));
+        let op = &*op.operation().deref(ctx);
+        if op.num_results() != 0 {
+            return verify_err!(op.loc(), ZeroResultVerifyErr(op.opid().to_string()));
         }
         Ok(())
     }
@@ -345,9 +345,9 @@ pub trait ZeroOpdInterface {
     where
         Self: Sized,
     {
-        let op = &*op.get_operation().deref(ctx);
-        if op.get_num_operands() != 0 {
-            return verify_err!(op.loc(), ZeroOpdVerifyErr(op.get_opid().to_string()));
+        let op = &*op.operation().deref(ctx);
+        if op.num_operands() != 0 {
+            return verify_err!(op.loc(), ZeroOpdVerifyErr(op.opid().to_string()));
         }
         Ok(())
     }
@@ -361,22 +361,22 @@ pub struct OneOpdVerifyErr(String);
 #[op_interface]
 pub trait OneOpdInterface {
     /// Get the single operand used by this [Op].
-    fn get_operand(&self, ctx: &Context) -> Value {
-        self.get_operation().deref(ctx).get_operand(0)
+    fn operand(&self, ctx: &Context) -> Value {
+        self.operation().deref(ctx).operand(0)
     }
 
     /// Get the type of the single operand used by this [Op].
     fn operand_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.get_operand(ctx).get_type(ctx)
+        self.operand(ctx).get_type(ctx)
     }
 
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
-        let op = &*op.get_operation().deref(ctx);
-        if op.get_num_operands() != 1 {
-            return verify_err!(op.loc(), OneOpdVerifyErr(op.get_opid().to_string()));
+        let op = &*op.operation().deref(ctx);
+        if op.num_operands() != 1 {
+            return verify_err!(op.loc(), OneOpdVerifyErr(op.opid().to_string()));
         }
         Ok(())
     }
@@ -413,16 +413,16 @@ pub enum SameOperandsTypeVerifyErr {
 pub trait SameOperandsType {
     /// Get the common type of the operands.
     fn operand_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.get_operation().deref(ctx).get_operand(0).get_type(ctx)
+        self.operation().deref(ctx).operand(0).get_type(ctx)
     }
 
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
-        let op = op.get_operation().deref(ctx);
+        let op = op.operation().deref(ctx);
 
-        if op.get_num_operands() == 0 {
+        if op.num_operands() == 0 {
             return verify_err!(op.loc(), SameOperandsTypeVerifyErr::NoOperands);
         }
 
@@ -451,16 +451,16 @@ pub enum SameResultsTypeVerifyErr {
 pub trait SameResultsType {
     /// Get the common type of the results.
     fn result_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.get_operation().deref(ctx).get_result(0).get_type(ctx)
+        self.operation().deref(ctx).result(0).get_type(ctx)
     }
 
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
-        let op = op.get_operation().deref(ctx);
+        let op = op.operation().deref(ctx);
 
-        if op.get_num_results() == 0 {
+        if op.num_results() == 0 {
             return verify_err!(op.loc(), SameResultsTypeVerifyErr::NoResults);
         }
 
@@ -534,7 +534,7 @@ pub trait CallOpInterface {
     where
         Self: Sized,
     {
-        let op = op.get_operation().deref(ctx);
+        let op = op.operation().deref(ctx);
         let Some(callee_type_attr) = op.attributes.get::<TypeAttr>(&ATTR_KEY_CALLEE_TYPE) else {
             return verify_err!(op.loc(), CallOpInterfaceErr::CalleeTypeAttrNotFoundErr);
         };
@@ -558,7 +558,7 @@ pub trait CallOpInterface {
 
     /// Type of the callee
     fn callee_type(&self, ctx: &Context) -> TypePtr<FunctionType> {
-        let self_op = self.get_operation().deref(ctx);
+        let self_op = self.operation().deref(ctx);
         let ty_attr = self_op
             .attributes
             .get::<TypeAttr>(&ATTR_KEY_CALLEE_TYPE)

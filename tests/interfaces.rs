@@ -69,8 +69,8 @@ impl Parsable for ZeroResultOp {
 
 impl ZeroResultOp {
     fn new(ctx: &mut Context) -> ZeroResultOp {
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
-        *Operation::get_op(op, ctx).downcast_ref().unwrap()
+        let op = Operation::new(ctx, Self::opid_static(), vec![], vec![], vec![], 1);
+        *Operation::op(op, ctx).downcast_ref().unwrap()
     }
 }
 
@@ -80,12 +80,12 @@ fn check_intrf_verfiy_errs() {
     let ctx = &mut setup_context_dialects();
     ZeroResultOp::register(ctx, ZeroResultOp::parser_fn);
 
-    let zero_res_op = ZeroResultOp::new(ctx).get_operation();
+    let zero_res_op = ZeroResultOp::new(ctx).operation();
     let (module_op, _, _, ret_op) = const_ret_in_mod(ctx).unwrap();
-    zero_res_op.insert_before(ctx, ret_op.get_operation());
+    zero_res_op.insert_before(ctx, ret_op.operation());
 
     assert!(matches!(
-        module_op.get_operation().verify(ctx),
+        module_op.operation().verify(ctx),
         Err(Error {
             kind: ErrorKind::VerificationFailed,
             err,
@@ -141,8 +141,8 @@ impl_canonical_syntax!(VerifyIntrOp);
 impl_verify_succ!(VerifyIntrOp);
 impl VerifyIntrOp {
     fn new(ctx: &mut Context) -> VerifyIntrOp {
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
-        *Operation::get_op(op, ctx).downcast_ref().unwrap()
+        let op = Operation::new(ctx, Self::opid_static(), vec![], vec![], vec![], 1);
+        *Operation::op(op, ctx).downcast_ref().unwrap()
     }
 }
 
@@ -153,7 +153,7 @@ fn test_op_intr_verify_order() -> Result<()> {
 
     let vio = VerifyIntrOp::new(ctx);
 
-    vio.get_operation().deref(ctx).verify(ctx)?;
+    vio.operation().deref(ctx).verify(ctx)?;
 
     expect![[r#"
         TestOpInterface verified
@@ -349,8 +349,8 @@ impl_canonical_syntax!(NoInbuiltVerifyOp);
 impl_verify_succ!(NoInbuiltVerifyOp);
 impl NoInbuiltVerifyOp {
     fn new(ctx: &mut Context) -> NoInbuiltVerifyOp {
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
-        *Operation::get_op(op, ctx).downcast_ref().unwrap()
+        let op = Operation::new(ctx, Self::opid_static(), vec![], vec![], vec![], 1);
+        *Operation::op(op, ctx).downcast_ref().unwrap()
     }
 }
 
@@ -368,7 +368,7 @@ fn test_no_inbuilt_verify() -> Result<()> {
 
     let vio = NoInbuiltVerifyOp::new(ctx);
 
-    vio.get_operation().deref(ctx).verify(ctx)?;
+    vio.operation().deref(ctx).verify(ctx)?;
 
     Ok(())
 }
@@ -379,8 +379,8 @@ impl_canonical_syntax!(NoInbuiltVerifyOp2);
 impl_verify_succ!(NoInbuiltVerifyOp2);
 impl NoInbuiltVerifyOp2 {
     fn new(ctx: &mut Context) -> NoInbuiltVerifyOp2 {
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
-        *Operation::get_op(op, ctx).downcast_ref().unwrap()
+        let op = Operation::new(ctx, Self::opid_static(), vec![], vec![], vec![], 1);
+        *Operation::op(op, ctx).downcast_ref().unwrap()
     }
 }
 
@@ -403,7 +403,7 @@ fn test_no_inbuilt_verify2() -> Result<()> {
     let vio = NoInbuiltVerifyOp2::new(ctx);
 
     assert!(matches!(
-        vio.get_operation().verify(ctx),
+        vio.operation().verify(ctx),
         Err(Error {
             kind: ErrorKind::VerificationFailed,
             err,

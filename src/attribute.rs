@@ -176,10 +176,10 @@ pub trait Attribute: Printable + Verify + Downcast + Sync + Send + DynClone + De
 
     /// Get an [Attribute]'s static name. This is *not* per instantnce.
     /// It is mostly useful for printing and parsing the attribute.
-    fn get_attr_id(&self) -> AttrId;
+    fn attr_id(&self) -> AttrId;
 
-    /// Same as [get_attr_id](Self::get_attr_id), but without the self reference.
-    fn get_attr_id_static() -> AttrId
+    /// Same as [attr_id](Self::attr_id), but without the self reference.
+    fn attr_id_static() -> AttrId
     where
         Self: Sized;
 
@@ -212,12 +212,12 @@ pub trait Attribute: Printable + Verify + Downcast + Sync + Send + DynClone + De
             })
             .boxed()
         });
-        let attrid = Self::get_attr_id_static();
+        let attrid = Self::attr_id_static();
         let dialect = ctx
             .dialects
             .get_mut(&attrid.dialect)
             .unwrap_or_else(|| panic!("Unregistered dialect {}", &attrid.dialect));
-        dialect.add_attr(Self::get_attr_id_static(), Box::new(attr_parser));
+        dialect.add_attr(Self::attr_id_static(), Box::new(attr_parser));
     }
 }
 impl_downcast!(Attribute);
@@ -255,7 +255,7 @@ impl Printable for AttrObj {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{} ", self.get_attr_id())?;
+        write!(f, "{} ", self.attr_id())?;
         Printable::fmt(self.deref(), ctx, state, f)
     }
 }

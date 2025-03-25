@@ -245,7 +245,7 @@ enum LabelRef {
 }
 
 impl LabelRef {
-    fn get_label(&self) -> Ptr<BasicBlock> {
+    fn label(&self) -> Ptr<BasicBlock> {
         match self {
             LabelRef::ForwardRef(label) => *label,
             LabelRef::Defined(label) => *label,
@@ -285,7 +285,7 @@ impl NameTracker {
             Entry::Occupied(occ) => *occ.get(),
             Entry::Vacant(vac) => {
                 // Insert a forward reference.
-                let forward_def = ForwardRefOp::new(ctx).get_result(ctx);
+                let forward_def = ForwardRefOp::new(ctx).result(ctx);
                 vac.insert(forward_def);
                 forward_def
             }
@@ -308,9 +308,9 @@ impl NameTracker {
         match scope.entry(id.0.clone()) {
             Entry::Occupied(mut occ) => match occ.get_mut() {
                 Value::OpResult { op, res_idx: _ } => {
-                    let fref_opt = Operation::get_op(*op, ctx)
+                    let fref_opt = Operation::op(*op, ctx)
                         .downcast_ref::<ForwardRefOp>()
-                        .map(|op| op.get_result(ctx));
+                        .map(|op| op.result(ctx));
                     if let Some(fref) = fref_opt {
                         // If there's already a def and its a forward ref, replace that.
                         fref.replace_some_uses_with(ctx, |_, _| true, &def);
@@ -348,7 +348,7 @@ impl NameTracker {
             .last_mut()
             .expect("NameTracker doesn't have an active scope.");
         match scope.entry(id.clone()) {
-            Entry::Occupied(occ) => occ.get().get_label(),
+            Entry::Occupied(occ) => occ.get().label(),
             Entry::Vacant(vac) => {
                 // Insert a forward reference.
                 let block_forward = BasicBlock::new(ctx, Some(id.clone()), vec![]);
@@ -394,7 +394,7 @@ impl NameTracker {
     ///   then a new independent SSA name scope is created.
     /// - A new independent block label scope is always created.
     pub(crate) fn enter_region(&mut self, ctx: &Context, parent_op: Ptr<Operation>) -> Result<()> {
-        if op_impls::<dyn IsolatedFromAboveInterface>(&*Operation::get_op(parent_op, ctx)) {
+        if op_impls::<dyn IsolatedFromAboveInterface>(&*Operation::op(parent_op, ctx)) {
             self.ssa_name_scope.push(FxHashMap::default());
         } else if self.ssa_name_scope.is_empty() {
             input_err!(
@@ -415,14 +415,14 @@ impl NameTracker {
         parent_op: Ptr<Operation>,
         loc: Location,
     ) -> Result<()> {
-        if op_impls::<dyn IsolatedFromAboveInterface>(&*Operation::get_op(parent_op, ctx)) {
+        if op_impls::<dyn IsolatedFromAboveInterface>(&*Operation::op(parent_op, ctx)) {
             // Check if there are any [ForwardRefOp].
             let ssa_scope = self
                 .ssa_name_scope
                 .pop()
                 .expect("Exiting an isolated-from-above region which wasn't entered into.");
             for (id, op) in ssa_scope {
-                if matches!(op, Value::OpResult { op, .. } if Operation::get_op(op, ctx).is::<ForwardRefOp>())
+                if matches!(op, Value::OpResult { op, .. } if Operation::op(op, ctx).is::<ForwardRefOp>())
                 {
                     input_err!(loc.clone(), UnresolvedReference(id.clone()))?
                 }

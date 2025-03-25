@@ -103,7 +103,7 @@ impl ToTokens for ImplOp {
         let op_name = &self.op_name;
         tokens.extend(quote! {
             impl ::pliron::op::Op for #name {
-                fn get_operation(&self) -> ::pliron::context::Ptr<::pliron::operation::Operation> {
+                fn operation(&self) -> ::pliron::context::Ptr<::pliron::operation::Operation> {
                     self.op
                 }
 
@@ -111,11 +111,11 @@ impl ToTokens for ImplOp {
                     Box::new(#name { op })
                 }
 
-                fn get_opid(&self) -> ::pliron::op::OpId {
-                    Self::get_opid_static()
+                fn opid(&self) -> ::pliron::op::OpId {
+                    Self::opid_static()
                 }
 
-                fn get_opid_static() -> ::pliron::op::OpId {
+                fn opid_static() -> ::pliron::op::OpId {
                     ::pliron::op::OpId {
                         name: ::pliron::op::OpName::new(#op_name),
                         dialect: ::pliron::dialect::DialectName::new(#dialect),
@@ -124,7 +124,7 @@ impl ToTokens for ImplOp {
 
                 fn verify_interfaces(&self, ctx: &::pliron::context::Context) -> ::pliron::result::Result<()> {
                     if let Some(interface_verifiers) =
-                        ::pliron::op::OP_INTERFACE_VERIFIERS_MAP.get(&Self::get_opid_static())
+                        ::pliron::op::OP_INTERFACE_VERIFIERS_MAP.get(&Self::opid_static())
                     {
                         for (_, verifier) in interface_verifiers {
                             verifier(self, ctx)?;
@@ -158,7 +158,7 @@ mod tests {
                 op: ::pliron::context::Ptr<::pliron::operation::Operation>,
             }
             impl ::pliron::op::Op for TestOp {
-                fn get_operation(&self) -> ::pliron::context::Ptr<::pliron::operation::Operation> {
+                fn operation(&self) -> ::pliron::context::Ptr<::pliron::operation::Operation> {
                     self.op
                 }
                 fn wrap_operation(
@@ -166,10 +166,10 @@ mod tests {
                 ) -> ::pliron::op::OpObj {
                     Box::new(TestOp { op })
                 }
-                fn get_opid(&self) -> ::pliron::op::OpId {
-                    Self::get_opid_static()
+                fn opid(&self) -> ::pliron::op::OpId {
+                    Self::opid_static()
                 }
-                fn get_opid_static() -> ::pliron::op::OpId {
+                fn opid_static() -> ::pliron::op::OpId {
                     ::pliron::op::OpId {
                         name: ::pliron::op::OpName::new("testop"),
                         dialect: ::pliron::dialect::DialectName::new("testing"),
@@ -180,7 +180,7 @@ mod tests {
                     ctx: &::pliron::context::Context,
                 ) -> ::pliron::result::Result<()> {
                     if let Some(interface_verifiers) = ::pliron::op::OP_INTERFACE_VERIFIERS_MAP
-                        .get(&Self::get_opid_static())
+                        .get(&Self::opid_static())
                     {
                         for (_, verifier) in interface_verifiers {
                             verifier(self, ctx)?;

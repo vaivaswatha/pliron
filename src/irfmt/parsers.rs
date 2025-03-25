@@ -174,13 +174,13 @@ pub fn process_parsed_ssa_defs(
 ) -> Result<()> {
     let ctx = &mut state_stream.state.ctx;
     assert!(
-        results.len() == op.deref(ctx).get_num_results(),
+        results.len() == op.deref(ctx).num_results(),
         "Error processing parsed SSA definitions. Result count mismatch"
     );
 
     let name_tracker = &mut state_stream.state.name_tracker;
     for (idx, name_loc) in results.iter().enumerate() {
-        let res = op.deref(ctx).get_result(idx);
+        let res = op.deref(ctx).result(idx);
         name_tracker.ssa_def(ctx, name_loc, res)?;
         set_operation_result_name(ctx, op, idx, name_loc.0.clone());
     }

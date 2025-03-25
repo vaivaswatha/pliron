@@ -96,11 +96,11 @@ impl ToTokens for ImplAttribute {
                         .map_or(false, |other| other == self)
                 }
 
-                fn get_attr_id(&self) -> ::pliron::attribute::AttrId {
-                    Self::get_attr_id_static()
+                fn attr_id(&self) -> ::pliron::attribute::AttrId {
+                    Self::attr_id_static()
                 }
 
-                fn get_attr_id_static() -> ::pliron::attribute::AttrId {
+                fn attr_id_static() -> ::pliron::attribute::AttrId {
                     ::pliron::attribute::AttrId {
                         name: ::pliron::attribute::AttrName::new(#attr_name),
                         dialect: ::pliron::dialect::DialectName::new(#dialect),
@@ -109,7 +109,7 @@ impl ToTokens for ImplAttribute {
 
                 fn verify_interfaces(&self, ctx: &::pliron::context::Context) -> ::pliron::result::Result<()> {
                     if let Some(interface_verifiers) =
-                        ::pliron::attribute::ATTR_INTERFACE_VERIFIERS_MAP.get(&Self::get_attr_id_static())
+                        ::pliron::attribute::ATTR_INTERFACE_VERIFIERS_MAP.get(&Self::attr_id_static())
                     {
                         for (_, verifier) in interface_verifiers {
                             verifier(self, ctx)?;
@@ -146,10 +146,10 @@ mod tests {
                 fn eq_attr(&self, other: &dyn ::pliron::attribute::Attribute) -> bool {
                     other.downcast_ref::<Self>().map_or(false, |other| other == self)
                 }
-                fn get_attr_id(&self) -> ::pliron::attribute::AttrId {
-                    Self::get_attr_id_static()
+                fn attr_id(&self) -> ::pliron::attribute::AttrId {
+                    Self::attr_id_static()
                 }
-                fn get_attr_id_static() -> ::pliron::attribute::AttrId {
+                fn attr_id_static() -> ::pliron::attribute::AttrId {
                     ::pliron::attribute::AttrId {
                         name: ::pliron::attribute::AttrName::new("unit"),
                         dialect: ::pliron::dialect::DialectName::new("testing"),
@@ -160,7 +160,7 @@ mod tests {
                     ctx: &::pliron::context::Context,
                 ) -> ::pliron::result::Result<()> {
                     if let Some(interface_verifiers) = ::pliron::attribute::ATTR_INTERFACE_VERIFIERS_MAP
-                        .get(&Self::get_attr_id_static())
+                        .get(&Self::attr_id_static())
                     {
                         for (_, verifier) in interface_verifiers {
                             verifier(self, ctx)?;

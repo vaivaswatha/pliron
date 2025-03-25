@@ -238,15 +238,15 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             let undef_op = UndefOp::new(ctx, ty);
             // Insert at the beginning of the entry block.
             undef_op
-                .get_operation()
+                .operation()
                 .insert_at_front(cctx.entry_block.unwrap(), ctx);
-            cctx.value_map.insert(val, undef_op.get_result(ctx));
+            cctx.value_map.insert(val, undef_op.result(ctx));
         }
         LLVMValueKind::LLVMConstantIntValueKind => {
             // TODO: Zero extend or sign extend?
             let u64 = llvm_const_int_get_zext_value(val);
             let int_ty = TypePtr::<IntegerType>::from_ptr(ty, ctx)?;
-            let width = int_ty.deref(ctx).get_width() as usize;
+            let width = int_ty.deref(ctx).width() as usize;
             if width == 0 {
                 return input_err_noloc!(ConversionErr::ZeroWidthIntConst);
             }
@@ -255,9 +255,9 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             let const_op = ConstantOp::new(ctx, Box::new(val_attr));
             // Insert at the beginning of the entry block.
             const_op
-                .get_operation()
+                .operation()
                 .insert_at_front(cctx.entry_block.unwrap(), ctx);
-            cctx.value_map.insert(val, const_op.get_result(ctx));
+            cctx.value_map.insert(val, const_op.result(ctx));
         }
         LLVMValueKind::LLVMConstantFPValueKind => todo!(),
         LLVMValueKind::LLVMConstantArrayValueKind => todo!(),
@@ -299,7 +299,7 @@ fn convert_operands(
     Ok((opds, succs))
 }
 
-fn get_operand<T: Clone>(opds: &[T], idx: usize) -> Result<T> {
+fn operand<T: Clone>(opds: &[T], idx: usize) -> Result<T> {
     opds.get(idx)
         .ok_or(input_error_noloc!(ConversionErr::OpdMissing(idx)))
         .cloned()
@@ -342,10 +342,10 @@ fn convert_call(
     cctx: &mut ConversionContext,
     inst: LLVMValue,
 ) -> Result<Ptr<Operation>> {
-    let llvm_operands: Vec<_> = (0..llvm_get_num_arg_operands(inst))
+    let llvm_get_operands: Vec<_> = (0..llvm_get_num_arg_operands(inst))
         .map(|opd_idx| llvm_get_operand(inst, opd_idx))
         .collect();
-    let (args, _) = convert_operands(ctx, cctx, &llvm_operands)?;
+    let (args, _) = convert_operands(ctx, cctx, &llvm_get_operands)?;
 
     let callee = llvm_get_called_value(inst);
     let callee = if llvm_is_a::function(callee) {
@@ -361,7 +361,7 @@ fn convert_call(
     let callee_ty = llvm_get_called_function_type(inst);
     let callee_ty: TypePtr<FunctionType> =
         convert_type(ctx, cctx, callee_ty).and_then(|ty| TypePtr::from_ptr(ty, ctx))?;
-    Ok(CallOp::new(ctx, callee, callee_ty, args).get_operation())
+    Ok(CallOp::new(ctx, callee, callee_ty, args).operation())
 }
 
 fn convert_instruction(
@@ -383,39 +383,39 @@ fn convert_instruction(
         }
     }
 
-    let llvm_operands: Vec<_> = (0..llvm_get_num_operands(inst))
+    let llvm_get_operands: Vec<_> = (0..llvm_get_num_operands(inst))
         .map(|opd_idx| llvm_get_operand(inst, opd_idx))
         .collect();
 
-    let (ref opds, ref succs) = convert_operands(ctx, cctx, &llvm_operands)?;
+    let (ref opds, ref succs) = convert_operands(ctx, cctx, &llvm_get_operands)?;
     match llvm_get_instruction_opcode(inst) {
         LLVMOpcode::LLVMAdd => {
-            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
+            let (lhs, rhs) = (operand(opds, 0)?, operand(opds, 1)?);
             Ok(
                 AddOp::new_with_overflow_flag(ctx, lhs, rhs, get_integer_overflow_flag(inst))
-                    .get_operation(),
+                    .operation(),
             )
         }
         LLVMOpcode::LLVMAddrSpaceCast => todo!(),
         LLVMOpcode::LLVMAlloca => {
             let elem_type = convert_type(ctx, cctx, llvm_get_allocated_type(inst))?;
-            let size = get_operand(opds, 0)?;
-            Ok(AllocaOp::new(ctx, elem_type, size).get_operation())
+            let size = operand(opds, 0)?;
+            Ok(AllocaOp::new(ctx, elem_type, size).operation())
         }
         LLVMOpcode::LLVMAnd => {
-            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(AndOp::new(ctx, lhs, rhs).get_operation())
+            let (lhs, rhs) = (operand(opds, 0)?, operand(opds, 1)?);
+            Ok(AndOp::new(ctx, lhs, rhs).operation())
         }
         LLVMOpcode::LLVMAShr => {
-            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(AShrOp::new(ctx, lhs, rhs).get_operation())
+            let (lhs, rhs) = (operand(opds, 0)?, operand(opds, 1)?);
+            Ok(AShrOp::new(ctx, lhs, rhs).operation())
         }
         LLVMOpcode::LLVMAtomicCmpXchg => todo!(),
         LLVMOpcode::LLVMAtomicRMW => todo!(),
         LLVMOpcode::LLVMBitCast => {
-            let arg = get_operand(opds, 0)?;
+            let arg = operand(opds, 0)?;
             let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
-            Ok(BitcastOp::new(ctx, res_ty, arg).get_operation())
+            Ok(BitcastOp::new(ctx, res_ty, arg).operation())
         }
         LLVMOpcode::LLVMBr => {
             if !opds.is_empty() {
@@ -437,13 +437,13 @@ fn convert_instruction(
                 )?;
                 Ok(CondBrOp::new(
                     ctx,
-                    get_operand(opds, 0)?,
-                    get_operand(succs, 1)?,
+                    operand(opds, 0)?,
+                    operand(succs, 1)?,
                     true_dest_opds,
-                    get_operand(succs, 0)?,
+                    operand(succs, 0)?,
                     false_dest_opds,
                 )
-                .get_operation())
+                .operation())
             } else {
                 let dest_opds = convert_branch_args(
                     ctx,
@@ -451,7 +451,7 @@ fn convert_instruction(
                     llvm_get_instruction_parent(inst).unwrap(),
                     llvm_value_as_basic_block(llvm_get_operand(inst, 0)),
                 )?;
-                Ok(BrOp::new(ctx, get_operand(succs, 0)?, dest_opds).get_operation())
+                Ok(BrOp::new(ctx, operand(succs, 0)?, dest_opds).operation())
             }
         }
         LLVMOpcode::LLVMCall => {
@@ -485,48 +485,45 @@ fn convert_instruction(
             // We don't worry about GepIndex::Constant right now. That'll be canonicalized later.
             let indices = opds.map(|v| GepIndex::Value(*v)).collect::<Vec<_>>();
             let src_elm_type = convert_type(ctx, cctx, llvm_get_gep_source_element_type(inst))?;
-            Ok(GetElementPtrOp::new(ctx, *base, indices, src_elm_type)?.get_operation())
+            Ok(GetElementPtrOp::new(ctx, *base, indices, src_elm_type)?.operation())
         }
         LLVMOpcode::LLVMICmp => {
             let pred = convert_ipredicate(llvm_get_icmp_predicate(inst));
-            Ok(
-                ICmpOp::new(ctx, pred, get_operand(opds, 0)?, get_operand(opds, 1)?)
-                    .get_operation(),
-            )
+            Ok(ICmpOp::new(ctx, pred, operand(opds, 0)?, operand(opds, 1)?).operation())
         }
         LLVMOpcode::LLVMIndirectBr => todo!(),
         LLVMOpcode::LLVMInsertElement => todo!(),
         LLVMOpcode::LLVMInsertValue => {
-            let (aggr, val) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
+            let (aggr, val) = (operand(opds, 0)?, operand(opds, 1)?);
             let indices = llvm_get_indices(inst);
-            Ok(InsertValueOp::new(ctx, aggr, val, indices)?.get_operation())
+            Ok(InsertValueOp::new(ctx, aggr, val, indices)?.operation())
         }
         LLVMOpcode::LLVMExtractValue => {
-            let aggr = get_operand(opds, 0)?;
+            let aggr = operand(opds, 0)?;
             let indices = llvm_get_indices(inst);
-            Ok(ExtractValueOp::new(ctx, aggr, indices)?.get_operation())
+            Ok(ExtractValueOp::new(ctx, aggr, indices)?.operation())
         }
         LLVMOpcode::LLVMIntToPtr => todo!(),
         LLVMOpcode::LLVMInvoke => todo!(),
         LLVMOpcode::LLVMLandingPad => todo!(),
         LLVMOpcode::LLVMLoad => {
             let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
-            Ok(LoadOp::new(ctx, get_operand(opds, 0)?, res_ty).get_operation())
+            Ok(LoadOp::new(ctx, operand(opds, 0)?, res_ty).operation())
         }
         LLVMOpcode::LLVMLShr => {
-            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(LShrOp::new(ctx, lhs, rhs).get_operation())
+            let (lhs, rhs) = (operand(opds, 0)?, operand(opds, 1)?);
+            Ok(LShrOp::new(ctx, lhs, rhs).operation())
         }
         LLVMOpcode::LLVMMul => {
-            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
+            let (lhs, rhs) = (operand(opds, 0)?, operand(opds, 1)?);
             Ok(
                 MulOp::new_with_overflow_flag(ctx, lhs, rhs, get_integer_overflow_flag(inst))
-                    .get_operation(),
+                    .operation(),
             )
         }
         LLVMOpcode::LLVMOr => {
-            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(OrOp::new(ctx, lhs, rhs).get_operation())
+            let (lhs, rhs) = (operand(opds, 0)?, operand(opds, 1)?);
+            Ok(OrOp::new(ctx, lhs, rhs).operation())
         }
         LLVMOpcode::LLVMPHI => {
             unreachable!("PHI nodes must already be handled")
@@ -535,76 +532,73 @@ fn convert_instruction(
         LLVMOpcode::LLVMResume => todo!(),
         LLVMOpcode::LLVMRet => {
             let retval = if llvm_get_num_operands(inst) == 1 {
-                Some(get_operand(opds, 0)?)
+                Some(operand(opds, 0)?)
             } else {
                 None
             };
-            Ok(ReturnOp::new(ctx, retval).get_operation())
+            Ok(ReturnOp::new(ctx, retval).operation())
         }
         LLVMOpcode::LLVMSDiv => {
-            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(SDivOp::new(ctx, lhs, rhs).get_operation())
+            let (lhs, rhs) = (operand(opds, 0)?, operand(opds, 1)?);
+            Ok(SDivOp::new(ctx, lhs, rhs).operation())
         }
         LLVMOpcode::LLVMSelect => {
-            let (cond, true_val, false_val) = (
-                get_operand(opds, 0)?,
-                get_operand(opds, 1)?,
-                get_operand(opds, 2)?,
-            );
-            Ok(SelectOp::new(ctx, cond, true_val, false_val).get_operation())
+            let (cond, true_val, false_val) =
+                (operand(opds, 0)?, operand(opds, 1)?, operand(opds, 2)?);
+            Ok(SelectOp::new(ctx, cond, true_val, false_val).operation())
         }
         LLVMOpcode::LLVMSExt => {
-            let arg = get_operand(opds, 0)?;
+            let arg = operand(opds, 0)?;
             let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
-            Ok(SExtOp::new(ctx, arg, res_ty).get_operation())
+            Ok(SExtOp::new(ctx, arg, res_ty).operation())
         }
         LLVMOpcode::LLVMZExt => {
-            let arg = get_operand(opds, 0)?;
+            let arg = operand(opds, 0)?;
             let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
-            Ok(ZExtOp::new(ctx, arg, res_ty).get_operation())
+            Ok(ZExtOp::new(ctx, arg, res_ty).operation())
         }
         LLVMOpcode::LLVMShl => {
-            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
+            let (lhs, rhs) = (operand(opds, 0)?, operand(opds, 1)?);
             Ok(
                 ShlOp::new_with_overflow_flag(ctx, lhs, rhs, get_integer_overflow_flag(inst))
-                    .get_operation(),
+                    .operation(),
             )
         }
         LLVMOpcode::LLVMShuffleVector => todo!(),
         LLVMOpcode::LLVMSIToFP => todo!(),
         LLVMOpcode::LLVMSRem => {
-            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(SRemOp::new(ctx, lhs, rhs).get_operation())
+            let (lhs, rhs) = (operand(opds, 0)?, operand(opds, 1)?);
+            Ok(SRemOp::new(ctx, lhs, rhs).operation())
         }
         LLVMOpcode::LLVMStore => {
-            let (value_opd, ptr_opd) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(StoreOp::new(ctx, value_opd, ptr_opd).get_operation())
+            let (value_opd, ptr_opd) = (operand(opds, 0)?, operand(opds, 1)?);
+            Ok(StoreOp::new(ctx, value_opd, ptr_opd).operation())
         }
         LLVMOpcode::LLVMSub => {
-            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
+            let (lhs, rhs) = (operand(opds, 0)?, operand(opds, 1)?);
             Ok(
                 SubOp::new_with_overflow_flag(ctx, lhs, rhs, get_integer_overflow_flag(inst))
-                    .get_operation(),
+                    .operation(),
             )
         }
         LLVMOpcode::LLVMSwitch => todo!(),
         LLVMOpcode::LLVMTrunc => todo!(),
         LLVMOpcode::LLVMUDiv => {
-            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(UDivOp::new(ctx, lhs, rhs).get_operation())
+            let (lhs, rhs) = (operand(opds, 0)?, operand(opds, 1)?);
+            Ok(UDivOp::new(ctx, lhs, rhs).operation())
         }
         LLVMOpcode::LLVMUIToFP => todo!(),
         LLVMOpcode::LLVMUnreachable => todo!(),
         LLVMOpcode::LLVMURem => {
-            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(URemOp::new(ctx, lhs, rhs).get_operation())
+            let (lhs, rhs) = (operand(opds, 0)?, operand(opds, 1)?);
+            Ok(URemOp::new(ctx, lhs, rhs).operation())
         }
         LLVMOpcode::LLVMUserOp1 => todo!(),
         LLVMOpcode::LLVMUserOp2 => todo!(),
         LLVMOpcode::LLVMVAArg => todo!(),
         LLVMOpcode::LLVMXor => {
-            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(XorOp::new(ctx, lhs, rhs).get_operation())
+            let (lhs, rhs) = (operand(opds, 0)?, operand(opds, 1)?);
+            Ok(XorOp::new(ctx, lhs, rhs).operation())
         }
     }
 }
@@ -621,14 +615,14 @@ fn convert_block(
             let ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
             let arg_idx = m_block.deref_mut(ctx).add_argument(ty);
             cctx.value_map
-                .insert(inst, m_block.deref(ctx).get_argument(arg_idx));
+                .insert(inst, m_block.deref(ctx).argument(arg_idx));
         } else {
             let m_inst = convert_instruction(ctx, cctx, inst)?;
             m_inst.insert_at_back(m_block, ctx);
             let m_inst_ref = &*m_inst.deref(ctx);
             // LLVM instructions have at most one result.
-            if m_inst_ref.get_num_results() == 1 {
-                cctx.value_map.insert(inst, m_inst_ref.get_result(0));
+            if m_inst_ref.num_results() == 1 {
+                cctx.value_map.insert(inst, m_inst_ref.result(0));
             }
         }
     }
@@ -648,7 +642,7 @@ fn convert_function(
     let fn_ty = TypePtr::from_ptr(fn_ty, ctx)?;
     // Create a new FuncOp, which also creates an entry block with the right parameters.
     let m_func = FuncOp::new(ctx, &name, fn_ty);
-    let m_func_reg = m_func.get_region(ctx);
+    let m_func_reg = m_func.region(ctx);
 
     let m_entry_block = m_func.get_entry_block(ctx);
     cctx.reset_for_function(m_entry_block);
@@ -666,7 +660,7 @@ fn convert_function(
         let m_entry_block_ref = m_entry_block.deref(ctx);
         // Map function args to entry block args.
         for (arg_idx, arg) in param_iter(function).enumerate() {
-            val_map.insert(arg, m_entry_block_ref.get_argument(arg_idx));
+            val_map.insert(arg, m_entry_block_ref.argument(arg_idx));
         }
     }
 
@@ -703,7 +697,7 @@ pub fn convert_module(ctx: &mut Context, module: &LLVMModule) -> Result<ModuleOp
     // Convert functions.
     for fun in function_iter(module) {
         let m_fun = convert_function(ctx, cctx, fun)?;
-        m.append_operation(ctx, m_fun.get_operation(), 0);
+        m.append_operation(ctx, m_fun.operation(), 0);
     }
     Ok(m)
 }

@@ -47,7 +47,7 @@ impl Region {
     /// If `new_parent_op` is same as the current parent, no action.
     /// Indices of other regions in the current parent will be invalidated.
     pub fn move_to_op(ptr: Ptr<Self>, new_parent_op: Ptr<Operation>, ctx: &mut Context) {
-        let src = ptr.deref(ctx).get_parent_op();
+        let src = ptr.deref(ctx).parent_op();
         if src == new_parent_op {
             return;
         }
@@ -63,7 +63,7 @@ impl Region {
     }
 
     /// Get the operation that contains this region.
-    pub fn get_parent_op(&self) -> Ptr<Operation> {
+    pub fn parent_op(&self) -> Ptr<Operation> {
         self.parent_op
     }
 
@@ -86,24 +86,24 @@ impl private::ContainsLinkedList<BasicBlock> for Region {
 }
 
 impl ContainsLinkedList<BasicBlock> for Region {
-    fn get_head(&self) -> Option<Ptr<BasicBlock>> {
+    fn head(&self) -> Option<Ptr<BasicBlock>> {
         self.blocks.first
     }
-    fn get_tail(&self) -> Option<Ptr<BasicBlock>> {
+    fn tail(&self) -> Option<Ptr<BasicBlock>> {
         self.blocks.last
     }
 }
 
 impl ArenaObj for Region {
-    fn get_arena(ctx: &Context) -> &crate::context::ArenaCell<Self> {
+    fn arena(ctx: &Context) -> &crate::context::ArenaCell<Self> {
         &ctx.regions
     }
 
-    fn get_arena_mut(ctx: &mut Context) -> &mut crate::context::ArenaCell<Self> {
+    fn arena_mut(ctx: &mut Context) -> &mut crate::context::ArenaCell<Self> {
         &mut ctx.regions
     }
 
-    fn get_self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
+    fn self_ptr(&self, _ctx: &Context) -> Ptr<Self> {
         self.self_ptr
     }
 
