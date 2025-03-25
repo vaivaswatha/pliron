@@ -45,12 +45,12 @@ impl State {
         self.0.as_ref().borrow().cur_indent
     }
 
-    /// Increase the current indentation by [Self::get_indent_width]
+    /// Increase the current indentation by [Self::indent_width]
     pub fn push_indent(&self) {
         let mut inner = self.0.as_ref().borrow_mut();
         inner.cur_indent += inner.indent_width;
     }
-    /// Decrease the current indentation by [Self::get_indent_width].
+    /// Decrease the current indentation by [Self::indent_width].
     pub fn pop_indent(&self) {
         let mut inner = self.0.as_ref().borrow_mut();
         inner.cur_indent -= inner.indent_width;
