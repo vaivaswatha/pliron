@@ -34,10 +34,12 @@ use combine::{
     token,
 };
 use downcast_rs::{Downcast, impl_downcast};
+use dyn_clone::DynClone;
 use linkme::distributed_slice;
 use rustc_hash::FxHashMap;
 use std::{
     fmt::{self, Display},
+    hash::Hash,
     ops::Deref,
     sync::LazyLock,
 };
@@ -154,7 +156,7 @@ pub(crate) type OpCreator = fn(Ptr<Operation>) -> OpObj;
 /// which means that [OpObj]s are light-weight.
 ///
 /// See [module](crate::op) documentation for more information.
-pub trait Op: Downcast + Verify + Printable {
+pub trait Op: Downcast + Verify + Printable + DynClone {
     /// Get the underlying IR Operation
     fn get_operation(&self) -> Ptr<Operation>;
     /// Create a new Op object, by wrapping around an operation.
@@ -197,6 +199,7 @@ pub trait Op: Downcast + Verify + Printable {
     }
 }
 impl_downcast!(Op);
+dyn_clone::clone_trait_object!(Op);
 
 /// Create [OpObj] from [`Ptr<Operation>`](Operation)
 pub(crate) fn from_operation(ctx: &Context, op: Ptr<Operation>) -> OpObj {
@@ -208,6 +211,20 @@ pub(crate) fn from_operation(ctx: &Context, op: Ptr<Operation>) -> OpObj {
 
 /// [Op] objects are boxed and stored in the IR.
 pub type OpObj = Box<dyn Op>;
+
+impl PartialEq for OpObj {
+    fn eq(&self, other: &Self) -> bool {
+        self.get_operation().eq(&other.get_operation())
+    }
+}
+
+impl Eq for OpObj {}
+
+impl Hash for OpObj {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.get_operation().hash(state)
+    }
+}
 
 /// Cast reference to an [Op] object to an interface reference.
 pub fn op_cast<T: ?Sized + Op>(op: &dyn Op) -> Option<&T> {

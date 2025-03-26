@@ -21,6 +21,7 @@ pub(crate) fn interface_define(
     input: proc_macro::TokenStream,
     supertrait: Path,
     interface_deps_slice: Path,
+    append_dyn_clone_trait: bool,
 ) -> Result<proc_macro2::TokenStream> {
     let mut r#trait = syn::parse2::<ItemTrait>(input.into())?;
     let intr_name = r#trait.ident.clone();
@@ -53,6 +54,11 @@ pub(crate) fn interface_define(
 
     let mut output = r#trait.into_token_stream();
     output.extend(deps_entry);
+    if append_dyn_clone_trait {
+        output.extend(quote! {
+            dyn_clone::clone_trait_object!(#intr_name);
+        });
+    }
 
     Ok(output)
 }

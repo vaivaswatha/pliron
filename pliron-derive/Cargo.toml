@@ -26,3 +26,4 @@ prettyplease.workspace = true
 expect-test.workspace = true
 pliron = { path = "../" }
 linkme.workspace = true
+dyn-clone.workspace = true

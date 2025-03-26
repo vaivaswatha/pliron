@@ -36,7 +36,7 @@ linkme.workspace = true
 combine.workspace = true
 utf8-chars = "3"
 regex = "1"
-dyn-clone = "1"
+dyn-clone.workspace = true
 
 [dev-dependencies]
 expect-test.workspace = true
@@ -45,6 +45,7 @@ expect-test.workspace = true
 awint = "0"
 assert_cmd = "2"
 clap = { version = "4", features = ["derive"] }
+dyn-clone = "1"
 expect-test = "1"
 proc-macro2 = "1"
 quote = "1"

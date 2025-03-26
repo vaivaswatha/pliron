@@ -15,6 +15,7 @@ license.workspace = true
 pliron = { path = "../", version = "0" }
 clap.workspace = true
 combine.workspace = true
+dyn-clone.workspace = true
 thiserror.workspace = true
 linkme.workspace = true
 rustc-hash.workspace = true

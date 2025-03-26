@@ -28,6 +28,7 @@ pub mod printable;
 pub mod region;
 pub mod result;
 pub mod storage_uniquer;
+pub mod symbol_table;
 pub mod r#type;
 pub mod uniqued_any;
 pub mod utils;

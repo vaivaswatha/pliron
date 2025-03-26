@@ -7,6 +7,7 @@ use combine::{
 
 use crate::{
     attribute::AttributeDict,
+    builtin::op_interfaces::IsTerminatorInterface,
     common_traits::{Named, Verify},
     context::{ArenaCell, Context, Ptr, private::ArenaObj},
     debug_info::{get_block_arg_name, set_block_arg_name},
@@ -18,6 +19,7 @@ use crate::{
     },
     linked_list::{ContainsLinkedList, LinkedList, private},
     location::{Located, Location},
+    op::op_impls,
     operation::Operation,
     parsable::{self, IntoParseResult, Parsable, ParseResult},
     printable::{self, ListSeparator, Printable, indented_nl},
@@ -153,6 +155,17 @@ impl BasicBlock {
         newblock
     }
 
+    /// Get parent region.
+    pub fn get_parent_region(&self) -> Option<Ptr<Region>> {
+        self.region_links.parent_region
+    }
+
+    /// Get parent operation.
+    pub fn get_parent_op(&self, ctx: &Context) -> Option<Ptr<Operation>> {
+        self.get_parent_region()
+            .map(|region| region.deref(ctx).get_parent_op())
+    }
+
     /// Get idx'th argument as a Value.
     pub fn get_argument(&self, arg_idx: usize) -> Value {
         self.args
@@ -202,6 +215,13 @@ impl BasicBlock {
             .deref(ctx)
             .successors()
             .collect()
+    }
+
+    /// Get the block terminator, if one exists.
+    pub fn get_terminator(&self, ctx: &Context) -> Option<Ptr<Operation>> {
+        let last_opr = self.get_tail()?;
+        let last_op = Operation::get_op(last_opr, ctx);
+        op_impls::<dyn IsTerminatorInterface>(&*last_op).then_some(last_opr)
     }
 
     /// Drop all uses that this block holds.

@@ -367,7 +367,7 @@ fn test_preorder_forward_walk() {
 
     let mut state = Vec::new();
 
-    walkers::walk_op(
+    walkers::immutable::walk_op(
         ctx,
         &mut state,
         &WALKCONFIG_PREORDER_FORWARD,
@@ -417,7 +417,7 @@ fn test_postorder_forward_walk() {
 
     let mut state = Vec::new();
 
-    walkers::walk_op(
+    walkers::immutable::walk_op(
         ctx,
         &mut state,
         &WALKCONFIG_POSTORDER_FORWARD,
@@ -467,11 +467,7 @@ fn test_walker_find_op() {
     set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".try_into().unwrap());
 
     // A function to breaks the walk when a [ConstantOp] is found.
-    fn finder(
-        ctx: &mut Context,
-        _: &mut (),
-        node: IRNode,
-    ) -> interruptible::WalkResult<ConstantOp> {
+    fn finder(ctx: &Context, _: &mut (), node: IRNode) -> interruptible::WalkResult<ConstantOp> {
         if let IRNode::Operation(op) = node {
             if let Some(const_op) = Operation::get_op(op, ctx).downcast_ref::<ConstantOp>() {
                 return walk_break(*const_op);
@@ -480,7 +476,7 @@ fn test_walker_find_op() {
         walk_advance()
     }
 
-    let res1 = walkers::interruptible::walk_op(
+    let res1 = walkers::interruptible::immutable::walk_op(
         ctx,
         &mut (),
         &WALKCONFIG_PREORDER_FORWARD,
@@ -489,7 +485,7 @@ fn test_walker_find_op() {
     );
     assert!(matches!(res1, interruptible::WalkResult::Break(c) if c == const_op));
 
-    let res2 = walkers::interruptible::walk_op(
+    let res2 = walkers::interruptible::immutable::walk_op(
         ctx,
         &mut (),
         &WALKCONFIG_POSTORDER_REVERSE,

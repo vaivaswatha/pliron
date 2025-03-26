@@ -319,6 +319,7 @@ pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
         item,
         supertrait,
         interface_deps_slice,
+        true,
     ))
 }
 
@@ -455,6 +456,7 @@ pub fn attr_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
         item,
         supertrait,
         interface_deps_slice,
+        true,
     ))
 }
 
@@ -567,6 +569,7 @@ pub fn type_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
         item,
         supertrait,
         interface_deps_slice,
+        false,
     ))
 }
 

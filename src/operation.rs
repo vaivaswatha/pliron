@@ -211,6 +211,23 @@ impl Operation {
         newop
     }
 
+    /// Get parent block.
+    pub fn get_parent_block(&self) -> Option<Ptr<BasicBlock>> {
+        self.block_links.parent_block
+    }
+
+    /// Get parent region.
+    pub fn get_parent_region(&self, ctx: &Context) -> Option<Ptr<Region>> {
+        self.get_parent_block()
+            .and_then(|block| block.deref(ctx).get_parent_region())
+    }
+
+    /// Get parent operation.
+    pub fn get_parent_op(&self, ctx: &Context) -> Option<Ptr<Operation>> {
+        self.get_parent_block()
+            .and_then(|block| block.deref(ctx).get_parent_op(ctx))
+    }
+
     /// Number of results this operation has.
     pub fn get_num_results(&self) -> usize {
         self.results.len()

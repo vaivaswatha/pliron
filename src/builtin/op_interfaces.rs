@@ -8,6 +8,7 @@ use crate::{
     basic_block::BasicBlock,
     builtin::attributes::TypeAttr,
     context::{Context, Ptr},
+    graph::walkers::interruptible::{WalkResult, walk_advance, walk_break},
     identifier::Identifier,
     linked_list::ContainsLinkedList,
     location::{Located, Location},
@@ -16,6 +17,7 @@ use crate::{
     printable::Printable,
     region::Region,
     result::Result,
+    symbol_table::{SymbolTableCollection, walk_symbol_table},
     r#type::{TypeObj, TypePtr, Typed},
     value::Value,
     verify_err, verify_error,
@@ -257,11 +259,11 @@ pub trait SymbolTableInterface: SingleBlockRegionInterface + OneRegionInterface 
     where
         Self: Sized,
     {
+        let op = op_cast::<dyn SymbolTableInterface>(op).unwrap();
+
         // Check that every symbol is defined only once.
         let mut seen = FxHashMap::<Identifier, Location>::default();
-        let table_ops_block = op_cast::<dyn SingleBlockRegionInterface>(op)
-            .unwrap()
-            .get_body(ctx, 0);
+        let table_ops_block = op.get_body(ctx, 0);
         for op in table_ops_block.deref(ctx).iter(ctx) {
             if let Some(sym_op) = op_cast::<dyn SymbolOpInterface>(&*Operation::get_op(op, ctx)) {
                 let sym = sym_op.get_symbol_name(ctx);
@@ -282,6 +284,52 @@ pub trait SymbolTableInterface: SingleBlockRegionInterface + OneRegionInterface 
             }
         }
 
+        struct State {
+            symbol_table_collection: SymbolTableCollection,
+            res: Result<()>,
+        }
+        // Verify Ops inside that implement [SymbolUserOpInterface].
+        fn callback(ctx: &Context, state: &mut State, op: Ptr<Operation>) -> WalkResult<()> {
+            if let Some(sym_user_op) =
+                op_cast::<dyn SymbolUserOpInterface>(&*Operation::get_op(op, ctx))
+            {
+                if let Err(err) =
+                    sym_user_op.verify_symbol_uses(ctx, &mut state.symbol_table_collection)
+                {
+                    state.res = Err(err);
+                    return walk_break(());
+                }
+            }
+            walk_advance()
+        }
+
+        let mut state = State {
+            symbol_table_collection: SymbolTableCollection::new(),
+            res: Ok(()),
+        };
+        walk_symbol_table(dyn_clone::clone_box(op), ctx, &mut state, callback);
+        state.res
+    }
+}
+
+#[op_interface]
+pub trait SymbolUserOpInterface {
+    /// Verify the symbol uses held by this operation. This is called when verifying
+    /// a symbol table operation that (possibly transitively) contains this operation.
+    fn verify_symbol_uses(
+        &self,
+        ctx: &Context,
+        symbol_tables: &mut SymbolTableCollection,
+    ) -> Result<()>;
+
+    /// Returns the list of symbols used by this operation.
+    fn used_symbols(&self, ctx: &Context) -> Vec<Identifier>;
+
+    /// Nothing (by default) to verify for symbol users. Override if needed.
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
         Ok(())
     }
 }

@@ -114,21 +114,31 @@ impl<'a, T: ArenaObj> Ptr<T> {
     /// This borrows from a RefCell and the borrow is live
     /// as long as the returned Ref lives.
     pub fn deref(&self, ctx: &'a Context) -> Ref<'a, T> {
-        T::get_arena(ctx).get(self.idx).unwrap().borrow()
+        T::get_arena(ctx)
+            .get(self.idx)
+            .expect("Dangling Ptr deref")
+            .borrow()
     }
 
     /// Return a RefMut to the pointee.
     /// This mutably borrows from a RefCell and the borrow is live
     /// as long as the returned RefMut lives.
     pub fn deref_mut(&self, ctx: &'a Context) -> RefMut<'a, T> {
-        T::get_arena(ctx).get(self.idx).unwrap().borrow_mut()
+        T::get_arena(ctx)
+            .get(self.idx)
+            .expect("Dangling Ptr deref_mut")
+            .borrow_mut()
     }
 
     /// Try and return a Ref to the pointee.
     /// This borrows from a RefCell and the borrow is live
     /// as long as the returned Ref lives.
     pub fn try_deref(&self, ctx: &'a Context) -> Option<Ref<'a, T>> {
-        T::get_arena(ctx).get(self.idx).unwrap().try_borrow().ok()
+        T::get_arena(ctx)
+            .get(self.idx)
+            .expect("Dangling Ptr deref")
+            .try_borrow()
+            .ok()
     }
 
     /// Try and return a RefMut to the pointee.
@@ -137,7 +147,7 @@ impl<'a, T: ArenaObj> Ptr<T> {
     pub fn try_deref_mut(&self, ctx: &'a Context) -> Option<RefMut<'a, T>> {
         T::get_arena(ctx)
             .get(self.idx)
-            .unwrap()
+            .expect("Dangling Ptr deref_mut")
             .try_borrow_mut()
             .ok()
     }

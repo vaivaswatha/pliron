@@ -1,5 +1,7 @@
 //! [Op]s defined in the LLVM dialect
 
+use std::vec;
+
 use pliron::{
     arg_err_noloc,
     attribute::{AttrObj, attr_cast},
@@ -10,8 +12,10 @@ use pliron::{
         op_interfaces::{
             self, ATTR_KEY_CALLEE_TYPE, BranchOpInterface, CallOpCallable, CallOpInterface,
             IsTerminatorInterface, OneOpdInterface, OneResultInterface, SameOperandsAndResultType,
-            SameOperandsType, SameResultsType, ZeroOpdInterface, ZeroResultInterface,
+            SameOperandsType, SameResultsType, SymbolUserOpInterface, ZeroOpdInterface,
+            ZeroResultInterface,
         },
+        ops::FuncOp,
         types::{FunctionType, IntegerType, Signedness},
     },
     common_traits::{Named, Verify},
@@ -33,6 +37,7 @@ use pliron::{
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::Printable,
     result::{Error, ErrorKind, Result},
+    symbol_table::SymbolTableCollection,
     r#type::{TypeObj, TypePtr},
     utils::vec_exns::VecExtns,
     value::Value,
@@ -1049,6 +1054,126 @@ impl CallOp {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum SymbolUserOpVerifyErr {
+    #[error("Symbol {0} not found")]
+    SymbolNotFound(String),
+    #[error("Function {0} should have been builtin.func")]
+    NotBuiltinFunc(String),
+    #[error("Function {0} has incorrect type: {1}")]
+    FuncTypeErr(String, String),
+}
+
+#[op_interface_impl]
+impl SymbolUserOpInterface for CallOp {
+    fn verify_symbol_uses(
+        &self,
+        ctx: &Context,
+        symbol_tables: &mut SymbolTableCollection,
+    ) -> Result<()> {
+        match self.callee(ctx) {
+            CallOpCallable::Direct(callee_sym) => {
+                let Some(callee) = symbol_tables.lookup_symbol_in_nearest_table(
+                    ctx,
+                    self.get_operation(),
+                    &callee_sym,
+                ) else {
+                    return verify_err!(
+                        self.loc(ctx),
+                        SymbolUserOpVerifyErr::SymbolNotFound(callee_sym.to_string())
+                    );
+                };
+                let callee_op = Operation::get_op(callee.get_operation(), ctx);
+                let Some(func_op) = callee_op.downcast_ref::<FuncOp>() else {
+                    return verify_err!(
+                        self.loc(ctx),
+                        SymbolUserOpVerifyErr::NotBuiltinFunc(callee_sym.to_string())
+                    );
+                };
+                let func_op_ty = func_op.get_type(ctx).deref(ctx);
+                let Some(func_op_ty) = func_op_ty.downcast_ref::<FunctionType>() else {
+                    return verify_err!(
+                        self.loc(ctx),
+                        SymbolUserOpVerifyErr::FuncTypeErr(
+                            callee_sym.to_string(),
+                            "not a function".to_string()
+                        )
+                    );
+                };
+                let args = self.args(ctx);
+                let expected_args = func_op_ty.get_inputs();
+                if args.len() != expected_args.len() {
+                    return verify_err!(
+                        self.loc(ctx),
+                        SymbolUserOpVerifyErr::FuncTypeErr(
+                            callee_sym.to_string(),
+                            "arguement count mismatch.".to_string()
+                        )
+                    );
+                }
+                use pliron::r#type::Typed;
+                for (arg_idx, (arg, expected_arg)) in
+                    args.iter().zip(expected_args.iter()).enumerate()
+                {
+                    if arg.get_type(ctx) != *expected_arg {
+                        return verify_err!(
+                            self.loc(ctx),
+                            SymbolUserOpVerifyErr::FuncTypeErr(
+                                callee_sym.to_string(),
+                                format!(
+                                    "arguement {} type mismatch: expected {}, got {}",
+                                    arg_idx,
+                                    expected_arg.disp(ctx),
+                                    arg.get_type(ctx).disp(ctx)
+                                )
+                            )
+                        );
+                    }
+                }
+
+                if func_op_ty.get_results().len() > 1 {
+                    return verify_err!(
+                        self.loc(ctx),
+                        SymbolUserOpVerifyErr::FuncTypeErr(
+                            callee_sym.to_string(),
+                            "multiple results".to_string()
+                        )
+                    );
+                }
+
+                if let Some(res_ty) = func_op_ty.get_results().first() {
+                    if self.result_type(ctx) != *res_ty {
+                        return verify_err!(
+                            self.loc(ctx),
+                            SymbolUserOpVerifyErr::FuncTypeErr(
+                                callee_sym.to_string(),
+                                format!(
+                                    "result type mismatch: expected {}, got {}",
+                                    res_ty.disp(ctx),
+                                    self.result_type(ctx).disp(ctx)
+                                )
+                            )
+                        );
+                    }
+                }
+
+                Ok(())
+            }
+            CallOpCallable::Indirect(_pointer) => {
+                todo!("See CallOp::verifySymbolUses in LLVMDialect.cpp")
+            }
+        }
+    }
+
+    fn used_symbols(&self, ctx: &Context) -> Vec<Identifier> {
+        match self.callee(ctx) {
+            CallOpCallable::Direct(identifier) => vec![identifier],
+            CallOpCallable::Indirect(_) => vec![],
+        }
+    }
+}
+
+#[op_interface_impl]
 impl CallOpInterface for CallOp {
     fn callee(&self, ctx: &Context) -> CallOpCallable {
         let op = self.op.deref(ctx);
