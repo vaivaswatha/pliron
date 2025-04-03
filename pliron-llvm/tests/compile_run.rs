@@ -22,8 +22,8 @@ use pliron_llvm::{
 };
 use tempfile::{TempDir, tempdir};
 
-const CLANG_BINARY: &str = "clang-18";
-const LLI_BINARY: &str = "lli-18";
+const CLANG_BINARY: &str = "clang-20";
+const LLI_BINARY: &str = "lli-20";
 
 static RESOURCES_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     [env!("CARGO_MANIFEST_DIR"), "tests", "resources"]

@@ -110,7 +110,6 @@ fn convert_type(
         LLVMTypeKind::LLVMPPC_FP128TypeKind => todo!(),
         LLVMTypeKind::LLVMLabelTypeKind => todo!(),
         LLVMTypeKind::LLVMMetadataTypeKind => todo!(),
-        LLVMTypeKind::LLVMX86_MMXTypeKind => todo!(),
         LLVMTypeKind::LLVMTokenTypeKind => todo!(),
         LLVMTypeKind::LLVMScalableVectorTypeKind => todo!(),
         LLVMTypeKind::LLVMBFloatTypeKind => todo!(),
