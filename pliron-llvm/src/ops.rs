@@ -1083,8 +1083,7 @@ impl SymbolUserOpInterface for CallOp {
                         SymbolUserOpVerifyErr::SymbolNotFound(callee_sym.to_string())
                     );
                 };
-                let callee_op = Operation::get_op(callee.get_operation(), ctx);
-                let Some(func_op) = callee_op.downcast_ref::<FuncOp>() else {
+                let Some(func_op) = (&*callee as &dyn Op).downcast_ref::<FuncOp>() else {
                     return verify_err!(
                         self.loc(ctx),
                         SymbolUserOpVerifyErr::NotBuiltinFunc(callee_sym.to_string())

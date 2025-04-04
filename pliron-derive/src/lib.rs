@@ -131,7 +131,7 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// Examples:
 /// 1. Derive for a struct, with no format string (default format):
-///     (Note that the field u64 has both `Printable` and `Parsable` implemented).
+///    (Note that the field u64 has both `Printable` and `Parsable` implemented).
 /// ```
 /// use pliron::derive::format;
 /// #[format]

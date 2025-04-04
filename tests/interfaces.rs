@@ -70,7 +70,7 @@ impl Parsable for ZeroResultOp {
 impl ZeroResultOp {
     fn new(ctx: &mut Context) -> ZeroResultOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
-        *Operation::get_op(op, ctx).downcast_ref().unwrap()
+        Self { op }
     }
 }
 
@@ -142,7 +142,7 @@ impl_verify_succ!(VerifyIntrOp);
 impl VerifyIntrOp {
     fn new(ctx: &mut Context) -> VerifyIntrOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
-        *Operation::get_op(op, ctx).downcast_ref().unwrap()
+        Self { op }
     }
 }
 
@@ -350,7 +350,7 @@ impl_verify_succ!(NoInbuiltVerifyOp);
 impl NoInbuiltVerifyOp {
     fn new(ctx: &mut Context) -> NoInbuiltVerifyOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
-        *Operation::get_op(op, ctx).downcast_ref().unwrap()
+        Self { op }
     }
 }
 
@@ -380,7 +380,7 @@ impl_verify_succ!(NoInbuiltVerifyOp2);
 impl NoInbuiltVerifyOp2 {
     fn new(ctx: &mut Context) -> NoInbuiltVerifyOp2 {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
-        *Operation::get_op(op, ctx).downcast_ref().unwrap()
+        Self { op }
     }
 }
 

@@ -43,7 +43,9 @@ pub trait BinArithOp: SameOperandsAndResultType + OneResultInterface {
             vec![],
             0,
         );
-        *Operation::get_op(op, ctx).downcast::<Self>().ok().unwrap()
+        *Self::wrap_operation(op)
+            .downcast::<Self>()
+            .unwrap_or_else(|_| panic!("Failed to downcast to Self"))
     }
 
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
@@ -196,7 +198,9 @@ pub trait CastOpInterface: OneResultInterface + OneOpdInterface {
             vec![],
             0,
         );
-        *Operation::get_op(op, ctx).downcast::<Self>().ok().unwrap()
+        *Self::wrap_operation(op)
+            .downcast::<Self>()
+            .unwrap_or_else(|_| panic!("Failed to downcast to Self"))
     }
 
     fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
