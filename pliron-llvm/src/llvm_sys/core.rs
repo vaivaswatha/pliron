@@ -21,24 +21,26 @@ use llvm_sys::{
         LLVMCountParamTypes, LLVMCountParams, LLVMCountStructElementTypes,
         LLVMCreateBuilderInContext, LLVMCreateMemoryBufferWithContentsOfFile,
         LLVMDisposeMemoryBuffer, LLVMDisposeMessage, LLVMDisposeModule, LLVMDumpModule,
-        LLVMDumpType, LLVMDumpValue, LLVMFunctionType, LLVMGetAllocatedType, LLVMGetArrayLength2,
-        LLVMGetBasicBlockName, LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType,
-        LLVMGetCalledValue, LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFirstBasicBlock,
-        LLVMGetFirstFunction, LLVMGetFirstInstruction, LLVMGetFirstParam,
-        LLVMGetGEPSourceElementType, LLVMGetICmpPredicate, LLVMGetIncomingBlock,
-        LLVMGetIncomingValue, LLVMGetIndices, LLVMGetInsertBlock, LLVMGetInstructionOpcode,
-        LLVMGetInstructionParent, LLVMGetIntTypeWidth, LLVMGetModuleIdentifier, LLVMGetNSW,
-        LLVMGetNUW, LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextInstruction,
-        LLVMGetNextParam, LLVMGetNumArgOperands, LLVMGetNumIndices, LLVMGetNumOperands,
-        LLVMGetOperand, LLVMGetParam, LLVMGetParamTypes, LLVMGetPreviousBasicBlock,
-        LLVMGetPreviousFunction, LLVMGetPreviousInstruction, LLVMGetPreviousParam,
-        LLVMGetReturnType, LLVMGetStructElementTypes, LLVMGetStructName, LLVMGetTypeKind,
-        LLVMGetUndef, LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType,
-        LLVMIntTypeInContext, LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser,
-        LLVMIsOpaqueStruct, LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext,
-        LLVMPositionBuilderAtEnd, LLVMPositionBuilderBefore, LLVMPrintModuleToFile,
-        LLVMStructCreateNamed, LLVMStructSetBody, LLVMStructTypeInContext, LLVMTypeIsSized,
-        LLVMTypeOf, LLVMValueAsBasicBlock, LLVMValueIsBasicBlock, LLVMVoidTypeInContext,
+        LLVMDumpType, LLVMDumpValue, LLVMFunctionType, LLVMGetAggregateElement,
+        LLVMGetAllocatedType, LLVMGetArrayLength2, LLVMGetBasicBlockName,
+        LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType, LLVMGetCalledValue,
+        LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFirstBasicBlock, LLVMGetFirstFunction,
+        LLVMGetFirstInstruction, LLVMGetFirstParam, LLVMGetGEPSourceElementType,
+        LLVMGetICmpPredicate, LLVMGetIncomingBlock, LLVMGetIncomingValue, LLVMGetIndices,
+        LLVMGetInsertBlock, LLVMGetInstructionOpcode, LLVMGetInstructionParent,
+        LLVMGetIntTypeWidth, LLVMGetModuleIdentifier, LLVMGetNSW, LLVMGetNUW,
+        LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextInstruction, LLVMGetNextParam,
+        LLVMGetNumArgOperands, LLVMGetNumIndices, LLVMGetNumOperands, LLVMGetOperand, LLVMGetParam,
+        LLVMGetParamTypes, LLVMGetPreviousBasicBlock, LLVMGetPreviousFunction,
+        LLVMGetPreviousInstruction, LLVMGetPreviousParam, LLVMGetReturnType,
+        LLVMGetStructElementTypes, LLVMGetStructName, LLVMGetTypeKind, LLVMGetUndef,
+        LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType, LLVMIntTypeInContext,
+        LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser, LLVMIsOpaqueStruct,
+        LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext, LLVMPositionBuilderAtEnd,
+        LLVMPositionBuilderBefore, LLVMPrintModuleToFile, LLVMPrintModuleToString,
+        LLVMPrintTypeToString, LLVMPrintValueToString, LLVMStructCreateNamed, LLVMStructSetBody,
+        LLVMStructTypeInContext, LLVMTypeIsSized, LLVMTypeOf, LLVMValueAsBasicBlock,
+        LLVMValueIsBasicBlock, LLVMVoidTypeInContext,
     },
     ir_reader::LLVMParseIRInContext,
     prelude::{
@@ -123,6 +125,39 @@ impl LLVMBuilder {
     }
 }
 
+/// LLVMPrintValueToString
+pub fn llvm_print_value_to_string(val: LLVMValue) -> Option<String> {
+    let buf_ptr = unsafe { LLVMPrintValueToString(val.into()) };
+    if buf_ptr.is_null() {
+        return None;
+    }
+    let result = cstr_to_string(buf_ptr);
+    unsafe { LLVMDisposeMessage(buf_ptr) };
+    result
+}
+
+/// LLVMPrintTypeToString
+pub fn llvm_print_type_to_string(ty: LLVMType) -> Option<String> {
+    let buf_ptr = unsafe { LLVMPrintTypeToString(ty.into()) };
+    if buf_ptr.is_null() {
+        return None;
+    }
+    let result = cstr_to_string(buf_ptr);
+    unsafe { LLVMDisposeMessage(buf_ptr) };
+    result
+}
+
+/// LLVMPrintModuleToString
+pub fn llvm_print_module_to_string(module: &LLVMModule) -> Option<String> {
+    let buf_ptr = unsafe { LLVMPrintModuleToString(module.0) };
+    if buf_ptr.is_null() {
+        return None;
+    }
+    let result = cstr_to_string(buf_ptr);
+    unsafe { LLVMDisposeMessage(buf_ptr) };
+    result
+}
+
 /// LLVMGetValueName2
 pub fn llvm_get_value_name(val: LLVMValue) -> Option<String> {
     let mut len = 0;
@@ -161,7 +196,7 @@ pub fn llvm_dump_module(module: &LLVMModule) {
 /// The family of LLVMIsA* functions for Value
 pub mod llvm_is_a {
     use llvm_sys::core::{
-        LLVMIsAAllocaInst, LLVMIsAArgument, LLVMIsACallInst, LLVMIsAConstantExpr,
+        LLVMIsAAllocaInst, LLVMIsAArgument, LLVMIsACallInst, LLVMIsAConstant, LLVMIsAConstantExpr,
         LLVMIsAConstantInt, LLVMIsAExtractValueInst, LLVMIsAGetElementPtrInst, LLVMIsAGlobalValue,
         LLVMIsAICmpInst, LLVMIsAInsertValueInst, LLVMIsAInstruction, LLVMIsAInvokeInst,
         LLVMIsAPHINode,
@@ -177,6 +212,11 @@ pub mod llvm_is_a {
     /// LLVMIsAUser
     pub fn user(val: LLVMValue) -> bool {
         unsafe { !LLVMIsAUser(val.into()).is_null() }
+    }
+
+    /// LLVMIsAConsant
+    pub fn constant(val: LLVMValue) -> bool {
+        unsafe { !LLVMIsAConstant(val.into()).is_null() }
     }
 
     /// LLVMIsAInstruction
@@ -398,6 +438,15 @@ pub fn llvm_get_num_operands(val: LLVMValue) -> u32 {
 pub fn llvm_get_operand(val: LLVMValue, index: u32) -> LLVMValue {
     assert!(index < llvm_get_num_operands(val));
     unsafe { LLVMGetOperand(val.into(), index).into() }
+}
+
+/// LLVMGetAggregateElement
+pub fn llvm_get_aggregate_element(val: LLVMValue, index: u32) -> Option<LLVMValue> {
+    assert!(llvm_is_a::constant(val));
+    unsafe {
+        let elem = LLVMGetAggregateElement(val.into(), index);
+        (!elem.is_null()).then_some(elem.into())
+    }
 }
 
 /// LLVMBasicBlockAsValue

@@ -30,7 +30,8 @@ use crate::{
     attributes::{ICmpPredicateAttr, IntegerOverflowFlagsAttr},
     llvm_sys::core::{
         LLVMBasicBlock, LLVMModule, LLVMType, LLVMValue, basic_block_iter, function_iter,
-        incoming_iter, instruction_iter, llvm_const_int_get_zext_value, llvm_get_allocated_type,
+        incoming_iter, instruction_iter, llvm_const_int_get_zext_value,
+        llvm_count_struct_element_types, llvm_get_aggregate_element, llvm_get_allocated_type,
         llvm_get_array_length2, llvm_get_basic_block_name, llvm_get_basic_block_terminator,
         llvm_get_called_function_type, llvm_get_called_value, llvm_get_element_type,
         llvm_get_gep_source_element_type, llvm_get_icmp_predicate, llvm_get_indices,
@@ -140,7 +141,7 @@ struct ConversionContext {
     value_map: FxHashMap<LLVMValue, Value>,
     // A map from LLVM's basic blocks to plirons'.
     block_map: FxHashMap<LLVMBasicBlock, Ptr<BasicBlock>>,
-    // Entry block of the function we're processing.
+    // Entry block of the region we're processing.
     entry_block: Option<Ptr<BasicBlock>>,
     // Identifier legaliser
     id_legaliser: identifier::Legaliser,
@@ -149,7 +150,7 @@ struct ConversionContext {
 impl ConversionContext {
     /// Reset the value and block maps and set the entry block.
     /// Identifier::Legaliser remains unmodified.
-    fn reset_for_function(&mut self, entry_block: Ptr<BasicBlock>) {
+    fn reset_for_region(&mut self, entry_block: Ptr<BasicBlock>) {
         self.entry_block = Some(entry_block);
         self.value_map.clear();
         self.block_map.clear();
@@ -231,14 +232,14 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
     if cctx.value_map.contains_key(&val) {
         return Ok(());
     }
-    let ty = convert_type(ctx, cctx, llvm_type_of(val))?;
+    let ll_ty = llvm_type_of(val);
+    let ty = convert_type(ctx, cctx, ll_ty)?;
+    let entry_block = cctx.entry_block.unwrap();
     match llvm_get_value_kind(val) {
         LLVMValueKind::LLVMUndefValueValueKind => {
             let undef_op = UndefOp::new(ctx, ty);
-            // Insert at the beginning of the entry block.
-            undef_op
-                .get_operation()
-                .insert_at_front(cctx.entry_block.unwrap(), ctx);
+            // Insert at the end of the entry block.
+            BasicBlock::insert_op_before_terminator(entry_block, undef_op.get_operation(), ctx);
             cctx.value_map.insert(val, undef_op.get_result(ctx));
         }
         LLVMValueKind::LLVMConstantIntValueKind => {
@@ -252,15 +253,90 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             let val_attr =
                 IntegerAttr::new(int_ty, APInt::from_u64(u64, NonZero::new(width).unwrap()));
             let const_op = ConstantOp::new(ctx, Box::new(val_attr));
-            // Insert at the beginning of the entry block.
-            const_op
-                .get_operation()
-                .insert_at_front(cctx.entry_block.unwrap(), ctx);
+            // Insert at the end of the entry block.
+            BasicBlock::insert_op_before_terminator(entry_block, const_op.get_operation(), ctx);
             cctx.value_map.insert(val, const_op.get_result(ctx));
         }
         LLVMValueKind::LLVMConstantFPValueKind => todo!(),
-        LLVMValueKind::LLVMConstantArrayValueKind => todo!(),
-        LLVMValueKind::LLVMConstantStructValueKind => todo!(),
+        LLVMValueKind::LLVMConstantArrayValueKind
+        | LLVMValueKind::LLVMConstantDataArrayValueKind => {
+            fn get_operand(val: LLVMValue, index: u32) -> Result<LLVMValue> {
+                if matches!(
+                    llvm_get_value_kind(val),
+                    LLVMValueKind::LLVMConstantDataArrayValueKind
+                ) {
+                    llvm_get_aggregate_element(val, index).ok_or_else(|| {
+                        input_error_noloc!("LLVMConstantDataArrayValueKind does not have an element at index {index}")
+                    })
+                } else {
+                    Ok(llvm_get_operand(val, index))
+                }
+            }
+            let mut field_vals = vec![];
+            let num_elements = llvm_get_array_length2(ll_ty);
+            for i in 0..num_elements {
+                let field_val = get_operand(val, i.try_into().unwrap())?;
+                process_constant(ctx, cctx, field_val)?;
+                let Some(m_val) = cctx.value_map.get(&field_val) else {
+                    panic!("We just processed this constant, it must be in the map");
+                };
+                field_vals.push(*m_val);
+            }
+            // Starting with an Undef value, we insert elements, for each field.
+            let undef_op = UndefOp::new(ctx, ty);
+            BasicBlock::insert_op_before_terminator(entry_block, undef_op.get_operation(), ctx);
+            let (ctx, const_array) = field_vals.iter().enumerate().try_fold(
+                (ctx, undef_op.get_operation()),
+                |(ctx, acc), (field_idx, field_val)| -> Result<_> {
+                    let acc_val = acc.deref(ctx).get_result(0);
+                    let insert_op = InsertValueOp::new(
+                        ctx,
+                        acc_val,
+                        *field_val,
+                        vec![field_idx.try_into().unwrap()],
+                    )?
+                    .get_operation();
+                    insert_op.insert_after(ctx, acc);
+                    Ok((ctx, insert_op))
+                },
+            )?;
+
+            cctx.value_map
+                .insert(val, const_array.deref(ctx).get_result(0));
+        }
+        LLVMValueKind::LLVMConstantStructValueKind => {
+            let mut field_vals = vec![];
+            let num_fields = llvm_count_struct_element_types(ll_ty);
+            for i in 0..num_fields {
+                let field_val = llvm_get_operand(val, i);
+                process_constant(ctx, cctx, field_val)?;
+                let Some(m_val) = cctx.value_map.get(&field_val) else {
+                    panic!("We just processed this constant, it must be in the map");
+                };
+                field_vals.push(*m_val);
+            }
+            // Starting with an Undef value, we insert elements, for each field.
+            let undef_op = UndefOp::new(ctx, ty);
+            BasicBlock::insert_op_before_terminator(entry_block, undef_op.get_operation(), ctx);
+            let (ctx, const_struct) = field_vals.iter().enumerate().try_fold(
+                (ctx, undef_op.get_operation()),
+                |(ctx, acc), (field_idx, field_val)| -> Result<_> {
+                    let acc_val = acc.deref(ctx).get_result(0);
+                    let insert_op = InsertValueOp::new(
+                        ctx,
+                        acc_val,
+                        *field_val,
+                        vec![field_idx.try_into().unwrap()],
+                    )?
+                    .get_operation();
+                    insert_op.insert_after(ctx, acc);
+                    Ok((ctx, insert_op))
+                },
+            )?;
+
+            cctx.value_map
+                .insert(val, const_struct.deref(ctx).get_result(0));
+        }
         LLVMValueKind::LLVMConstantVectorValueKind => todo!(),
         _ => (),
     }
@@ -650,7 +726,7 @@ fn convert_function(
     let m_func_reg = m_func.get_region(ctx);
 
     let m_entry_block = m_func.get_entry_block(ctx);
-    cctx.reset_for_function(m_entry_block);
+    cctx.reset_for_region(m_entry_block);
 
     let blocks = rpo(function);
     // Map entry block

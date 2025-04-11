@@ -224,6 +224,15 @@ impl BasicBlock {
         op_impls::<dyn IsTerminatorInterface>(&*last_op).then_some(last_opr)
     }
 
+    /// Insert an instruction at the end of this block, but before the terminator if it exists.
+    pub fn insert_op_before_terminator(block: Ptr<Self>, op: Ptr<Operation>, ctx: &Context) {
+        if let Some(term) = block.deref(ctx).get_terminator(ctx) {
+            op.insert_before(ctx, term);
+        } else {
+            op.insert_at_back(block, ctx);
+        }
+    }
+
     /// Drop all uses that this block holds.
     pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &Context) {
         let ops: Vec<_> = ptr.deref(ctx).iter(ctx).collect();

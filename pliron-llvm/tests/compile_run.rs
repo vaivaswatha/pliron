@@ -196,9 +196,13 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         .map_err(|err| arg_error_noloc!("{}", err))
         .unwrap();
     let ctx = &mut setup_context_dialects();
-    let pliron_module = from_llvm_ir::convert_module(ctx, &module)
-        .map_err(|err| arg_error_noloc!("{}", err))
-        .unwrap();
+    let pliron_module = match from_llvm_ir::convert_module(ctx, &module) {
+        Ok(plir) => plir,
+        Err(err) => {
+            eprintln!("{}", err.disp(ctx));
+            panic!("Error converting {}", input_file);
+        }
+    };
 
     match pliron_module.get_operation().verify(ctx) {
         Ok(_) => (),
@@ -216,10 +220,10 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         .map_err(|e| arg_error_noloc!(e))
         .unwrap();
 
-    println!(
-        "plir file created:\n{}",
-        std::fs::read_to_string(&plir_path).unwrap()
-    );
+    // println!(
+    //     "plir file created:\n{}",
+    //     std::fs::read_to_string(&plir_path).unwrap()
+    // );
 
     // Parse the plir file and verify it.
     let plir_file = std::fs::File::open(&plir_path).unwrap();
@@ -297,4 +301,16 @@ fn test_insert_extract_value_via_pliron() {
 #[test]
 fn test_select_via_pliron() {
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("select.ll").to_str().unwrap(), 100);
+}
+
+/// Test const structs and arrays
+#[test]
+fn test_const_struct_array() {
+    test_llvm_ir_via_pliron(
+        RESOURCES_DIR
+            .join("const_struct_array.ll")
+            .to_str()
+            .unwrap(),
+        148,
+    );
 }
