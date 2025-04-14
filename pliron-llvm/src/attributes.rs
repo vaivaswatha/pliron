@@ -16,11 +16,10 @@ use pliron::parsable::Parsable;
 ///  and can be used for things like C signed integer values, which are undefined on overflow.
 #[def_attribute("llvm.integer_overlflow_flags")]
 #[format_attribute]
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub enum IntegerOverflowFlagsAttr {
-    None,
-    Nsw,
-    Nuw,
+#[derive(PartialEq, Eq, Clone, Debug, Default)]
+pub struct IntegerOverflowFlagsAttr {
+    pub nsw: bool,
+    pub nuw: bool,
 }
 
 impl_verify_succ!(IntegerOverflowFlagsAttr);

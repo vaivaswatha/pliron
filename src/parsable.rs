@@ -19,9 +19,10 @@ use crate::{
     value::Value,
 };
 use combine::{
-    Parser, Positioned, StreamOnce,
+    Parser, Positioned, StreamOnce, choice,
     easy::{self, Errors, ParseError},
     error::{StdParseResult2, Tracked},
+    parser::char::string,
     stream::{
         self, IteratorStream, buffered,
         position::{self, SourcePosition},
@@ -477,5 +478,21 @@ impl Parsable for u32 {
         _arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
         int_parser::<u32>().parse_stream(state_stream).into()
+    }
+}
+
+impl Parsable for bool {
+    type Arg = ();
+    type Parsed = bool;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        // Choose b/w true/false
+        let mut bool_parser =
+            choice((string("true").map(|_| true), string("false").map(|_| false)));
+
+        bool_parser.parse_stream(state_stream).into()
     }
 }

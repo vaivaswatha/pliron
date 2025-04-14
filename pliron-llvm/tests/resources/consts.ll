@@ -100,6 +100,22 @@ entry:
   ret i32 %sum4
 }
 
+define i32 @const_expr() {
+entry:
+  ; Return the result of the constant expression
+  ret i32
+    sub(
+      i32 add(
+        i32 ptrtoint (i32* getelementptr (i32, i32* inttoptr (i32 11 to i32*), i32 1) to i32),
+        i32 ptrtoint (i32* getelementptr (i32, i32* null, i32 13) to i32)
+      ),
+      i32 add(
+        i32 ptrtoint (i32* getelementptr (i32, i32* null, i32 1) to i32),
+        i32 ptrtoint (i32* getelementptr (i32, i32* null, i32 2) to i32)
+      )
+    )
+}
+
 define i32 @main() {
 entry:
   ; Call the const_array function
@@ -114,11 +130,15 @@ entry:
   ; Call the const_struct_with_arrays function
   %result4 = call i32 @const_struct_with_arrays()
 
+  ; Call the const_expr function
+  %result5 = call i32 @const_expr()
+
   ; Add the results to the final sum
   %temp_sum0 = add i32 %result1, %result2
   %temp_sum1 = add i32 %temp_sum0, %result3
-  %final_sum = add i32 %temp_sum1, %result4
+  %temp_sum2 = add i32 %temp_sum1, %result4
+  %temp_sum3 = add i32 %temp_sum2, %result5
 
   ; Return the final sum
-  ret i32 %final_sum
+  ret i32 %temp_sum3
 }

@@ -430,7 +430,7 @@ impl AllocaOp {
     }
 }
 
-// Equivalent to LLVM's Bitcast opcode.
+/// Equivalent to LLVM's Bitcast opcode.
 /// ### Operands
 /// | operand | description |
 /// |-----|-------|
@@ -442,24 +442,86 @@ impl AllocaOp {
 /// |-----|-------|
 /// | `res` | non-aggregate LLVM type |
 #[def_op("llvm.bitcast")]
-#[format_op("$0 ` : ` type($0)")]
-#[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
+#[format_op("$0 ` to ` type($0)")]
+#[derive_op_interface_impl(OneResultInterface, OneOpdInterface, CastOpInterface)]
 pub struct BitcastOp;
 impl_verify_succ!(BitcastOp);
 
-impl BitcastOp {
-    /// Create a new [BitcastOp].
-    pub fn new(ctx: &mut Context, res_ty: Ptr<TypeObj>, arg: Value) -> Self {
-        BitcastOp {
-            op: Operation::new(
-                ctx,
-                Self::get_opid_static(),
-                vec![res_ty],
-                vec![arg],
-                vec![],
-                0,
-            ),
+#[derive(Error, Debug)]
+pub enum IntToPtrOpErr {
+    #[error("Operand must be a signless integer")]
+    OperandTypeErr,
+    #[error("Result must be a pointer type")]
+    ResultTypeErr,
+}
+
+/// Equivalent to LLVM's IntToPtr opcode.
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `arg` | Signless integer |
+////
+/// ### Result(s):
+///
+/// | result | description |
+/// |-----|-------|
+/// | `res` | [PointerType] |
+///
+#[def_op("llvm.inttoptr")]
+#[format_op("$0 ` to ` type($0)")]
+#[derive_op_interface_impl(OneResultInterface, OneOpdInterface, CastOpInterface)]
+pub struct IntToPtrOp;
+
+impl Verify for IntToPtrOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        let loc = self.loc(ctx);
+        // Ensure correctness of operand type.
+        if !self.operand_type(ctx).deref(ctx).is::<IntegerType>() {
+            return verify_err!(loc, IntToPtrOpErr::OperandTypeErr);
         }
+        // Ensure correctness of result type.
+        if !self.result_type(ctx).deref(ctx).is::<PointerType>() {
+            return verify_err!(loc, IntToPtrOpErr::ResultTypeErr);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum PtrToIntOpErr {
+    #[error("Operand must be a pointer type")]
+    OperandTypeErr,
+    #[error("Result must be a signless integer type")]
+    ResultTypeErr,
+}
+
+/// Equivalent to LLVM's PtrToInt opcode.
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `arg` | [PointerType] |
+///
+/// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | Signless integer |
+#[def_op("llvm.ptrtoint")]
+#[format_op("$0 ` to ` type($0)")]
+#[derive_op_interface_impl(OneResultInterface, OneOpdInterface, CastOpInterface)]
+pub struct PtrToIntOp;
+
+impl Verify for PtrToIntOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        let loc = self.loc(ctx);
+        // Ensure correctness of operand type.
+        if !self.operand_type(ctx).deref(ctx).is::<PointerType>() {
+            return verify_err!(loc, PtrToIntOpErr::OperandTypeErr);
+        }
+        // Ensure correctness of result type.
+        if !self.result_type(ctx).deref(ctx).is::<IntegerType>() {
+            return verify_err!(loc, PtrToIntOpErr::ResultTypeErr);
+        }
+        Ok(())
     }
 }
 
@@ -1249,6 +1311,7 @@ impl UndefOp {
 /// | `result` | any type |
 #[def_op("llvm.constant")]
 #[derive_op_interface_impl(ZeroOpdInterface, OneResultInterface)]
+#[format_op("`<` $llvm_constant_value `>` ` : ` type($0)")]
 pub struct ConstantOp;
 
 pub mod constant_op {
@@ -1307,7 +1370,33 @@ impl Verify for ConstantOp {
     }
 }
 
-impl_canonical_syntax!(ConstantOp);
+/// Same as MLIR's LLVM dialect [ZeroOp](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmlirzero-llvmzeroop)
+/// It creates a zero-initialized value of the specified LLVM IR dialect type.
+/// Results:
+///
+/// | result | description |
+/// |-----|-------|
+/// | `result` | any type |
+#[def_op("llvm.zero")]
+#[derive_op_interface_impl(ZeroOpdInterface, OneResultInterface)]
+#[format_op("` : ` type($0)")]
+pub struct ZeroOp;
+impl_verify_succ!(ZeroOp);
+
+impl ZeroOp {
+    /// Create a new [ZeroOp].
+    pub fn new(ctx: &mut Context, result_ty: Ptr<TypeObj>) -> Self {
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![result_ty],
+            vec![],
+            vec![],
+            0,
+        );
+        ZeroOp { op }
+    }
+}
 
 #[derive(Error, Debug)]
 enum IntExtVerifyErr {
@@ -1700,6 +1789,8 @@ pub fn register(ctx: &mut Context) {
     ICmpOp::register(ctx, ICmpOp::parser_fn);
     AllocaOp::register(ctx, AllocaOp::parser_fn);
     BitcastOp::register(ctx, BitcastOp::parser_fn);
+    PtrToIntOp::register(ctx, PtrToIntOp::parser_fn);
+    IntToPtrOp::register(ctx, IntToPtrOp::parser_fn);
     BrOp::register(ctx, BrOp::parser_fn);
     CondBrOp::register(ctx, CondBrOp::parser_fn);
     GetElementPtrOp::register(ctx, GetElementPtrOp::parser_fn);
@@ -1707,6 +1798,7 @@ pub fn register(ctx: &mut Context) {
     StoreOp::register(ctx, StoreOp::parser_fn);
     CallOp::register(ctx, CallOp::parser_fn);
     ConstantOp::register(ctx, ConstantOp::parser_fn);
+    ZeroOp::register(ctx, ZeroOp::parser_fn);
     SExtOp::register(ctx, SExtOp::parser_fn);
     ZExtOp::register(ctx, ZExtOp::parser_fn);
     InsertValueOp::register(ctx, InsertValueOp::parser_fn);

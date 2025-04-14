@@ -33,22 +33,22 @@ use crate::{
         incoming_iter, instruction_iter, llvm_const_int_get_zext_value,
         llvm_count_struct_element_types, llvm_get_aggregate_element, llvm_get_allocated_type,
         llvm_get_array_length2, llvm_get_basic_block_name, llvm_get_basic_block_terminator,
-        llvm_get_called_function_type, llvm_get_called_value, llvm_get_element_type,
-        llvm_get_gep_source_element_type, llvm_get_icmp_predicate, llvm_get_indices,
-        llvm_get_instruction_opcode, llvm_get_instruction_parent, llvm_get_int_type_width,
-        llvm_get_module_identifier, llvm_get_nsw, llvm_get_num_arg_operands, llvm_get_num_operands,
-        llvm_get_nuw, llvm_get_operand, llvm_get_param_types, llvm_get_return_type,
-        llvm_get_struct_element_types, llvm_get_struct_name, llvm_get_type_kind,
-        llvm_get_value_kind, llvm_get_value_name, llvm_global_get_value_type, llvm_is_a,
-        llvm_is_opaque_struct, llvm_type_of, llvm_value_as_basic_block, llvm_value_is_basic_block,
-        param_iter,
+        llvm_get_called_function_type, llvm_get_called_value, llvm_get_const_opcode,
+        llvm_get_element_type, llvm_get_gep_source_element_type, llvm_get_icmp_predicate,
+        llvm_get_indices, llvm_get_instruction_opcode, llvm_get_instruction_parent,
+        llvm_get_int_type_width, llvm_get_module_identifier, llvm_get_nsw,
+        llvm_get_num_arg_operands, llvm_get_num_operands, llvm_get_nuw, llvm_get_operand,
+        llvm_get_param_types, llvm_get_return_type, llvm_get_struct_element_types,
+        llvm_get_struct_name, llvm_get_type_kind, llvm_get_value_kind, llvm_get_value_name,
+        llvm_global_get_value_type, llvm_is_a, llvm_is_opaque_struct, llvm_type_of,
+        llvm_value_as_basic_block, llvm_value_is_basic_block, param_iter,
     },
     op_interfaces::{BinArithOp, CastOpInterface, IntBinArithOpWithOverflowFlag},
     ops::{
         AShrOp, AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
-        ExtractValueOp, GepIndex, GetElementPtrOp, ICmpOp, InsertValueOp, LShrOp, LoadOp, MulOp,
-        OrOp, ReturnOp, SDivOp, SExtOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp, UDivOp, URemOp,
-        UndefOp, XorOp, ZExtOp,
+        ExtractValueOp, GepIndex, GetElementPtrOp, ICmpOp, InsertValueOp, IntToPtrOp, LShrOp,
+        LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SRemOp, SelectOp, ShlOp,
+        StoreOp, SubOp, UDivOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
     },
     types::{ArrayType, PointerType, StructErr, StructType, VoidType},
 };
@@ -242,6 +242,11 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             BasicBlock::insert_op_before_terminator(entry_block, undef_op.get_operation(), ctx);
             cctx.value_map.insert(val, undef_op.get_result(ctx));
         }
+        LLVMValueKind::LLVMConstantPointerNullValueKind => {
+            let null_op = ZeroOp::new(ctx, ty);
+            BasicBlock::insert_op_before_terminator(entry_block, null_op.get_operation(), ctx);
+            cctx.value_map.insert(val, null_op.get_result(ctx));
+        }
         LLVMValueKind::LLVMConstantIntValueKind => {
             // TODO: Zero extend or sign extend?
             let u64 = llvm_const_int_get_zext_value(val);
@@ -336,6 +341,105 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
 
             cctx.value_map
                 .insert(val, const_struct.deref(ctx).get_result(0));
+        }
+        LLVMValueKind::LLVMConstantExprValueKind => {
+            let opcode = llvm_get_const_opcode(val);
+            match opcode {
+                LLVMOpcode::LLVMBitCast => {
+                    let opd = llvm_get_operand(val, 0);
+                    process_constant(ctx, cctx, opd)?;
+                    let Some(m_val) = cctx.value_map.get(&opd) else {
+                        panic!("We just processed this constant, it must be in the map");
+                    };
+                    let cast_op = BitcastOp::new(ctx, *m_val, ty);
+                    BasicBlock::insert_op_before_terminator(
+                        entry_block,
+                        cast_op.get_operation(),
+                        ctx,
+                    );
+                    cctx.value_map.insert(val, cast_op.get_result(ctx));
+                }
+                LLVMOpcode::LLVMIntToPtr => {
+                    let opd = llvm_get_operand(val, 0);
+                    process_constant(ctx, cctx, opd)?;
+                    let Some(m_val) = cctx.value_map.get(&opd) else {
+                        panic!("We just processed this constant, it must be in the map");
+                    };
+                    let cast_op = IntToPtrOp::new(ctx, *m_val, ty);
+                    BasicBlock::insert_op_before_terminator(
+                        entry_block,
+                        cast_op.get_operation(),
+                        ctx,
+                    );
+                    cctx.value_map.insert(val, cast_op.get_result(ctx));
+                }
+                LLVMOpcode::LLVMPtrToInt => {
+                    let opd = llvm_get_operand(val, 0);
+                    process_constant(ctx, cctx, opd)?;
+                    let Some(m_val) = cctx.value_map.get(&opd) else {
+                        panic!("We just processed this constant, it must be in the map");
+                    };
+                    let cast_op = PtrToIntOp::new(ctx, *m_val, ty);
+                    BasicBlock::insert_op_before_terminator(
+                        entry_block,
+                        cast_op.get_operation(),
+                        ctx,
+                    );
+                    cctx.value_map.insert(val, cast_op.get_result(ctx));
+                }
+                LLVMOpcode::LLVMGetElementPtr => {
+                    let base = llvm_get_operand(val, 0);
+                    process_constant(ctx, cctx, base)?;
+                    let Some(m_base) = cctx.value_map.get(&base).cloned() else {
+                        panic!("We just processed this constant, it must be in the map");
+                    };
+                    let mut indices = vec![];
+                    // We handle the indices as just values and not constants,
+                    // hopefully they can be canonicalized later.
+                    for i in 1..llvm_get_num_operands(val) {
+                        let opd = llvm_get_operand(val, i);
+                        process_constant(ctx, cctx, opd)?;
+                        let Some(m_val) = cctx.value_map.get(&opd) else {
+                            panic!("We just processed this constant, it must be in the map");
+                        };
+                        indices.push(GepIndex::Value(*m_val));
+                    }
+                    let src_elm_type =
+                        convert_type(ctx, cctx, llvm_get_gep_source_element_type(val))?;
+                    let gep_op = GetElementPtrOp::new(ctx, m_base, indices, src_elm_type)?;
+                    BasicBlock::insert_op_before_terminator(
+                        entry_block,
+                        gep_op.get_operation(),
+                        ctx,
+                    );
+                    cctx.value_map.insert(val, gep_op.get_result(ctx));
+                }
+                LLVMOpcode::LLVMAdd | LLVMOpcode::LLVMSub => {
+                    let (lhs, rhs) = (llvm_get_operand(val, 0), llvm_get_operand(val, 1));
+                    process_constant(ctx, cctx, lhs)?;
+                    process_constant(ctx, cctx, rhs)?;
+                    let Some(m_lhs) = cctx.value_map.get(&lhs).cloned() else {
+                        panic!("We just processed this constant, it must be in the map");
+                    };
+                    let Some(m_rhs) = cctx.value_map.get(&rhs).cloned() else {
+                        panic!("We just processed this constant, it must be in the map");
+                    };
+                    // `Instruction *ConstantExpr::getAsInstruction() const ` just sets no flags.
+                    let flags = IntegerOverflowFlagsAttr::default();
+                    let (op, res_val) = if opcode == LLVMOpcode::LLVMAdd {
+                        let op = AddOp::new(ctx, m_lhs, m_rhs);
+                        op.set_integer_overflow_flag(ctx, flags);
+                        (op.get_operation(), op.get_result(ctx))
+                    } else {
+                        let op = SubOp::new(ctx, m_lhs, m_rhs);
+                        op.set_integer_overflow_flag(ctx, flags);
+                        (op.get_operation(), op.get_result(ctx))
+                    };
+                    BasicBlock::insert_op_before_terminator(entry_block, op, ctx);
+                    cctx.value_map.insert(val, res_val);
+                }
+                _ => todo!(),
+            }
         }
         LLVMValueKind::LLVMConstantVectorValueKind => todo!(),
         _ => (),
@@ -449,13 +553,14 @@ fn convert_instruction(
     }
 
     fn get_integer_overflow_flag(inst: LLVMValue) -> IntegerOverflowFlagsAttr {
+        let mut flags = IntegerOverflowFlagsAttr::default();
         if llvm_get_nsw(inst) {
-            IntegerOverflowFlagsAttr::Nsw
-        } else if llvm_get_nuw(inst) {
-            IntegerOverflowFlagsAttr::Nuw
-        } else {
-            IntegerOverflowFlagsAttr::None
+            flags.nsw = true;
         }
+        if llvm_get_nuw(inst) {
+            flags.nuw = true;
+        }
+        flags
     }
 
     let llvm_operands: Vec<_> = (0..llvm_get_num_operands(inst))
@@ -490,7 +595,7 @@ fn convert_instruction(
         LLVMOpcode::LLVMBitCast => {
             let arg = get_operand(opds, 0)?;
             let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
-            Ok(BitcastOp::new(ctx, res_ty, arg).get_operation())
+            Ok(BitcastOp::new(ctx, arg, res_ty).get_operation())
         }
         LLVMOpcode::LLVMBr => {
             if !opds.is_empty() {
@@ -581,7 +686,11 @@ fn convert_instruction(
             let indices = llvm_get_indices(inst);
             Ok(ExtractValueOp::new(ctx, aggr, indices)?.get_operation())
         }
-        LLVMOpcode::LLVMIntToPtr => todo!(),
+        LLVMOpcode::LLVMIntToPtr => {
+            let arg = get_operand(opds, 0)?;
+            let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
+            Ok(IntToPtrOp::new(ctx, arg, res_ty).get_operation())
+        }
         LLVMOpcode::LLVMInvoke => todo!(),
         LLVMOpcode::LLVMLandingPad => todo!(),
         LLVMOpcode::LLVMLoad => {
@@ -606,7 +715,11 @@ fn convert_instruction(
         LLVMOpcode::LLVMPHI => {
             unreachable!("PHI nodes must already be handled")
         }
-        LLVMOpcode::LLVMPtrToInt => todo!(),
+        LLVMOpcode::LLVMPtrToInt => {
+            let arg = get_operand(opds, 0)?;
+            let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
+            Ok(PtrToIntOp::new(ctx, arg, res_ty).get_operation())
+        }
         LLVMOpcode::LLVMResume => todo!(),
         LLVMOpcode::LLVMRet => {
             let retval = if llvm_get_num_operands(inst) == 1 {

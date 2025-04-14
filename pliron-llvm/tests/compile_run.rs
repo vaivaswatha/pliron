@@ -306,11 +306,5 @@ fn test_select_via_pliron() {
 /// Test const structs and arrays
 #[test]
 fn test_const_struct_array() {
-    test_llvm_ir_via_pliron(
-        RESOURCES_DIR
-            .join("const_struct_array.ll")
-            .to_str()
-            .unwrap(),
-        148,
-    );
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("consts.ll").to_str().unwrap(), 203);
 }

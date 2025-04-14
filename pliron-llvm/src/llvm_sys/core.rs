@@ -13,16 +13,16 @@ use llvm_sys::{
         LLVMAddFunction, LLVMAddIncoming, LLVMAppendBasicBlockInContext, LLVMArrayType2,
         LLVMBasicBlockAsValue, LLVMBuildAdd, LLVMBuildAnd, LLVMBuildArrayAlloca, LLVMBuildBitCast,
         LLVMBuildBr, LLVMBuildCall2, LLVMBuildCondBr, LLVMBuildExtractValue, LLVMBuildGEP2,
-        LLVMBuildICmp, LLVMBuildInsertValue, LLVMBuildLoad2, LLVMBuildMul, LLVMBuildOr,
-        LLVMBuildPhi, LLVMBuildRet, LLVMBuildRetVoid, LLVMBuildSDiv, LLVMBuildSExt, LLVMBuildSRem,
-        LLVMBuildSelect, LLVMBuildShl, LLVMBuildStore, LLVMBuildSub, LLVMBuildUDiv, LLVMBuildURem,
-        LLVMBuildXor, LLVMBuildZExt, LLVMClearInsertionPosition, LLVMConstInt,
-        LLVMConstIntGetZExtValue, LLVMContextCreate, LLVMContextDispose, LLVMCountIncoming,
-        LLVMCountParamTypes, LLVMCountParams, LLVMCountStructElementTypes,
-        LLVMCreateBuilderInContext, LLVMCreateMemoryBufferWithContentsOfFile,
-        LLVMDisposeMemoryBuffer, LLVMDisposeMessage, LLVMDisposeModule, LLVMDumpModule,
-        LLVMDumpType, LLVMDumpValue, LLVMFunctionType, LLVMGetAggregateElement,
-        LLVMGetAllocatedType, LLVMGetArrayLength2, LLVMGetBasicBlockName,
+        LLVMBuildICmp, LLVMBuildInsertValue, LLVMBuildIntToPtr, LLVMBuildLoad2, LLVMBuildMul,
+        LLVMBuildOr, LLVMBuildPhi, LLVMBuildPtrToInt, LLVMBuildRet, LLVMBuildRetVoid,
+        LLVMBuildSDiv, LLVMBuildSExt, LLVMBuildSRem, LLVMBuildSelect, LLVMBuildShl, LLVMBuildStore,
+        LLVMBuildSub, LLVMBuildTrunc, LLVMBuildUDiv, LLVMBuildURem, LLVMBuildXor, LLVMBuildZExt,
+        LLVMClearInsertionPosition, LLVMConstInt, LLVMConstIntGetZExtValue, LLVMConstNull,
+        LLVMContextCreate, LLVMContextDispose, LLVMCountIncoming, LLVMCountParamTypes,
+        LLVMCountParams, LLVMCountStructElementTypes, LLVMCreateBuilderInContext,
+        LLVMCreateMemoryBufferWithContentsOfFile, LLVMDisposeMemoryBuffer, LLVMDisposeMessage,
+        LLVMDisposeModule, LLVMDumpModule, LLVMDumpType, LLVMDumpValue, LLVMFunctionType,
+        LLVMGetAggregateElement, LLVMGetAllocatedType, LLVMGetArrayLength2, LLVMGetBasicBlockName,
         LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType, LLVMGetCalledValue,
         LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFirstBasicBlock, LLVMGetFirstFunction,
         LLVMGetFirstInstruction, LLVMGetFirstParam, LLVMGetGEPSourceElementType,
@@ -620,6 +620,11 @@ pub fn llvm_const_int_get_zext_value(val: LLVMValue) -> u64 {
     unsafe { LLVMConstIntGetZExtValue(val.into()) }
 }
 
+/// LLVMConstNull
+pub fn llvm_const_null(ty: LLVMType) -> LLVMValue {
+    unsafe { LLVMConstNull(ty.into()).into() }
+}
+
 /// LLVMGetAllocatedType
 pub fn llvm_get_allocated_type(val: LLVMValue) -> LLVMType {
     assert!(llvm_is_a::alloca_inst(val));
@@ -1053,6 +1058,61 @@ pub fn llvm_build_bitcast(
     }
 }
 
+/// LLVMBuildIntToPtr
+pub fn llvm_build_int_to_ptr(
+    builder: &LLVMBuilder,
+    val: LLVMValue,
+    dest_ty: LLVMType,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildIntToPtr(
+            builder.0,
+            val.into(),
+            dest_ty.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+/// LLVMBuildPtrToInt
+pub fn llvm_build_ptr_to_int(
+    builder: &LLVMBuilder,
+    val: LLVMValue,
+    dest_ty: LLVMType,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildPtrToInt(
+            builder.0,
+            val.into(),
+            dest_ty.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+/// LLVMBuildTrunc
+pub fn llvm_build_trunc(
+    builder: &LLVMBuilder,
+    val: LLVMValue,
+    dest_ty: LLVMType,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildTrunc(
+            builder.0,
+            val.into(),
+            dest_ty.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+
 /// LLVMBuildSExt
 pub fn llvm_build_sext(
     builder: &LLVMBuilder,
@@ -1360,9 +1420,13 @@ pub fn llvm_get_nsw(arith_inst: LLVMValue) -> bool {
 }
 
 /// LLVMGetGEPSourceElementType
-pub fn llvm_get_gep_source_element_type(gep_inst: LLVMValue) -> LLVMType {
-    assert!(llvm_is_a::get_element_ptr_inst(gep_inst));
-    unsafe { LLVMGetGEPSourceElementType(gep_inst.into()).into() }
+pub fn llvm_get_gep_source_element_type(gep: LLVMValue) -> LLVMType {
+    assert!(
+        llvm_is_a::get_element_ptr_inst(gep)
+            || (llvm_is_a::constant_expr(gep)
+                && llvm_get_const_opcode(gep) == LLVMOpcode::LLVMGetElementPtr)
+    );
+    unsafe { LLVMGetGEPSourceElementType(gep.into()).into() }
 }
 
 /// LLVMGetNumIndices
