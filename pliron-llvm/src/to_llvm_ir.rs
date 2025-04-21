@@ -16,13 +16,13 @@ use pliron::{
     context::{Context, Ptr},
     graph::traversals::region::topological_order,
     identifier::Identifier,
-    input_err, input_err_noloc, input_error_noloc,
+    input_err, input_err_noloc, input_error, input_error_noloc,
     linked_list::{ContainsLinkedList, LinkedList},
     location::Located,
     op::{Op, op_cast},
     operation::Operation,
     result::Result,
-    r#type::{Type, TypeObj, TypePtr, Typed, type_cast},
+    r#type::{Type, TypeObj, Typed, type_cast},
     utils::apint::APInt,
     value::Value,
 };
@@ -35,25 +35,26 @@ use crate::{
     attributes::ICmpPredicateAttr,
     llvm_sys::core::{
         LLVMBasicBlock, LLVMBuilder, LLVMContext, LLVMModule, LLVMType, LLVMValue,
-        instruction_iter, llvm_add_function, llvm_add_incoming, llvm_append_basic_block_in_context,
-        llvm_array_type2, llvm_build_add, llvm_build_and, llvm_build_array_alloca,
-        llvm_build_bitcast, llvm_build_br, llvm_build_call2, llvm_build_cond_br,
-        llvm_build_extract_value, llvm_build_gep2, llvm_build_icmp, llvm_build_insert_value,
-        llvm_build_int_to_ptr, llvm_build_load2, llvm_build_mul, llvm_build_or, llvm_build_phi,
-        llvm_build_ptr_to_int, llvm_build_ret, llvm_build_ret_void, llvm_build_sdiv,
-        llvm_build_select, llvm_build_sext, llvm_build_shl, llvm_build_srem, llvm_build_store,
-        llvm_build_sub, llvm_build_udiv, llvm_build_urem, llvm_build_xor,
-        llvm_clear_insertion_position, llvm_const_int, llvm_const_null, llvm_function_type,
-        llvm_get_param, llvm_get_undef, llvm_int_type_in_context, llvm_is_a,
-        llvm_pointer_type_in_context, llvm_position_builder_at_end, llvm_struct_create_named,
-        llvm_struct_set_body, llvm_struct_type_in_context, llvm_void_type_in_context,
+        instruction_iter, llvm_add_function, llvm_add_global, llvm_add_incoming,
+        llvm_append_basic_block_in_context, llvm_array_type2, llvm_build_add, llvm_build_and,
+        llvm_build_array_alloca, llvm_build_bitcast, llvm_build_br, llvm_build_call2,
+        llvm_build_cond_br, llvm_build_extract_value, llvm_build_gep2, llvm_build_icmp,
+        llvm_build_insert_value, llvm_build_int_to_ptr, llvm_build_load2, llvm_build_mul,
+        llvm_build_or, llvm_build_phi, llvm_build_ptr_to_int, llvm_build_ret, llvm_build_ret_void,
+        llvm_build_sdiv, llvm_build_select, llvm_build_sext, llvm_build_shl, llvm_build_srem,
+        llvm_build_store, llvm_build_sub, llvm_build_udiv, llvm_build_urem, llvm_build_xor,
+        llvm_clear_insertion_position, llvm_const_int, llvm_const_null, llvm_delete_function,
+        llvm_function_type, llvm_get_param, llvm_get_undef, llvm_int_type_in_context, llvm_is_a,
+        llvm_pointer_type_in_context, llvm_position_builder_at_end, llvm_set_initializer,
+        llvm_struct_create_named, llvm_struct_set_body, llvm_struct_type_in_context,
+        llvm_void_type_in_context,
     },
     op_interfaces::PointerTypeResult,
     ops::{
-        AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp, ExtractValueOp,
-        GetElementPtrOp, ICmpOp, InsertValueOp, IntToPtrOp, LoadOp, MulOp, OrOp, PtrToIntOp,
-        ReturnOp, SDivOp, SExtOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp, UDivOp, URemOp, UndefOp,
-        XorOp, ZExtOp, ZeroOp,
+        AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
+        ExtractValueOp, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp, IntToPtrOp, LoadOp,
+        MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp,
+        UDivOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
     },
     types::{ArrayType, PointerType, StructType, VoidType},
 };
@@ -66,8 +67,12 @@ pub struct ConversionContext {
     block_map: FxHashMap<Ptr<BasicBlock>, LLVMBasicBlock>,
     // A map from pliron functions to LLVM functions.
     function_map: FxHashMap<Identifier, LLVMValue>,
+    // A map from pliron globals to LLVM globals.
+    globals_map: FxHashMap<Identifier, LLVMValue>,
     // The active LLVM builder.
     builder: LLVMBuilder,
+    // Scratch builder in a scratch function for attempting to evaluate constants.
+    scratch_builder: LLVMBuilder,
 }
 
 impl ConversionContext {
@@ -76,7 +81,9 @@ impl ConversionContext {
             value_map: FxHashMap::default(),
             block_map: FxHashMap::default(),
             function_map: FxHashMap::default(),
+            globals_map: FxHashMap::default(),
             builder: LLVMBuilder::new(llvm_ctx),
+            scratch_builder: LLVMBuilder::new(llvm_ctx),
         }
     }
 
@@ -105,6 +112,10 @@ pub enum ToLLVMErr {
         "Insert/Extract value instructions must specify exactly one index, an LLVM-C API limitation"
     )]
     InsertExtractValueIndices,
+    #[error("GlobalOp Initializer region does not terminate with a return with value")]
+    GlobalOpInitializerRegionBadReturn,
+    #[error("Cannot evaluate value to a constant")]
+    CannotEvaluateToConst,
 }
 
 pub fn convert_ipredicate(pred: ICmpPredicateAttr) -> LLVMIntPredicate {
@@ -513,21 +524,9 @@ impl ToLLVMValue for ConstantOp {
         &self,
         ctx: &Context,
         llvm_ctx: &LLVMContext,
-        _cctx: &mut ConversionContext,
+        cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let op = self.get_operation().deref(ctx);
-        let value = self.get_value(ctx);
-        if let Some(int_val) = value.downcast_ref::<IntegerAttr>() {
-            let int_ty = TypePtr::<IntegerType>::from_ptr(int_val.get_type(ctx), ctx).unwrap();
-            let int_ty_llvm = convert_type(ctx, llvm_ctx, int_ty.into())?;
-            let ap_int_val: APInt = int_val.clone().into();
-            let const_val = llvm_const_int(int_ty_llvm, ap_int_val.to_u64(), false);
-            Ok(const_val)
-        } else if let Some(_float_val) = value.downcast_ref::<FloatAttr>() {
-            todo!()
-        } else {
-            input_err!(op.loc(), ToLLVMErr::ConstOpNotIntOrFloat)
-        }
+        <Self as ToLLVMConstValue>::convert(self, ctx, llvm_ctx, cctx)
     }
 }
 
@@ -537,11 +536,9 @@ impl ToLLVMValue for ZeroOp {
         &self,
         ctx: &Context,
         llvm_ctx: &LLVMContext,
-        _cctx: &mut ConversionContext,
+        cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
-        let zero_val = llvm_const_null(ty);
-        Ok(zero_val)
+        <Self as ToLLVMConstValue>::convert(self, ctx, llvm_ctx, cctx)
     }
 }
 
@@ -593,10 +590,21 @@ impl ToLLVMValue for UndefOp {
         &self,
         ctx: &Context,
         llvm_ctx: &LLVMContext,
-        _cctx: &mut ConversionContext,
+        cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
-        Ok(llvm_get_undef(ty))
+        <Self as ToLLVMConstValue>::convert(self, ctx, llvm_ctx, cctx)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for AddressOfOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        <Self as ToLLVMConstValue>::convert(self, ctx, llvm_ctx, cctx)
     }
 }
 
@@ -682,18 +690,21 @@ impl ToLLVMValue for GetElementPtrOp {
         llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let op = self.get_operation().deref(ctx);
-        let mut operands = op.operands();
-        let base = convert_value_operand(
-            cctx,
-            ctx,
-            &operands
-                .next()
-                .expect("GEP must have a base pointer operand"),
-        )?;
-        let indices: Vec<_> = operands
-            .map(|v| convert_value_operand(cctx, ctx, &v))
-            .collect::<Result<_>>()?;
+        let indices = self
+            .indices(ctx)
+            .iter()
+            .map(|v| match v {
+                crate::ops::GepIndex::Constant(c) => Ok(llvm_const_int(
+                    llvm_int_type_in_context(llvm_ctx, 32),
+                    Into::<u64>::into(*c),
+                    false,
+                )),
+                crate::ops::GepIndex::Value(value) => convert_value_operand(cctx, ctx, value),
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let base = convert_value_operand(cctx, ctx, &self.src_ptr(ctx))?;
+
         let src_elem_type = convert_type(ctx, llvm_ctx, self.src_elem_type(ctx))?;
         let gep_op = llvm_build_gep2(
             &cctx.builder,
@@ -861,6 +872,174 @@ fn convert_function(
     Ok(func_llvm)
 }
 
+#[op_interface]
+trait ToLLVMConstValue {
+    /// Convert from pliron [Op] to a constant [LLVMValue].
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue>;
+
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMConstValue for ConstantOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        _cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let value = self.get_value(ctx);
+        if let Some(int_val) = value.downcast_ref::<IntegerAttr>() {
+            let int_ty = int_val.get_type();
+            let int_ty_llvm = convert_type(ctx, llvm_ctx, int_ty.into())?;
+            let ap_int_val: APInt = int_val.clone().into();
+            let const_val = llvm_const_int(int_ty_llvm, ap_int_val.to_u64(), false);
+            Ok(const_val)
+        } else if let Some(_float_val) = value.downcast_ref::<FloatAttr>() {
+            todo!()
+        } else {
+            input_err!(op.loc(), ToLLVMErr::ConstOpNotIntOrFloat)
+        }
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMConstValue for UndefOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        _cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        Ok(llvm_get_undef(ty))
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMConstValue for ZeroOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        _cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let zero_val = llvm_const_null(ty);
+        Ok(zero_val)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMConstValue for AddressOfOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        _llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let sym = self.get_global_name(ctx);
+        cctx.globals_map
+            .get(&sym)
+            .or_else(|| cctx.function_map.get(&sym))
+            .cloned()
+            .ok_or_else(|| input_error_noloc!(ToLLVMErr::CannotEvaluateToConst))
+    }
+}
+#[op_interface_impl]
+impl ToLLVMConstValue for InsertValueOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let base = convert_to_llvm_const(ctx, cctx, llvm_ctx, op.get_operand(0))?;
+        let value = convert_to_llvm_const(ctx, cctx, llvm_ctx, op.get_operand(1))?;
+        let indices = self.indices(ctx);
+        if indices.len() != 1 {
+            return input_err!(op.loc(), ToLLVMErr::InsertExtractValueIndices);
+        }
+
+        // LLVM's builder tries to fold this, so we rely on that.
+        let insert_op = llvm_build_insert_value(
+            &cctx.scratch_builder,
+            base,
+            value,
+            indices[0],
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        if !llvm_is_a::constant(insert_op) {
+            return input_err!(op.loc(), ToLLVMErr::CannotEvaluateToConst);
+        }
+        Ok(insert_op)
+    }
+}
+
+fn convert_to_llvm_const(
+    ctx: &Context,
+    cctx: &mut ConversionContext,
+    llvm_ctx: &LLVMContext,
+    value: Value,
+) -> Result<LLVMValue> {
+    match value {
+        Value::OpResult { op, res_idx: _ } => {
+            let op = Operation::get_op(op, ctx);
+            if let Some(const_trans) = op_cast::<dyn ToLLVMConstValue>(&*op) {
+                const_trans.convert(ctx, llvm_ctx, cctx)
+            } else {
+                input_err!(value.loc(ctx), ToLLVMErr::CannotEvaluateToConst)
+            }
+        }
+        Value::BlockArgument { .. } => {
+            input_err!(value.loc(ctx), ToLLVMErr::CannotEvaluateToConst)
+        }
+    }
+}
+
+fn convert_global_initializer(
+    ctx: &Context,
+    llvm_ctx: &LLVMContext,
+    cctx: &mut ConversionContext,
+    global_op: &GlobalOp,
+) -> Result<Option<LLVMValue>> {
+    if let Some(_initializer) = global_op.get_initializer_value(ctx) {
+        todo!()
+    }
+
+    if let Some(init_block) = global_op.get_initializer_block(ctx) {
+        let ret = Operation::get_op(init_block.deref(ctx).get_terminator(ctx).unwrap(), ctx);
+        let ret = *ret.downcast::<ReturnOp>().map_err(|_| {
+            input_error!(
+                global_op.loc(ctx),
+                ToLLVMErr::GlobalOpInitializerRegionBadReturn
+            )
+        })?;
+        let Some(ret_val) = ret.retval(ctx) else {
+            return input_err!(
+                global_op.loc(ctx),
+                ToLLVMErr::GlobalOpInitializerRegionBadReturn
+            );
+        };
+        let initializer_val = convert_to_llvm_const(ctx, cctx, llvm_ctx, ret_val)?;
+        return Ok(Some(initializer_val));
+    }
+
+    Ok(None)
+}
+
 /// Convert pliron [ModuleOp] to [LLVMModule].
 pub fn convert_module(
     ctx: &Context,
@@ -870,6 +1049,19 @@ pub fn convert_module(
     let mod_name = module.get_symbol_name(ctx);
     let llvm_module = LLVMModule::new(&mod_name, llvm_ctx);
     let cctx = &mut ConversionContext::new(llvm_ctx);
+
+    // Setup the scratch builder for evaluating constants.
+    let scratch_function = {
+        let scratch_function = llvm_add_function(
+            &llvm_module,
+            "scratch",
+            llvm_function_type(llvm_void_type_in_context(llvm_ctx), &[], false),
+        );
+        let scratch_function_entry =
+            llvm_append_basic_block_in_context(llvm_ctx, scratch_function, "entry");
+        llvm_position_builder_at_end(&cctx.scratch_builder, scratch_function_entry);
+        scratch_function
+    };
 
     // Create new functions and map them.
     for op in module.get_body(ctx, 0).deref(ctx).iter(ctx) {
@@ -885,15 +1077,30 @@ pub fn convert_module(
             cctx.function_map
                 .insert(func_op.get_symbol_name(ctx), func_llvm);
         }
-        // TODO: Globals?
+        if let Some(global_op) = Operation::get_op(op, ctx).downcast_ref::<GlobalOp>() {
+            let global_ty = global_op.get_type(ctx);
+            let global_ty_llvm = convert_type(ctx, llvm_ctx, global_ty)?;
+            let global_name = global_op.get_symbol_name(ctx);
+            let global_llvm = llvm_add_global(&llvm_module, global_ty_llvm, &global_name);
+            cctx.globals_map.insert(global_name, global_llvm);
+        }
     }
 
     for op in module.get_body(ctx, 0).deref(ctx).iter(ctx) {
         if let Some(func_op) = Operation::get_op(op, ctx).downcast_ref::<FuncOp>() {
             convert_function(ctx, llvm_ctx, cctx, *func_op)?;
         }
-        // TODO: Globals
+        if let Some(global_op) = Operation::get_op(op, ctx).downcast_ref::<GlobalOp>() {
+            let global_name = global_op.get_symbol_name(ctx);
+            let global_llvm = cctx.globals_map[&global_name];
+            if let Some(initializer) = convert_global_initializer(ctx, llvm_ctx, cctx, global_op)? {
+                llvm_set_initializer(global_llvm, initializer);
+            }
+        }
     }
+
+    // Delete the scratch function
+    llvm_delete_function(scratch_function);
 
     Ok(llvm_module)
 }

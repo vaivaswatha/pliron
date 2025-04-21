@@ -10,37 +10,38 @@ use llvm_sys::{
     analysis::LLVMVerifyModule,
     bit_writer::LLVMWriteBitcodeToFile,
     core::{
-        LLVMAddFunction, LLVMAddIncoming, LLVMAppendBasicBlockInContext, LLVMArrayType2,
-        LLVMBasicBlockAsValue, LLVMBuildAdd, LLVMBuildAnd, LLVMBuildArrayAlloca, LLVMBuildBitCast,
-        LLVMBuildBr, LLVMBuildCall2, LLVMBuildCondBr, LLVMBuildExtractValue, LLVMBuildGEP2,
-        LLVMBuildICmp, LLVMBuildInsertValue, LLVMBuildIntToPtr, LLVMBuildLoad2, LLVMBuildMul,
-        LLVMBuildOr, LLVMBuildPhi, LLVMBuildPtrToInt, LLVMBuildRet, LLVMBuildRetVoid,
+        LLVMAddFunction, LLVMAddGlobal, LLVMAddIncoming, LLVMAppendBasicBlockInContext,
+        LLVMArrayType2, LLVMBasicBlockAsValue, LLVMBuildAdd, LLVMBuildAnd, LLVMBuildArrayAlloca,
+        LLVMBuildBitCast, LLVMBuildBr, LLVMBuildCall2, LLVMBuildCondBr, LLVMBuildExtractValue,
+        LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildInsertValue, LLVMBuildIntToPtr, LLVMBuildLoad2,
+        LLVMBuildMul, LLVMBuildOr, LLVMBuildPhi, LLVMBuildPtrToInt, LLVMBuildRet, LLVMBuildRetVoid,
         LLVMBuildSDiv, LLVMBuildSExt, LLVMBuildSRem, LLVMBuildSelect, LLVMBuildShl, LLVMBuildStore,
         LLVMBuildSub, LLVMBuildTrunc, LLVMBuildUDiv, LLVMBuildURem, LLVMBuildXor, LLVMBuildZExt,
         LLVMClearInsertionPosition, LLVMConstInt, LLVMConstIntGetZExtValue, LLVMConstNull,
         LLVMContextCreate, LLVMContextDispose, LLVMCountIncoming, LLVMCountParamTypes,
         LLVMCountParams, LLVMCountStructElementTypes, LLVMCreateBuilderInContext,
-        LLVMCreateMemoryBufferWithContentsOfFile, LLVMDisposeMemoryBuffer, LLVMDisposeMessage,
-        LLVMDisposeModule, LLVMDumpModule, LLVMDumpType, LLVMDumpValue, LLVMFunctionType,
-        LLVMGetAggregateElement, LLVMGetAllocatedType, LLVMGetArrayLength2, LLVMGetBasicBlockName,
-        LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType, LLVMGetCalledValue,
-        LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFirstBasicBlock, LLVMGetFirstFunction,
-        LLVMGetFirstInstruction, LLVMGetFirstParam, LLVMGetGEPSourceElementType,
-        LLVMGetICmpPredicate, LLVMGetIncomingBlock, LLVMGetIncomingValue, LLVMGetIndices,
-        LLVMGetInsertBlock, LLVMGetInstructionOpcode, LLVMGetInstructionParent,
-        LLVMGetIntTypeWidth, LLVMGetModuleIdentifier, LLVMGetNSW, LLVMGetNUW,
-        LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextInstruction, LLVMGetNextParam,
-        LLVMGetNumArgOperands, LLVMGetNumIndices, LLVMGetNumOperands, LLVMGetOperand, LLVMGetParam,
-        LLVMGetParamTypes, LLVMGetPreviousBasicBlock, LLVMGetPreviousFunction,
-        LLVMGetPreviousInstruction, LLVMGetPreviousParam, LLVMGetReturnType,
-        LLVMGetStructElementTypes, LLVMGetStructName, LLVMGetTypeKind, LLVMGetUndef,
-        LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType, LLVMIntTypeInContext,
-        LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser, LLVMIsOpaqueStruct,
-        LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext, LLVMPositionBuilderAtEnd,
-        LLVMPositionBuilderBefore, LLVMPrintModuleToFile, LLVMPrintModuleToString,
-        LLVMPrintTypeToString, LLVMPrintValueToString, LLVMStructCreateNamed, LLVMStructSetBody,
-        LLVMStructTypeInContext, LLVMTypeIsSized, LLVMTypeOf, LLVMValueAsBasicBlock,
-        LLVMValueIsBasicBlock, LLVMVoidTypeInContext,
+        LLVMCreateMemoryBufferWithContentsOfFile, LLVMDeleteFunction, LLVMDisposeMemoryBuffer,
+        LLVMDisposeMessage, LLVMDisposeModule, LLVMDumpModule, LLVMDumpType, LLVMDumpValue,
+        LLVMFunctionType, LLVMGetAggregateElement, LLVMGetAllocatedType, LLVMGetArrayLength2,
+        LLVMGetBasicBlockName, LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType,
+        LLVMGetCalledValue, LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFirstBasicBlock,
+        LLVMGetFirstFunction, LLVMGetFirstGlobal, LLVMGetFirstInstruction, LLVMGetFirstParam,
+        LLVMGetGEPSourceElementType, LLVMGetICmpPredicate, LLVMGetIncomingBlock,
+        LLVMGetIncomingValue, LLVMGetIndices, LLVMGetInitializer, LLVMGetInsertBlock,
+        LLVMGetInstructionOpcode, LLVMGetInstructionParent, LLVMGetIntTypeWidth,
+        LLVMGetLastFunction, LLVMGetLastGlobal, LLVMGetModuleIdentifier, LLVMGetNSW, LLVMGetNUW,
+        LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextGlobal, LLVMGetNextInstruction,
+        LLVMGetNextParam, LLVMGetNumArgOperands, LLVMGetNumIndices, LLVMGetNumOperands,
+        LLVMGetOperand, LLVMGetParam, LLVMGetParamTypes, LLVMGetPreviousBasicBlock,
+        LLVMGetPreviousFunction, LLVMGetPreviousGlobal, LLVMGetPreviousInstruction,
+        LLVMGetPreviousParam, LLVMGetReturnType, LLVMGetStructElementTypes, LLVMGetStructName,
+        LLVMGetTypeKind, LLVMGetUndef, LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType,
+        LLVMIntTypeInContext, LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser,
+        LLVMIsOpaqueStruct, LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext,
+        LLVMPositionBuilderAtEnd, LLVMPositionBuilderBefore, LLVMPrintModuleToFile,
+        LLVMPrintModuleToString, LLVMPrintTypeToString, LLVMPrintValueToString, LLVMSetInitializer,
+        LLVMStructCreateNamed, LLVMStructSetBody, LLVMStructTypeInContext, LLVMTypeIsSized,
+        LLVMTypeOf, LLVMValueAsBasicBlock, LLVMValueIsBasicBlock, LLVMVoidTypeInContext,
     },
     ir_reader::LLVMParseIRInContext,
     prelude::{
@@ -198,8 +199,8 @@ pub mod llvm_is_a {
     use llvm_sys::core::{
         LLVMIsAAllocaInst, LLVMIsAArgument, LLVMIsACallInst, LLVMIsAConstant, LLVMIsAConstantExpr,
         LLVMIsAConstantInt, LLVMIsAExtractValueInst, LLVMIsAGetElementPtrInst, LLVMIsAGlobalValue,
-        LLVMIsAICmpInst, LLVMIsAInsertValueInst, LLVMIsAInstruction, LLVMIsAInvokeInst,
-        LLVMIsAPHINode,
+        LLVMIsAGlobalVariable, LLVMIsAICmpInst, LLVMIsAInsertValueInst, LLVMIsAInstruction,
+        LLVMIsAInvokeInst, LLVMIsAPHINode,
     };
 
     use super::*;
@@ -257,6 +258,11 @@ pub mod llvm_is_a {
     /// LLVMIsAGlobalValue
     pub fn global_value(val: LLVMValue) -> bool {
         unsafe { !LLVMIsAGlobalValue(val.into()).is_null() }
+    }
+
+    /// LLVMIsAGlobalVariable
+    pub fn global_variable(val: LLVMValue) -> bool {
+        unsafe { !LLVMIsAGlobalVariable(val.into()).is_null() }
     }
 
     /// LLVMIsACallInst
@@ -724,6 +730,14 @@ pub fn llvm_get_previous_function(func: LLVMValue) -> Option<LLVMValue> {
     }
 }
 
+/// LLVMGetLasFunction
+pub fn llvm_get_last_function(module: &LLVMModule) -> Option<LLVMValue> {
+    unsafe {
+        let last_func = LLVMGetLastFunction(module.0);
+        (!last_func.is_null()).then_some(last_func.into())
+    }
+}
+
 /// Iterate over all `Function`s in a `Module`.
 pub struct FunctionIter(pub Option<LLVMValue>);
 
@@ -743,6 +757,82 @@ impl Iterator for FunctionIter {
 /// Get an iterator over the functions of a module.
 pub fn function_iter(module: &LLVMModule) -> FunctionIter {
     FunctionIter(llvm_get_first_function(module))
+}
+
+/// LLVMGetFirstGlobal
+pub fn llvm_get_first_global(module: &LLVMModule) -> Option<LLVMValue> {
+    unsafe {
+        let first_global = LLVMGetFirstGlobal(module.0);
+        (!first_global.is_null()).then_some(first_global.into())
+    }
+}
+
+/// LLVMGetNextGlobal
+pub fn llvm_get_next_global(val: LLVMValue) -> Option<LLVMValue> {
+    assert!(llvm_is_a::global_variable(val));
+    unsafe {
+        let next_global = LLVMGetNextGlobal(val.into());
+        (!next_global.is_null()).then_some(next_global.into())
+    }
+}
+
+/// LLVMGetPreviousGlobal
+pub fn llvm_get_previous_global(val: LLVMValue) -> Option<LLVMValue> {
+    assert!(llvm_is_a::global_variable(val));
+    unsafe {
+        let prev_global = LLVMGetPreviousGlobal(val.into());
+        (!prev_global.is_null()).then_some(prev_global.into())
+    }
+}
+
+/// LLVMGetLastGlobal
+pub fn llvm_get_last_global(module: &LLVMModule) -> Option<LLVMValue> {
+    unsafe {
+        let last_global = LLVMGetLastGlobal(module.0);
+        (!last_global.is_null()).then_some(last_global.into())
+    }
+}
+
+/// Iterate over all `GlobalVariable`s in a `Module`.
+pub struct GlobalVariableIter(pub Option<LLVMValue>);
+
+impl Iterator for GlobalVariableIter {
+    type Item = LLVMValue;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(param) = self.0 {
+            self.0 = llvm_get_next_global(param);
+            Some(param)
+        } else {
+            None
+        }
+    }
+}
+
+/// Get an iterator over the global variables of a module.
+pub fn global_iter(module: &LLVMModule) -> GlobalVariableIter {
+    GlobalVariableIter(llvm_get_first_global(module))
+}
+
+/// LLVMGetInitializer
+pub fn llvm_get_initializer(val: LLVMValue) -> Option<LLVMValue> {
+    assert!(llvm_is_a::global_variable(val));
+    unsafe {
+        let initializer = LLVMGetInitializer(val.into());
+        (!initializer.is_null()).then_some(initializer.into())
+    }
+}
+
+/// LLVMSetInitializer
+pub fn llvm_set_initializer(val: LLVMValue, init: LLVMValue) {
+    assert!(llvm_is_a::global_variable(val));
+    assert!(llvm_is_a::constant(init));
+    unsafe { LLVMSetInitializer(val.into(), init.into()) }
+}
+
+/// LLVMAddGlobal
+pub fn llvm_add_global(module: &LLVMModule, ty: LLVMType, name: &str) -> LLVMValue {
+    unsafe { LLVMAddGlobal(module.0, ty.into(), to_c_str(name).as_ptr()).into() }
 }
 
 /// LLVMGetInsertBlock
@@ -1377,6 +1467,12 @@ pub fn llvm_get_undef(ty: LLVMType) -> LLVMValue {
 pub fn llvm_add_function(module: &LLVMModule, name: &str, fn_ty: LLVMType) -> LLVMValue {
     assert!(llvm_get_type_kind(fn_ty) == LLVMTypeKind::LLVMFunctionTypeKind);
     unsafe { LLVMAddFunction(module.0, to_c_str(name).as_ptr(), fn_ty.into()).into() }
+}
+
+/// LLVMDeleteFunction
+pub fn llvm_delete_function(func: LLVMValue) {
+    assert!(llvm_is_a::function(func));
+    unsafe { LLVMDeleteFunction(func.into()) }
 }
 
 /// LLVMAppendBasicBlockInContext

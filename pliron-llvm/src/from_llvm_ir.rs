@@ -16,6 +16,7 @@ use pliron::{
     context::{Context, Ptr},
     identifier::{self, Identifier},
     input_err_noloc, input_error_noloc,
+    linked_list::ContainsLinkedList,
     op::Op,
     operation::Operation,
     result::Result,
@@ -30,24 +31,25 @@ use crate::{
     attributes::{ICmpPredicateAttr, IntegerOverflowFlagsAttr},
     llvm_sys::core::{
         LLVMBasicBlock, LLVMModule, LLVMType, LLVMValue, basic_block_iter, function_iter,
-        incoming_iter, instruction_iter, llvm_const_int_get_zext_value,
+        global_iter, incoming_iter, instruction_iter, llvm_const_int_get_zext_value,
         llvm_count_struct_element_types, llvm_get_aggregate_element, llvm_get_allocated_type,
         llvm_get_array_length2, llvm_get_basic_block_name, llvm_get_basic_block_terminator,
         llvm_get_called_function_type, llvm_get_called_value, llvm_get_const_opcode,
         llvm_get_element_type, llvm_get_gep_source_element_type, llvm_get_icmp_predicate,
-        llvm_get_indices, llvm_get_instruction_opcode, llvm_get_instruction_parent,
-        llvm_get_int_type_width, llvm_get_module_identifier, llvm_get_nsw,
-        llvm_get_num_arg_operands, llvm_get_num_operands, llvm_get_nuw, llvm_get_operand,
-        llvm_get_param_types, llvm_get_return_type, llvm_get_struct_element_types,
-        llvm_get_struct_name, llvm_get_type_kind, llvm_get_value_kind, llvm_get_value_name,
-        llvm_global_get_value_type, llvm_is_a, llvm_is_opaque_struct, llvm_type_of,
-        llvm_value_as_basic_block, llvm_value_is_basic_block, param_iter,
+        llvm_get_indices, llvm_get_initializer, llvm_get_instruction_opcode,
+        llvm_get_instruction_parent, llvm_get_int_type_width, llvm_get_module_identifier,
+        llvm_get_nsw, llvm_get_num_arg_operands, llvm_get_num_operands, llvm_get_nuw,
+        llvm_get_operand, llvm_get_param_types, llvm_get_return_type,
+        llvm_get_struct_element_types, llvm_get_struct_name, llvm_get_type_kind,
+        llvm_get_value_kind, llvm_get_value_name, llvm_global_get_value_type, llvm_is_a,
+        llvm_is_opaque_struct, llvm_type_of, llvm_value_as_basic_block, llvm_value_is_basic_block,
+        param_iter,
     },
     op_interfaces::{BinArithOp, CastOpInterface, IntBinArithOpWithOverflowFlag},
     ops::{
-        AShrOp, AddOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
-        ExtractValueOp, GepIndex, GetElementPtrOp, ICmpOp, InsertValueOp, IntToPtrOp, LShrOp,
-        LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SRemOp, SelectOp, ShlOp,
+        AShrOp, AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
+        ExtractValueOp, GepIndex, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp, IntToPtrOp,
+        LShrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SRemOp, SelectOp, ShlOp,
         StoreOp, SubOp, UDivOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
     },
     types::{ArrayType, PointerType, StructErr, StructType, VoidType},
@@ -226,6 +228,22 @@ pub enum ConversionErr {
     ZeroWidthIntConst,
 }
 
+/// If a value is a ConstantOp with a 32-bit integer type, return the value.
+fn get_const_op_as_u32(ctx: &Context, val: Value) -> Option<u32> {
+    if let Value::OpResult { op, res_idx: _ } = val {
+        if let Some(const_op) = Operation::get_op(op, ctx).downcast_ref::<ConstantOp>() {
+            if let Some(int_attr) = const_op.get_value(ctx).downcast_ref::<IntegerAttr>() {
+                let int_ty = int_attr.get_type().deref(ctx);
+                // LLVM integers are signless.
+                if int_ty.is_signless() && int_ty.get_width() == 32 {
+                    return Some(int_attr.get_value().to_u32());
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Checks if a constant has been processed already, and if not
 /// converts it and puts it in the [ConversionContext::value_map].
 fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMValue) -> Result<()> {
@@ -394,15 +412,17 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                         panic!("We just processed this constant, it must be in the map");
                     };
                     let mut indices = vec![];
-                    // We handle the indices as just values and not constants,
-                    // hopefully they can be canonicalized later.
                     for i in 1..llvm_get_num_operands(val) {
                         let opd = llvm_get_operand(val, i);
                         process_constant(ctx, cctx, opd)?;
                         let Some(m_val) = cctx.value_map.get(&opd) else {
                             panic!("We just processed this constant, it must be in the map");
                         };
-                        indices.push(GepIndex::Value(*m_val));
+                        if let Some(c) = get_const_op_as_u32(ctx, *m_val) {
+                            indices.push(GepIndex::Constant(c));
+                        } else {
+                            indices.push(GepIndex::Value(*m_val));
+                        }
                     }
                     let src_elm_type =
                         convert_type(ctx, cctx, llvm_get_gep_source_element_type(val))?;
@@ -440,6 +460,13 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                 }
                 _ => todo!(),
             }
+        }
+        LLVMValueKind::LLVMGlobalVariableValueKind => {
+            let global_name = llvm_get_value_name(val).unwrap_or_default();
+            let global_name = cctx.id_legaliser.legalise(&global_name);
+            let global_op = AddressOfOp::new(ctx, global_name);
+            BasicBlock::insert_op_before_terminator(entry_block, global_op.get_operation(), ctx);
+            cctx.value_map.insert(val, global_op.get_result(ctx));
         }
         LLVMValueKind::LLVMConstantVectorValueKind => todo!(),
         _ => (),
@@ -662,8 +689,15 @@ fn convert_instruction(
             let base = opds
                 .next()
                 .ok_or_else(|| input_error_noloc!(ConversionErr::OpdMissing(0)))?;
-            // We don't worry about GepIndex::Constant right now. That'll be canonicalized later.
-            let indices = opds.map(|v| GepIndex::Value(*v)).collect::<Vec<_>>();
+            let indices = opds
+                .map(|v| {
+                    if let Some(c) = get_const_op_as_u32(ctx, *v) {
+                        GepIndex::Constant(c)
+                    } else {
+                        GepIndex::Value(*v)
+                    }
+                })
+                .collect::<Vec<_>>();
             let src_elm_type = convert_type(ctx, cctx, llvm_get_gep_source_element_type(inst))?;
             Ok(GetElementPtrOp::new(ctx, *base, indices, src_elm_type)?.get_operation())
         }
@@ -835,7 +869,7 @@ fn convert_function(
     let fn_ty = convert_type(ctx, cctx, llvm_global_get_value_type(function))?;
     let fn_ty = TypePtr::from_ptr(fn_ty, ctx)?;
     // Create a new FuncOp, which also creates an entry block with the right parameters.
-    let m_func = FuncOp::new(ctx, &name, fn_ty);
+    let m_func = FuncOp::new(ctx, name, fn_ty);
     let m_func_reg = m_func.get_region(ctx);
 
     let m_entry_block = m_func.get_entry_block(ctx);
@@ -878,6 +912,41 @@ fn convert_function(
     Ok(m_func)
 }
 
+fn convert_global(
+    ctx: &mut Context,
+    cctx: &mut ConversionContext,
+    global: LLVMValue,
+) -> Result<GlobalOp> {
+    let name = llvm_get_value_name(global).unwrap_or_default();
+    let name = cctx.id_legaliser.legalise(&name);
+
+    let ty = convert_type(
+        ctx,
+        &mut ConversionContext::default(),
+        llvm_global_get_value_type(global),
+    )?;
+
+    let op = GlobalOp::new(ctx, name, ty);
+
+    if let Some(init) = llvm_get_initializer(global) {
+        // TODO: Use attribute based initializer for simple constants.
+        let init_region = op.add_initializer_region(ctx);
+        let entry_block = init_region.deref(ctx).iter(ctx).next().unwrap();
+        cctx.reset_for_region(entry_block);
+
+        // Convert the initializer.
+        process_constant(ctx, cctx, init)?;
+        let Some(m_val) = cctx.value_map.get(&init) else {
+            panic!("We just processed this constant, it must be in the map");
+        };
+
+        let return_op = ReturnOp::new(ctx, Some(*m_val));
+        return_op.get_operation().insert_at_back(entry_block, ctx);
+    }
+
+    Ok(op)
+}
+
 /// Convert [LLVMModule] to [ModuleOp].
 pub fn convert_module(ctx: &mut Context, module: &LLVMModule) -> Result<ModuleOp> {
     let cctx = &mut ConversionContext::default();
@@ -885,9 +954,14 @@ pub fn convert_module(ctx: &mut Context, module: &LLVMModule) -> Result<ModuleOp
     let module_name = llvm_get_module_identifier(module).unwrap_or_default();
     let module_name = cctx.id_legaliser.legalise(&module_name);
 
-    let m = ModuleOp::new(ctx, &module_name);
-    // TODO: Convert globals.
-    // ...
+    let m = ModuleOp::new(ctx, module_name);
+
+    // Convert globals.
+    for gv in global_iter(module) {
+        let m_gv = convert_global(ctx, cctx, gv)?;
+        m.append_operation(ctx, m_gv.get_operation(), 0);
+    }
+
     // Convert functions.
     for fun in function_iter(module) {
         let m_fun = convert_function(ctx, cctx, fun)?;

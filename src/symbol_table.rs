@@ -303,11 +303,11 @@ mod tests {
     #[test]
     fn test_symbol_table() -> Result<()> {
         let ctx = &mut Context::new();
-        let module_op = ModuleOp::new(ctx, &Identifier::try_from("module").unwrap());
+        let module_op = ModuleOp::new(ctx, Identifier::try_from("module").unwrap());
         let mut symbol_table = SymbolTable::new(ctx, Box::new(module_op));
 
         let fty = FunctionType::get(ctx, vec![], vec![]);
-        let f1 = FuncOp::new(ctx, &"f1".try_into().unwrap(), fty);
+        let f1 = FuncOp::new(ctx, "f1".try_into().unwrap(), fty);
 
         symbol_table.insert(ctx, Box::new(f1), None)?;
         assert!(
@@ -316,7 +316,7 @@ mod tests {
         let f1_lookedup = symbol_table.lookup(&"f1".try_into().unwrap()).unwrap();
         assert!(f1_lookedup.get_operation() == f1.get_operation());
 
-        let f2 = FuncOp::new(ctx, &"f2".try_into().unwrap(), fty);
+        let f2 = FuncOp::new(ctx, "f2".try_into().unwrap(), fty);
         symbol_table.insert(ctx, Box::new(f2), Some(f1.get_operation()))?;
         assert!(
             f2.get_operation().deref(ctx).get_parent_op(ctx) == Some(module_op.get_operation())
@@ -335,11 +335,11 @@ mod tests {
     #[should_panic(expected = "Dangling Ptr deref")]
     fn test_symbol_table_erase() {
         let ctx = &mut Context::new();
-        let module_op = ModuleOp::new(ctx, &Identifier::try_from("module").unwrap());
+        let module_op = ModuleOp::new(ctx, Identifier::try_from("module").unwrap());
         let mut symbol_table = SymbolTable::new(ctx, Box::new(module_op));
 
         let fty = FunctionType::get(ctx, vec![], vec![]);
-        let f1 = FuncOp::new(ctx, &"f1".try_into().unwrap(), fty);
+        let f1 = FuncOp::new(ctx, "f1".try_into().unwrap(), fty);
 
         symbol_table.insert(ctx, Box::new(f1), None).unwrap();
         assert!(
@@ -357,12 +357,12 @@ mod tests {
         let ctx = &mut Context::new();
         builtin::register(ctx);
 
-        let module_op = ModuleOp::new(ctx, &Identifier::try_from("module").unwrap());
-        let nested_module_op = ModuleOp::new(ctx, &Identifier::try_from("nested_module").unwrap());
+        let module_op = ModuleOp::new(ctx, Identifier::try_from("module").unwrap());
+        let nested_module_op = ModuleOp::new(ctx, Identifier::try_from("nested_module").unwrap());
         let mut symbol_table_collection = SymbolTableCollection::new();
 
         let fty = FunctionType::get(ctx, vec![], vec![]);
-        let f1 = FuncOp::new(ctx, &"f1".try_into().unwrap(), fty);
+        let f1 = FuncOp::new(ctx, "f1".try_into().unwrap(), fty);
 
         symbol_table_collection
             .get_symbol_table(ctx, Box::new(module_op))
@@ -373,7 +373,7 @@ mod tests {
             .unwrap();
         assert!(f1_lookedup.get_operation() == f1.get_operation());
 
-        let f2 = FuncOp::new(ctx, &"f2".try_into().unwrap(), fty);
+        let f2 = FuncOp::new(ctx, "f2".try_into().unwrap(), fty);
         symbol_table_collection
             .get_symbol_table(ctx, Box::new(nested_module_op))
             .insert(ctx, Box::new(f2), None)?;

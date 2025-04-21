@@ -46,7 +46,7 @@ impl Region {
     /// Move this [Region] to (the end of) a different [Operation].
     /// If `new_parent_op` is same as the current parent, no action.
     /// Indices of other regions in the current parent will be invalidated.
-    pub fn move_to_op(ptr: Ptr<Self>, new_parent_op: Ptr<Operation>, ctx: &mut Context) {
+    pub fn move_to_op(ptr: Ptr<Self>, new_parent_op: Ptr<Operation>, ctx: &Context) {
         let src = ptr.deref(ctx).get_parent_op();
         if src == new_parent_op {
             return;
@@ -56,7 +56,7 @@ impl Region {
             regions
                 .iter()
                 .position(|x| *x == ptr)
-                .expect("Region missing in it's current parent Operations"),
+                .expect("Region missing in it's current parent Operation"),
         );
         new_parent_op.deref_mut(ctx).regions.push(ptr);
         ptr.deref_mut(ctx).parent_op = new_parent_op;

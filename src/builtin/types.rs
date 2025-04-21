@@ -51,6 +51,21 @@ impl IntegerType {
     pub fn get_signedness(&self) -> Signedness {
         self.signedness
     }
+
+    /// Is Signed?
+    pub fn is_signed(&self) -> bool {
+        matches!(self.signedness, Signedness::Signed)
+    }
+
+    /// Is Unsigned?
+    pub fn is_unsigned(&self) -> bool {
+        matches!(self.signedness, Signedness::Unsigned)
+    }
+
+    /// Is Signless?
+    pub fn is_signless(&self) -> bool {
+        matches!(self.signedness, Signedness::Signless)
+    }
 }
 
 impl Parsable for IntegerType {

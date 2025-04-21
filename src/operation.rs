@@ -366,7 +366,7 @@ impl Operation {
         region
     }
 
-    /// Erase `reg_idx`'th region.
+    /// Erase `reg_idx`'th region. Affects the index of all regions after it.
     pub fn erase_region(ptr: Ptr<Self>, ctx: &mut Context, reg_idx: usize) {
         let reg = *ptr.deref(ctx).regions.get(reg_idx).unwrap();
         Region::drop_all_uses(reg, ctx);

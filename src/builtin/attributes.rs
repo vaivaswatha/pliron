@@ -30,7 +30,7 @@ use super::{
 
 #[def_attribute("builtin.identifier")]
 #[derive(PartialEq, Eq, Clone, Debug)]
-#[format_attribute]
+#[format_attribute("$0")]
 pub struct IdentifierAttr(Identifier);
 
 impl IdentifierAttr {
@@ -165,6 +165,16 @@ impl IntegerAttr {
     /// Create a new [IntegerAttr].
     pub fn new(ty: TypePtr<IntegerType>, val: APInt) -> Self {
         IntegerAttr { ty, val }
+    }
+
+    /// Get the value of the attribute.
+    pub fn get_value(&self) -> APInt {
+        self.val.clone()
+    }
+
+    /// Get the type of the attribute.
+    pub fn get_type(&self) -> TypePtr<IntegerType> {
+        self.ty
     }
 }
 

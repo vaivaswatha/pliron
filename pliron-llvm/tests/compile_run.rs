@@ -220,11 +220,6 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         .map_err(|e| arg_error_noloc!(e))
         .unwrap();
 
-    // println!(
-    //     "plir file created:\n{}",
-    //     std::fs::read_to_string(&plir_path).unwrap()
-    // );
-
     // Parse the plir file and verify it.
     let plir_file = std::fs::File::open(&plir_path).unwrap();
     let mut plir_file = std::io::BufReader::new(plir_file);
@@ -249,13 +244,21 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
     }
 
     // Execute it and try.
-    let module = to_llvm_ir::convert_module(ctx, &llvm_context, pliron_module)
-        .map_err(|err| arg_error_noloc!("{}", err))
-        .unwrap();
-    module
-        .verify()
-        .map_err(|err| arg_error_noloc!("{}", err.to_string()))
-        .unwrap();
+    let module = match to_llvm_ir::convert_module(ctx, &llvm_context, pliron_module) {
+        Ok(module) => module,
+        Err(err) => {
+            eprintln!("{}", err.disp(ctx));
+            panic!("Error converting {}", plir_path.to_str().unwrap());
+        }
+    };
+
+    match module.verify() {
+        Ok(_) => (),
+        Err(err) => {
+            eprintln!("{}", err);
+            panic!("Error verifying {}", plir_path.to_str().unwrap());
+        }
+    }
 
     // Write the bitcode to a file.
     let bc_path = tmp_dir.path().join("output.bc");
@@ -305,6 +308,12 @@ fn test_select_via_pliron() {
 
 /// Test const structs and arrays
 #[test]
-fn test_const_struct_array() {
+fn test_consts() {
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("consts.ll").to_str().unwrap(), 203);
+}
+
+/// Test globals
+#[test]
+fn test_globals() {
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("globals.ll").to_str().unwrap(), 59);
 }

@@ -212,8 +212,8 @@ pub trait SymbolOpInterface {
     }
 
     /// Set a name for the symbol defined by this operation.
-    fn set_symbol_name(&self, ctx: &mut Context, name: &Identifier) {
-        let name_attr = IdentifierAttr::new(name.clone());
+    fn set_symbol_name(&self, ctx: &mut Context, name: Identifier) {
+        let name_attr = IdentifierAttr::new(name);
         let mut self_op = self.get_operation().deref_mut(ctx);
         self_op.attributes.set(ATTR_KEY_SYM_NAME.clone(), name_attr);
     }

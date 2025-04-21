@@ -100,7 +100,7 @@ impl Parsable for ModuleOp {
             .parse_stream(state_stream)
             .map(|(name, _region)| -> OpObj {
                 let op = Box::new(ModuleOp { op });
-                op.set_symbol_name(state_stream.state.ctx, &name);
+                op.set_symbol_name(state_stream.state.ctx, name);
                 op
             })
             .into()
@@ -113,7 +113,7 @@ impl ModuleOp {
     /// Create a new [ModuleOp].
     /// The underlying [Operation] is not linked to a [BasicBlock].
     /// The returned module has a single [crate::region::Region] with a single (BasicBlock)[crate::basic_block::BasicBlock].
-    pub fn new(ctx: &mut Context, name: &Identifier) -> ModuleOp {
+    pub fn new(ctx: &mut Context, name: Identifier) -> ModuleOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
         let opop = ModuleOp { op };
         opop.set_symbol_name(ctx, name);
@@ -158,7 +158,7 @@ pub mod func_op {
 impl FuncOp {
     /// Create a new [FuncOp].
     /// The returned function has a single region with an empty `entry` block.
-    pub fn new(ctx: &mut Context, name: &Identifier, ty: TypePtr<FunctionType>) -> Self {
+    pub fn new(ctx: &mut Context, name: Identifier, ty: TypePtr<FunctionType>) -> Self {
         let ty_attr = TypeAttr::new(ty.into());
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
 
@@ -267,7 +267,7 @@ impl Parsable for FuncOp {
                         .set(func_op::ATTR_KEY_FUNC_TYPE.clone(), ty_attr);
                 }
                 let opop = Box::new(FuncOp { op });
-                opop.set_symbol_name(ctx, &fname);
+                opop.set_symbol_name(ctx, fname);
                 opop
             })
             .into()

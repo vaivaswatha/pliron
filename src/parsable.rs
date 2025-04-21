@@ -481,6 +481,30 @@ impl Parsable for u32 {
     }
 }
 
+impl Parsable for i32 {
+    type Arg = ();
+    type Parsed = i32;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        int_parser::<i32>().parse_stream(state_stream).into()
+    }
+}
+
+impl Parsable for i64 {
+    type Arg = ();
+    type Parsed = i64;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        int_parser::<i64>().parse_stream(state_stream).into()
+    }
+}
+
 impl Parsable for bool {
     type Arg = ();
     type Parsed = bool;

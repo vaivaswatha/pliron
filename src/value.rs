@@ -21,6 +21,7 @@ use crate::{
     context::{Context, Ptr},
     identifier::Identifier,
     linked_list::{ContainsLinkedList, LinkedList},
+    location::{Located, Location},
     operation::Operation,
     printable::Printable,
     r#type::{TypeObj, Typed},
@@ -165,6 +166,14 @@ impl Value {
     /// Replace the given use of `this` [Value] with `other`.
     pub fn replace_use_with(&self, ctx: &Context, r#use: Use<Value>, other: &Value) {
         DefNode::replace_use_with(ctx, self, &r#use, other);
+    }
+
+    /// Get this value's location
+    pub fn loc(&self, ctx: &Context) -> Location {
+        match self {
+            Value::OpResult { op, res_idx: _ } => op.deref(ctx).loc(),
+            Value::BlockArgument { block, arg_idx: _ } => block.deref(ctx).loc(),
+        }
     }
 }
 

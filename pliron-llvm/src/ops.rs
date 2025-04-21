@@ -11,8 +11,9 @@ use pliron::{
         attributes::{FloatAttr, IdentifierAttr, IntegerAttr, TypeAttr},
         op_interfaces::{
             self, ATTR_KEY_CALLEE_TYPE, BranchOpInterface, CallOpCallable, CallOpInterface,
-            IsTerminatorInterface, OneOpdInterface, OneResultInterface, SameOperandsAndResultType,
-            SameOperandsType, SameResultsType, SymbolUserOpInterface, ZeroOpdInterface,
+            IsTerminatorInterface, IsolatedFromAboveInterface, OneOpdInterface, OneResultInterface,
+            SameOperandsAndResultType, SameOperandsType, SameResultsType,
+            SingleBlockRegionInterface, SymbolOpInterface, SymbolUserOpInterface, ZeroOpdInterface,
             ZeroResultInterface,
         },
         ops::FuncOp,
@@ -26,8 +27,8 @@ use pliron::{
     irfmt::{
         self,
         parsers::{
-            block_opd_parser, delimited_list_parser, process_parsed_ssa_defs, spaced,
-            ssa_opd_parser,
+            attr_parser, block_opd_parser, delimited_list_parser, process_parsed_ssa_defs, spaced,
+            ssa_opd_parser, type_parser,
         },
         printers::iter_with_sep,
     },
@@ -36,6 +37,7 @@ use pliron::{
     operation::Operation,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::Printable,
+    region::Region,
     result::{Error, ErrorKind, Result},
     symbol_table::SymbolTableCollection,
     r#type::{TypeObj, TypePtr},
@@ -749,6 +751,20 @@ pub enum GepIndex {
     Value(Value),
 }
 
+impl Printable for GepIndex {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &pliron::printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        match self {
+            GepIndex::Constant(c) => write!(f, "{}", c),
+            GepIndex::Value(v) => write!(f, "{}", v.disp(ctx)),
+        }
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum GetElementPtrOpErr {
     #[error("GetElementPtrOp has no or incorrect indices attribute")]
@@ -1122,6 +1138,8 @@ pub enum SymbolUserOpVerifyErr {
     SymbolNotFound(String),
     #[error("Function {0} should have been builtin.func")]
     NotBuiltinFunc(String),
+    #[error("AddressOf Op can only refer to a function or a global variable")]
+    AddressOfInvalidReference,
     #[error("Function {0} has incorrect type: {1}")]
     FuncTypeErr(String, String),
 }
@@ -1300,9 +1318,9 @@ impl UndefOp {
 ///
 /// Attributes:
 ///
-/// | key | value |
-/// |-----|-------|
-/// |[ATTR_KEY_VALUE](constant_op::ATTR_KEY_VALUE) | [IntegerAttr] or [FloatAttr] |
+/// | key | value | via Interface |
+/// |-----|-------| ------------- |
+/// |[ATTR_KEY_VALUE](constant_op::ATTR_KEY_VALUE) | [IntegerAttr] or [FloatAttr] | N/A |
 ///
 /// Results:
 ///
@@ -1395,6 +1413,357 @@ impl ZeroOp {
             0,
         );
         ZeroOp { op }
+    }
+}
+
+pub mod global_op {
+    use std::sync::LazyLock;
+
+    use super::*;
+
+    /// Attribute key for the global variable type.
+    pub static ATTR_KEY_TYPE: LazyLock<Identifier> =
+        LazyLock::new(|| "llvm_global_type".try_into().unwrap());
+
+    /// Attribute key for the global initializer value.
+    pub static ATTR_KEY_INIT: LazyLock<Identifier> =
+        LazyLock::new(|| "llvm_global_initializer".try_into().unwrap());
+}
+
+#[derive(Error, Debug)]
+pub enum GlobalOpVerifyErr {
+    #[error("GlobalOp must have a type")]
+    MissingType,
+}
+
+/// Same as MLIR's LLVM dialect [GlobalOp](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmlirglobal-llvmglobalop)
+/// It creates a global variable of the specified LLVM IR dialect type.
+/// An initializer can be specified either as an attribute or in the
+/// operation's initializer region, ending with a return.
+/// Attributes:
+///
+/// | key | value | via Interface |
+/// |-----|-------| ------------- |
+/// | [ATTR_KEY_TYPE](global_op::ATTR_KEY_TYPE) | [TypeAttr] | N/A |
+/// | [ATTR_KEY_INIT](global_op::ATTR_KEY_INIT) | [AttrObj] | N/A |
+#[def_op("llvm.global")]
+#[derive_op_interface_impl(
+    IsolatedFromAboveInterface,
+    ZeroOpdInterface,
+    ZeroResultInterface,
+    SymbolOpInterface,
+    SingleBlockRegionInterface
+)]
+pub struct GlobalOp;
+impl GlobalOp {
+    /// Create a new [GlobalOp]. An initializer region can be added later if needed.
+    pub fn new(ctx: &mut Context, name: Identifier, ty: Ptr<TypeObj>) -> Self {
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 0);
+
+        // Set type
+        op.deref_mut(ctx)
+            .attributes
+            .set(global_op::ATTR_KEY_TYPE.clone(), TypeAttr::new(ty));
+
+        let op = GlobalOp { op };
+        op.set_symbol_name(ctx, name);
+        op
+    }
+}
+
+impl pliron::r#type::Typed for GlobalOp {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        pliron::r#type::Typed::get_type(
+            self.op
+                .deref(ctx)
+                .attributes
+                .get::<TypeAttr>(&global_op::ATTR_KEY_TYPE)
+                .unwrap(),
+            ctx,
+        )
+    }
+}
+
+impl GlobalOp {
+    /// Get the initializer value of this global variable.
+    pub fn get_initializer_value(&self, ctx: &Context) -> Option<AttrObj> {
+        self.op
+            .deref(ctx)
+            .attributes
+            .0
+            .get(&global_op::ATTR_KEY_INIT)
+            .cloned()
+    }
+
+    /// Get the initializer region's block of this global variable.
+    /// This is a block that ends with a return operation.
+    /// The return operation must have the same type as the global variable.
+    pub fn get_initializer_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
+        (self.op.deref(ctx).num_regions() > 0).then(|| self.get_body(ctx, 0))
+    }
+
+    /// Get the initializer region of this global variable.
+    pub fn get_initializer_region(&self, ctx: &Context) -> Option<Ptr<Region>> {
+        (self.op.deref(ctx).num_regions() > 0)
+            .then(|| self.get_operation().deref(ctx).get_region(0))
+    }
+
+    /// Set a simple initializer value for this global variable.
+    pub fn set_initializer_value(&self, ctx: &Context, value: AttrObj) -> Result<()> {
+        self.op
+            .deref_mut(ctx)
+            .attributes
+            .0
+            .insert(global_op::ATTR_KEY_INIT.clone(), value);
+        Ok(())
+    }
+
+    /// Add an initializer region (with an entry block) for this global variable.
+    /// There shouldn't already be one.
+    pub fn add_initializer_region(&self, ctx: &mut Context) -> Ptr<Region> {
+        assert!(
+            self.get_initializer_value(ctx).is_none(),
+            "Attempt to create an initializer region when there already is an initializer value"
+        );
+        let region = Operation::add_region(self.get_operation(), ctx);
+        let entry = BasicBlock::new(ctx, Some("entry".try_into().unwrap()), vec![]);
+        entry.insert_at_front(region, ctx);
+
+        region
+    }
+}
+
+impl Verify for GlobalOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        let loc = self.loc(ctx);
+
+        // The name must be set. That is checked by the SymbolOpInterface.
+        // So we check that other attributes are set. Start with type.
+        if self
+            .op
+            .deref(ctx)
+            .attributes
+            .get::<TypeAttr>(&global_op::ATTR_KEY_TYPE)
+            .is_none()
+        {
+            return verify_err!(loc, GlobalOpVerifyErr::MissingType);
+        }
+
+        // Check that there is at most one initializer
+        if self
+            .op
+            .deref(ctx)
+            .attributes
+            .0
+            .contains_key(&global_op::ATTR_KEY_INIT)
+            && self.get_operation().deref(ctx).num_regions() > 0
+        {
+            return verify_err!(loc, GlobalOpVerifyErr::MissingType);
+        }
+
+        Ok(())
+    }
+}
+
+impl Printable for GlobalOp {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &pliron::printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(
+            f,
+            "{} @{} : {}",
+            self.get_opid(),
+            self.get_symbol_name(ctx),
+            <Self as pliron::r#type::Typed>::get_type(self, ctx).disp(ctx)
+        )?;
+
+        if let Some(init_value) = self.get_initializer_value(ctx) {
+            write!(f, " = {}", init_value.disp(ctx))?;
+        }
+
+        if let Some(init_region) = self.get_initializer_region(ctx) {
+            write!(f, " = {}", init_region.print(ctx, state))?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Parsable for GlobalOp {
+    type Arg = Vec<(Identifier, Location)>;
+    type Parsed = OpObj;
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        results: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        let loc = state_stream.loc();
+        if !results.is_empty() {
+            return input_err!(loc, "GlobalOp must cannot have results")?;
+        }
+        let name_parser = combine::token('@').with(Identifier::parser(()));
+        let type_parser = type_parser();
+
+        let mut parser = name_parser
+            .skip(spaced(combine::token(':')))
+            .and(type_parser);
+
+        let ((name, ty), _) = parser.parse_stream(state_stream).into_result()?;
+        let op = GlobalOp::new(state_stream.state.ctx, name, ty);
+
+        enum Initializer {
+            Value(AttrObj),
+            Region(Ptr<Region>),
+        }
+        // Parse optional initializer value or region.
+        let initializer_parser = spaced(combine::token('=')).with(
+            attr_parser()
+                .map(Initializer::Value)
+                .or(Region::parser(op.get_operation()).map(Initializer::Region)),
+        );
+
+        let initializer = combine::optional(initializer_parser)
+            .parse_stream(state_stream)
+            .into_result()?;
+
+        if let Some(initializer) = initializer.0 {
+            match initializer {
+                Initializer::Value(v) => op.set_initializer_value(state_stream.state.ctx, v)?,
+                Initializer::Region(_r) => {
+                    // Nothing to do since the region is already added to the operation during parsing.
+                }
+            }
+        }
+
+        Ok(Box::new(op) as OpObj).into_parse_result()
+    }
+}
+
+pub mod address_of_op {
+    use std::sync::LazyLock;
+
+    use super::*;
+    /// Attribute key for the global name.
+    pub static ATTR_KEY_GLOBAL_NAME: LazyLock<Identifier> =
+        LazyLock::new(|| "llvm_address_of_global_name".try_into().unwrap());
+}
+
+/// Same as MLIR's LLVM dialect [AddressOfOp](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmliraddressof-llvmaddressofop)
+/// Creates an SSA value containing a pointer to a global value (function, variable etc).
+/// Results:
+///
+/// | result | description |
+/// |-----|-------|
+/// | `result` | LLVM pointer type |
+///
+/// Attributes:
+/// | key | value | via Interface |
+/// |-----|-------| ------------- |
+/// |[ATTR_KEY_GLOBAL_NAME](address_of_op::ATTR_KEY_GLOBAL_NAME) | [IdentifierAttr] | N/A |
+///
+#[def_op("llvm.addressof")]
+#[derive_op_interface_impl(OneResultInterface)]
+#[format_op("`@` attr($llvm_address_of_global_name, $IdentifierAttr) ` : ` type($0)")]
+pub struct AddressOfOp;
+
+impl_verify_succ!(AddressOfOp);
+
+impl AddressOfOp {
+    /// Create a new [AddressOfOp].
+    pub fn new(ctx: &mut Context, global_name: Identifier) -> Self {
+        let result_type = PointerType::get(ctx).into();
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![result_type],
+            vec![],
+            vec![],
+            0,
+        );
+        op.deref_mut(ctx).attributes.set(
+            address_of_op::ATTR_KEY_GLOBAL_NAME.clone(),
+            IdentifierAttr::new(global_name),
+        );
+        AddressOfOp { op }
+    }
+
+    /// Get the global name that this refers to.
+    pub fn get_global_name(&self, ctx: &Context) -> Identifier {
+        self.get_operation()
+            .deref(ctx)
+            .attributes
+            .get::<IdentifierAttr>(&address_of_op::ATTR_KEY_GLOBAL_NAME)
+            .unwrap()
+            .clone()
+            .into()
+    }
+
+    /// If this operation referes to a global, get it.
+    pub fn get_global(
+        &self,
+        ctx: &Context,
+        symbol_tables: &mut SymbolTableCollection,
+    ) -> Option<GlobalOp> {
+        let global_name = self.get_global_name(ctx);
+        symbol_tables
+            .lookup_symbol_in_nearest_table(ctx, self.get_operation(), &global_name)
+            .and_then(|sym_op| {
+                (sym_op as Box<dyn Op>)
+                    .downcast::<GlobalOp>()
+                    .map(|op| *op)
+                    .ok()
+            })
+    }
+
+    /// If this operation refers to a function, get it.
+    pub fn get_function(
+        &self,
+        ctx: &Context,
+        symbol_tables: &mut SymbolTableCollection,
+    ) -> Option<FuncOp> {
+        let global_name = self.get_global_name(ctx);
+        symbol_tables
+            .lookup_symbol_in_nearest_table(ctx, self.get_operation(), &global_name)
+            .and_then(|sym_op| {
+                (sym_op as Box<dyn Op>)
+                    .downcast::<FuncOp>()
+                    .map(|op| *op)
+                    .ok()
+            })
+    }
+}
+
+impl SymbolUserOpInterface for AddressOfOp {
+    fn used_symbols(&self, ctx: &Context) -> Vec<Identifier> {
+        vec![self.get_global_name(ctx)]
+    }
+
+    fn verify_symbol_uses(
+        &self,
+        ctx: &Context,
+        symbol_tables: &mut SymbolTableCollection,
+    ) -> Result<()> {
+        let loc = self.loc(ctx);
+        let global_name = self.get_global_name(ctx);
+        let Some(symbol) =
+            symbol_tables.lookup_symbol_in_nearest_table(ctx, self.get_operation(), &global_name)
+        else {
+            return verify_err!(
+                loc,
+                SymbolUserOpVerifyErr::SymbolNotFound(global_name.to_string())
+            );
+        };
+
+        // Symbol can only be a FuncOp or a GlobalOp
+        let is_global = (&*symbol as &dyn Op).is::<GlobalOp>();
+        let is_func = (&*symbol as &dyn Op).is::<FuncOp>();
+        if !is_global && !is_func {
+            return verify_err!(loc, SymbolUserOpVerifyErr::AddressOfInvalidReference);
+        }
+
+        Ok(())
     }
 }
 
@@ -1797,6 +2166,8 @@ pub fn register(ctx: &mut Context) {
     LoadOp::register(ctx, LoadOp::parser_fn);
     StoreOp::register(ctx, StoreOp::parser_fn);
     CallOp::register(ctx, CallOp::parser_fn);
+    AddressOfOp::register(ctx, AddressOfOp::parser_fn);
+    GlobalOp::register(ctx, GlobalOp::parser_fn);
     ConstantOp::register(ctx, ConstantOp::parser_fn);
     ZeroOp::register(ctx, ZeroOp::parser_fn);
     SExtOp::register(ctx, SExtOp::parser_fn);
