@@ -1,5 +1,4 @@
-# Programming Languages Intermediate RepresentatiON
-
+## Programming Languages Intermediate Representation
 
 [![Status](https://github.com/vaivaswatha/pliron/actions/workflows/ci.yml/badge.svg)](https://github.com/vaivaswatha/pliron/actions/workflows/ci.yml)
 
@@ -16,11 +15,13 @@ and written in safe Rust.
 
   It should print something like:
   ```mlir
-  builtin.module @bar {
+  builtin.module @bar 
+  {
     ^block_1v1():
-      builtin.func @foo: builtin.function<() -> (builtin.int <si64>)> {
+      builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+      {
         ^entry_block_2v1():
-          c0_op_3v1_res0 = test.constant builtin.integer <0x0: builtin.int <si64>>;
+          c0_op_3v1_res0 = test.constant builtin.integer <0: si64>;
           test.return c0_op_3v1_res0
       }
   }
