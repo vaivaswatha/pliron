@@ -1,5 +1,6 @@
 # Programming Languages Intermediate RepresentatiON
 
+
 [![Status](https://github.com/vaivaswatha/pliron/actions/workflows/ci.yml/badge.svg)](https://github.com/vaivaswatha/pliron/actions/workflows/ci.yml)
 
 `pliron` is an extensible compiler IR framework, inspired by [MLIR](https://mlir.llvm.org/docs/LangRef/)
@@ -46,3 +47,5 @@ with other compiler projects, touching upon some design decisions.
 * [pliron: An Extensible IR Framework in Rust - IICT'24](https://www.youtube.com/watch?v=LobYuwcUaZA)
 * [Rust(ing) the Future of Compilers: Pliron as the MLIR Alternative (No C/C++)](https://www.youtube.com/watch?v=rRgYGBAhKQ0)
 * [Pliron Rust Workshop (6 sessions)](https://www.youtube.com/watch?v=6EjMWJ2PY-o)
+
+![pliron-logo](https://github.com/user-attachments/assets/adfaaeed-775f-4290-92fd-93d7c9b4fd12)
