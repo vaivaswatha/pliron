@@ -1,7 +1,5 @@
 use std::{env, path::PathBuf, sync::LazyLock};
 
-
-
 use assert_cmd::Command;
 use expect_test::expect;
 use tempfile::{TempDir, tempdir};
