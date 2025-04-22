@@ -28,12 +28,16 @@ struct Cli {
 }
 
 fn run(cli: Cli, ctx: &mut Context) -> Result<()> {
+    env_logger::init();
+
     let llvm_context = LLVMContext::default();
     let module = LLVMModule::from_ir_in_file(&llvm_context, cli.input.to_str().unwrap())
         .map_err(|err| arg_error_noloc!("{}", err))?;
 
     let pliron_module = from_llvm_ir::convert_module(ctx, &module)?;
-    // println!("{}", pliron_module.disp(ctx));
+
+    log::debug!("pliron LLVM-IR:\n{}", pliron_module.disp(ctx));
+
     pliron_module.get_operation().verify(ctx)?;
 
     let module = to_llvm_ir::convert_module(ctx, &llvm_context, pliron_module)?;

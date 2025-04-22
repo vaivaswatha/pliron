@@ -1,6 +1,9 @@
 //! Tests that compile code and run it.
 
-use std::{path::PathBuf, sync::LazyLock};
+use std::{env, path::PathBuf, sync::LazyLock};
+
+mod common;
+use common::init_env_logger;
 
 use assert_cmd::Command;
 use expect_test::expect;
@@ -17,7 +20,7 @@ use pliron::{
 };
 use pliron_llvm::{
     from_llvm_ir,
-    llvm_sys::core::{LLVMContext, LLVMModule},
+    llvm_sys::core::{LLVMContext, LLVMModule, llvm_print_module_to_string},
     to_llvm_ir,
 };
 use tempfile::{TempDir, tempdir};
@@ -204,6 +207,11 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         }
     };
 
+    log::debug!(
+        "pliron module constructed from input LLVM-IR:\n{}",
+        pliron_module.disp(ctx)
+    );
+
     match pliron_module.get_operation().verify(ctx) {
         Ok(_) => (),
         Err(err) => {
@@ -235,6 +243,11 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         }
     };
 
+    log::debug!(
+        "pliron module re-parsed after printing:\n{}",
+        parsed_res.disp(ctx)
+    );
+
     match parsed_res.verify(ctx) {
         Ok(_) => (),
         Err(err) => {
@@ -251,6 +264,11 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
             panic!("Error converting {}", plir_path.to_str().unwrap());
         }
     };
+
+    log::debug!(
+        "LLVM module generated from pliron LLVM-IR:\n{}",
+        llvm_print_module_to_string(&module).unwrap()
+    );
 
     match module.verify() {
         Ok(_) => (),
@@ -309,11 +327,13 @@ fn test_select_via_pliron() {
 /// Test const structs and arrays
 #[test]
 fn test_consts() {
+    init_env_logger();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("consts.ll").to_str().unwrap(), 203);
 }
 
 /// Test globals
 #[test]
 fn test_globals() {
+    init_env_logger();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("globals.ll").to_str().unwrap(), 59);
 }

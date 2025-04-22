@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["pliron-derive", "pliron-llvm"]
+members = ["pliron-derive", "pliron-llvm", "pliron-llvm/llvm-opt"]
 
 [package]
 name = "pliron"
@@ -37,6 +37,7 @@ combine.workspace = true
 utf8-chars = "3"
 regex = "1"
 dyn-clone.workspace = true
+log.workspace = true
 
 [dev-dependencies]
 expect-test.workspace = true
@@ -56,3 +57,4 @@ combine = "4"
 thiserror = "1"
 linkme = "0"
 tempfile = "3"
+log = "0"
