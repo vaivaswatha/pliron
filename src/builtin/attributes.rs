@@ -321,7 +321,10 @@ impl Parsable for DictAttr {
         _state_stream: &mut StateStream<'a>,
         _argg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
-        todo!()
+        AttributeDict::parser(())
+            .map(DictAttr)
+            .parse_stream(_state_stream)
+            .into_result()
     }
 }
 

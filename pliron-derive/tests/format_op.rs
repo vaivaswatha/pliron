@@ -80,9 +80,9 @@ fn one_result_zero_operands() {
     expect![[r#"
         builtin.func @testfunc: builtin.function <()->()> 
         {
-          ^entry_block_1v1():
-            res0_op_2v1_res0 = test.one_result_zero_operands :builtin.integer si64;
-            test.return res0_op_2v1_res0
+          ^entry_block1v1():
+            res0_op2v1_res0 = test.one_result_zero_operands :builtin.integer si64;
+            test.return res0_op2v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -120,10 +120,10 @@ fn one_result_one_operand() {
     expect![[r#"
         builtin.func @testfunc: builtin.function <()->()> 
         {
-          ^entry_block_1v1():
-            res0_op_2v1_res0 = test.one_result_zero_operands :builtin.integer si64;
-            res1_op_3v1_res0 = test.one_result_one_operand res0_op_2v1_res0:builtin.integer si64;
-            test.return res1_op_3v1_res0
+          ^entry_block1v1():
+            res0_op2v1_res0 = test.one_result_zero_operands :builtin.integer si64;
+            res1_op3v1_res0 = test.one_result_one_operand res0_op2v1_res0:builtin.integer si64;
+            test.return res1_op3v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -160,10 +160,10 @@ fn two_result_two_operands() {
     expect![[r#"
         builtin.func @testfunc: builtin.function <()->()> 
         {
-          ^entry_block_1v1():
-            res0_op_2v1_res0 = test.one_result_zero_operands :builtin.integer si64;
-            res1a_op_3v1_res0, res1b_op_3v1_res1 = test.two_results_two_operands res0_op_2v1_res0,res0_op_2v1_res0:(builtin.integer si64,builtin.integer si64);
-            test.return res1a_op_3v1_res0
+          ^entry_block1v1():
+            res0_op2v1_res0 = test.one_result_zero_operands :builtin.integer si64;
+            res1a_op3v1_res0, res1b_op3v1_res1 = test.two_results_two_operands res0_op2v1_res0,res0_op2v1_res0:(builtin.integer si64,builtin.integer si64);
+            test.return res1a_op3v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -200,9 +200,9 @@ fn attr_op() {
     expect![[r#"
         builtin.func @testfunc: builtin.function <()->()> 
         {
-          ^entry_block_1v1():
-            res0_op_2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
-            test.return res0_op_2v1_res0
+          ^entry_block1v1():
+            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
+            test.return res0_op2v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -237,9 +237,9 @@ fn attr_op2() {
     expect![[r#"
         builtin.func @testfunc: builtin.function <()->()> 
         {
-          ^entry_block_1v1():
-            res0_op_2v1_res0 = test.attr_op2 "Hello World":builtin.integer si64;
-            test.return res0_op_2v1_res0
+          ^entry_block1v1():
+            res0_op2v1_res0 = test.attr_op2 "Hello World":builtin.integer si64;
+            test.return res0_op2v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -274,9 +274,9 @@ fn attr_op3() {
     expect![[r#"
         builtin.func @testfunc: builtin.function <()->()> 
         {
-          ^entry_block_1v1():
-            res0_op_2v1_res0 = test.attr_op3 builtin.integer <0: si64>:builtin.integer si64;
-            test.return res0_op_2v1_res0
+          ^entry_block1v1():
+            res0_op2v1_res0 = test.attr_op3 builtin.integer <0: si64>:builtin.integer si64;
+            test.return res0_op2v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -318,15 +318,15 @@ fn if_op() {
     expect![[r#"
         builtin.func @testfunc: builtin.function <()->()> 
         {
-          ^entry_block_2v1():
-            res0_op_2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
-            test.if_op (res0_op_2v1_res0)
+          ^entry_block2v1():
+            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
+            test.if_op (res0_op2v1_res0)
             {
-              ^then_block_1v1():
-                res1_op_4v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
-                test.return res1_op_4v1_res0
+              ^then_block1v1():
+                res1_op4v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
+                test.return res1_op4v1_res0
             };
-            test.return res0_op_2v1_res0
+            test.return res0_op2v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -372,20 +372,20 @@ fn if_else_op() {
     expect![[r#"
         builtin.func @testfunc: builtin.function <()->()> 
         {
-          ^entry_block_3v1():
-            res0_op_2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
-            test.if_else_op (res0_op_2v1_res0)
+          ^entry_block3v1():
+            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
+            test.if_else_op (res0_op2v1_res0)
             {
-              ^then_block_1v1():
-                res1_op_4v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
-                test.return res1_op_4v1_res0
+              ^then_block1v1():
+                res1_op4v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
+                test.return res1_op4v1_res0
             }else
             {
-              ^else_block_2v1():
-                res2_op_6v1_res0 = test.attr_op <2: si64>:builtin.integer si64;
-                test.return res2_op_6v1_res0
+              ^else_block2v1():
+                res2_op6v1_res0 = test.attr_op <2: si64>:builtin.integer si64;
+                test.return res2_op6v1_res0
             };
-            test.return res0_op_2v1_res0
+            test.return res0_op2v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -424,11 +424,12 @@ fn br_op() {
     expect![[r#"
         builtin.func @testfunc: builtin.function <()->()> 
         {
-          ^entry_block_2v1():
-            res0_op_2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
-            test.br ^bb1_block_3v1(res0_op_2v1_res0)
-          ^bb1_block_3v1(arg0_block_3v1_arg0:builtin.integer si64):
-            test.return arg0_block_3v1_arg0
+          ^entry_block2v1():
+            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
+            test.br ^bb1_block3v1(res0_op2v1_res0)
+
+          ^bb1_block3v1(arg0_block3v1_arg0: builtin.integer si64):
+            test.return arg0_block3v1_arg0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -469,13 +470,15 @@ fn multiple_successors_op() {
     expect![[r#"
         builtin.func @testfunc: builtin.function <()->()> 
         {
-          ^entry_block_3v1():
-            res0_op_2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
-            test.multiple_successors [^bb1_block_4v1, ^bb2_block_1v3]
-          ^bb1_block_4v1():
-            test.return res0_op_2v1_res0
-          ^bb2_block_1v3():
-            test.return res0_op_2v1_res0
+          ^entry_block3v1():
+            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
+            test.multiple_successors [^bb1_block4v1, ^bb2_block1v3]
+
+          ^bb1_block4v1():
+            test.return res0_op2v1_res0
+
+          ^bb2_block1v3():
+            test.return res0_op2v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -523,20 +526,20 @@ fn multiple_regions_op() {
     expect![[r#"
         builtin.func @testfunc: builtin.function <()->()> 
         {
-          ^entry_block_3v1():
-            res_op_2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
+          ^entry_block3v1():
+            res_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
             test.multiple_regions [
             {
-              ^reg1_entry_block_1v1():
-                res0_op_4v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
-                test.return res0_op_4v1_res0
+              ^reg1_entry_block1v1():
+                res0_op4v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
+                test.return res0_op4v1_res0
             }, 
             {
-              ^reg2_entry_block_2v1():
-                res1_op_6v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
-                test.return res1_op_6v1_res0
+              ^reg2_entry_block2v1():
+                res1_op6v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
+                test.return res1_op6v1_res0
             }];
-            test.return res_op_2v1_res0
+            test.return res_op2v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -576,10 +579,10 @@ fn attr_dict_op() {
     expect![[r#"
         builtin.func @testfunc: builtin.function <()->()> 
         {
-          ^entry_block_1v1():
-            res0_op_2v1_res0 = test.attr_op <3: si64>:builtin.integer si64;
+          ^entry_block1v1():
+            res0_op2v1_res0 = test.attr_op <3: si64>:builtin.integer si64;
             test.attr_dict [(attr1: builtin.integer <0: si64>), (attr2: builtin.integer <1: si64>)];
-            test.return res0_op_2v1_res0
+            test.return res0_op2v1_res0
         }"#]]
     .assert_eq(&res.disp(ctx).to_string());
 
@@ -695,14 +698,14 @@ fn multiple_regions4_op() {
     expect![[r#"
         test.multiple_regions4 [
         {
-          ^reg1_entry_block_1v1():
-            res0_op_2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
-            test.return res0_op_2v1_res0
+          ^reg1_entry_block1v1():
+            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
+            test.return res0_op2v1_res0
         }, 
         {
-          ^reg2_entry_block_2v1():
-            res1_op_4v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
-            test.return res1_op_4v1_res0
+          ^reg2_entry_block2v1():
+            res1_op4v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
+            test.return res1_op4v1_res0
         }]"#]]
     .assert_eq(&res.disp(ctx).to_string());
 

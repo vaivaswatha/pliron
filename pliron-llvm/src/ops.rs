@@ -23,14 +23,14 @@ use pliron::{
     context::{Context, Ptr},
     derive::{format, format_op},
     identifier::Identifier,
-    impl_canonical_syntax, impl_verify_succ, input_err,
+    impl_verify_succ, input_err,
     irfmt::{
         self,
         parsers::{
             attr_parser, block_opd_parser, delimited_list_parser, process_parsed_ssa_defs, spaced,
             ssa_opd_parser, type_parser,
         },
-        printers::iter_with_sep,
+        printers::{iter_with_sep, list_with_sep},
     },
     location::{Located, Location},
     op::{Op, OpObj},
@@ -1140,8 +1140,8 @@ pub enum SymbolUserOpVerifyErr {
     NotBuiltinFunc(String),
     #[error("AddressOf Op can only refer to a function or a global variable")]
     AddressOfInvalidReference,
-    #[error("Function {0} has incorrect type: {1}")]
-    FuncTypeErr(String, String),
+    #[error("Function call has incorrect type: {0}")]
+    FuncTypeErr(String),
 }
 
 #[op_interface_impl]
@@ -1173,75 +1173,33 @@ impl SymbolUserOpInterface for CallOp {
                 let Some(func_op_ty) = func_op_ty.downcast_ref::<FunctionType>() else {
                     return verify_err!(
                         self.loc(ctx),
-                        SymbolUserOpVerifyErr::FuncTypeErr(
-                            callee_sym.to_string(),
-                            "not a function".to_string()
-                        )
+                        SymbolUserOpVerifyErr::FuncTypeErr("Calle is not a function".to_string())
                     );
                 };
-                let args = self.args(ctx);
-                let expected_args = func_op_ty.get_inputs();
-                if args.len() != expected_args.len() {
+
+                let callee_ty = &*self.callee_type(ctx).deref(ctx);
+                if func_op_ty != callee_ty {
                     return verify_err!(
                         self.loc(ctx),
-                        SymbolUserOpVerifyErr::FuncTypeErr(
-                            callee_sym.to_string(),
-                            "arguement count mismatch.".to_string()
-                        )
+                        SymbolUserOpVerifyErr::FuncTypeErr(format!(
+                            "expected {}, got {}",
+                            func_op_ty.disp(ctx),
+                            callee_ty.disp(ctx)
+                        ))
                     );
                 }
-                use pliron::r#type::Typed;
-                for (arg_idx, (arg, expected_arg)) in
-                    args.iter().zip(expected_args.iter()).enumerate()
-                {
-                    if arg.get_type(ctx) != *expected_arg {
-                        return verify_err!(
-                            self.loc(ctx),
-                            SymbolUserOpVerifyErr::FuncTypeErr(
-                                callee_sym.to_string(),
-                                format!(
-                                    "arguement {} type mismatch: expected {}, got {}",
-                                    arg_idx,
-                                    expected_arg.disp(ctx),
-                                    arg.get_type(ctx).disp(ctx)
-                                )
-                            )
-                        );
-                    }
-                }
-
-                if func_op_ty.get_results().len() > 1 {
-                    return verify_err!(
-                        self.loc(ctx),
-                        SymbolUserOpVerifyErr::FuncTypeErr(
-                            callee_sym.to_string(),
-                            "multiple results".to_string()
-                        )
-                    );
-                }
-
-                if let Some(res_ty) = func_op_ty.get_results().first() {
-                    if self.result_type(ctx) != *res_ty {
-                        return verify_err!(
-                            self.loc(ctx),
-                            SymbolUserOpVerifyErr::FuncTypeErr(
-                                callee_sym.to_string(),
-                                format!(
-                                    "result type mismatch: expected {}, got {}",
-                                    res_ty.disp(ctx),
-                                    self.result_type(ctx).disp(ctx)
-                                )
-                            )
-                        );
-                    }
-                }
-
-                Ok(())
             }
-            CallOpCallable::Indirect(_pointer) => {
-                todo!("See CallOp::verifySymbolUses in LLVMDialect.cpp")
+            CallOpCallable::Indirect(pointer) => {
+                use pliron::r#type::Typed;
+                if !pointer.get_type(ctx).deref(ctx).is::<PointerType>() {
+                    return verify_err!(
+                        self.loc(ctx),
+                        SymbolUserOpVerifyErr::FuncTypeErr("Callee must be a pointer".to_string())
+                    );
+                }
             }
         }
+        Ok(())
     }
 
     fn used_symbols(&self, ctx: &Context) -> Vec<Identifier> {
@@ -1281,8 +1239,127 @@ impl CallOpInterface for CallOp {
         op.operands().skip(skip).collect()
     }
 }
-impl_canonical_syntax!(CallOp);
-impl_verify_succ!(CallOp);
+
+impl Printable for CallOp {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &pliron::printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let callee = self.callee(ctx);
+        write!(
+            f,
+            "{} = {} ",
+            self.get_result(ctx).disp(ctx),
+            self.get_opid()
+        )?;
+        match callee {
+            CallOpCallable::Direct(callee_sym) => {
+                write!(f, "@{}", callee_sym)?;
+            }
+            CallOpCallable::Indirect(callee_val) => {
+                write!(f, "{}", callee_val.disp(ctx))?;
+            }
+        }
+        let args = self.args(ctx);
+        let ty = self.callee_type(ctx);
+        write!(
+            f,
+            " ({}) : {}",
+            list_with_sep(&args, pliron::printable::ListSeparator::CharSpace(',')).disp(ctx),
+            ty.disp(ctx)
+        )?;
+        Ok(())
+    }
+}
+
+impl Parsable for CallOp {
+    type Arg = Vec<(Identifier, Location)>;
+    type Parsed = OpObj;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        results: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        let direct_callee = combine::token('@')
+            .with(Identifier::parser(()))
+            .map(CallOpCallable::Direct);
+        let indirect_callee = ssa_opd_parser().map(CallOpCallable::Indirect);
+        let callee_parser = direct_callee.or(indirect_callee);
+        let args_parser = delimited_list_parser('(', ')', ',', ssa_opd_parser());
+        let ty_parser = spaced(combine::token(':')).with(TypePtr::<FunctionType>::parser(()));
+
+        let mut final_parser = spaced(callee_parser)
+            .and(spaced(args_parser))
+            .and(ty_parser)
+            .then(move |((callee, args), ty)| {
+                let results = results.clone();
+                combine::parser(move |parsable_state: &mut StateStream<'a>| {
+                    let ctx = &mut parsable_state.state.ctx;
+                    let op = CallOp::new(ctx, callee.clone(), ty, args.clone());
+                    process_parsed_ssa_defs(parsable_state, &results, op.get_operation())?;
+                    Ok(Box::new(op) as Box<dyn Op>).into_parse_result()
+                })
+            });
+
+        final_parser.parse_stream(state_stream).into_result()
+    }
+}
+
+impl Verify for CallOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        // Check that the argument and result types match the callee type.
+        let callee_ty = &*self.callee_type(ctx).deref(ctx);
+        // Check the function type against the arguments.
+        let args = self.args(ctx);
+        let expected_args = callee_ty.get_inputs();
+        if args.len() != expected_args.len() {
+            return verify_err!(
+                self.loc(ctx),
+                SymbolUserOpVerifyErr::FuncTypeErr("arguement count mismatch.".to_string())
+            );
+        }
+        use pliron::r#type::Typed;
+        for (arg_idx, (arg, expected_arg)) in args.iter().zip(expected_args.iter()).enumerate() {
+            if arg.get_type(ctx) != *expected_arg {
+                return verify_err!(
+                    self.loc(ctx),
+                    SymbolUserOpVerifyErr::FuncTypeErr(format!(
+                        "arguement {} type mismatch: expected {}, got {}",
+                        arg_idx,
+                        expected_arg.disp(ctx),
+                        arg.get_type(ctx).disp(ctx)
+                    ))
+                );
+            }
+        }
+
+        if callee_ty.get_results().len() > 1 {
+            return verify_err!(
+                self.loc(ctx),
+                SymbolUserOpVerifyErr::FuncTypeErr(
+                    "LLVM dialect allows only a single result".to_string()
+                )
+            );
+        }
+
+        if let Some(res_ty) = callee_ty.get_results().first() {
+            if self.result_type(ctx) != *res_ty {
+                return verify_err!(
+                    self.loc(ctx),
+                    SymbolUserOpVerifyErr::FuncTypeErr(format!(
+                        "result type mismatch: expected {}, got {}",
+                        res_ty.disp(ctx),
+                        self.result_type(ctx).disp(ctx)
+                    ))
+                );
+            }
+        }
+
+        Ok(())
+    }
+}
 
 /// Undefined value of a type.
 /// See MLIR's [llvm.mlir.undef](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmlirundef-llvmundefop).
@@ -1294,8 +1371,8 @@ impl_verify_succ!(CallOp);
 /// | `result` | any type |
 #[def_op("llvm.undef")]
 #[derive_op_interface_impl(OneResultInterface)]
+#[format_op("`: ` type($0)")]
 pub struct UndefOp;
-impl_canonical_syntax!(UndefOp);
 impl_verify_succ!(UndefOp);
 
 impl UndefOp {
@@ -1397,7 +1474,7 @@ impl Verify for ConstantOp {
 /// | `result` | any type |
 #[def_op("llvm.zero")]
 #[derive_op_interface_impl(ZeroOpdInterface, OneResultInterface)]
-#[format_op("` : ` type($0)")]
+#[format_op("`: ` type($0)")]
 pub struct ZeroOp;
 impl_verify_succ!(ZeroOp);
 

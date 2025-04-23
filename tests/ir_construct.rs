@@ -95,13 +95,13 @@ fn replace_c0_with_c1_operand() -> Result<()> {
     expect![[r#"
         builtin.module @bar 
         {
-          ^block_1v1():
+          ^block1v1():
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
-              ^entry_block_2v1():
-                c0_op_3v1_res0 = test.constant builtin.integer <0: si64>;
-                c1_op_5v1_res0 = test.constant builtin.integer <1: si64>;
-                test.return c0_op_3v1_res0
+              ^entry_block2v1():
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                c1_op5v1_res0 = test.constant builtin.integer <1: si64>;
+                test.return c0_op3v1_res0
             }
         }"#]]
     .assert_eq(&printed);
@@ -113,12 +113,12 @@ fn replace_c0_with_c1_operand() -> Result<()> {
     expect![[r#"
         builtin.module @bar 
         {
-          ^block_1v1():
+          ^block1v1():
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
-              ^entry_block_2v1():
-                c1_op_5v1_res0 = test.constant builtin.integer <1: si64>;
-                test.return c1_op_5v1_res0
+              ^entry_block2v1():
+                c1_op5v1_res0 = test.constant builtin.integer <1: si64>;
+                test.return c1_op5v1_res0
             }
         }"#]]
     .assert_eq(&printed);
@@ -166,13 +166,13 @@ fn test_replace_within_same_def_site() {
     expect![[r#"
         builtin.module @bar 
         {
-          ^block_1v1():
+          ^block1v1():
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
-              ^entry_block_2v1():
-                c0_op_4v1_res0 = test.constant builtin.integer <0: si64>;
-                op_1v1_res0, op_1v1_res1 = test.dual_def () [] []: <() -> (builtin.integer si64, builtin.integer si64)>;
-                test.return op_1v1_res1
+              ^entry_block2v1():
+                c0_op4v1_res0 = test.constant builtin.integer <0: si64>;
+                op1v1_res0, op1v1_res1 = test.dual_def () [] []: <() -> (builtin.integer si64, builtin.integer si64)>;
+                test.return op1v1_res1
             }
         }"#]]
     .assert_eq(&printed);
@@ -191,15 +191,16 @@ fn test_replace_within_same_def_site() {
     expect![[r#"
         builtin.module @bar 
         {
-          ^block_1v1():
+          ^block1v1():
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
-              ^entry_block_2v1():
-                c0_op_4v1_res0 = test.constant builtin.integer <0: si64>;
-                op_1v1_res0, op_1v1_res1 = test.dual_def () [] []: <() -> (builtin.integer si64, builtin.integer si64)>;
-                test.return op_1v1_res1
-              ^block_3v1(block_3v1_arg0:builtin.integer si64,block_3v1_arg1:builtin.integer si64):
-                test.return block_3v1_arg1
+              ^entry_block2v1():
+                c0_op4v1_res0 = test.constant builtin.integer <0: si64>;
+                op1v1_res0, op1v1_res1 = test.dual_def () [] []: <() -> (builtin.integer si64, builtin.integer si64)>;
+                test.return op1v1_res1
+
+              ^block3v1(block3v1_arg0: builtin.integer si64, block3v1_arg1: builtin.integer si64):
+                test.return block3v1_arg1
             }
         }"#]]
     .assert_eq(&printed);
@@ -214,12 +215,12 @@ fn print_simple() -> Result<()> {
     expect![[r#"
         builtin.module @bar 
         {
-          ^block_1v1():
+          ^block1v1():
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
-              ^entry_block_2v1():
-                c0_op_3v1_res0 = test.constant builtin.integer <0: si64>;
-                test.return c0_op_3v1_res0
+              ^entry_block2v1():
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                test.return c0_op3v1_res0
             }
         }"#]]
     .assert_eq(&printed);
@@ -385,22 +386,22 @@ fn test_preorder_forward_walk() {
     expect![[r#"
         builtin.module @bar 
         {
-          ^block_1v1():
+          ^block1v1():
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
-              ^entry_block_2v1():
-                c0_op_3v1_res0 = test.constant builtin.integer <0: si64>;
-                test.return c0_op_3v1_res0
+              ^entry_block2v1():
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                test.return c0_op3v1_res0
             }
         }
         builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
         {
-          ^entry_block_2v1():
-            c0_op_3v1_res0 = test.constant builtin.integer <0: si64>;
-            test.return c0_op_3v1_res0
+          ^entry_block2v1():
+            c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+            test.return c0_op3v1_res0
         }
-        c0_op_3v1_res0 = test.constant builtin.integer <0: si64>
-        test.return c0_op_3v1_res0
+        c0_op3v1_res0 = test.constant builtin.integer <0: si64>
+        test.return c0_op3v1_res0
     "#]]
     .assert_eq(&ops);
 
@@ -433,22 +434,22 @@ fn test_postorder_forward_walk() {
         accum + &op.disp(ctx).to_string() + "\n"
     });
     expect![[r#"
-        c0_op_3v1_res0 = test.constant builtin.integer <0: si64>
-        test.return c0_op_3v1_res0
+        c0_op3v1_res0 = test.constant builtin.integer <0: si64>
+        test.return c0_op3v1_res0
         builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
         {
-          ^entry_block_2v1():
-            c0_op_3v1_res0 = test.constant builtin.integer <0: si64>;
-            test.return c0_op_3v1_res0
+          ^entry_block2v1():
+            c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+            test.return c0_op3v1_res0
         }
         builtin.module @bar 
         {
-          ^block_1v1():
+          ^block1v1():
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
-              ^entry_block_2v1():
-                c0_op_3v1_res0 = test.constant builtin.integer <0: si64>;
-                test.return c0_op_3v1_res0
+              ^entry_block2v1():
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                test.return c0_op3v1_res0
             }
         }
     "#]]

@@ -558,6 +558,7 @@ pub trait SameOperandsAndResultType: SameOperandsType + SameResultsType {
 /// A callable object is either a
 ///   - direct callee, expressed as a symbol)
 ///   - indirect callee, a [Value] pointing to the function to be called.
+#[derive(Clone)]
 pub enum CallOpCallable {
     Direct(Identifier),
     Indirect(Value),

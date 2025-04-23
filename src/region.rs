@@ -133,7 +133,13 @@ impl Printable for Region {
 
         indented_block!(state, {
             fmt_indented_newline(state, f)?;
-            fmt_iter(self.iter(ctx), ctx, state, ListSeparator::Newline, f)?;
+            fmt_iter(
+                self.iter(ctx),
+                ctx,
+                state,
+                ListSeparator::CharNewline('\n'),
+                f,
+            )?;
         });
 
         fmt_indented_newline(state, f)?;

@@ -155,7 +155,7 @@ impl<'a, T: ArenaObj> Ptr<T> {
     /// Create a unique (to the arena) name based on the arena index.
     pub(crate) fn make_name(&self, name_base: &str) -> Identifier {
         let idx = format!("{:?}", self.idx.0);
-        (name_base.to_string() + "_" + &idx).try_into().unwrap()
+        (name_base.to_string() + &idx).try_into().unwrap()
     }
 }
 

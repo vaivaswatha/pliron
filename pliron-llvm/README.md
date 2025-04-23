@@ -10,6 +10,6 @@ We currently support LLVM-20, and hence LLVM-20 needs to be on your computer.
 On Ubuntu, this means, you require the `libllvm20` and `libpolly-20-dev`
 [packages](https://apt.llvm.org/).
 
-pliron-llvm also provides an [llvm-opt](llvm-opt/README.md).
+pliron-llvm also provides an [llvm-opt](llvm-opt/README.md) tool.
 
 **Note**: Implementation of the LLVM dialect is in-progress, not yet complete.

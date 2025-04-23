@@ -75,7 +75,7 @@ impl Printable for BlockArgument {
         _state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        write!(f, "{}:{}", self.unique_name(ctx), self.ty.disp(ctx))
+        write!(f, "{}: {}", self.unique_name(ctx), self.ty.disp(ctx))
     }
 }
 
@@ -356,7 +356,7 @@ impl Printable for BasicBlock {
             f,
             "^{}({}):",
             self.unique_name(ctx),
-            list_with_sep(&self.args, ListSeparator::Char(',')).print(ctx, state),
+            list_with_sep(&self.args, ListSeparator::CharSpace(',')).print(ctx, state),
         )?;
 
         indented_block!(state, {
@@ -377,7 +377,7 @@ impl Parsable for BasicBlock {
     type Parsed = Ptr<BasicBlock>;
 
     ///  A basic block is
-    ///  label(arg_1:type_1, ..., arg_n:type_n):
+    ///  label(arg_1: type_1, ..., arg_n: type_n):
     ///    op_1;
     ///    ... ;
     ///    op_n

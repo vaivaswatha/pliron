@@ -14,6 +14,7 @@ use pliron::{
         types::{FunctionType, IntegerType, Signedness},
     },
     context::{Context, Ptr},
+    debug_info,
     identifier::{self, Identifier},
     input_err_noloc, input_error_noloc,
     linked_list::ContainsLinkedList,
@@ -847,10 +848,14 @@ fn convert_block(
         } else {
             let m_inst = convert_instruction(ctx, cctx, inst)?;
             m_inst.insert_at_back(m_block, ctx);
-            let m_inst_ref = &*m_inst.deref(ctx);
+            let m_inst_result = m_inst.deref(ctx).results().next();
             // LLVM instructions have at most one result.
-            if m_inst_ref.get_num_results() == 1 {
-                cctx.value_map.insert(inst, m_inst_ref.get_result(0));
+            if let Some(result) = m_inst_result {
+                if let Some(res_name) = llvm_get_value_name(inst).filter(|name| !name.is_empty()) {
+                    let res_name = cctx.id_legaliser.legalise(&res_name);
+                    debug_info::set_operation_result_name(ctx, m_inst, 0, res_name);
+                }
+                cctx.value_map.insert(inst, result);
             }
         }
     }
@@ -894,7 +899,9 @@ fn convert_function(
 
     // Create, place and map rest of the blocks.
     for block in blocks_iter {
-        let label = llvm_get_basic_block_name(*block).map(|name| cctx.id_legaliser.legalise(&name));
+        let label = llvm_get_basic_block_name(*block)
+            .filter(|name| !name.is_empty())
+            .map(|name| cctx.id_legaliser.legalise(&name));
         let m_block = BasicBlock::new(ctx, label, vec![]);
         m_block.insert_at_back(m_func_reg, ctx);
         cctx.block_map.insert(*block, m_block);

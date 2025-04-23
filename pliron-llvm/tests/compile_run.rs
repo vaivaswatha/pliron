@@ -61,7 +61,10 @@ fn test_fib_plir(filename: &str) -> Result<()> {
     )
     .map_err(|e| arg_error_noloc!(e))?;
 
-    // println!("plir file created:\n{}", std::fs::read_to_string(&fib_mem2reg_plir_path).unwrap());
+    log::debug!(
+        "plir file created:\n{}",
+        std::fs::read_to_string(&fib_mem2reg_plir_path).unwrap()
+    );
 
     // Now parse the plir file and verify it.
     let fib_mem2reg_plir = std::fs::File::open(&fib_mem2reg_plir_path).unwrap();
@@ -90,11 +93,13 @@ fn test_fib_plir(filename: &str) -> Result<()> {
 
 #[test]
 fn test_fib_plir_mem2reg() -> Result<()> {
+    init_env_logger();
     test_fib_plir("fib.mem2reg.ll")
 }
 
 #[test]
 fn test_fib_plir_noopt() -> Result<()> {
+    init_env_logger();
     test_fib_plir("fib.ll")
 }
 
@@ -210,13 +215,15 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
 
 /// Test simple-loop by compiling simple-loop.ll via pliron.
 #[test]
-fn test_simple_loop_via_pliron() {
+fn test_simple_loop() {
+    init_env_logger();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("simple-loop.ll").to_str().unwrap(), 15);
 }
 
 /// Test insert_extract_value by compiling insert_extract_value.ll via pliron.
 #[test]
-fn test_insert_extract_value_via_pliron() {
+fn test_insert_extract_value() {
+    init_env_logger();
     test_llvm_ir_via_pliron(
         RESOURCES_DIR
             .join("insert_extract_value.ll")
@@ -228,7 +235,8 @@ fn test_insert_extract_value_via_pliron() {
 
 /// Test SelectOp by compiling select.ll via pliron.
 #[test]
-fn test_select_via_pliron() {
+fn test_select() {
+    init_env_logger();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("select.ll").to_str().unwrap(), 100);
 }
 
