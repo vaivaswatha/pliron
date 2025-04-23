@@ -51,6 +51,14 @@ define dso_local i32 @fib(i32 noundef %0) #0 {
   ret i32 %.0
 }
 
+define dso_local i32 @main() #0 {
+  %1 = alloca i32, align 4
+  %2 = call i32 @fib(i32 6)
+  store i32 %2, ptr %1, align 4
+  %3 = load i32, ptr %1, align 4
+  ret i32 %3
+}
+
 attributes #0 = { noinline nounwind uwtable "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 
 !llvm.module.flags = !{!0, !1, !2, !3, !4}

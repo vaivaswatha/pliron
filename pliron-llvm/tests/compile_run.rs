@@ -15,7 +15,6 @@ use pliron::{
     operation::Operation,
     parsable::{self, Parsable, state_stream_from_file},
     printable::Printable,
-    result::Result,
 };
 use pliron_llvm::{
     from_llvm_ir,
@@ -38,69 +37,6 @@ pub fn setup_context_dialects() -> Context {
     pliron_llvm::register(&mut ctx);
 
     ctx
-}
-
-/// Test Fibonacci by reading in pliron's llvm-dialect IR.
-fn test_fib_plir(filename: &str) -> Result<()> {
-    let ctx = &mut setup_context_dialects();
-    let llvm_context = LLVMContext::default();
-
-    let fib_mem2reg_ll_path = RESOURCES_DIR.join(filename);
-    let module = LLVMModule::from_ir_in_file(&llvm_context, fib_mem2reg_ll_path.to_str().unwrap())
-        .map_err(|err| arg_error_noloc!("{}", err))?;
-    let pliron_module = from_llvm_ir::convert_module(ctx, &module)?;
-    pliron_module.get_operation().verify(ctx)?;
-
-    // Create a temp dir to place the plir file.
-    let tmp_dir = tempdir().unwrap();
-    let fib_mem2reg_plir_path = tmp_dir.path().join(filename);
-    // Write the plir to a file.
-    std::fs::write(
-        fib_mem2reg_plir_path.clone(),
-        pliron_module.disp(ctx).to_string(),
-    )
-    .map_err(|e| arg_error_noloc!(e))?;
-
-    log::debug!(
-        "plir file created:\n{}",
-        std::fs::read_to_string(&fib_mem2reg_plir_path).unwrap()
-    );
-
-    // Now parse the plir file and verify it.
-    let fib_mem2reg_plir = std::fs::File::open(&fib_mem2reg_plir_path).unwrap();
-    let mut fib_mem2reg_plir = std::io::BufReader::new(fib_mem2reg_plir);
-
-    let source = location::Source::new_from_file(ctx, fib_mem2reg_plir_path);
-    let state_stream =
-        state_stream_from_file(&mut fib_mem2reg_plir, parsable::State::new(ctx, source));
-
-    let parsed_res = match Operation::parser(()).parse(state_stream) {
-        Ok((parsed_res, _)) => parsed_res,
-        Err(err) => {
-            eprintln!("{}", err);
-            panic!("Error parsing {}", filename);
-        }
-    };
-
-    match parsed_res.verify(ctx) {
-        Ok(_) => Ok(()),
-        Err(err) => {
-            eprintln!("{}", err.disp(ctx));
-            panic!("Error verifying {}", filename);
-        }
-    }
-}
-
-#[test]
-fn test_fib_plir_mem2reg() -> Result<()> {
-    init_env_logger();
-    test_fib_plir("fib.mem2reg.ll")
-}
-
-#[test]
-fn test_fib_plir_noopt() -> Result<()> {
-    init_env_logger();
-    test_fib_plir("fib.ll")
 }
 
 /// Test an LLVM-IR file by executing it and comparing the output.
@@ -252,4 +188,18 @@ fn test_consts() {
 fn test_globals() {
     init_env_logger();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("globals.ll").to_str().unwrap(), 59);
+}
+
+/// Test fib by compiling fib.ll via pliron.
+#[test]
+fn test_fib() {
+    init_env_logger();
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("fib.ll").to_str().unwrap(), 3);
+}
+
+/// Test fib.mem2reg by compiling fib.ll via pliron.
+#[test]
+fn test_fib_mem2reg() {
+    init_env_logger();
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("fib.mem2reg.ll").to_str().unwrap(), 5);
 }
