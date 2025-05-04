@@ -192,13 +192,18 @@ pub trait SingleBlockRegionInterface {
 
 /// Key for symbol name attribute when the operation defines a symbol.
 pub static ATTR_KEY_SYM_NAME: LazyLock<Identifier> =
-    LazyLock::new(|| "builtin_sym_name".try_into().unwrap());
+    LazyLock::new(|| "sym_name".try_into().unwrap());
 
 #[derive(Error, Debug)]
 #[error("Op implementing SymbolOpInterface does not have a symbol defined")]
 pub struct SymbolOpInterfaceErr;
 
 /// [Op] that defines or declares a [symbol](https://mlir.llvm.org/docs/SymbolsAndSymbolTables/#symbol).
+///
+/// ### Attribute(s):
+/// | Name | Static Name Identifier | Type |
+/// |------|------------------------| -----|
+/// | sym_name | [ATTR_KEY_SYM_NAME] | [IdentifierAttr](crate::builtin::attributes::IdentifierAttr) |
 #[op_interface]
 pub trait SymbolOpInterface {
     /// Get the name of the symbol defined by this operation.
@@ -573,10 +578,16 @@ pub enum CallOpInterfaceErr {
 }
 
 pub static ATTR_KEY_CALLEE_TYPE: LazyLock<Identifier> =
-    LazyLock::new(|| "builtin_callee_type".try_into().unwrap());
+    LazyLock::new(|| "callee_type".try_into().unwrap());
 
 /// A call-like op: Transfers control from one function to another.
 /// See MLIR's [CallOpInterface](https://mlir.llvm.org/docs/Interfaces/#callinterfaces).
+///
+/// ### Attribute(s):
+///
+/// | Name | Static Name Identifier | Type |
+/// |------|------------------------| -----|
+/// | callee_type | [ATTR_KEY_CALLEE_TYPE] | [TypeAttr](crate::builtin::attributes::TypeAttr) |
 #[op_interface]
 pub trait CallOpInterface {
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
@@ -614,5 +625,14 @@ pub trait CallOpInterface {
             .unwrap();
         TypePtr::from_ptr(ty_attr.get_type(ctx), ctx)
             .expect("Incorrect callee type, not a FunctionType")
+    }
+
+    /// Set callee type
+    fn set_callee_type(&self, ctx: &mut Context, callee_ty: TypePtr<FunctionType>) {
+        let mut self_op = self.get_operation().deref_mut(ctx);
+        let ty_attr = TypeAttr::new(callee_ty.into());
+        self_op
+            .attributes
+            .set(ATTR_KEY_CALLEE_TYPE.clone(), ty_attr);
     }
 }

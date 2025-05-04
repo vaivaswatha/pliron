@@ -10,8 +10,8 @@ use pliron::{
         attr_interfaces::TypedAttrInterface,
         attributes::{FloatAttr, IdentifierAttr, IntegerAttr, TypeAttr},
         op_interfaces::{
-            self, ATTR_KEY_CALLEE_TYPE, BranchOpInterface, CallOpCallable, CallOpInterface,
-            IsTerminatorInterface, IsolatedFromAboveInterface, OneOpdInterface, OneResultInterface,
+            self, BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
+            IsolatedFromAboveInterface, OneOpdInterface, OneResultInterface,
             SameOperandsAndResultType, SameOperandsType, SameResultsType,
             SingleBlockRegionInterface, SymbolOpInterface, SymbolUserOpInterface, ZeroOpdInterface,
             ZeroResultInterface,
@@ -21,7 +21,7 @@ use pliron::{
     },
     common_traits::{Named, Verify},
     context::{Context, Ptr},
-    derive::{format, format_op},
+    derive::{derive_attr_get_set, format, format_op},
     identifier::Identifier,
     impl_verify_succ, input_err,
     irfmt::{
@@ -251,7 +251,7 @@ pub enum ICmpOpVerifyErr {
 }
 
 /// Equivalent to LLVM's ICmp opcode.
-/// ### Operands
+/// ### Operand(s):
 /// | operand | description |
 /// |-----|-------|
 /// | `lhs` | Signless integer or pointer |
@@ -262,24 +262,11 @@ pub enum ICmpOpVerifyErr {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | 1-bit signless integer |
-/// ### Attributes:
-///
-/// | key | value | via Interface |
-/// |-----|-------| --------------|
-/// | [ATTR_KEY_PREDICATE](icmp_op::ATTR_KEY_PREDICATE) | [ICmpPredicateAttr](ICmpPredicateAttr) | N/A |
 #[def_op("llvm.icmp")]
-#[format_op("$0 ` <` attr($llvm_icmp_predicate, $ICmpPredicateAttr) `> ` $1 ` : ` type($0)")]
+#[format_op("$0 ` <` attr($icmp_predicate, $ICmpPredicateAttr) `> ` $1 ` : ` type($0)")]
 #[derive_op_interface_impl(SameOperandsType, OneResultInterface)]
+#[derive_attr_get_set(icmp_predicate : ICmpPredicateAttr)]
 pub struct ICmpOp;
-
-pub mod icmp_op {
-    use std::sync::LazyLock;
-
-    use super::*;
-
-    pub static ATTR_KEY_PREDICATE: LazyLock<Identifier> =
-        LazyLock::new(|| "llvm_icmp_predicate".try_into().unwrap());
-}
 
 impl ICmpOp {
     /// Create a new [ICmpOp]
@@ -293,19 +280,15 @@ impl ICmpOp {
             vec![],
             0,
         );
-        op.deref_mut(ctx)
-            .attributes
-            .set(icmp_op::ATTR_KEY_PREDICATE.clone(), pred);
-        ICmpOp { op }
+        let op = ICmpOp { op };
+        op.set_attr_icmp_predicate(ctx, pred);
+        op
     }
 
     /// Get the predicate
     pub fn predicate(&self, ctx: &Context) -> ICmpPredicateAttr {
-        self.get_operation()
-            .deref(ctx)
-            .attributes
-            .get::<ICmpPredicateAttr>(&icmp_op::ATTR_KEY_PREDICATE)
-            .unwrap()
+        self.get_attr_icmp_predicate(ctx)
+            .expect("ICmpOp missing or incorrect predicate attribute type")
             .clone()
     }
 }
@@ -313,14 +296,9 @@ impl ICmpOp {
 impl Verify for ICmpOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let loc = self.loc(ctx);
-        let op = &*self.op.deref(ctx);
 
-        if op
-            .attributes
-            .get::<ICmpPredicateAttr>(&icmp_op::ATTR_KEY_PREDICATE)
-            .is_none()
-        {
-            verify_err!(op.loc(), ICmpOpVerifyErr::PredAttrErr)?
+        if self.get_attr_icmp_predicate(ctx).is_none() {
+            verify_err!(loc.clone(), ICmpOpVerifyErr::PredAttrErr)?
         }
 
         let res_ty: TypePtr<IntegerType> =
@@ -361,15 +339,10 @@ pub enum AllocaOpVerifyErr {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | [PointerType] |
-///
-/// ### Attributes:
-///
-/// | key | value | via Interface |
-/// |-----|-------| --------------|
-/// | [ATTR_KEY_ELEM_TYPE](alloca_op::ATTR_KEY_ELEM_TYPE) | [TypeAttr](pliron::builtin::attributes::TypeAttr) | N/A |
 #[def_op("llvm.alloca")]
-#[format_op("`[` attr($llvm_alloca_element_type, $TypeAttr) ` x ` $0 `]` ` : ` type($0)")]
+#[format_op("`[` attr($alloca_element_type, $TypeAttr) ` x ` $0 `]` ` : ` type($0)")]
 #[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
+#[derive_attr_get_set(alloca_element_type : TypeAttr)]
 pub struct AllocaOp;
 impl Verify for AllocaOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
@@ -378,14 +351,9 @@ impl Verify for AllocaOp {
         if !self.operand_type(ctx).deref(ctx).is::<IntegerType>() {
             return verify_err!(loc, AllocaOpVerifyErr::OperandType);
         }
-        let op = &*self.op.deref(ctx);
         // Ensure correctness of element type.
-        if op
-            .attributes
-            .get::<TypeAttr>(&alloca_op::ATTR_KEY_ELEM_TYPE)
-            .is_none()
-        {
-            verify_err!(op.loc(), AllocaOpVerifyErr::ElemTypeAttr)?
+        if self.get_attr_alloca_element_type(ctx).is_none() {
+            verify_err!(loc, AllocaOpVerifyErr::ElemTypeAttr)?
         }
 
         Ok(())
@@ -395,21 +363,10 @@ impl Verify for AllocaOp {
 #[op_interface_impl]
 impl PointerTypeResult for AllocaOp {
     fn result_pointee_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.op
-            .deref(ctx)
-            .attributes
-            .get::<TypeAttr>(&alloca_op::ATTR_KEY_ELEM_TYPE)
+        self.get_attr_alloca_element_type(ctx)
             .expect("AllocaOp missing or incorrect type for elem_type attribute")
             .get_type()
     }
-}
-
-pub mod alloca_op {
-    use std::sync::LazyLock;
-
-    use super::*;
-    pub static ATTR_KEY_ELEM_TYPE: LazyLock<Identifier> =
-        LazyLock::new(|| "llvm_alloca_element_type".try_into().unwrap());
 }
 
 impl AllocaOp {
@@ -424,11 +381,9 @@ impl AllocaOp {
             vec![],
             0,
         );
-        op.deref_mut(ctx).attributes.set(
-            alloca_op::ATTR_KEY_ELEM_TYPE.clone(),
-            TypeAttr::new(elem_type),
-        );
-        AllocaOp { op }
+        let op = AllocaOp { op };
+        op.set_attr_alloca_element_type(ctx, TypeAttr::new(elem_type));
+        op
     }
 }
 
@@ -774,13 +729,6 @@ pub enum GetElementPtrOpErr {
 }
 
 // Equivalent to LLVM's GetElementPtr.
-/// ### Attributes:
-///
-/// | key | value | via Interface |
-/// |-----|-------| --------------|
-/// | [ATTR_KEY_INDICES](gep_op::ATTR_KEY_INDICES) | [GepIndicesAttr](super::attributes::GepIndicesAttr)> | N/A |
-/// | [ATTR_KEY_SRC_ELEM_TYPE](gep_op::ATTR_KEY_SRC_ELEM_TYPE) | [TypeAttr] | N/A |
-///
 /// ### Operands
 /// | operand | description |
 /// |-----|-------|
@@ -794,9 +742,10 @@ pub enum GetElementPtrOpErr {
 /// | `res` | LLVM pointer type |
 #[def_op("llvm.gep")]
 #[format_op(
-    "`<` attr($llvm_gep_src_elem_type, $TypeAttr) `>` ` (` operands(CharSpace(`,`)) `)` attr($llvm_gep_indices, $GepIndicesAttr) ` : ` type($0)"
+    "`<` attr($gep_src_elem_type, $TypeAttr) `>` ` (` operands(CharSpace(`,`)) `)` attr($gep_indices, $GepIndicesAttr) ` : ` type($0)"
 )]
 #[derive_op_interface_impl(OneResultInterface)]
+#[derive_attr_get_set(gep_src_elem_type : TypeAttr, gep_indices : GepIndicesAttr)]
 pub struct GetElementPtrOp;
 
 #[op_interface_impl]
@@ -809,14 +758,10 @@ impl PointerTypeResult for GetElementPtrOp {
 
 impl Verify for GetElementPtrOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        let op = &*self.op.deref(ctx);
+        let loc = self.loc(ctx);
         // Ensure that we have the indices as an attribute.
-        if op
-            .attributes
-            .get::<GepIndicesAttr>(&gep_op::ATTR_KEY_INDICES)
-            .is_none()
-        {
-            verify_err!(op.loc(), GetElementPtrOpErr::IndicesAttrErr)?
+        if self.get_attr_gep_indices(ctx).is_none() {
+            verify_err!(loc, GetElementPtrOpErr::IndicesAttrErr)?
         }
 
         if let Err(e @ Error { .. }) =
@@ -832,18 +777,6 @@ impl Verify for GetElementPtrOp {
 
         Ok(())
     }
-}
-
-pub mod gep_op {
-    use std::sync::LazyLock;
-
-    use super::*;
-    /// [Attribute](pliron::attribute::Attribute) to get the indices vector.
-    pub static ATTR_KEY_INDICES: LazyLock<Identifier> =
-        LazyLock::new(|| "llvm_gep_indices".try_into().unwrap());
-    /// [Attribute](pliron::attribute::Attribute) to get the source element type.
-    pub static ATTR_KEY_SRC_ELEM_TYPE: LazyLock<Identifier> =
-        LazyLock::new(|| "llvm_gep_src_elem_type".try_into().unwrap());
 }
 
 impl GetElementPtrOp {
@@ -876,21 +809,16 @@ impl GetElementPtrOp {
             0,
         );
         let src_elem_type = TypeAttr::new(src_elem_type);
-        op.deref_mut(ctx)
-            .attributes
-            .set(gep_op::ATTR_KEY_INDICES.clone(), GepIndicesAttr(attr));
-        op.deref_mut(ctx)
-            .attributes
-            .set(gep_op::ATTR_KEY_SRC_ELEM_TYPE.clone(), src_elem_type);
-        Ok(GetElementPtrOp { op })
+        let op = GetElementPtrOp { op };
+
+        op.set_attr_gep_indices(ctx, GepIndicesAttr(attr));
+        op.set_attr_gep_src_elem_type(ctx, src_elem_type);
+        Ok(op)
     }
 
     /// Get the source pointer's element type.
     pub fn src_elem_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        self.op
-            .deref(ctx)
-            .attributes
-            .get::<TypeAttr>(&gep_op::ATTR_KEY_SRC_ELEM_TYPE)
+        self.get_attr_gep_src_elem_type(ctx)
             .expect("GetElementPtrOp missing or has incorrect src_elem_type attribute type")
             .get_type()
     }
@@ -903,8 +831,7 @@ impl GetElementPtrOp {
     /// Get the indices of this GEP.
     pub fn indices(&self, ctx: &Context) -> Vec<GepIndex> {
         let op = &*self.op.deref(ctx);
-        op.attributes
-            .get::<GepIndicesAttr>(&gep_op::ATTR_KEY_INDICES)
+        self.get_attr_gep_indices(ctx)
             .unwrap()
             .0
             .iter()
@@ -967,9 +894,6 @@ pub enum LoadOpVerifyErr {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | sized LLVM type |
-///
-/// ### Attributes:
-///
 #[def_op("llvm.load")]
 #[format_op("$0 ` : ` type($0)")]
 #[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
@@ -1015,9 +939,6 @@ pub enum StoreOpVerifyErr {
 /// |-----|-------|
 /// | `addr` | [PointerType] |
 /// | `value` | Sized type |
-///
-/// ### Attributes:
-///
 #[def_op("llvm.store")]
 #[format_op("`*` $1 ` <- ` $0")]
 #[derive_op_interface_impl(ZeroResultInterface)]
@@ -1082,24 +1003,10 @@ impl Verify for StoreOp {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | LLVM type |
-///
-/// ### Attributes:
-/// | key | value | via Interface |
-/// |-----|-------| --------------|
-/// | [ATTR_KEY_CALLEE](call_op::ATTR_KEY_CALLEE) | [IdentifierAttr] | N/A |
-/// | [ATTR_KEY_CALLEE_TYPE](pliron::builtin::op_interfaces::ATTR_KEY_CALLEE_TYPE) | [TypeAttr] | [CallOpInterface] |
-///
 #[def_op("llvm.call")]
 #[derive_op_interface_impl(OneResultInterface)]
+#[derive_attr_get_set(call_callee : IdentifierAttr)]
 pub struct CallOp;
-
-pub mod call_op {
-    use std::sync::LazyLock;
-
-    use super::*;
-    pub static ATTR_KEY_CALLEE: LazyLock<Identifier> =
-        LazyLock::new(|| "llvm_call_callee".try_into().unwrap());
-}
 
 impl CallOp {
     /// Get a new [CallOp].
@@ -1114,21 +1021,19 @@ impl CallOp {
             CallOpCallable::Direct(cval) => {
                 let op =
                     Operation::new(ctx, Self::get_opid_static(), vec![res_ty], args, vec![], 0);
-                op.deref_mut(ctx)
-                    .attributes
-                    .set(call_op::ATTR_KEY_CALLEE.clone(), IdentifierAttr::new(cval));
+                let op = CallOp { op };
+                op.set_attr_call_callee(ctx, IdentifierAttr::new(cval));
                 op
             }
             CallOpCallable::Indirect(csym) => {
                 args.insert(0, csym);
-                Operation::new(ctx, Self::get_opid_static(), vec![res_ty], args, vec![], 0)
+                let op =
+                    Operation::new(ctx, Self::get_opid_static(), vec![res_ty], args, vec![], 0);
+                CallOp { op }
             }
         };
-        op.deref_mut(ctx).attributes.set(
-            ATTR_KEY_CALLEE_TYPE.clone(),
-            TypeAttr::new(callee_ty.into()),
-        );
-        CallOp { op }
+        op.set_callee_type(ctx, callee_ty);
+        op
     }
 }
 
@@ -1214,10 +1119,7 @@ impl SymbolUserOpInterface for CallOp {
 impl CallOpInterface for CallOp {
     fn callee(&self, ctx: &Context) -> CallOpCallable {
         let op = self.op.deref(ctx);
-        if let Some(callee_sym) = op
-            .attributes
-            .get::<IdentifierAttr>(&call_op::ATTR_KEY_CALLEE)
-        {
+        if let Some(callee_sym) = self.get_attr_call_callee(ctx) {
             CallOpCallable::Direct(callee_sym.clone().into())
         } else {
             assert!(
@@ -1390,14 +1292,8 @@ impl UndefOp {
     }
 }
 
-/// Numeric constant.
+/// Numeric (integer or floating point) constant.
 /// See MLIR's [llvm.mlir.constant](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmlirconstant-llvmconstantop).
-///
-/// Attributes:
-///
-/// | key | value | via Interface |
-/// |-----|-------| ------------- |
-/// |[ATTR_KEY_VALUE](constant_op::ATTR_KEY_VALUE) | [IntegerAttr] or [FloatAttr] | N/A |
 ///
 /// Results:
 ///
@@ -1406,27 +1302,14 @@ impl UndefOp {
 /// | `result` | any type |
 #[def_op("llvm.constant")]
 #[derive_op_interface_impl(ZeroOpdInterface, OneResultInterface)]
-#[format_op("`<` $llvm_constant_value `>` ` : ` type($0)")]
+#[format_op("`<` $constant_value `>` ` : ` type($0)")]
+#[derive_attr_get_set(constant_value)]
 pub struct ConstantOp;
-
-pub mod constant_op {
-    use std::sync::LazyLock;
-
-    use super::*;
-    /// Attribute key for the constant value.
-    pub static ATTR_KEY_VALUE: LazyLock<Identifier> =
-        LazyLock::new(|| "llvm_constant_value".try_into().unwrap());
-}
 
 impl ConstantOp {
     /// Get the constant value that this Op defines.
     pub fn get_value(&self, ctx: &Context) -> AttrObj {
-        let op = self.get_operation().deref(ctx);
-        op.attributes
-            .0
-            .get(&constant_op::ATTR_KEY_VALUE)
-            .unwrap()
-            .clone()
+        self.get_attr_constant_value(ctx).unwrap().clone()
     }
 
     /// Create a new [ConstantOp].
@@ -1442,24 +1325,25 @@ impl ConstantOp {
             vec![],
             0,
         );
-        op.deref_mut(ctx)
-            .attributes
-            .0
-            .insert(constant_op::ATTR_KEY_VALUE.clone(), value);
-        ConstantOp { op }
+        let op = ConstantOp { op };
+        op.set_attr_constant_value(ctx, value);
+        op
     }
 }
 
 #[derive(Error, Debug)]
 #[error("{}: Unexpected type", ConstantOp::get_opid_static())]
-pub struct ConstantOpVerifyErr;
+pub enum ConstantOpVerifyErr {
+    #[error("ConstantOp must have either an integer or a float value")]
+    InvalidValue,
+}
 
 impl Verify for ConstantOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let loc = self.loc(ctx);
         let value = self.get_value(ctx);
         if !(value.is::<IntegerAttr>() || value.is::<FloatAttr>()) {
-            return verify_err!(loc, ConstantOpVerifyErr);
+            return verify_err!(loc, ConstantOpVerifyErr::InvalidValue)?;
         }
         Ok(())
     }
@@ -1493,20 +1377,6 @@ impl ZeroOp {
     }
 }
 
-pub mod global_op {
-    use std::sync::LazyLock;
-
-    use super::*;
-
-    /// Attribute key for the global variable type.
-    pub static ATTR_KEY_TYPE: LazyLock<Identifier> =
-        LazyLock::new(|| "llvm_global_type".try_into().unwrap());
-
-    /// Attribute key for the global initializer value.
-    pub static ATTR_KEY_INIT: LazyLock<Identifier> =
-        LazyLock::new(|| "llvm_global_initializer".try_into().unwrap());
-}
-
 #[derive(Error, Debug)]
 pub enum GlobalOpVerifyErr {
     #[error("GlobalOp must have a type")]
@@ -1517,12 +1387,6 @@ pub enum GlobalOpVerifyErr {
 /// It creates a global variable of the specified LLVM IR dialect type.
 /// An initializer can be specified either as an attribute or in the
 /// operation's initializer region, ending with a return.
-/// Attributes:
-///
-/// | key | value | via Interface |
-/// |-----|-------| ------------- |
-/// | [ATTR_KEY_TYPE](global_op::ATTR_KEY_TYPE) | [TypeAttr] | N/A |
-/// | [ATTR_KEY_INIT](global_op::ATTR_KEY_INIT) | [AttrObj] | N/A |
 #[def_op("llvm.global")]
 #[derive_op_interface_impl(
     IsolatedFromAboveInterface,
@@ -1531,19 +1395,16 @@ pub enum GlobalOpVerifyErr {
     SymbolOpInterface,
     SingleBlockRegionInterface
 )]
+#[derive_attr_get_set(global_type : TypeAttr, global_initializer)]
 pub struct GlobalOp;
+
 impl GlobalOp {
     /// Create a new [GlobalOp]. An initializer region can be added later if needed.
     pub fn new(ctx: &mut Context, name: Identifier, ty: Ptr<TypeObj>) -> Self {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 0);
-
-        // Set type
-        op.deref_mut(ctx)
-            .attributes
-            .set(global_op::ATTR_KEY_TYPE.clone(), TypeAttr::new(ty));
-
         let op = GlobalOp { op };
         op.set_symbol_name(ctx, name);
+        op.set_attr_global_type(ctx, TypeAttr::new(ty));
         op
     }
 }
@@ -1551,11 +1412,9 @@ impl GlobalOp {
 impl pliron::r#type::Typed for GlobalOp {
     fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         pliron::r#type::Typed::get_type(
-            self.op
-                .deref(ctx)
-                .attributes
-                .get::<TypeAttr>(&global_op::ATTR_KEY_TYPE)
-                .unwrap(),
+            &*self
+                .get_attr_global_type(ctx)
+                .expect("GlobalOp missing or has incorrect type attribute"),
             ctx,
         )
     }
@@ -1564,12 +1423,7 @@ impl pliron::r#type::Typed for GlobalOp {
 impl GlobalOp {
     /// Get the initializer value of this global variable.
     pub fn get_initializer_value(&self, ctx: &Context) -> Option<AttrObj> {
-        self.op
-            .deref(ctx)
-            .attributes
-            .0
-            .get(&global_op::ATTR_KEY_INIT)
-            .cloned()
+        self.get_attr_global_initializer(ctx).map(|v| v.clone())
     }
 
     /// Get the initializer region's block of this global variable.
@@ -1586,13 +1440,8 @@ impl GlobalOp {
     }
 
     /// Set a simple initializer value for this global variable.
-    pub fn set_initializer_value(&self, ctx: &Context, value: AttrObj) -> Result<()> {
-        self.op
-            .deref_mut(ctx)
-            .attributes
-            .0
-            .insert(global_op::ATTR_KEY_INIT.clone(), value);
-        Ok(())
+    pub fn set_initializer_value(&self, ctx: &Context, value: AttrObj) {
+        self.set_attr_global_initializer(ctx, value);
     }
 
     /// Add an initializer region (with an entry block) for this global variable.
@@ -1616,25 +1465,12 @@ impl Verify for GlobalOp {
 
         // The name must be set. That is checked by the SymbolOpInterface.
         // So we check that other attributes are set. Start with type.
-        if self
-            .op
-            .deref(ctx)
-            .attributes
-            .get::<TypeAttr>(&global_op::ATTR_KEY_TYPE)
-            .is_none()
-        {
+        if self.get_attr_global_type(ctx).is_none() {
             return verify_err!(loc, GlobalOpVerifyErr::MissingType);
         }
 
         // Check that there is at most one initializer
-        if self
-            .op
-            .deref(ctx)
-            .attributes
-            .0
-            .contains_key(&global_op::ATTR_KEY_INIT)
-            && self.get_operation().deref(ctx).num_regions() > 0
-        {
+        if self.get_initializer_value(ctx).is_some() && self.get_initializer_region(ctx).is_some() {
             return verify_err!(loc, GlobalOpVerifyErr::MissingType);
         }
 
@@ -1707,7 +1543,7 @@ impl Parsable for GlobalOp {
 
         if let Some(initializer) = initializer.0 {
             match initializer {
-                Initializer::Value(v) => op.set_initializer_value(state_stream.state.ctx, v)?,
+                Initializer::Value(v) => op.set_initializer_value(state_stream.state.ctx, v),
                 Initializer::Region(_r) => {
                     // Nothing to do since the region is already added to the operation during parsing.
                 }
@@ -1718,31 +1554,19 @@ impl Parsable for GlobalOp {
     }
 }
 
-pub mod address_of_op {
-    use std::sync::LazyLock;
-
-    use super::*;
-    /// Attribute key for the global name.
-    pub static ATTR_KEY_GLOBAL_NAME: LazyLock<Identifier> =
-        LazyLock::new(|| "llvm_address_of_global_name".try_into().unwrap());
-}
-
-/// Same as MLIR's LLVM dialect [AddressOfOp](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmliraddressof-llvmaddressofop)
+/// Same as MLIR's LLVM dialect [AddressOfOp](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmliraddressof-llvmaddressofop).
 /// Creates an SSA value containing a pointer to a global value (function, variable etc).
-/// Results:
+///
+/// ### Results:
 ///
 /// | result | description |
 /// |-----|-------|
 /// | `result` | LLVM pointer type |
 ///
-/// Attributes:
-/// | key | value | via Interface |
-/// |-----|-------| ------------- |
-/// |[ATTR_KEY_GLOBAL_NAME](address_of_op::ATTR_KEY_GLOBAL_NAME) | [IdentifierAttr] | N/A |
-///
 #[def_op("llvm.addressof")]
 #[derive_op_interface_impl(OneResultInterface)]
-#[format_op("`@` attr($llvm_address_of_global_name, $IdentifierAttr) ` : ` type($0)")]
+#[format_op("`@` attr($global_name, $IdentifierAttr) ` : ` type($0)")]
+#[derive_attr_get_set(global_name : IdentifierAttr)]
 pub struct AddressOfOp;
 
 impl_verify_succ!(AddressOfOp);
@@ -1759,20 +1583,15 @@ impl AddressOfOp {
             vec![],
             0,
         );
-        op.deref_mut(ctx).attributes.set(
-            address_of_op::ATTR_KEY_GLOBAL_NAME.clone(),
-            IdentifierAttr::new(global_name),
-        );
-        AddressOfOp { op }
+        let op = AddressOfOp { op };
+        op.set_attr_global_name(ctx, IdentifierAttr::new(global_name));
+        op
     }
 
     /// Get the global name that this refers to.
     pub fn get_global_name(&self, ctx: &Context) -> Identifier {
-        self.get_operation()
-            .deref(ctx)
-            .attributes
-            .get::<IdentifierAttr>(&address_of_op::ATTR_KEY_GLOBAL_NAME)
-            .unwrap()
+        self.get_attr_global_name(ctx)
+            .expect("AddressOfOp missing or has incorrect global_name attribute type")
             .clone()
             .into()
     }
@@ -1910,24 +1729,22 @@ impl Verify for ZExtOp {
 }
 
 /// Equivalent to LLVM's InsertValue opcode.
+///
 /// ### Operands
 /// | operand | description |
 /// |-----|-------|
 /// | `aggregate` | LLVM aggregate type |
 /// | `value` | LLVM type |
+///
 /// ### Result(s):
 /// | result | description |
 /// |-----|-------|
 /// | `res` | LLVM aggregate type |
-/// ### Attributes:
-/// | key | value | via Interface |
-/// |-----|-------| --------------|
-/// | [ATTR_KEY_INDICES](insert_extract_value_op::ATTR_KEY_INDICES) | [InsertExtractValueIndicesAttr] | N/A |
-///
 #[def_op("llvm.insert_value")]
 #[format_op(
-    "$0 attr($llvm_insert_extract_value_indices, $InsertExtractValueIndicesAttr) `, ` $1 ` : ` type($0)"
+    "$0 attr($insert_value_indices, $InsertExtractValueIndicesAttr) `, ` $1 ` : ` type($0)"
 )]
+#[derive_attr_get_set(insert_value_indices : InsertExtractValueIndicesAttr)]
 #[derive_op_interface_impl(OneResultInterface)]
 pub struct InsertValueOp;
 
@@ -1936,12 +1753,7 @@ impl InsertValueOp {
     /// `aggregate` is the aggregate type and `value` is the value to insert.
     /// `indices` is the list of indices to insert the value at.
     /// The `indices` must be valid for the given `aggregate` type.
-    pub fn new(
-        ctx: &mut Context,
-        aggregate: Value,
-        value: Value,
-        indices: Vec<u32>,
-    ) -> Result<Self> {
+    pub fn new(ctx: &mut Context, aggregate: Value, value: Value, indices: Vec<u32>) -> Self {
         use pliron::r#type::Typed;
 
         let result_type = aggregate.get_type(ctx);
@@ -1953,36 +1765,23 @@ impl InsertValueOp {
             vec![],
             0,
         );
-        op.deref_mut(ctx).attributes.set(
-            insert_extract_value_op::ATTR_KEY_INDICES.clone(),
-            InsertExtractValueIndicesAttr(indices),
-        );
-        Ok(InsertValueOp { op })
+        let op = InsertValueOp { op };
+        op.set_attr_insert_value_indices(ctx, InsertExtractValueIndicesAttr(indices));
+        op
     }
 
     /// Get the indices for inserting value into aggregate.
     pub fn indices(&self, ctx: &Context) -> Vec<u32> {
-        self.get_operation()
-            .deref(ctx)
-            .attributes
-            .get::<InsertExtractValueIndicesAttr>(&insert_extract_value_op::ATTR_KEY_INDICES)
-            .unwrap()
-            .0
-            .clone()
+        self.get_attr_insert_value_indices(ctx).unwrap().clone().0
     }
 }
 
 impl Verify for InsertValueOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let loc = self.loc(ctx);
-        let op = &*self.op.deref(ctx);
         // Ensure that we have the indices as an attribute.
-        if op
-            .attributes
-            .get::<InsertExtractValueIndicesAttr>(&insert_extract_value_op::ATTR_KEY_INDICES)
-            .is_none()
-        {
-            verify_err!(loc.clone(), InsertExtractValueError::IndicesAttrErr)?
+        if self.get_attr_insert_value_indices(ctx).is_none() {
+            verify_err!(loc.clone(), InsertExtractValueErr::IndicesAttrErr)?
         }
 
         use pliron::r#type::Typed;
@@ -2001,7 +1800,7 @@ impl Verify for InsertValueOp {
             }
             Ok(indexed_type) => {
                 if indexed_type != self.get_operation().deref(ctx).get_operand(1).get_type(ctx) {
-                    return verify_err!(loc, InsertExtractValueError::ValueTypeErr);
+                    return verify_err!(loc, InsertExtractValueErr::ValueTypeErr);
                 }
             }
         }
@@ -2011,36 +1810,28 @@ impl Verify for InsertValueOp {
 }
 
 /// Equivalent to LLVM's ExtractValue opcode.
+///
 /// ### Operands
 /// | operand | description |
 /// |-----|-------|
 /// | `aggregate` | LLVM aggregate type |
+///
 /// ### Result(s):
 /// | result | description |
 /// |-----|-------|
 /// | `res` | LLVM type |
-/// ### Attributes:
-/// | key | value | via Interface |
-/// |-----|-------| --------------|
-/// | [ATTR_KEY_INDICES](insert_extract_value_op::ATTR_KEY_INDICES) | [InsertExtractValueIndicesAttr] | N/A |
 #[def_op("llvm.extract_value")]
-#[format_op(
-    "$0 attr($llvm_insert_extract_value_indices, $InsertExtractValueIndicesAttr) ` : ` type($0)"
-)]
+#[format_op("$0 attr($extract_value_indices, $InsertExtractValueIndicesAttr) ` : ` type($0)")]
 #[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
+#[derive_attr_get_set(extract_value_indices : InsertExtractValueIndicesAttr)]
 pub struct ExtractValueOp;
 
 impl Verify for ExtractValueOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let loc = self.loc(ctx);
-        let op = &*self.op.deref(ctx);
         // Ensure that we have the indices as an attribute.
-        if op
-            .attributes
-            .get::<InsertExtractValueIndicesAttr>(&insert_extract_value_op::ATTR_KEY_INDICES)
-            .is_none()
-        {
-            verify_err!(loc.clone(), InsertExtractValueError::IndicesAttrErr)?
+        if self.get_attr_extract_value_indices(ctx).is_none() {
+            verify_err!(loc.clone(), InsertExtractValueErr::IndicesAttrErr)?
         }
 
         use pliron::r#type::Typed;
@@ -2058,7 +1849,7 @@ impl Verify for ExtractValueOp {
             }
             Ok(indexed_type) => {
                 if indexed_type != self.get_operation().deref(ctx).get_type(0) {
-                    return verify_err!(loc, InsertExtractValueError::ValueTypeErr);
+                    return verify_err!(loc, InsertExtractValueErr::ValueTypeErr);
                 }
             }
         }
@@ -2083,22 +1874,14 @@ impl ExtractValueOp {
             vec![],
             0,
         );
-        op.deref_mut(ctx).attributes.set(
-            insert_extract_value_op::ATTR_KEY_INDICES.clone(),
-            InsertExtractValueIndicesAttr(indices),
-        );
-        Ok(ExtractValueOp { op })
+        let op = ExtractValueOp { op };
+        op.set_attr_extract_value_indices(ctx, InsertExtractValueIndicesAttr(indices));
+        Ok(op)
     }
 
     /// Get the indices for extracting value from aggregate.
     pub fn indices(&self, ctx: &Context) -> Vec<u32> {
-        self.get_operation()
-            .deref(ctx)
-            .attributes
-            .get::<InsertExtractValueIndicesAttr>(&insert_extract_value_op::ATTR_KEY_INDICES)
-            .unwrap()
-            .0
-            .clone()
+        self.get_attr_extract_value_indices(ctx).unwrap().clone().0
     }
 
     /// Returns the type of the value at the given indices in the given aggregate type.
@@ -2118,16 +1901,16 @@ impl ExtractValueOp {
             let aggr_type = &*aggr_type.deref(ctx);
             if let Some(st) = aggr_type.downcast_ref::<StructType>() {
                 if st.is_opaque() || idx as usize >= st.num_fields() {
-                    return arg_err_noloc!(InsertExtractValueError::InvalidIndicesErr);
+                    return arg_err_noloc!(InsertExtractValueErr::InvalidIndicesErr);
                 }
                 indexed_type_inner(ctx, st.field_type(idx as usize), idx_itr)
             } else if let Some(at) = aggr_type.downcast_ref::<ArrayType>() {
                 if idx as u64 >= at.size() {
-                    return arg_err_noloc!(InsertExtractValueError::InvalidIndicesErr);
+                    return arg_err_noloc!(InsertExtractValueErr::InvalidIndicesErr);
                 }
                 indexed_type_inner(ctx, at.elem_type(), idx_itr)
             } else {
-                arg_err_noloc!(InsertExtractValueError::InvalidIndicesErr)
+                arg_err_noloc!(InsertExtractValueErr::InvalidIndicesErr)
             }
         }
         indexed_type_inner(ctx, aggr_type, indices.iter().cloned())
@@ -2135,7 +1918,7 @@ impl ExtractValueOp {
 }
 
 #[derive(Error, Debug)]
-pub enum InsertExtractValueError {
+pub enum InsertExtractValueErr {
     #[error("Insert/Extract value instruction has no or incorrect indices attribute")]
     IndicesAttrErr,
     #[error("Invalid indices on insert/extract value instruction")]
@@ -2144,21 +1927,15 @@ pub enum InsertExtractValueError {
     ValueTypeErr,
 }
 
-pub mod insert_extract_value_op {
-    use std::sync::LazyLock;
-
-    use super::*;
-    pub static ATTR_KEY_INDICES: LazyLock<Identifier> =
-        LazyLock::new(|| "llvm_insert_extract_value_indices".try_into().unwrap());
-}
-
 /// Equivalent to LLVM's Select opcode.
+///
 /// ### Operands
 /// | operand | description |
 /// |-----|-------|
 /// | `condition` | i1 |
 /// | `true_dest` | any type |
 /// | `false_dest` | any type |
+///
 /// ### Result(s):
 /// | result | description |
 /// |-----|-------|

@@ -318,7 +318,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                         acc_val,
                         *field_val,
                         vec![field_idx.try_into().unwrap()],
-                    )?
+                    )
                     .get_operation();
                     insert_op.insert_after(ctx, acc);
                     Ok((ctx, insert_op))
@@ -351,7 +351,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                         acc_val,
                         *field_val,
                         vec![field_idx.try_into().unwrap()],
-                    )?
+                    )
                     .get_operation();
                     insert_op.insert_after(ctx, acc);
                     Ok((ctx, insert_op))
@@ -714,7 +714,7 @@ fn convert_instruction(
         LLVMOpcode::LLVMInsertValue => {
             let (aggr, val) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             let indices = llvm_get_indices(inst);
-            Ok(InsertValueOp::new(ctx, aggr, val, indices)?.get_operation())
+            Ok(InsertValueOp::new(ctx, aggr, val, indices).get_operation())
         }
         LLVMOpcode::LLVMExtractValue => {
             let aggr = get_operand(opds, 0)?;

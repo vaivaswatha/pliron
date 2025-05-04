@@ -112,6 +112,26 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_op::def_op(args, input))
 }
 
+/// Derive getter and setters for operation attributes listed as arguments.
+/// The arguments are a comma separated list of attribute names
+/// (which must be an [Identifier](../pliron/identifier/struct.Identifier.html)),
+/// each of which may have an optional concrete Rust type specified,
+/// denoting the [Attribute](../pliron/attribute/trait.Attribute.html)'s concrete type.
+/// ```
+/// # use pliron::derive::{def_op, derive_attr_get_set};
+/// # use pliron::{impl_canonical_syntax, impl_verify_succ};
+/// // A test for the `derive_attr_get_set` macro.
+/// #[def_op("llvm.with_attrs")]
+/// #[derive_attr_get_set(name_any_attr, name_ty_attr : pliron::builtin::attributes::TypeAttr)]
+/// pub struct WithAttrsOp {}
+/// # impl_canonical_syntax!(WithAttrsOp);
+/// # impl_verify_succ!(WithAttrsOp);
+/// ```
+#[proc_macro_attribute]
+pub fn derive_attr_get_set(args: TokenStream, input: TokenStream) -> TokenStream {
+    to_token_stream(derive_op::derive_attr_get_set(args, input))
+}
+
 /// Derive [Printable](../pliron/printable/trait.Printable.html) and
 /// [Parsable](../pliron/parsable/trait.Parsable.html) for Rust types.
 /// Use this is for types other than `Op`, `Type` and `Attribute`s.

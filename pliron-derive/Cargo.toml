@@ -17,9 +17,10 @@ proc-macro = true
 [dependencies]
 proc-macro2.workspace = true
 quote.workspace = true
-syn.workspace = true
+syn = { version = "2", features = ["derive", "full", "parsing"] }
 combine.workspace = true
 rustc-hash.workspace = true
+convert_case = "0"
 
 [dev-dependencies]
 prettyplease.workspace = true

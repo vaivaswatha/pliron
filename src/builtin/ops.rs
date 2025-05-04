@@ -1,8 +1,10 @@
 use combine::{Parser, token};
 use pliron::derive::{def_op, derive_op_interface_impl};
+use pliron_derive::derive_attr_get_set;
 use thiserror::Error;
 
 use crate::{
+    attribute::attr_cast,
     basic_block::BasicBlock,
     builtin::op_interfaces::ZeroResultInterface,
     common_traits::{Named, Verify},
@@ -41,12 +43,6 @@ use super::{
 /// It contains a single [SSACFG](super::op_interfaces::RegionKind::SSACFG)
 /// region containing a single block which can contain any operations and
 /// does not have a terminator.
-///
-/// Attributes:
-///
-/// | key | value | via Interface |
-/// |-----|-------|-----|
-/// | [ATTR_KEY_SYM_NAME](super::op_interfaces::ATTR_KEY_SYM_NAME) | [IdentifierAttr](super::attributes::IdentifierAttr) | [SymbolOpInterface] |
 #[def_op("builtin.module")]
 #[derive_op_interface_impl(
     OneRegionInterface,
@@ -129,13 +125,6 @@ impl ModuleOp {
 
 /// An operation with a name containing a single SSA control-flow-graph region.
 /// See MLIR's [func.func](https://mlir.llvm.org/docs/Dialects/Func/#funcfunc-mlirfuncfuncop).
-///
-/// Attributes:
-///
-/// | key | value | via Interface |
-/// |-----|-------|-----|
-/// | [ATTR_KEY_SYM_NAME](super::op_interfaces::ATTR_KEY_SYM_NAME) | [IdentifierAttr](super::attributes::IdentifierAttr) | [SymbolOpInterface] |
-/// | [ATTR_KEY_FUNC_TYPE](func_op::ATTR_KEY_FUNC_TYPE) | [TypeAttr](super::attributes::TypeAttr) | N/A |
 #[def_op("builtin.func")]
 #[derive_op_interface_impl(
     OneRegionInterface,
@@ -144,16 +133,8 @@ impl ModuleOp {
     ZeroOpdInterface,
     ZeroResultInterface
 )]
+#[derive_attr_get_set(func_type : TypeAttr)]
 pub struct FuncOp;
-
-pub mod func_op {
-    use std::sync::LazyLock;
-
-    use super::*;
-    /// Attribute key for the function type.
-    pub static ATTR_KEY_FUNC_TYPE: LazyLock<Identifier> =
-        LazyLock::new(|| "builtin_func_type".try_into().unwrap());
-}
 
 impl FuncOp {
     /// Create a new [FuncOp].
@@ -167,25 +148,17 @@ impl FuncOp {
         let region = op.deref_mut(ctx).get_region(0);
         let body = BasicBlock::new(ctx, Some("entry".try_into().unwrap()), arg_types);
         body.insert_at_front(region, ctx);
-        {
-            let opref = &mut *op.deref_mut(ctx);
-            // Set function type attributes.
-            opref
-                .attributes
-                .set(func_op::ATTR_KEY_FUNC_TYPE.clone(), ty_attr);
-        }
+
         let opop = FuncOp { op };
         opop.set_symbol_name(ctx, name);
+        opop.set_attr_func_type(ctx, ty_attr);
 
         opop
     }
 
     /// Get the function signature (type).
     pub fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        let opref = self.get_operation().deref(ctx);
-        opref
-            .attributes
-            .get_as::<dyn TypedAttrInterface>(&func_op::ATTR_KEY_FUNC_TYPE)
+        attr_cast::<dyn TypedAttrInterface>(&*self.get_attr_func_type(ctx).unwrap())
             .unwrap()
             .get_type()
     }
@@ -258,16 +231,10 @@ impl Parsable for FuncOp {
             .parse_stream(state_stream)
             .map(|(fname, fty, _region)| -> OpObj {
                 let ctx = &mut state_stream.state.ctx;
-                {
-                    let ty_attr = TypeAttr::new(fty);
-                    let opref = &mut *op.deref_mut(ctx);
-                    // Set function type attributes.
-                    opref
-                        .attributes
-                        .set(func_op::ATTR_KEY_FUNC_TYPE.clone(), ty_attr);
-                }
+                let ty_attr = TypeAttr::new(fty);
                 let opop = Box::new(FuncOp { op });
                 opop.set_symbol_name(ctx, fname);
+                opop.set_attr_func_type(ctx, ty_attr);
                 opop
             })
             .into()

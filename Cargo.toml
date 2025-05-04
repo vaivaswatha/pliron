@@ -52,7 +52,6 @@ proc-macro2 = "1"
 quote = "1"
 prettyplease = "0"
 rustc-hash = "1"
-syn = { version = "2", features = ["derive", "full", "parsing"] }
 combine = "4"
 thiserror = "1"
 linkme = "0"
