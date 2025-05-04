@@ -82,13 +82,17 @@ impl<T: 'static> UniqueStore<T> {
     ) -> ArenaIndex {
         match self.unique_stores_map.entry(hash) {
             Entry::Occupied(mut possible_matches) => {
-                let index = possible_matches.get().iter().find_map(|index| {
-                    let iref = &*self.unique_store.get(*index).unwrap().borrow_mut();
+                let index_opt = possible_matches.get().iter().find_map(|index| {
+                    let iref = &*self.unique_store.get(*index).unwrap().borrow();
                     if eq(&t, iref) { Some(*index) } else { None }
                 });
-                let index = index.unwrap_or(self.unique_store.insert(RefCell::new(t)));
-                possible_matches.get_mut().push(index);
-                index
+                if let Some(index) = index_opt {
+                    index
+                } else {
+                    let index = self.unique_store.insert(RefCell::new(t));
+                    possible_matches.get_mut().push(index);
+                    index
+                }
             }
             Entry::Vacant(slot) => {
                 let new_index = self.unique_store.insert(RefCell::new(t));
