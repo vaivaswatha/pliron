@@ -5,12 +5,14 @@ use std::{
     fmt::Display,
 };
 
+use downcast_rs::{DowncastSync, impl_downcast};
 use thiserror::Error;
 
 use crate::{
     context::Context,
     location::{Located, Location},
     printable::{Printable, State},
+    type_to_trait, utils,
 };
 
 /// The kinds of errors we have during compilation.
@@ -33,7 +35,7 @@ pub struct Error {
     /// The kind of error this is
     pub kind: ErrorKind,
     /// The actual error object describing the error
-    pub err: Box<dyn std::error::Error + Send + Sync>,
+    pub err: Box<dyn PlironError>,
     /// Location of this error in the code being compiled
     pub loc: Location,
     /// Details of how this error occurred
@@ -46,6 +48,13 @@ impl Display for Error {
         write!(f, "Compilation error: {}.\n{}", self.kind, self.err)
     }
 }
+
+pub trait PlironError: std::error::Error + DowncastSync {}
+
+impl<T: std::error::Error + Send + Sync + 'static> PlironError for T {}
+
+crate::impl_printable_for_display!(dyn PlironError);
+impl_downcast!(PlironError);
 
 impl std::error::Error for Error {}
 
@@ -63,7 +72,13 @@ impl Printable for Error {
             self.kind,
         )?;
 
-        if let Some(self_val) = self.err.downcast_ref::<Error>() {
+        let any_ref = (*self.err).as_any();
+
+        type_to_trait!(&dyn PlironError, Printable);
+
+        if let Some(self_val) = utils::trait_cast::any_to_trait::<dyn Printable>(any_ref) {
+            write!(f, "{}", self_val.disp(ctx))?;
+        } else if let Some(self_val) = self.err.downcast_ref::<Error>() {
             write!(f, "{}", self_val.disp(ctx))?;
         } else {
             write!(f, "{}", self.err)?;
