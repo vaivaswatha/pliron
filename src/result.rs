@@ -35,7 +35,7 @@ pub struct Error {
     /// The kind of error this is
     pub kind: ErrorKind,
     /// The actual error object describing the error
-    pub err: Box<dyn PlironError>,
+    pub err: Box<dyn AnyError>,
     /// Location of this error in the code being compiled
     pub loc: Location,
     /// Details of how this error occurred
@@ -49,12 +49,19 @@ impl Display for Error {
     }
 }
 
-pub trait PlironError: std::error::Error + DowncastSync {}
+/// A wrapper trait combining [`std::error::Error`] and [`downcast_rs::DowncastSync`].
+///
+/// Rust does not natively allow trait object upcasting from [`std::error::Error`] to [`std::any::Any`],
+///
+/// This trait enables that by allowing the [`Error::err`] field to be treated as [`std::any::Any`],
+/// from which it can then be safely downcast to a [`Printable`] object. This makes it possible to
+/// invoke [`Printable::disp`] on any error type that implements both [`Error`] and [`Printable`].
+pub trait AnyError: std::error::Error + DowncastSync {}
 
-impl<T: std::error::Error + Send + Sync + 'static> PlironError for T {}
+impl<T: std::error::Error + Send + Sync + 'static> AnyError for T {}
 
-crate::impl_printable_for_display!(dyn PlironError);
-impl_downcast!(PlironError);
+crate::impl_printable_for_display!(dyn AnyError);
+impl_downcast!(AnyError);
 
 impl std::error::Error for Error {}
 
@@ -74,7 +81,7 @@ impl Printable for Error {
 
         let any_ref = (*self.err).as_any();
 
-        type_to_trait!(&dyn PlironError, Printable);
+        type_to_trait!(&dyn AnyError, Printable);
 
         if let Some(self_val) = utils::trait_cast::any_to_trait::<dyn Printable>(any_ref) {
             write!(f, "{}", self_val.disp(ctx))?;
