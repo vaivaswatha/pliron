@@ -12,7 +12,7 @@ use crate::{
     context::Context,
     location::{Located, Location},
     printable::{Printable, State},
-    type_to_trait, utils,
+    utils,
 };
 
 /// The kinds of errors we have during compilation.
@@ -55,12 +55,11 @@ impl Display for Error {
 ///
 /// This trait enables that by allowing the [`Error::err`] field to be treated as [`std::any::Any`],
 /// from which it can then be safely downcast to a [`Printable`] object. This makes it possible to
-/// invoke [`Printable::disp`] on any error type that implements both [`Error`] and [`Printable`].
+/// invoke [`Printable::disp`] on any error type that implements both [`std::error::Error`] and [`Printable`].
 pub trait AnyError: std::error::Error + DowncastSync {}
 
 impl<T: std::error::Error + Send + Sync + 'static> AnyError for T {}
 
-crate::impl_printable_for_display!(dyn AnyError);
 impl_downcast!(AnyError);
 
 impl std::error::Error for Error {}
@@ -80,8 +79,6 @@ impl Printable for Error {
         )?;
 
         let any_ref = (*self.err).as_any();
-
-        type_to_trait!(&dyn AnyError, Printable);
 
         if let Some(self_val) = utils::trait_cast::any_to_trait::<dyn Printable>(any_ref) {
             write!(f, "{}", self_val.disp(ctx))?;
@@ -412,13 +409,26 @@ mod tests {
 
     use crate::{
         context::Context,
+        impl_printable_for_display,
         location::{Location, Source},
         printable::Printable,
+        type_to_trait,
     };
 
     #[derive(Debug, Error)]
     #[error("Test error")]
     pub struct TestErr;
+
+    #[derive(Debug, Error)]
+    pub struct PrintableErr(String);
+
+    impl std::fmt::Display for PrintableErr {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
+
+    impl_printable_for_display!(PrintableErr);
 
     #[test]
     fn wrapped_err() {
@@ -433,6 +443,32 @@ mod tests {
         let loc2 = Location::SrcPos { pos: pos2, src };
 
         let res = input_error!(loc2, TestErr);
+        let wrapped_res = input_error!(loc1, res);
+        let expected_err_msg = expect![[r#"
+            [/tmp/test.pliron: line: 1, column: 1] Compilation error: invalid input program.
+            [/tmp/test.pliron: line: 1, column: 2] Compilation error: invalid input program.
+            Test error"#]];
+
+        let actual_err = wrapped_res.disp(ctx).to_string();
+        expected_err_msg.assert_eq(&actual_err);
+    }
+
+    #[test]
+    fn printable_err() {
+        let ctx = &mut Context::new();
+        let src = Source::new_from_file(ctx, "/tmp/test.pliron".into());
+
+        type_to_trait!(PrintableErr, Printable);
+
+        let pos1 = SourcePosition::default();
+        let loc1 = Location::SrcPos { src, pos: pos1 };
+
+        let mut pos2 = SourcePosition::default();
+        pos2.update(&' ');
+        let loc2 = Location::SrcPos { pos: pos2, src };
+
+        let res = input_error!(loc2, PrintableErr("Test error".to_string()));
+
         let wrapped_res = input_error!(loc1, res);
         let expected_err_msg = expect![[r#"
             [/tmp/test.pliron: line: 1, column: 1] Compilation error: invalid input program.
