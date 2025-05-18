@@ -96,12 +96,12 @@ pub mod interruptible {
     }
 
     impl WalkContinue {
-        /// Is this Self::Advance?
+        /// Is this [Self::Advance]?
         pub fn is_advance(&self) -> bool {
             matches!(self, Self::Advance)
         }
 
-        /// Is this Self::Skip?
+        /// Is this [Self::Skip]?
         pub fn is_skip(&self) -> bool {
             matches!(self, Self::Skip)
         }
@@ -277,10 +277,11 @@ macro_rules! define_walkers {
 
             let mut s = S { state, callback };
 
-            interruptible::$mutability::walk_op(ctx, &mut s, config, root, |ctx, s, node| {
-                (s.callback)(ctx, s.state, node);
-                interruptible::walk_advance::<()>()
-            });
+            let _ =
+                interruptible::$mutability::walk_op(ctx, &mut s, config, root, |ctx, s, node| {
+                    (s.callback)(ctx, s.state, node);
+                    interruptible::walk_advance::<()>()
+                });
         }
 
         /// Visit a [Region] and walk its children [BasicBlock]s.
@@ -298,10 +299,16 @@ macro_rules! define_walkers {
 
             let mut s = S { state, callback };
 
-            interruptible::$mutability::walk_region(ctx, &mut s, config, root, |ctx, s, node| {
-                (s.callback)(ctx, s.state, node);
-                interruptible::walk_advance::<()>()
-            });
+            let _ = interruptible::$mutability::walk_region(
+                ctx,
+                &mut s,
+                config,
+                root,
+                |ctx, s, node| {
+                    (s.callback)(ctx, s.state, node);
+                    interruptible::walk_advance::<()>()
+                },
+            );
         }
 
         /// Visit a [BasicBlock] and walk its children [Operation]s.
@@ -319,10 +326,16 @@ macro_rules! define_walkers {
 
             let mut s = S { state, callback };
 
-            interruptible::$mutability::walk_block(ctx, &mut s, config, root, |ctx, s, node| {
-                (s.callback)(ctx, s.state, node);
-                interruptible::walk_advance::<()>()
-            });
+            let _ = interruptible::$mutability::walk_block(
+                ctx,
+                &mut s,
+                config,
+                root,
+                |ctx, s, node| {
+                    (s.callback)(ctx, s.state, node);
+                    interruptible::walk_advance::<()>()
+                },
+            );
         }
     };
 }

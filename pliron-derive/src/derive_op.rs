@@ -144,7 +144,9 @@ pub(crate) fn derive_attr_get_set(
 ) -> Result<TokenStream> {
     enum Attr {
         Name(syn::Ident),
-        NameWithType(syn::Ident, syn::Type),
+        // The boxing is to reduce the total size of the enum,
+        // as advised by Clippy.
+        NameWithType(syn::Ident, Box<syn::Type>),
     }
 
     impl ToTokens for Attr {
@@ -165,7 +167,7 @@ pub(crate) fn derive_attr_get_set(
             if input.peek(syn::Token![:]) {
                 input.parse::<syn::Token![:]>()?;
                 let ty: syn::Type = input.parse()?;
-                Ok(Attr::NameWithType(attr_name, ty))
+                Ok(Attr::NameWithType(attr_name, Box::new(ty)))
             } else {
                 Ok(Attr::Name(attr_name))
             }
