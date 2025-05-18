@@ -5,15 +5,22 @@ use std::{
     fmt::Display,
 };
 
-use downcast_rs::{DowncastSync, impl_downcast};
+use downcast_rs::{Downcast, impl_downcast};
 use thiserror::Error;
 
 use crate::{
     context::Context,
     location::{Located, Location},
     printable::{Printable, State},
-    utils,
+    utils::trait_cast::any_to_trait,
 };
+
+/// A wrapper trait combining [`std::error::Error`] and [`downcast_rs::Downcast`]
+/// to allow upcasting to [Any](std::any::Any), so that, we can downcast it
+/// to the [Printable] trait if the error implements it.
+pub trait AnyError: std::error::Error + Send + Sync + 'static + Downcast {}
+impl<T: std::error::Error + Send + Sync + 'static> AnyError for T {}
+impl_downcast!(AnyError);
 
 /// The kinds of errors we have during compilation.
 #[derive(Debug, Error)]
@@ -42,27 +49,14 @@ pub struct Error {
     pub backtrace: Backtrace,
 }
 
+impl std::error::Error for Error {}
+
 /// This does not print [Location] or [Backtrace]. Use [Printable::disp] for that.
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Compilation error: {}.\n{}", self.kind, self.err)
     }
 }
-
-/// A wrapper trait combining [`std::error::Error`] and [`downcast_rs::DowncastSync`].
-///
-/// Rust does not natively allow trait object upcasting from [`std::error::Error`] to [`std::any::Any`],
-///
-/// This trait enables that by allowing the [`Error::err`] field to be treated as [`std::any::Any`],
-/// from which it can then be safely downcast to a [`Printable`] object. This makes it possible to
-/// invoke [`Printable::disp`] on any error type that implements both [`std::error::Error`] and [`Printable`].
-pub trait AnyError: std::error::Error + DowncastSync {}
-
-impl<T: std::error::Error + Send + Sync + 'static> AnyError for T {}
-
-impl_downcast!(AnyError);
-
-impl std::error::Error for Error {}
 
 impl Printable for Error {
     fn fmt(
@@ -78,11 +72,9 @@ impl Printable for Error {
             self.kind,
         )?;
 
-        let any_ref = (*self.err).as_any();
-
-        if let Some(self_val) = utils::trait_cast::any_to_trait::<dyn Printable>(any_ref) {
+        if let Some(self_val) = self.err.downcast_ref::<Error>() {
             write!(f, "{}", self_val.disp(ctx))?;
-        } else if let Some(self_val) = self.err.downcast_ref::<Error>() {
+        } else if let Some(self_val) = any_to_trait::<dyn Printable>((*self.err).as_any()) {
             write!(f, "{}", self_val.disp(ctx))?;
         } else {
             write!(f, "{}", self.err)?;
@@ -409,7 +401,6 @@ mod tests {
 
     use crate::{
         context::Context,
-        impl_printable_for_display,
         location::{Location, Source},
         printable::Printable,
         type_to_trait,
@@ -424,11 +415,22 @@ mod tests {
 
     impl std::fmt::Display for PrintableErr {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.0)
+            write!(f, "Display: {}", self.0)
         }
     }
 
-    impl_printable_for_display!(PrintableErr);
+    impl Printable for PrintableErr {
+        fn fmt(
+            &self,
+            _ctx: &Context,
+            _state: &crate::printable::State,
+            f: &mut std::fmt::Formatter<'_>,
+        ) -> std::fmt::Result {
+            write!(f, "Printable: {}", self.0)
+        }
+    }
+    // We want to be able to downcast `PrintableErr` as `Any` to `Printable`
+    type_to_trait!(PrintableErr, Printable);
 
     #[test]
     fn wrapped_err() {
@@ -458,24 +460,16 @@ mod tests {
         let ctx = &mut Context::new();
         let src = Source::new_from_file(ctx, "/tmp/test.pliron".into());
 
-        type_to_trait!(PrintableErr, Printable);
+        let pos = SourcePosition::default();
+        let loc = Location::SrcPos { src, pos };
 
-        let pos1 = SourcePosition::default();
-        let loc1 = Location::SrcPos { src, pos: pos1 };
+        let res = input_error!(loc, PrintableErr("Test error".to_string()));
 
-        let mut pos2 = SourcePosition::default();
-        pos2.update(&' ');
-        let loc2 = Location::SrcPos { pos: pos2, src };
-
-        let res = input_error!(loc2, PrintableErr("Test error".to_string()));
-
-        let wrapped_res = input_error!(loc1, res);
         let expected_err_msg = expect![[r#"
             [/tmp/test.pliron: line: 1, column: 1] Compilation error: invalid input program.
-            [/tmp/test.pliron: line: 1, column: 2] Compilation error: invalid input program.
-            Test error"#]];
+            Printable: Test error"#]];
 
-        let actual_err = wrapped_res.disp(ctx).to_string();
+        let actual_err = res.disp(ctx).to_string();
         expected_err_msg.assert_eq(&actual_err);
     }
 }
