@@ -207,7 +207,7 @@ pub fn walk_symbol_table<State>(
         }
     }
 
-    walk_region(
+    let _ = walk_region(
         ctx,
         &mut StateWithCallback { callback, state },
         &WALKCONFIG_PREORDER_FORWARD,

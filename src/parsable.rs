@@ -1,6 +1,6 @@
 //! IR objects that can be parsed from their text representation.
 
-use std::collections::hash_map::Entry;
+use std::{any::Any, collections::hash_map::Entry};
 
 use crate::{
     basic_block::BasicBlock,
@@ -12,7 +12,7 @@ use crate::{
     identifier::Identifier,
     input_err,
     irfmt::parsers::int_parser,
-    location::{self, Located, Location},
+    location::{self, Located, Location, Source},
     op::op_impls,
     operation::Operation,
     result::{self, Result},
@@ -37,18 +37,24 @@ use utf8_chars::BufReadCharsExt;
 /// Every parser implemented using [Parsable] will be passed
 /// a mutable reference (wrapped with [StateStream]) to this state.
 pub struct State<'a> {
+    /// The [Context] in which the parsing is being done.
     pub ctx: &'a mut Context,
+    /// The [NameTracker] for this parsing session.
     pub(crate) name_tracker: NameTracker,
-    pub src: location::Source,
+    /// The [Source] from which the input is being read.
+    pub src: Source,
+    /// Aribtrary state data that different parsers may want to use.
+    pub aux_data: FxHashMap<Identifier, Box<dyn Any>>,
 }
 
 impl<'a> State<'a> {
     /// Create a new empty [State].
-    pub fn new(ctx: &'a mut Context, src: location::Source) -> State<'a> {
+    pub fn new(ctx: &'a mut Context, src: Source) -> State<'a> {
         State {
             ctx,
             name_tracker: NameTracker::default(),
             src,
+            aux_data: FxHashMap::default(),
         }
     }
 }

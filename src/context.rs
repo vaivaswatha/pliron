@@ -17,15 +17,29 @@ use crate::{
 use rustc_hash::FxHashMap;
 use slotmap::{SlotMap, new_key_type};
 use std::{
-    any::TypeId,
+    any::{Any, TypeId},
     cell::{Ref, RefCell, RefMut},
+    fmt::{Debug, Display},
     hash::Hash,
     marker::PhantomData,
 };
 
 new_key_type! {
+    /// The index type for the [SlotMap] used to store IR objects.
     pub struct ArenaIndex;
 }
+
+new_key_type! {
+    /// The index type for the [SlotMap] used to store auxiliary data.
+    pub struct AuxDataIndex;
+}
+
+impl Display for ArenaIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.0)
+    }
+}
+
 // pub type ArenaIndex = slotmap::DefaultKey;
 pub type ArenaCell<T> = SlotMap<ArenaIndex, RefCell<T>>;
 
@@ -46,6 +60,10 @@ pub struct Context {
     pub(crate) type_store: UniqueStore<TypeObj>,
     /// Storage for other uniqued objects.
     pub(crate) uniqued_any_store: UniqueStore<UniquedAny>,
+    /// Arbitrary data storage. Use [Self::aux_data_map] for dictionary access.
+    pub aux_data: SlotMap<AuxDataIndex, Box<dyn Any>>,
+    /// A dictionary with keys mapping to an index in [Self::aux_data].
+    pub aux_data_map: FxHashMap<Identifier, AuxDataIndex>,
 
     #[cfg(test)]
     pub(crate) linked_list_store: crate::linked_list::tests::LinkedListTestArena,
@@ -154,7 +172,7 @@ impl<'a, T: ArenaObj> Ptr<T> {
 
     /// Create a unique (to the arena) name based on the arena index.
     pub(crate) fn make_name(&self, name_base: &str) -> Identifier {
-        let idx = format!("{:?}", self.idx.0);
+        let idx = format!("{}", self.idx);
         (name_base.to_string() + &idx).try_into().unwrap()
     }
 }

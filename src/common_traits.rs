@@ -47,15 +47,10 @@ pub trait Named {
     }
 }
 
-/// For types that are a reference-counted container,
-/// provides methods to [share](Self::share) (i.e., [Rc::clone](std::rc::Rc::clone))
-/// and [deep copy](Self::replicate) inner data.
-/// This just avoids ambiguity over using `Rc::clone`, which doesn't clone
-/// inner data but increases the reference count.
-pub trait RcSharable {
-    /// Light weight (reference counted) clone.
+/// For reference-counted containers, [share](Self::share) data by increasing the reference count.
+/// This is equivalent in semantics to (i.e., [Rc::clone](std::rc::Rc::clone)),
+/// but with a goal of having a less ambiguous name.
+pub trait RcShare {
+    /// Share this object with someone else by increasing the reference count.
     fn share(&self) -> Self;
-
-    /// New copy that doesn't share the internal state of self.
-    fn replicate(&self) -> Self;
 }

@@ -1,19 +1,23 @@
 //! IR objects that are to be printed must implement [Printable].
 
 use std::{
-    cell::RefCell,
+    any::Any,
+    cell::{Ref, RefCell, RefMut},
     fmt::{self, Display},
     rc::Rc,
 };
 
-use crate::{common_traits::RcSharable, context::Context};
+use rustc_hash::FxHashMap;
 
-#[derive(Clone)]
+use crate::{common_traits::RcShare, context::Context, identifier::Identifier};
+
 struct StateInner {
     // Number of spaces per indentation
     indent_width: u16,
     // Current indentation
     cur_indent: u16,
+    // Aribtrary state data that different printers may want to use.
+    aux_data: FxHashMap<Identifier, Box<dyn Any>>,
 }
 
 impl Default for StateInner {
@@ -21,6 +25,7 @@ impl Default for StateInner {
         Self {
             indent_width: 2,
             cur_indent: 0,
+            aux_data: FxHashMap::default(),
         }
     }
 }
@@ -28,6 +33,12 @@ impl Default for StateInner {
 /// A light weight reference counted wrapper around a state for [Printable].
 #[derive(Default)]
 pub struct State(Rc<RefCell<StateInner>>);
+
+impl RcShare for State {
+    fn share(&self) -> Self {
+        State(Rc::clone(&self.0))
+    }
+}
 
 impl State {
     /// Number of spaces per indentation
@@ -50,22 +61,23 @@ impl State {
         let mut inner = self.0.as_ref().borrow_mut();
         inner.cur_indent += inner.indent_width;
     }
+
     /// Decrease the current indentation by [Self::get_indent_width].
     pub fn pop_indent(&self) {
         let mut inner = self.0.as_ref().borrow_mut();
         inner.cur_indent -= inner.indent_width;
     }
-}
 
-impl RcSharable for State {
-    /// Light weight (reference counted) clone.
-    fn share(&self) -> Self {
-        State(self.0.clone())
+    /// Get a reference to the aux data table. The returned [Ref] is borrowed
+    /// from the entire [State] object, so release it at the earliest.
+    pub fn aux_data_ref(&self) -> Ref<FxHashMap<Identifier, Box<dyn Any>>> {
+        Ref::map(self.0.borrow(), |inner| &inner.aux_data)
     }
 
-    /// New copy that doesn't share the internal state of self.
-    fn replicate(&self) -> Self {
-        State(Rc::new(RefCell::new(self.0.borrow().clone())))
+    /// Get a mutable reference to the aux data table. The returned [RefMut] is borrowed
+    /// from the entire [State] object, so release it at the earliest.
+    pub fn aux_data_mut(&self) -> RefMut<FxHashMap<Identifier, Box<dyn Any>>> {
+        RefMut::map(self.0.borrow_mut(), |inner| &mut inner.aux_data)
     }
 }
 
@@ -263,26 +275,5 @@ impl Display for IndentedNewliner {
 pub fn indented_nl(state: &State) -> impl Display {
     IndentedNewliner {
         state: state.share(),
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::common_traits::RcSharable;
-
-    use super::State;
-
-    #[test]
-    fn test_state_cloning() {
-        let state = State::default();
-        let cur_indent = state.get_current_indent();
-        state.push_indent();
-        assert!(cur_indent < state.get_current_indent());
-        let state_new = state.replicate();
-        state.pop_indent();
-        assert!(state_new.get_current_indent() != state.get_current_indent());
-        let state_new_2 = state_new.share();
-        state_new_2.push_indent();
-        assert!(state_new.get_current_indent() == state_new_2.get_current_indent());
     }
 }

@@ -208,7 +208,7 @@ trait PrintableBuilder<State: Default> {
     }
 
     fn build_format(input: &FmtInput, state: &mut State) -> Result<TokenStream> {
-        let derived_format = input
+        input
             .format
             .elems
             .iter()
@@ -216,8 +216,7 @@ trait PrintableBuilder<State: Default> {
             .try_fold(TokenStream::new(), |mut acc, e| {
                 acc.extend(e?);
                 Ok(acc)
-            });
-        derived_format
+            })
     }
 
     fn build_elem(input: &FmtInput, state: &mut State, elem: &Elem) -> Result<TokenStream> {
@@ -624,7 +623,7 @@ trait ParsableBuilder<State: Default> {
     }
 
     fn build_format(input: &FmtInput, state: &mut State) -> Result<TokenStream> {
-        let derived_format = input
+        input
             .format
             .elems
             .iter()
@@ -632,8 +631,7 @@ trait ParsableBuilder<State: Default> {
             .try_fold(TokenStream::new(), |mut acc, e| {
                 acc.extend(e?);
                 Ok(acc)
-            });
-        derived_format
+            })
     }
 
     fn build_elem(input: &FmtInput, state: &mut State, elem: &Elem) -> Result<TokenStream> {
