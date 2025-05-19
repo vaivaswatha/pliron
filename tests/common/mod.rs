@@ -1,5 +1,3 @@
-use std::sync::LazyLock;
-
 use awint::bw;
 use pliron::derive::{def_op, derive_op_interface_impl};
 use pliron::utils::apint::APInt;
@@ -45,14 +43,16 @@ impl ReturnOp {
 
 impl_verify_succ!(ReturnOp);
 
+mod constant_op {
+    use pliron::dict_key;
+    dict_key!(ATTR_KEY_VALUE, "constant_value");
+}
+
 #[def_op("test.constant")]
 #[derive_op_interface_impl(ZeroOpdInterface, OneResultInterface)]
 pub struct ConstantOp;
 impl_verify_succ!(ConstantOp);
 impl ConstantOp {
-    pub const ATTR_KEY_VALUE: LazyLock<Identifier> =
-        LazyLock::new(|| "constant_value".try_into().unwrap());
-
     pub fn new(ctx: &mut Context, value: u64) -> Self {
         let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
         let int_attr = IntegerAttr::new(i64_ty, APInt::from_u64(value, bw(64)));
@@ -67,13 +67,17 @@ impl ConstantOp {
         op.deref_mut(ctx)
             .attributes
             .0
-            .insert(Self::ATTR_KEY_VALUE.clone(), Box::new(int_attr));
+            .insert(constant_op::ATTR_KEY_VALUE.clone(), Box::new(int_attr));
         ConstantOp { op }
     }
 
     pub fn get_value(&self, ctx: &Context) -> AttrObj {
         let op = self.get_operation().deref(ctx);
-        op.attributes.0.get(&Self::ATTR_KEY_VALUE).unwrap().clone()
+        op.attributes
+            .0
+            .get(&constant_op::ATTR_KEY_VALUE)
+            .unwrap()
+            .clone()
     }
 }
 impl Printable for ConstantOp {

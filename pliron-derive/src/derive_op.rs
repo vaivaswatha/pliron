@@ -215,8 +215,7 @@ pub(crate) fn derive_attr_get_set(
         let attr_name_uppercase = attr_name_string.to_uppercase();
         let attr_name_const = format_ident!("ATTR_KEY_{}", attr_name_uppercase);
         let attr_name_const_decl = quote! {
-            pub static #attr_name_const: LazyLock<Identifier> =
-                LazyLock::new(|| #attr_name_string.try_into().unwrap());
+            ::pliron::dict_key!(#attr_name_const, #attr_name_string);
         };
         attr_name_const_decls.push(attr_name_const_decl);
 

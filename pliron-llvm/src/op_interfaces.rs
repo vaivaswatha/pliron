@@ -1,8 +1,6 @@
 //! [Op] Interfaces defined in the LLVM dialect.
 
-use std::sync::LazyLock;
-
-use pliron::{builtin::op_interfaces::OneOpdInterface, derive::op_interface};
+use pliron::{builtin::op_interfaces::OneOpdInterface, derive::op_interface, dict_key};
 use thiserror::Error;
 
 use pliron::{
@@ -11,7 +9,6 @@ use pliron::{
         types::{IntegerType, Signedness},
     },
     context::{Context, Ptr},
-    identifier::Identifier,
     location::Located,
     op::{Op, op_cast},
     operation::Operation,
@@ -88,9 +85,11 @@ pub trait IntBinArithOp: BinArithOp {
     }
 }
 
-/// Attribute key for integer overflow flags.
-pub static ATTR_KEY_INTEGER_OVERFLOW_FLAGS: LazyLock<Identifier> =
-    LazyLock::new(|| "llvm_integer_overflow_flags".try_into().unwrap());
+dict_key!(
+    /// Attribute key for integer overflow flags.
+    ATTR_KEY_INTEGER_OVERFLOW_FLAGS,
+    "llvm_integer_overflow_flags"
+);
 
 #[derive(Error, Debug)]
 #[error("IntegerOverflowFlag missing on Op")]

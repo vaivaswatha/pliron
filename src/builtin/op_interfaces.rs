@@ -1,4 +1,4 @@
-use std::{collections::hash_map, sync::LazyLock};
+use std::collections::hash_map;
 
 use pliron::derive::op_interface;
 use rustc_hash::FxHashMap;
@@ -8,6 +8,7 @@ use crate::{
     basic_block::BasicBlock,
     builtin::attributes::TypeAttr,
     context::{Context, Ptr},
+    dict_key,
     graph::walkers::interruptible::{WalkResult, walk_advance, walk_break},
     identifier::Identifier,
     linked_list::ContainsLinkedList,
@@ -190,9 +191,10 @@ pub trait SingleBlockRegionInterface {
     }
 }
 
-/// Key for symbol name attribute when the operation defines a symbol.
-pub static ATTR_KEY_SYM_NAME: LazyLock<Identifier> =
-    LazyLock::new(|| "sym_name".try_into().unwrap());
+dict_key!(
+    /// Key for symbol name attribute when the operation defines a symbol.
+    ATTR_KEY_SYM_NAME, "sym_name"
+);
 
 #[derive(Error, Debug)]
 #[error("Op implementing SymbolOpInterface does not have a symbol defined")]
@@ -577,8 +579,7 @@ pub enum CallOpInterfaceErr {
     CalleeTypeAttrIncorrectTypeErr,
 }
 
-pub static ATTR_KEY_CALLEE_TYPE: LazyLock<Identifier> =
-    LazyLock::new(|| "callee_type".try_into().unwrap());
+dict_key!(ATTR_KEY_CALLEE_TYPE, "callee_type");
 
 /// A call-like op: Transfers control from one function to another.
 /// See MLIR's [CallOpInterface](https://mlir.llvm.org/docs/Interfaces/#callinterfaces).

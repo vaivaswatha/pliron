@@ -1,6 +1,6 @@
 //! Utilities for attaching / retrieving debug info to / from the IR.
 
-use std::{collections::hash_map, sync::LazyLock};
+use std::collections::hash_map;
 
 use crate::{
     attribute::{AttrObj, AttributeDict},
@@ -10,14 +10,16 @@ use crate::{
         attributes::{DictAttr, IdentifierAttr, UnitAttr, VecAttr},
     },
     context::{Context, Ptr},
+    dict_key,
     identifier::Identifier,
     operation::Operation,
     utils::vec_exns::VecExtns,
 };
 
-/// Key into a debug info's variable name.
-pub static DEBUG_INFO_KEY_NAME: LazyLock<Identifier> =
-    LazyLock::new(|| "debug_info_name".try_into().unwrap());
+dict_key!(
+    /// Key into a debug info's variable name.
+    DEBUG_INFO_KEY_NAME, "debug_info_name"
+);
 
 fn set_name_from_attr_map(
     attributes: &mut AttributeDict,
