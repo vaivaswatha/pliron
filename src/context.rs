@@ -263,6 +263,7 @@ pub struct DictKeyId {
 #[distributed_slice]
 pub static DICT_KEY_IDS: [LazyLock<DictKeyId>];
 
+#[doc(hidden)]
 /// Verify that all dictionary keys are unique. This is called when a [Context] is created.
 /// If any duplicate keys are found, a panic is raised with the file, line, and column
 /// information of the duplicate keys.
@@ -278,6 +279,7 @@ pub fn verify_dict_keys() {
         seen.insert(key.id.clone(), (key.file, key.line, key.column));
     }
 }
+
 /// A macro to declare a static [Identifier] for use as a dictionary key.
 ///
 /// Usage:

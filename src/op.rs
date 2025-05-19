@@ -239,14 +239,17 @@ pub fn op_impls<T: ?Sized + Op>(op: &dyn Op) -> bool {
 /// Every op interface must have a function named `verify` with this type.
 pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<()>;
 
+#[doc(hidden)]
 /// [Op]s paired with every interface it implements (and the verifier for that interface).
 #[distributed_slice]
 pub static OP_INTERFACE_VERIFIERS: [LazyLock<(OpId, (std::any::TypeId, OpInterfaceVerifier))>];
 
+#[doc(hidden)]
 /// All interfaces mapped to their super-interfaces
 #[distributed_slice]
 pub static OP_INTERFACE_DEPS: [LazyLock<(std::any::TypeId, Vec<std::any::TypeId>)>];
 
+#[doc(hidden)]
 /// A map from every [Op] to its ordered (as per interface deps) list of interface verifiers.
 /// An interface's super-interfaces are to be verified before it itself is.
 pub static OP_INTERFACE_VERIFIERS_MAP: LazyLock<

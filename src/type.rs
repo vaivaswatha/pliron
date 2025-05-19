@@ -533,6 +533,7 @@ pub fn type_impls<T: ?Sized + Type>(ty: &dyn Type) -> bool {
 /// Every type interface must have a function named `verify` with this type.
 pub type TypeInterfaceVerifier = fn(&dyn Type, &Context) -> Result<()>;
 
+#[doc(hidden)]
 /// [Type]s paired with every interface it implements (and the verifier for that interface).
 #[distributed_slice]
 pub static TYPE_INTERFACE_VERIFIERS: [LazyLock<(
@@ -540,10 +541,12 @@ pub static TYPE_INTERFACE_VERIFIERS: [LazyLock<(
     (std::any::TypeId, TypeInterfaceVerifier),
 )>];
 
+#[doc(hidden)]
 /// All interfaces mapped to their super-interfaces
 #[distributed_slice]
 pub static TYPE_INTERFACE_DEPS: [LazyLock<(std::any::TypeId, Vec<std::any::TypeId>)>];
 
+#[doc(hidden)]
 /// A map from every [Type] to its ordered (as per interface deps) list of interface verifiers.
 /// An interface's super-interfaces are to be verified before it itself is.
 pub static TYPE_INTERFACE_VERIFIERS_MAP: LazyLock<

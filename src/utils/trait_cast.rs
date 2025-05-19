@@ -59,9 +59,16 @@ pub trait ClonableAny: Any + DynClone + Downcast {}
 dyn_clone::clone_trait_object!(ClonableAny);
 impl<T: Any + DynClone + Downcast> ClonableAny for T {}
 
+#[doc(hidden)]
 #[distributed_slice]
+/// A distributed slice of (type_id of the object, type_id of the trait to cast to, cast function)
 pub static TRAIT_CASTERS: [LazyLock<((TypeId, TypeId), Box<dyn ClonableAny + Sync + Send>)>];
 
+#[doc(hidden)]
+/// A map of all the trait casters, indexed by the type_id of the object
+/// and the type_id of the trait to cast to. The map's values are
+/// the cast function pointers. This is used to avoid having to search
+/// through the distributed slice every time we want to cast an object.
 static TRAIT_CASTERS_MAP: LazyLock<
     FxHashMap<(TypeId, TypeId), Box<dyn ClonableAny + Sync + Send>>,
 > = LazyLock::new(|| {
