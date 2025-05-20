@@ -13,6 +13,7 @@ use crate::{
     storage_uniquer::UniqueStore,
     r#type::TypeObj,
     uniqued_any::UniquedAny,
+    verify_err_noloc,
 };
 use linkme::distributed_slice;
 use rustc_hash::FxHashMap;
@@ -92,7 +93,11 @@ impl Default for Context {
             #[cfg(test)]
             linked_list_store: crate::linked_list::tests::LinkedListTestArena::default(),
         };
-        verify_dict_keys();
+
+        // Verify that all dictionary keys are unique.
+        if let Err(err) = &*DICT_KEYS_VERIFIER {
+            panic!("{}", err.err);
+        }
         ctx
     }
 }
@@ -241,7 +246,7 @@ impl<T: ArenaObj + Verify> Verify for Ptr<T> {
 
 #[doc(hidden)]
 /// Declaration of a static [Identifier] for use as a dictionary key.
-#[derive(Hash, Eq, PartialEq, Debug, Clone)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub struct DictKeyId {
     /// The [Identifier] itself.
     pub id: Identifier,
@@ -264,20 +269,30 @@ pub struct DictKeyId {
 pub static DICT_KEY_IDS: [LazyLock<DictKeyId>];
 
 #[doc(hidden)]
+pub static DICT_KEYS_VERIFIER: LazyLock<Result<()>> = LazyLock::new(verify_dict_keys);
+
+#[doc(hidden)]
 /// Verify that all dictionary keys are unique. This is called when a [Context] is created.
 /// If any duplicate keys are found, a panic is raised with the file, line, and column
 /// information of the duplicate keys.
-pub fn verify_dict_keys() {
+pub fn verify_dict_keys() -> Result<()> {
     let mut seen: FxHashMap<Identifier, (&'static str, u32, u32)> = FxHashMap::default();
     for key in DICT_KEY_IDS.iter() {
         if let Some((file, line, column)) = seen.get(&key.id) {
-            panic!(
+            return verify_err_noloc!(
                 "Duplicate dictionary key \"{}\" declared in {}:{}:{} and {}:{}:{}",
-                key.id, file, line, column, key.file, key.line, key.column
+                key.id,
+                file,
+                line,
+                column,
+                key.file,
+                key.line,
+                key.column
             );
         }
         seen.insert(key.id.clone(), (key.file, key.line, key.column));
     }
+    Ok(())
 }
 
 /// A macro to declare a static [Identifier] for use as a dictionary key.
