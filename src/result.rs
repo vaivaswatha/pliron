@@ -100,6 +100,38 @@ impl Located for Error {
 /// Type alias for [std::result::Result] with the error type set to [struct@Error]
 pub type Result<T> = std::result::Result<T, Error>;
 
+impl<T: Printable> Printable for Result<T> {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        match self {
+            Ok(val) => val.fmt(ctx, state, f),
+            Err(err) => Printable::fmt(err, ctx, state, f),
+        }
+    }
+}
+
+/// Same as `unwrap`, but with the panic message printed using [Printable].
+pub trait ExpectOk<T> {
+    /// Unwraps the result, panicking if it is an error.
+    #[track_caller]
+    fn expect_ok(self, ctx: &Context) -> T;
+}
+
+impl<T> ExpectOk<T> for Result<T> {
+    fn expect_ok(self, ctx: &Context) -> T {
+        match self {
+            Ok(val) => val,
+            Err(err) => {
+                panic!("{}", err.disp(ctx))
+            }
+        }
+    }
+}
+
 #[doc(hidden)]
 #[derive(Debug, Error)]
 #[error("{0}")]
@@ -447,8 +479,8 @@ mod tests {
         let res = input_error!(loc2, TestErr);
         let wrapped_res = input_error!(loc1, res);
         let expected_err_msg = expect![[r#"
-            [/tmp/test.pliron: line: 1, column: 1] Compilation error: invalid input program.
-            [/tmp/test.pliron: line: 1, column: 2] Compilation error: invalid input program.
+            ["/tmp/test.pliron": line: 1, column: 1] Compilation error: invalid input program.
+            ["/tmp/test.pliron": line: 1, column: 2] Compilation error: invalid input program.
             Test error"#]];
 
         let actual_err = wrapped_res.disp(ctx).to_string();
@@ -466,7 +498,7 @@ mod tests {
         let res = input_error!(loc, PrintableErr("Test error".to_string()));
 
         let expected_err_msg = expect![[r#"
-            [/tmp/test.pliron: line: 1, column: 1] Compilation error: invalid input program.
+            ["/tmp/test.pliron": line: 1, column: 1] Compilation error: invalid input program.
             Printable: Test error"#]];
 
         let actual_err = res.disp(ctx).to_string();

@@ -20,7 +20,7 @@ use crate::{
     linked_list::{ContainsLinkedList, LinkedList, private},
     location::{Located, Location},
     op::op_impls,
-    operation::Operation,
+    operation::{Operation, OperationParserConfig},
     parsable::{self, IntoParseResult, Parsable, ParseResult},
     printable::{self, ListSeparator, Printable, indented_nl},
     region::Region,
@@ -393,7 +393,10 @@ impl Parsable for BasicBlock {
         );
         let args = spaced(delimited_list_parser('(', ')', ',', arg)).skip(token(':'));
         let ops = spaces().with(sep_by::<Vec<_>, _, _, _>(
-            Operation::parser(()).skip(spaces()),
+            Operation::parser(OperationParserConfig {
+                look_for_outlined_attrs: false,
+            })
+            .skip(spaces()),
             token(';').skip(spaces()),
         ));
 

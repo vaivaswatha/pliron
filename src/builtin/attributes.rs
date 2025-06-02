@@ -1,6 +1,6 @@
 use combine::{
-    Parser, any, between, many, many1, none_of,
-    parser::char::{self, char, digit, spaces},
+    Parser, between, many1,
+    parser::char::{char, digit, spaces},
     token,
 };
 use pliron::derive::{attr_interface_impl, def_attribute};
@@ -13,7 +13,10 @@ use crate::{
     context::{Context, Ptr},
     identifier::Identifier,
     impl_verify_succ, input_err,
-    irfmt::{parsers::spaced, printers::quoted},
+    irfmt::{
+        parsers::{quoted_string_parser, spaced},
+        printers::quoted,
+    },
     location::Located,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
@@ -29,7 +32,7 @@ use super::{
 };
 
 #[def_attribute("builtin.identifier")]
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 #[format_attribute("$0")]
 pub struct IdentifierAttr(Identifier);
 
@@ -51,7 +54,7 @@ impl From<IdentifierAttr> for Identifier {
 /// An attribute containing a string.
 /// Similar to MLIR's [StringAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#stringattr).
 #[def_attribute("builtin.string")]
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct StringAttr(String);
 
 impl StringAttr {
@@ -88,43 +91,17 @@ impl Parsable for StringAttr {
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
-        // An escaped charater is one that is preceded by a backslash.
-        let escaped_char = combine::parser(move |parsable_state: &mut StateStream<'a>| {
-            // This combine::parser() is so that we can get a location before the parsing begins.
-            let loc = parsable_state.loc();
-            let mut escaped_char = token('\\').with(any()).then(move |c: char| {
-                let loc = loc.clone();
-                // This combine::parser() is so that we can return an error of the right type.
-                // I can't get the right error type with `and_then`
-                combine::parser(move |_parsable_state: &mut StateStream<'a>| {
-                    // Filter out the escaped characters that we handle.
-                    let result = match c {
-                        '\\' => Ok('\\'),
-                        '\"' => Ok('\"'),
-                        _ => input_err!(loc.clone(), "Unexpected escaped character \\{}", c),
-                    };
-                    result.into_parse_result()
-                })
-            });
-            escaped_char.parse_stream(parsable_state).into()
-        });
-
-        // We want to scan a double quote deliminted string with possibly escaped characters in between.
-        let mut quoted_string = between(
-            token('"'),
-            token('"'),
-            many(escaped_char.or(none_of("\"".chars()))),
-        )
-        .map(|str: Vec<_>| StringAttr(str.into_iter().collect()));
-
-        quoted_string.parse_stream(state_stream).into()
+        quoted_string_parser()
+            .map(StringAttr)
+            .parse_stream(state_stream)
+            .into_result()
     }
 }
 
 /// An attribute containing an integer.
 /// Similar to MLIR's [IntegerAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#integerattr).
 #[def_attribute("builtin.integer")]
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct IntegerAttr {
     ty: TypePtr<IntegerType>,
     val: APInt,
@@ -229,14 +206,14 @@ impl TypedAttrInterface for IntegerAttr {
 }
 
 /// A dummy implementation until we have a good one.
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug, Hash)]
 pub struct APFloat;
 
 /// An attribute containing an floating point value.
 /// Similar to MLIR's [FloatAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#floatattr).
 /// TODO: Use rustc's APFloat.
 #[def_attribute("builtin.float")]
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug, Hash)]
 pub struct FloatAttr(APFloat);
 
 impl Printable for FloatAttr {
@@ -297,7 +274,7 @@ impl Parsable for FloatAttr {
 /// An attribute that is a dictionary of other attributes.
 /// Similar to MLIR's [DictionaryAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#dictionaryattr),
 #[def_attribute("builtin.dict")]
-#[derive(PartialEq, Clone, Eq, Debug)]
+#[derive(PartialEq, Clone, Eq, Debug, Hash)]
 pub struct DictAttr(AttributeDict);
 
 impl Printable for DictAttr {
@@ -361,7 +338,7 @@ impl DictAttr {
 
 /// A vector of other attributes.
 #[def_attribute("builtin.vec")]
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 #[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
 pub struct VecAttr(pub Vec<AttrObj>);
 
@@ -381,7 +358,7 @@ impl Verify for VecAttr {
 /// See [UnitAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#unitattr) in MLIR.
 #[def_attribute("builtin.unit")]
 #[format_attribute]
-#[derive(PartialEq, Eq, Clone, Copy, Debug, Default)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Default, Hash)]
 pub struct UnitAttr;
 
 impl UnitAttr {
@@ -395,7 +372,7 @@ impl_verify_succ!(UnitAttr);
 /// An attribute that does nothing but hold a Type.
 /// Same as MLIR's [TypeAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#typeattr).
 #[def_attribute("builtin.type")]
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 #[format_attribute("$0")]
 pub struct TypeAttr(Ptr<TypeObj>);
 

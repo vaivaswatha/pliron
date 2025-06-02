@@ -3,6 +3,7 @@
 use std::str::FromStr;
 
 use crate::{
+    arg_err,
     attribute::AttrObj,
     basic_block::BasicBlock,
     context::Ptr,
@@ -10,13 +11,13 @@ use crate::{
     identifier::Identifier,
     location::{Located, Location},
     operation::Operation,
-    parsable::{Parsable, ParseResult, StateStream},
+    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     result::Result,
     r#type::TypeObj,
     value::Value,
 };
 use combine::{
-    Parser, Stream, between, many, many1,
+    Parser, Stream, any, between, many, many1, none_of,
     parser::char::{digit, spaces},
     sep_by, token,
 };
@@ -79,6 +80,57 @@ where
 {
     combine::parser(move |parsable_state: &mut StateStream<'a>| int_parse(parsable_state, ()))
         .boxed()
+}
+
+/// Parse a quoted string, which is a double-quoted string that may contain escaped characters.
+pub fn quoted_string_parse<'a>(
+    state_stream: &mut StateStream<'a>,
+    _arg: (),
+) -> ParseResult<'a, String> {
+    // An escaped charater is one that is preceded by a backslash.
+    let escaped_char = combine::parser(move |parsable_state: &mut StateStream<'a>| {
+        // This combine::parser() is so that we can get a location before the parsing begins.
+        let loc = parsable_state.loc();
+        let mut escaped_char = token('\\').with(any()).then(move |c: char| {
+            let loc = loc.clone();
+            // This combine::parser() is so that we can return an error of the right type.
+            // I can't get the right error type with `and_then`
+            combine::parser(move |_parsable_state: &mut StateStream<'a>| {
+                // Filter out the escaped characters that we handle.
+                let result = match c {
+                    '\\' => Ok('\\'),
+                    '\"' => Ok('\"'),
+                    _ => arg_err!(loc.clone(), "Unexpected escaped character \\{}", c),
+                };
+                result.into_parse_result()
+            })
+        });
+        escaped_char.parse_stream(parsable_state).into()
+    });
+
+    // We want to scan a double quote deliminted string with possibly escaped characters in between.
+    let quoted_string = between(
+        token('"'),
+        token('"'),
+        many(escaped_char.or(none_of("\"".chars()))),
+    );
+
+    quoted_string
+        .map(|chars: Vec<char>| {
+            // Convert the characters to a string.
+            chars.into_iter().collect::<String>()
+        })
+        .parse_stream(state_stream)
+        .into()
+}
+
+/// A parser combinator to parse a quoted string, which is a double-quoted string that may contain escaped characters.
+pub fn quoted_string_parser<'a>()
+-> Box<dyn Parser<StateStream<'a>, Output = String, PartialState = ()> + 'a> {
+    combine::parser(move |parsable_state: &mut StateStream<'a>| {
+        quoted_string_parse(parsable_state, ())
+    })
+    .boxed()
 }
 
 /// A parser combinator to parse [AttrId](crate::attribute::AttrId) followed by the attribute's contents.

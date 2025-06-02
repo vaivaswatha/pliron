@@ -3,6 +3,7 @@
 use std::{env, path::PathBuf, sync::LazyLock};
 
 mod common;
+use combine::Parser;
 use common::init_env_logger;
 
 use assert_cmd::Command;
@@ -13,7 +14,7 @@ use pliron::{
     location,
     op::Op,
     operation::Operation,
-    parsable::{self, Parsable, state_stream_from_file},
+    parsable::{self, state_stream_from_file},
     printable::Printable,
 };
 use pliron_llvm::{
@@ -84,7 +85,7 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
     let source = location::Source::new_from_file(ctx, plir_path.clone());
     let state_stream = state_stream_from_file(&mut plir_file, parsable::State::new(ctx, source));
 
-    let parsed_res = match Operation::parser(()).parse(state_stream) {
+    let parsed_res = match Operation::top_level_parser().parse(state_stream) {
         Ok((parsed_res, _)) => parsed_res,
         Err(err) => {
             eprintln!("{}", err);

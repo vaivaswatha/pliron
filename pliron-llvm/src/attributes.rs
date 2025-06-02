@@ -16,7 +16,7 @@ use pliron::parsable::Parsable;
 ///  and can be used for things like C signed integer values, which are undefined on overflow.
 #[def_attribute("llvm.integer_overlflow_flags")]
 #[format_attribute]
-#[derive(PartialEq, Eq, Clone, Debug, Default)]
+#[derive(PartialEq, Eq, Clone, Debug, Default, Hash)]
 pub struct IntegerOverflowFlagsAttr {
     pub nsw: bool,
     pub nuw: bool,
@@ -26,7 +26,7 @@ impl_verify_succ!(IntegerOverflowFlagsAttr);
 
 #[def_attribute("llvm.icmp_predicate")]
 #[format_attribute]
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub enum ICmpPredicateAttr {
     EQ,
     NE,
@@ -44,7 +44,7 @@ impl_verify_succ!(ICmpPredicateAttr);
 
 /// An index for a GEP can be either a constant or an SSA operand.
 /// Contrary to its name, this isn't an [Attribute][pliron::attribute::Attribute].
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 #[format]
 pub enum GepIndexAttr {
     /// This GEP index is a raw u32 compile time constant
@@ -56,7 +56,7 @@ pub enum GepIndexAttr {
 
 #[def_attribute("llvm.gep_indices")]
 #[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct GepIndicesAttr(pub Vec<GepIndexAttr>);
 impl_verify_succ!(GepIndicesAttr);
 
@@ -68,6 +68,6 @@ pub fn register(ctx: &mut Context) {
 
 #[def_attribute("llvm.insert_extract_value_indices")]
 #[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct InsertExtractValueIndicesAttr(pub Vec<u32>);
 impl_verify_succ!(InsertExtractValueIndicesAttr);

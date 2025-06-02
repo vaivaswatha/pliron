@@ -21,3 +21,29 @@ pub trait TypedAttrInterface {
         Ok(())
     }
 }
+
+/// [Attribute]s that should be printed after the top level [Operation](crate::operation::Operation)
+/// is printed. An [Op](crate::op::Op) may choose to print such an attribute as part of its
+/// syntax specification. This will be unknown to the outline attributes printer and will be
+/// printed nevertheless while printing all outline attributes.
+#[attr_interface]
+pub trait OutlinedAttr {
+    fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+}
+
+/// [Attribute]s that should be printed only once, and some form of "reference" to be
+/// used for repeated printing. These must be outlined attributes.
+#[attr_interface]
+pub trait PrintOnceAttr: OutlinedAttr {
+    fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+}

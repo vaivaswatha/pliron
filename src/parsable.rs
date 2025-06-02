@@ -11,7 +11,7 @@ use crate::{
     context::{Context, Ptr},
     identifier::Identifier,
     input_err,
-    irfmt::parsers::int_parser,
+    irfmt::parsers::{int_parser, quoted_string_parser},
     location::{self, Located, Location, Source},
     op::op_impls,
     operation::Operation,
@@ -524,5 +524,18 @@ impl Parsable for bool {
             choice((string("true").map(|_| true), string("false").map(|_| false)));
 
         bool_parser.parse_stream(state_stream).into()
+    }
+}
+
+impl Parsable for String {
+    type Arg = ();
+
+    type Parsed = Self;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        quoted_string_parser().parse_stream(state_stream).into()
     }
 }

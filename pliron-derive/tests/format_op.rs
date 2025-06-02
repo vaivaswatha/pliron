@@ -1,5 +1,6 @@
 //! Test format derive for `Op`s.
 
+use combine::Parser;
 use expect_test::expect;
 use pliron::{
     builtin::op_interfaces::{
@@ -37,16 +38,22 @@ fn zero_results_zero_operands() {
         0,
     );
     let printed = op.disp(ctx).to_string();
-    assert_eq!("test.zero_results_zero_operands ", &printed);
+    expect![r#"test.zero_results_zero_operands "#].assert_eq(&printed);
 
     let state_stream = state_stream_from_iterator(
         printed.chars(),
         parsable::State::new(ctx, location::Source::InMemory),
     );
-    let (res, _) = Operation::parser(())
+    let (res, _) = Operation::top_level_parser()
         .parse(state_stream)
         .expect("ZeroResultsZeroOperands parser failed");
-    assert_eq!(res.disp(ctx).to_string(), printed);
+    expect![[r#"
+        test.zero_results_zero_operands  !0
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
+    .assert_eq(&res.disp(ctx).to_string());
 
     assert!(res.verify(ctx).is_ok());
 }
@@ -73,7 +80,7 @@ fn one_result_zero_operands() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
 
-    let (res, _) = Operation::parser(())
+    let (res, _) = Operation::top_level_parser()
         .parse(state_stream)
         .expect("OneResultZeroOperands parser failed");
 
@@ -81,9 +88,15 @@ fn one_result_zero_operands() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block1v1():
-            res0_op2v1_res0 = test.one_result_zero_operands :builtin.integer si64;
-            test.return res0_op2v1_res0
-        }"#]]
+            res0_op2v1_res0 = test.one_result_zero_operands :builtin.integer si64 !0;
+            test.return res0_op2v1_res0 !1
+        } !2
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
     assert!(res.verify(ctx).is_ok());
@@ -113,7 +126,7 @@ fn one_result_one_operand() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
 
-    let (res, _) = Operation::parser(())
+    let (res, _) = Operation::top_level_parser()
         .parse(state_stream)
         .expect("OneResultOneOperand parser failed");
 
@@ -121,10 +134,17 @@ fn one_result_one_operand() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block1v1():
-            res0_op2v1_res0 = test.one_result_zero_operands :builtin.integer si64;
-            res1_op3v1_res0 = test.one_result_one_operand res0_op2v1_res0:builtin.integer si64;
-            test.return res1_op3v1_res0
-        }"#]]
+            res0_op2v1_res0 = test.one_result_zero_operands :builtin.integer si64 !0;
+            res1_op3v1_res0 = test.one_result_one_operand res0_op2v1_res0:builtin.integer si64 !1;
+            test.return res1_op3v1_res0 !2
+        } !3
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 5, column: 13], []
+        !3 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
     assert!(res.verify(ctx).is_ok());
@@ -153,7 +173,7 @@ fn two_result_two_operands() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
 
-    let (res, _) = Operation::parser(())
+    let (res, _) = Operation::top_level_parser()
         .parse(state_stream)
         .expect("TwoResultTwoOperands parser failed");
 
@@ -161,10 +181,17 @@ fn two_result_two_operands() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block1v1():
-            res0_op2v1_res0 = test.one_result_zero_operands :builtin.integer si64;
-            res1a_op3v1_res0, res1b_op3v1_res1 = test.two_results_two_operands res0_op2v1_res0,res0_op2v1_res0:(builtin.integer si64,builtin.integer si64);
-            test.return res1a_op3v1_res0
-        }"#]]
+            res0_op2v1_res0 = test.one_result_zero_operands :builtin.integer si64 !0;
+            res1a_op3v1_res0, res1b_op3v1_res1 = test.two_results_two_operands res0_op2v1_res0,res0_op2v1_res0:(builtin.integer si64,builtin.integer si64) !1;
+            test.return res1a_op3v1_res0 !2
+        } !3
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 5, column: 13], []
+        !3 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
     assert!(res.verify(ctx).is_ok());
@@ -193,7 +220,7 @@ fn attr_op() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
 
-    let (res, _) = Operation::parser(())
+    let (res, _) = Operation::top_level_parser()
         .parse(state_stream)
         .expect("AttrOp parser failed");
 
@@ -201,9 +228,15 @@ fn attr_op() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block1v1():
-            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
-            test.return res0_op2v1_res0
-        }"#]]
+            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64 !0;
+            test.return res0_op2v1_res0 !1
+        } !2
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
     assert!(res.verify(ctx).is_ok());
@@ -230,7 +263,7 @@ fn attr_op2() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
 
-    let (res, _) = Operation::parser(())
+    let (res, _) = Operation::top_level_parser()
         .parse(state_stream)
         .expect("AttrOp parser failed");
 
@@ -238,9 +271,15 @@ fn attr_op2() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block1v1():
-            res0_op2v1_res0 = test.attr_op2 "Hello World":builtin.integer si64;
-            test.return res0_op2v1_res0
-        }"#]]
+            res0_op2v1_res0 = test.attr_op2 "Hello World":builtin.integer si64 !0;
+            test.return res0_op2v1_res0 !1
+        } !2
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
     assert!(res.verify(ctx).is_ok());
@@ -267,7 +306,7 @@ fn attr_op3() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
 
-    let (res, _) = Operation::parser(())
+    let (res, _) = Operation::top_level_parser()
         .parse(state_stream)
         .expect("AttrOp parser failed");
 
@@ -275,9 +314,15 @@ fn attr_op3() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block1v1():
-            res0_op2v1_res0 = test.attr_op3 builtin.integer <0: si64>:builtin.integer si64;
-            test.return res0_op2v1_res0
-        }"#]]
+            res0_op2v1_res0 = test.attr_op3 builtin.integer <0: si64>:builtin.integer si64 !0;
+            test.return res0_op2v1_res0 !1
+        } !2
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
     assert!(res.verify(ctx).is_ok());
@@ -311,7 +356,7 @@ fn if_op() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
 
-    let (res, _) = Operation::parser(())
+    let (res, _) = Operation::top_level_parser()
         .parse(state_stream)
         .expect("IfOp parser failed");
 
@@ -319,15 +364,24 @@ fn if_op() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block2v1():
-            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
+            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64 !0;
             test.if_op (res0_op2v1_res0)
             {
               ^then_block1v1():
-                res1_op4v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
-                test.return res1_op4v1_res0
-            };
-            test.return res0_op2v1_res0
-        }"#]]
+                res1_op4v1_res0 = test.attr_op <1: si64>:builtin.integer si64 !1;
+                test.return res1_op4v1_res0 !2
+            } !3;
+            test.return res0_op2v1_res0 !4
+        } !5
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 6, column: 17], []
+        !2 = @[<in-memory>: line: 7, column: 17], []
+        !3 = @[<in-memory>: line: 4, column: 13], []
+        !4 = @[<in-memory>: line: 9, column: 13], []
+        !5 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
     assert!(res.verify(ctx).is_ok());
@@ -365,7 +419,7 @@ fn if_else_op() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
 
-    let (res, _) = Operation::parser(())
+    let (res, _) = Operation::top_level_parser()
         .parse(state_stream)
         .expect("IfOp parser failed");
 
@@ -373,20 +427,31 @@ fn if_else_op() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block3v1():
-            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
+            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64 !0;
             test.if_else_op (res0_op2v1_res0)
             {
               ^then_block1v1():
-                res1_op4v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
-                test.return res1_op4v1_res0
+                res1_op4v1_res0 = test.attr_op <1: si64>:builtin.integer si64 !1;
+                test.return res1_op4v1_res0 !2
             }else
             {
               ^else_block2v1():
-                res2_op6v1_res0 = test.attr_op <2: si64>:builtin.integer si64;
-                test.return res2_op6v1_res0
-            };
-            test.return res0_op2v1_res0
-        }"#]]
+                res2_op6v1_res0 = test.attr_op <2: si64>:builtin.integer si64 !3;
+                test.return res2_op6v1_res0 !4
+            } !5;
+            test.return res0_op2v1_res0 !6
+        } !7
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 6, column: 17], []
+        !2 = @[<in-memory>: line: 7, column: 17], []
+        !3 = @[<in-memory>: line: 10, column: 17], []
+        !4 = @[<in-memory>: line: 11, column: 17], []
+        !5 = @[<in-memory>: line: 4, column: 13], []
+        !6 = @[<in-memory>: line: 13, column: 13], []
+        !7 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
     assert!(res.verify(ctx).is_ok());
@@ -417,7 +482,7 @@ fn br_op() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
 
-    let (res, _) = Operation::parser(())
+    let (res, _) = Operation::top_level_parser()
         .parse(state_stream)
         .expect("BrOp parser failed");
 
@@ -425,12 +490,19 @@ fn br_op() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block2v1():
-            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
-            test.br ^bb1_block3v1(res0_op2v1_res0)
+            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64 !0;
+            test.br ^bb1_block3v1(res0_op2v1_res0) !1
 
           ^bb1_block3v1(arg0_block3v1_arg0: builtin.integer si64):
-            test.return arg0_block3v1_arg0
-        }"#]]
+            test.return arg0_block3v1_arg0 !2
+        } !3
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 6, column: 13], []
+        !3 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
     assert!(res.verify(ctx).is_ok());
@@ -463,7 +535,7 @@ fn multiple_successors_op() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
 
-    let (res, _) = Operation::parser(())
+    let (res, _) = Operation::top_level_parser()
         .parse(state_stream)
         .expect("MultipleSuccessorsOp parser failed");
 
@@ -471,15 +543,23 @@ fn multiple_successors_op() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block3v1():
-            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
-            test.multiple_successors [^bb1_block4v1, ^bb2_block1v3]
+            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64 !0;
+            test.multiple_successors [^bb1_block4v1, ^bb2_block1v3] !1
 
           ^bb1_block4v1():
-            test.return res0_op2v1_res0
+            test.return res0_op2v1_res0 !2
 
           ^bb2_block1v3():
-            test.return res0_op2v1_res0
-        }"#]]
+            test.return res0_op2v1_res0 !3
+        } !4
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 6, column: 13], []
+        !3 = @[<in-memory>: line: 8, column: 13], []
+        !4 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
     assert!(res.verify(ctx).is_ok());
@@ -519,7 +599,7 @@ fn multiple_regions_op() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
 
-    let (res, _) = Operation::parser(())
+    let (res, _) = Operation::top_level_parser()
         .parse(state_stream)
         .expect("MultipleRegionsOp parser failed");
 
@@ -527,20 +607,31 @@ fn multiple_regions_op() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block3v1():
-            res_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
+            res_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64 !0;
             test.multiple_regions [
             {
               ^reg1_entry_block1v1():
-                res0_op4v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
-                test.return res0_op4v1_res0
+                res0_op4v1_res0 = test.attr_op <0: si64>:builtin.integer si64 !1;
+                test.return res0_op4v1_res0 !2
             }, 
             {
               ^reg2_entry_block2v1():
-                res1_op6v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
-                test.return res1_op6v1_res0
-            }];
-            test.return res_op2v1_res0
-        }"#]]
+                res1_op6v1_res0 = test.attr_op <1: si64>:builtin.integer si64 !3;
+                test.return res1_op6v1_res0 !4
+            }] !5;
+            test.return res_op2v1_res0 !6
+        } !7
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 4, column: 9], []
+        !1 = @[<in-memory>: line: 8, column: 21], []
+        !2 = @[<in-memory>: line: 9, column: 21], []
+        !3 = @[<in-memory>: line: 12, column: 21], []
+        !4 = @[<in-memory>: line: 13, column: 21], []
+        !5 = @[<in-memory>: line: 5, column: 9], []
+        !6 = @[<in-memory>: line: 16, column: 9], []
+        !7 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
     assert!(res.verify(ctx).is_ok());
@@ -572,7 +663,7 @@ fn attr_dict_op() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
 
-    let (res, _) = Operation::parser(())
+    let (res, _) = Operation::top_level_parser()
         .parse(state_stream)
         .expect("AttrDictOp parser failed");
 
@@ -580,10 +671,17 @@ fn attr_dict_op() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block1v1():
-            res0_op2v1_res0 = test.attr_op <3: si64>:builtin.integer si64;
-            test.attr_dict [(attr1: builtin.integer <0: si64>), (attr2: builtin.integer <1: si64>)];
-            test.return res0_op2v1_res0
-        }"#]]
+            res0_op2v1_res0 = test.attr_op <3: si64>:builtin.integer si64 !0;
+            test.attr_dict [(attr1: builtin.integer <0: si64>), (attr2: builtin.integer <1: si64>)] !1;
+            test.return res0_op2v1_res0 !2
+        } !3
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 8, column: 13], []
+        !3 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
     assert!(res.verify(ctx).is_ok());
@@ -617,7 +715,10 @@ fn multiple_regions2_op() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
 
-    let actual = Operation::parser(()).parse(state_stream).err().unwrap();
+    let actual = Operation::top_level_parser()
+        .parse(state_stream)
+        .err()
+        .unwrap();
     let expected_err = expect![[r#"
         Parse error at line: 1, column: 1
         Regions in a top-level operation must be IsolatedFromAbove
@@ -654,7 +755,10 @@ fn multiple_regions3_op() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
 
-    let actual = Operation::parser(()).parse(state_stream).err().unwrap();
+    let actual = Operation::top_level_parser()
+        .parse(state_stream)
+        .err()
+        .unwrap();
     let expected_err = expect![[r#"
         Parse error at line: 1, column: 1
         Regions in a top-level operation must be IsolatedFromAbove
@@ -691,7 +795,7 @@ fn multiple_regions4_op() {
         printed.chars(),
         parsable::State::new(ctx, location::Source::InMemory),
     );
-    let (res, _) = Operation::parser(())
+    let (res, _) = Operation::top_level_parser()
         .parse(state_stream)
         .expect("MultipleRegions4 parser failed");
 
@@ -699,14 +803,22 @@ fn multiple_regions4_op() {
         test.multiple_regions4 [
         {
           ^reg1_entry_block1v1():
-            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64;
-            test.return res0_op2v1_res0
+            res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64 !0;
+            test.return res0_op2v1_res0 !1
         }, 
         {
           ^reg2_entry_block2v1():
-            res1_op4v1_res0 = test.attr_op <1: si64>:builtin.integer si64;
-            test.return res1_op4v1_res0
-        }]"#]]
+            res1_op4v1_res0 = test.attr_op <1: si64>:builtin.integer si64 !2;
+            test.return res1_op4v1_res0 !3
+        }] !4
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 5, column: 21], []
+        !1 = @[<in-memory>: line: 6, column: 21], []
+        !2 = @[<in-memory>: line: 9, column: 21], []
+        !3 = @[<in-memory>: line: 10, column: 21], []
+        !4 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
     assert!(res.verify(ctx).is_ok());

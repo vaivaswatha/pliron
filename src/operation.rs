@@ -10,12 +10,15 @@ use thiserror::Error;
 use crate::{
     attribute::AttributeDict,
     basic_block::BasicBlock,
-    common_traits::{Named, Verify},
+    common_traits::{Named, RcShare, Verify},
     context::{ArenaCell, Context, Ptr, private::ArenaObj},
     debug_info,
     identifier::Identifier,
     input_err,
-    irfmt::parsers::{location, spaced},
+    irfmt::{
+        outlined::{self, parse_outlines, postparse_outline},
+        parsers::{location, spaced},
+    },
     linked_list::{LinkedList, private},
     location::{Located, Location},
     op::{self, OpId, OpObj},
@@ -417,6 +420,28 @@ impl Operation {
         ArenaObj::dealloc(ptr, ctx);
     }
 
+    /// Parse a top level operation from a [StateStream].
+    /// Top level parser looks for outlined attributes.
+    pub fn top_level_parse<'a>(
+        state_stream: &mut parsable::StateStream<'a>,
+    ) -> ParseResult<'a, Ptr<Self>> {
+        Operation::parse(
+            state_stream,
+            OperationParserConfig {
+                look_for_outlined_attrs: true,
+            },
+        )
+    }
+
+    /// A parser combinator to parse a top level operation.
+    /// Top level parser looks for outlined attributes.
+    pub fn top_level_parser<'a>()
+    -> impl Parser<StateStream<'a>, Output = Ptr<Self>, PartialState = ()> + 'a {
+        combine::parser(move |parsable_state: &mut StateStream<'a>| {
+            Self::top_level_parse(parsable_state)
+        })
+    }
+
     /// Get a reference to the idx'th result.
     pub(crate) fn get_result_ref(&self, idx: usize) -> &OpResult {
         self.results
@@ -589,7 +614,14 @@ impl Printable for Operation {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        Self::get_op(self.self_ptr, ctx).fmt(ctx, state, f)
+        Self::get_op(self.self_ptr, ctx).fmt(ctx, state, f)?;
+        outlined::preprint_outline(ctx, self.self_ptr, state.share(), f)?;
+
+        if self.get_parent_op(ctx).is_none() {
+            outlined::print_outlines(ctx, state.share(), f)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -603,8 +635,15 @@ impl Located for Operation {
     }
 }
 
+/// Configuration for the [Operation] parser.
+#[derive(Clone)]
+pub struct OperationParserConfig {
+    /// If set, the parser will look for outlined attributes after parsing the operation.
+    pub look_for_outlined_attrs: bool,
+}
+
 impl Parsable for Operation {
-    type Arg = ();
+    type Arg = OperationParserConfig;
     type Parsed = Ptr<Operation>;
 
     // Look for either of
@@ -613,7 +652,7 @@ impl Parsable for Operation {
     // and hand it over to the Op specific parser.
     fn parse<'a>(
         state_stream: &mut parsable::StateStream<'a>,
-        _arg: Self::Arg,
+        arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
         let loc = state_stream.loc();
         let _src = loc
@@ -648,17 +687,29 @@ impl Parsable for Operation {
                     let Some(opid_parser) = dialect.ops.get(&opid) else {
                         input_err!(loc.clone(), "Unregistered Op {}", opid.disp(state.ctx))?
                     };
-                    opid_parser(&(), results.clone())
+                    let op = opid_parser(&(), results.clone())
                         .parse_stream(parsable_state)
                         .map(|op| op.get_operation())
-                        .into()
+                        .into();
+
+                    if let Ok((op, _)) = op {
+                        // Set the location of the operation to be from where we just parsed it.
+                        // If it has a different one specified as part of its outlined information,
+                        // that will be overwritten with later.
+                        op.deref_mut(parsable_state.state.ctx).set_loc(loc.clone());
+                        // If there's an outline index, post-parse it.
+                        postparse_outline(parsable_state, op)?;
+                    }
+
+                    if arg.look_for_outlined_attrs {
+                        // If we are looking for outlined attributes, parse them now.
+                        parse_outlines(parsable_state)?;
+                    }
+
+                    op
                 })
             })
             .parse_stream(state_stream)
-            .map(|op| {
-                op.deref_mut(state_stream.state.ctx).set_loc(loc);
-                op
-            })
             .into()
     }
 }

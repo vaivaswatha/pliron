@@ -247,7 +247,10 @@ fn parse_simple() -> Result<()> {
             input.chars(),
             parsable::State::new(ctx, location::Source::InMemory),
         );
-        spaced(Operation::parser(())).parse(state_stream).unwrap().0
+        spaced(Operation::top_level_parser())
+            .parse(state_stream)
+            .unwrap()
+            .0
     };
     println!("{}", op.disp(ctx));
     Ok(())
@@ -259,7 +262,7 @@ fn expect_parse_error(input: &str, expected_err: Expect) {
         input.chars(),
         parsable::State::new(ctx, location::Source::InMemory),
     );
-    let actual_err = spaced(Operation::parser(()))
+    let actual_err = spaced(Operation::top_level_parser())
         .parse(state_stream)
         .err()
         .unwrap();

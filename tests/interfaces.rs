@@ -2,13 +2,18 @@ mod common;
 
 use std::sync::{LazyLock, Mutex};
 
-use common::ReturnOp;
+use combine::Parser;
+use combine::stream::position::SourcePosition;
+use common::{ConstantOp, ReturnOp};
 use expect_test::expect;
+use pliron::builtin::attr_interfaces::{OutlinedAttr, PrintOnceAttr};
 use pliron::derive::{
     attr_interface, attr_interface_impl, def_attribute, def_op, def_type, derive_op_interface_impl,
     op_interface, op_interface_impl, type_interface, type_interface_impl,
 };
-use pliron::verify_err;
+use pliron::location::{self, Located, Source};
+use pliron::parsable::{self, state_stream_from_iterator};
+use pliron::result::ExpectOk;
 use pliron::{
     attribute::Attribute,
     builtin::{
@@ -31,6 +36,7 @@ use pliron::{
     r#type::{Type, TypeObj},
     utils::trait_cast::any_to_trait,
 };
+use pliron::{input_error, verify_err};
 use pliron_derive::format_attribute;
 use thiserror::Error;
 
@@ -185,7 +191,7 @@ impl TestAttrInterfaceX for IntegerAttr {}
 
 #[def_attribute("test.my_attr")]
 #[format_attribute("`<` $ty `>`")]
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug, Hash)]
 struct MyAttr {
     ty: Ptr<TypeObj>,
 }
@@ -202,7 +208,7 @@ static TEST_ATTR_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
     LazyLock::new(|| Mutex::new("".into()));
 
 #[def_attribute("test.verify_intr_attr")]
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug, Hash)]
 struct VerifyIntrAttr {}
 impl_verify_succ!(VerifyIntrAttr);
 
@@ -411,6 +417,168 @@ fn test_no_inbuilt_verify2() -> Result<()> {
         })
         if err.is::<NoInbuiltVerifyOp2Error>()
     ));
+
+    Ok(())
+}
+
+#[def_attribute("test.outline_test_attr")]
+#[format_attribute("`<` $ty `>`")]
+#[derive(PartialEq, Clone, Debug, Hash)]
+pub struct OutlineTestAttr {
+    pub ty: Ptr<TypeObj>,
+}
+
+impl_verify_succ!(OutlineTestAttr);
+
+#[attr_interface_impl]
+impl OutlinedAttr for OutlineTestAttr {}
+
+#[test]
+fn test_outline_attr() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    OutlineTestAttr::register_attr_in_dialect(ctx, OutlineTestAttr::parser_fn);
+    let attr = OutlineTestAttr {
+        ty: IntegerType::get(ctx, 32, pliron::builtin::types::Signedness::Signed).into(),
+    };
+
+    let op = ConstantOp::new(ctx, 42);
+    op.get_operation()
+        .deref_mut(ctx)
+        .attributes
+        .0
+        .insert("test_attr".try_into().unwrap(), Box::new(attr));
+
+    // Print the op
+    let printed = op.get_operation().deref(ctx).disp(ctx).to_string();
+
+    expect![[r#"
+        op1v1_res0 = test.constant builtin.integer <42: si64> !0
+
+        outlined_attributes:
+        !0 = [test_attr = test.outline_test_attr <builtin.integer si32>]
+    "#]]
+    .assert_eq(&printed);
+
+    Ok(())
+}
+
+#[def_attribute("test.outline_print_once_test_attr")]
+#[format_attribute("`<` $ty `>`")]
+#[derive(PartialEq, Clone, Debug, Hash)]
+pub struct OulinePrintOnceTestAttr {
+    pub ty: Ptr<TypeObj>,
+}
+
+impl_verify_succ!(OulinePrintOnceTestAttr);
+
+#[attr_interface_impl]
+impl OutlinedAttr for OulinePrintOnceTestAttr {}
+#[attr_interface_impl]
+impl PrintOnceAttr for OulinePrintOnceTestAttr {}
+
+#[test]
+fn test_outline_printonce_attr() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    OutlineTestAttr::register_attr_in_dialect(ctx, OutlineTestAttr::parser_fn);
+    OulinePrintOnceTestAttr::register_attr_in_dialect(ctx, OulinePrintOnceTestAttr::parser_fn);
+
+    let attr = OulinePrintOnceTestAttr {
+        ty: IntegerType::get(ctx, 32, pliron::builtin::types::Signedness::Signed).into(),
+    };
+
+    let src = Source::new_from_file(ctx, "/tmp/test.pliron".into());
+
+    let pos1 = SourcePosition::default();
+    let loc1 = Location::SrcPos { src, pos: pos1 };
+
+    let op42 = ConstantOp::new(ctx, 42);
+    op42.get_operation().deref_mut(ctx).set_loc(loc1);
+    let op44 = ConstantOp::new(ctx, 44);
+    op42.get_operation().deref_mut(ctx).attributes.0.insert(
+        "test_print_once_attr".try_into().unwrap(),
+        Box::new(attr.clone()),
+    );
+    op44.get_operation()
+        .deref_mut(ctx)
+        .attributes
+        .0
+        .insert("test_print_once_attr".try_into().unwrap(), Box::new(attr));
+
+    // Put them both in a function.
+    let (module_op, _, _, ret_op) = const_ret_in_mod(ctx).unwrap();
+    op42.get_operation()
+        .insert_before(ctx, ret_op.get_operation());
+    op44.get_operation()
+        .insert_before(ctx, ret_op.get_operation());
+
+    // Print the op
+    let printed = module_op.get_operation().deref(ctx).disp(ctx).to_string();
+
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block1v1():
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+            {
+              ^entry_block2v1():
+                c0_op5v1_res0 = test.constant builtin.integer <0: si64>;
+                op1v1_res0 = test.constant builtin.integer <42: si64> !0;
+                op2v1_res0 = test.constant builtin.integer <44: si64> !1;
+                test.return c0_op5v1_res0
+            }
+        }
+
+        outlined_attributes:
+        !0 = @["/tmp/test.pliron": line: 1, column: 1], [test_print_once_attr = !2]
+        !1 = [test_print_once_attr = !2]
+        !2 = test.outline_print_once_test_attr <builtin.integer si32>
+    "#]]
+    .assert_eq(&printed);
+
+    // Try parsing the just printed output.
+
+    let parsed_op = {
+        let mut state_stream = state_stream_from_iterator(
+            printed.chars(),
+            parsable::State::new(ctx, location::Source::InMemory),
+        );
+        Operation::top_level_parser()
+            .parse_stream(&mut state_stream)
+            .into_result()
+            .map_err(|err| {
+                let err = err.into_inner();
+                let pos = err.error.position.clone();
+                input_error!(Location::SrcPos { src, pos }, err.error)
+            })
+    };
+
+    let parsed_op = parsed_op.expect_ok(ctx).0;
+
+    parsed_op.verify(ctx)?;
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block1v1_block4v1():
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+            {
+              ^entry_block2v1_block3v1():
+                c0_op5v1_res0_op9v1_res0 = test.constant builtin.integer <0: si64> !0;
+                op1v1_res0_op10v1_res0 = test.constant builtin.integer <42: si64> !1;
+                op2v1_res0_op11v1_res0 = test.constant builtin.integer <44: si64> !2;
+                test.return c0_op5v1_res0_op9v1_res0 !3
+            } !4
+        } !5
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 7, column: 9], []
+        !1 = @["/tmp/test.pliron": line: 1, column: 1], [test_print_once_attr = !6]
+        !2 = @[<in-memory>: line: 9, column: 9], [test_print_once_attr = !6]
+        !3 = @[<in-memory>: line: 10, column: 9], []
+        !4 = @[<in-memory>: line: 4, column: 5], []
+        !5 = @[<in-memory>: line: 1, column: 1], []
+        !6 = test.outline_print_once_test_attr <builtin.integer si32>
+    "#]]
+    .assert_eq(&parsed_op.disp(ctx).to_string());
 
     Ok(())
 }

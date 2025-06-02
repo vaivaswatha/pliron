@@ -21,7 +21,7 @@ use derive_format::DeriveIRObject;
 /// to use the IR attribute.
 ///
 /// **Note**: pre-requisite traits for `Attribute` must already be implemented.
-///         Additionaly, PartialEq must be implemented by the type.
+///         Additionaly, [Eq] and [Hash](core::hash::Hash) must be implemented by the type.
 ///
 /// Usage:
 ///
@@ -29,7 +29,7 @@ use derive_format::DeriveIRObject;
 /// use pliron::derive::def_attribute;
 ///
 /// #[def_attribute("my_dialect.attribute")]
-/// #[derive(Debug, Clone, PartialEq, Eq)]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// pub struct StringAttr(String);
 /// # use pliron::{impl_verify_succ, printable::{State, Printable}, context::Context};
 /// # impl_verify_succ!(StringAttr);
@@ -489,7 +489,7 @@ pub fn attr_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// use pliron::derive::{attr_interface, attr_interface_impl};
 ///
 /// #[def_attribute("dialect.name")]
-/// #[derive(PartialEq, Eq, Clone, Debug)]
+/// #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 /// struct MyAttr { }
 ///
 ///     /// My first attribute interface.
