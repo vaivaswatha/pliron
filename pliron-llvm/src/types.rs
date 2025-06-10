@@ -264,7 +264,7 @@ impl Parsable for StructType {
         };
 
         let named = spaced((location(), Identifier::parser(())))
-            .and(optional(spaced(body_parser())))
+            .and(spaced(optional(body_parser())))
             .map(|((loc, name), body_opt)| (loc, Some(name), body_opt));
         let anonymous = spaced((location(), body_parser()))
             .map(|(loc, body)| (loc, None::<Identifier>, Some(body)));

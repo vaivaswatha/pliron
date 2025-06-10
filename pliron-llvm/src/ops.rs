@@ -55,7 +55,7 @@ use crate::{
     types::{ArrayType, StructType},
 };
 
-use combine::parser::Parser;
+use combine::parser::{Parser, char::spaces};
 use pliron::derive::{def_op, derive_op_interface_impl, op_interface_impl};
 use thiserror::Error;
 
@@ -1531,13 +1531,14 @@ impl Parsable for GlobalOp {
             Region(Ptr<Region>),
         }
         // Parse optional initializer value or region.
-        let initializer_parser = spaced(combine::token('=')).with(
+        let initializer_parser = combine::token('=').skip(spaces()).with(
             attr_parser()
                 .map(Initializer::Value)
                 .or(Region::parser(op.get_operation()).map(Initializer::Region)),
         );
 
-        let initializer = combine::optional(initializer_parser)
+        let initializer = spaces()
+            .with(combine::optional(initializer_parser))
             .parse_stream(state_stream)
             .into_result()?;
 

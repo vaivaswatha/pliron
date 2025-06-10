@@ -23,7 +23,8 @@ use combine::{
 };
 
 /// Parse from `parser`, ignoring whitespace(s) before and after.
-/// > **Warning**: Do not use this inside inside repeating combiners, such as [combine::many].
+/// > **Warning**: Do not use this inside inside [combine::optional] or
+/// >   inside repeating combiners, such as [combine::many].
 /// >   After successfully parsing one instance, if spaces are consumed to parse
 /// >   the next one, but the next one doesn't exist, it is treated as a failure
 /// >   that consumed some input. This messes things up. So spaces must be consumed
@@ -38,6 +39,8 @@ use combine::{
 ///                 (pliron::identifier::Identifier::parser(()).skip(spaces()),
 ///                 combine::token(',').skip(spaces())));
 ///```
+/// >    Similarly, if you want to use this inside [combine::optional], you should
+/// >    use [combine::attempt] to ensure that no input is consumed if the parser fails.
 pub fn spaced<Input: Stream<Token = char>, Output>(
     parser: impl Parser<Input, Output = Output>,
 ) -> impl Parser<Input, Output = Output> {
@@ -146,7 +149,11 @@ pub fn delimited_list_parser<Input: Stream<Token = char>, Output>(
     sep: char,
     parser: impl Parser<Input, Output = Output>,
 ) -> impl Parser<Input, Output = Vec<Output>> {
-    between(token(open), token(close), list_parser(sep, parser))
+    between(
+        token(open).skip(spaces()),
+        spaces().with(token(close)),
+        list_parser(sep, parser),
+    )
 }
 
 /// Parse a list of objects.
@@ -154,10 +161,7 @@ pub fn list_parser<Input: Stream<Token = char>, Output>(
     sep: char,
     parser: impl Parser<Input, Output = Output>,
 ) -> impl Parser<Input, Output = Vec<Output>> {
-    spaces().with(sep_by::<Vec<_>, _, _, _>(
-        parser.skip(spaces()),
-        token(sep).skip(spaces()),
-    ))
+    sep_by::<Vec<_>, _, _, _>(parser.skip(spaces()), token(sep).skip(spaces()))
 }
 
 /// Parse zero-or-more occurrences (ignoring spaces) of `parser`.

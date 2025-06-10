@@ -241,7 +241,7 @@ impl Parsable for Location {
 
         let fused_parser = string("fused").skip(spaces()).with(
             (
-                optional(between(token('<'), token('>'), AttrObj::parser(()))),
+                optional(between(token('<'), token('>'), spaced(AttrObj::parser(())))),
                 delimited_list_parser('[', ']', ',', Location::parser(())),
             )
                 .map(|(metadata, locations)| Location::Fused {

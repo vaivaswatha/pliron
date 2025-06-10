@@ -2,7 +2,7 @@
 //! Outlined attributes are printed in a separate section of the
 //! IR, after the top level operation is printed.
 
-use combine::{Parser, attempt, between, optional, parser::char::spaces, token};
+use combine::{Parser, between, optional, parser::char::spaces, token};
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -215,7 +215,7 @@ pub(crate) fn parse_outlines(state_stream: &mut StateStream) -> Result<()> {
 
     // We'll first try to parse `OutlineEntry::OperationData`
     let optional_loc_parser = optional(
-        attempt(spaced(token('@')))
+        token('@')
             .with(between(
                 token('['),
                 token(']'),
@@ -230,7 +230,10 @@ pub(crate) fn parse_outlines(state_stream: &mut StateStream) -> Result<()> {
             .or(outindex_parser().map(AttrOrOutlineEntryRef::OutlineEntryRef)),
     );
     let name_attrs_parser = delimited_list_parser('[', ']', ',', name_attr_parser);
-    let operation_data_parser = (optional_loc_parser, name_attrs_parser)
+    let operation_data_parser = (
+        spaces().with(optional_loc_parser),
+        spaces().with(name_attrs_parser),
+    )
         .map(|(loc, name_attrs)| OutlineEntry::OperationData(loc, name_attrs));
 
     let print_once_attr_parser = AttrObj::parser(()).map(OutlineEntry::PrintOnceAttr);

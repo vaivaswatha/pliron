@@ -17,7 +17,7 @@ use crate::{
     input_err,
     irfmt::{
         outlined::{self, parse_outlines, postparse_outline},
-        parsers::{location, spaced},
+        parsers::{list_parser, location, spaced},
     },
     linked_list::{LinkedList, private},
     location::{Located, Location},
@@ -659,15 +659,11 @@ impl Parsable for Operation {
             .source()
             .expect("Location from Parsable must be Location::SrcPos");
 
-        let results_opid = combine::optional(attempt(
-            spaces()
-                .with(combine::sep_by::<Vec<_>, _, _, _>(
-                    (location(), Identifier::parser(())).skip(spaces()),
-                    token(',').skip(spaces()),
-                ))
-                .skip(spaced(token('='))),
-        ))
-        .and(spaced(OpId::parser(())));
+        let results_opid = spaces()
+            .with(combine::optional(attempt(
+                list_parser(',', (location(), Identifier::parser(()))).skip(spaced(token('='))),
+            )))
+            .and(spaced(OpId::parser(())));
 
         results_opid
             .then(|(results_opt, opid)| {
