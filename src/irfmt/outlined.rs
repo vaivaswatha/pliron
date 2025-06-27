@@ -52,7 +52,7 @@ pub(crate) fn preprint_outline(
     // If it has a location, we need to outline the location.
     if !op.loc().is_unknown() {
         let outindex = print_state.outlined_ops.push_back(opr);
-        return write!(f, " !{}", outindex);
+        return write!(f, " !{outindex}");
     }
 
     // Check if there's any attribute that's outlined.
@@ -63,7 +63,7 @@ pub(crate) fn preprint_outline(
         .any(|(_, attr)| attr_impls::<dyn OutlinedAttr>(&**attr))
     {
         let outindex = print_state.outlined_ops.push_back(opr);
-        return write!(f, " !{}", outindex);
+        return write!(f, " !{outindex}");
     }
 
     Ok(())
@@ -92,7 +92,7 @@ pub(crate) fn print_outlines(
     let mut print_once_attr_indices = print_state.outlined_ops.len();
     for (outidx, op) in print_state.outlined_ops.iter().enumerate() {
         let loc = op.deref(ctx).loc();
-        write!(f, "!{} = ", outidx)?;
+        write!(f, "!{outidx} = ")?;
         if !loc.is_unknown() {
             write!(f, "@[{}], ", loc.disp(ctx))?;
         }
@@ -106,14 +106,14 @@ pub(crate) fn print_outlines(
                 first = false;
                 if attr_impls::<dyn PrintOnceAttr>(&**attr) {
                     if let Some(outindex) = print_state.print_once_attrs.get_mut(attr) {
-                        write!(f, "{} = !{}", attr_name, outindex)?;
+                        write!(f, "{attr_name} = !{outindex}")?;
                     } else {
                         // If this is the first time we see this PrintOnceAttr,
                         // we need to store it for later.
                         print_state
                             .print_once_attrs
                             .insert(attr.clone(), print_once_attr_indices);
-                        write!(f, "{} = !{}", attr_name, print_once_attr_indices)?;
+                        write!(f, "{attr_name} = !{print_once_attr_indices}")?;
                         print_once_attr_indices += 1;
                     }
                 } else {

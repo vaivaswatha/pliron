@@ -95,7 +95,7 @@ impl APInt {
                 s
             }
             Err(e) => {
-                panic!("APInt error: {}", e);
+                panic!("APInt error: {e}");
             }
         }
     }

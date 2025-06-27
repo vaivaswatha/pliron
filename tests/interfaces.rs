@@ -547,7 +547,7 @@ fn test_outline_printonce_attr() -> Result<()> {
             .into_result()
             .map_err(|err| {
                 let err = err.into_inner();
-                let pos = err.error.position.clone();
+                let pos = err.error.position;
                 input_error!(Location::SrcPos { src, pos }, err.error)
             })
     };

@@ -26,16 +26,12 @@ where
 
 /// Print a value that implements Display.
 pub fn disp(disp: impl fmt::Display) -> impl Printable {
-    PrinterFn(
-        move |_ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>| write!(f, "{}", disp),
-    )
+    PrinterFn(move |_ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>| write!(f, "{disp}"))
 }
 
 /// Print a string as a quoted string.
 pub fn quoted(s: &str) -> impl Printable + '_ {
-    PrinterFn(
-        move |_ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>| write!(f, "{:?}", s),
-    )
+    PrinterFn(move |_ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>| write!(f, "{s:?}"))
 }
 
 /// Print a value using the given Rust format string.
@@ -43,7 +39,7 @@ pub fn quoted(s: &str) -> impl Printable + '_ {
 /// Warning: formatted values are not parsable. A custom parser might need to be implemented when
 /// using `formatted` in the printer.
 pub fn formatted(s: String) -> impl Printable {
-    PrinterFn(move |_ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>| write!(f, "{}", s))
+    PrinterFn(move |_ctx: &Context, _state: &State, f: &mut fmt::Formatter<'_>| write!(f, "{s}"))
 }
 
 /// Print a list of items separated by `sep`.
@@ -68,9 +64,9 @@ where
 pub fn enclosed<P: Printable>(left: &'static str, right: &'static str, p: P) -> impl Printable {
     PrinterFn(
         move |ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>| {
-            write!(f, "{}", left)?;
+            write!(f, "{left}")?;
             p.fmt(ctx, state, f)?;
-            write!(f, "{}", right)
+            write!(f, "{right}")
         },
     )
 }

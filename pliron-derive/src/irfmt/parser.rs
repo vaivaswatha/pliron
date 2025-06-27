@@ -33,7 +33,7 @@ pub(crate) fn parse(input: &str) -> Result<Format> {
     let (elems, _rest) = match parse_fmt_elems().parse(input) {
         Ok(elems) => elems,
         Err(err) => {
-            let msg = format!("{}", err);
+            let msg = format!("{err}");
             return Err(msg.into());
         }
     };

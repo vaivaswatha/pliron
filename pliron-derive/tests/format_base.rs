@@ -55,7 +55,7 @@ fn int_wrapper_custom() {
         parsable::State::new(ctx, location::Source::InMemory),
     );
     let (res, _) = match IntWrapperCustom::parser(()).parse(state_stream) {
-        Err(err) => panic!("IntWrapper parser failed: {}", err),
+        Err(err) => panic!("IntWrapper parser failed: {err}"),
         Ok(res) => res,
     };
     assert_eq!(res.disp(ctx).to_string(), printed);

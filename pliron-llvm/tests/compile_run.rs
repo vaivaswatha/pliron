@@ -53,7 +53,7 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         Ok(plir) => plir,
         Err(err) => {
             eprintln!("{}", err.disp(ctx));
-            panic!("Error converting {}", input_file);
+            panic!("Error converting {input_file}");
         }
     };
 
@@ -66,7 +66,7 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         Ok(_) => (),
         Err(err) => {
             eprintln!("{}", err.disp(ctx));
-            panic!("Error verifying {}", input_file);
+            panic!("Error verifying {input_file}");
         }
     }
 
@@ -88,7 +88,7 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
     let parsed_res = match Operation::top_level_parser().parse(state_stream) {
         Ok((parsed_res, _)) => parsed_res,
         Err(err) => {
-            eprintln!("{}", err);
+            eprintln!("{err}");
             panic!("Error parsing {}", plir_path.to_str().unwrap());
         }
     };
@@ -123,7 +123,7 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
     match module.verify() {
         Ok(_) => (),
         Err(err) => {
-            eprintln!("{}", err);
+            eprintln!("{err}");
             panic!("Error verifying {}", plir_path.to_str().unwrap());
         }
     }

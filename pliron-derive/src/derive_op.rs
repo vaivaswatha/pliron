@@ -223,10 +223,9 @@ pub(crate) fn derive_attr_get_set(
         let fn_name_get = format_ident!("get_attr_{}", attr_name);
         let fn_name_set = format_ident!("set_attr_{}", attr_name);
         let fn_comment_get = format!(
-            "Get a [Ref](std::cell::Ref) to the value of the attribute named `{}`.",
-            attr_name
+            "Get a [Ref](std::cell::Ref) to the value of the attribute named `{attr_name}`."
         );
-        let fn_comment_set = format!("Set the value of the attribute named `{}`.", attr_name);
+        let fn_comment_set = format!("Set the value of the attribute named `{attr_name}`.");
         let get_set_fns = if let Some(ty) = ty_opt {
             quote! {
                 #[doc = #fn_comment_get]

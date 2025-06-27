@@ -223,11 +223,11 @@ impl Printable for ListSeparator {
             ListSeparator::None => Ok(()),
             ListSeparator::Newline => fmt_indented_newline(state, f),
             ListSeparator::CharNewline(c) => {
-                write!(f, "{}", c)?;
+                write!(f, "{c}")?;
                 fmt_indented_newline(state, f)
             }
-            ListSeparator::Char(c) => write!(f, "{}", c),
-            ListSeparator::CharSpace(c) => write!(f, "{} ", c),
+            ListSeparator::Char(c) => write!(f, "{c}"),
+            ListSeparator::CharSpace(c) => write!(f, "{c} "),
         }
     }
 }

@@ -714,7 +714,7 @@ impl Printable for GepIndex {
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
         match self {
-            GepIndex::Constant(c) => write!(f, "{}", c),
+            GepIndex::Constant(c) => write!(f, "{c}"),
             GepIndex::Value(v) => write!(f, "{}", v.disp(ctx)),
         }
     }
@@ -1158,7 +1158,7 @@ impl Printable for CallOp {
         )?;
         match callee {
             CallOpCallable::Direct(callee_sym) => {
-                write!(f, "@{}", callee_sym)?;
+                write!(f, "@{callee_sym}")?;
             }
             CallOpCallable::Indirect(callee_val) => {
                 write!(f, "{}", callee_val.disp(ctx))?;

@@ -194,7 +194,7 @@ pub fn state_stream_from_file<'a>(
 ) -> StateStream<'a> {
     state_stream_from_iterator(
         file_reader.chars().map(|c| {
-            c.map_err(|e| eprintln!("Error reading chars from file: {}", e))
+            c.map_err(|e| eprintln!("Error reading chars from file: {e}"))
                 .unwrap()
         }),
         state,

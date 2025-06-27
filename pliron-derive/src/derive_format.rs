@@ -253,7 +253,7 @@ impl PrintableBuilder<()> for DeriveBasePrintable {
         {
             return Err(syn::Error::new_spanned(
                 input.ident.clone(),
-                format!("field name \"{}\" is invalid", name),
+                format!("field name \"{name}\" is invalid"),
             ));
         }
         let field_name = format_ident!("{}", name);
@@ -282,7 +282,7 @@ impl PrintableBuilder<()> for DeriveBasePrintable {
         {
             return Err(syn::Error::new_spanned(
                 input.ident.clone(),
-                format!("field index \"{}\" is invalid", index),
+                format!("field index \"{index}\" is invalid"),
             ));
         }
         let index = syn::Index::from(index);
@@ -765,7 +765,7 @@ trait ParsableBuilder<State: Default> {
         else {
             return Err(syn::Error::new_spanned(
                 input.ident.clone(),
-                format!("{} field not found", name),
+                format!("{name} field not found"),
             ));
         };
         let name = format_ident!("{}", name);
@@ -789,7 +789,7 @@ trait ParsableBuilder<State: Default> {
         let crate::irfmt::Field { ty, .. } =
             r#struct.fields.get(index).ok_or(syn::Error::new_spanned(
                 input.ident.clone(),
-                format!("field index \"{}\" is invalid", index),
+                format!("field index \"{index}\" is invalid"),
             ))?;
         let name = format_ident!("field_at_{}", index);
         Ok(quote! {
@@ -820,7 +820,7 @@ trait ParsableBuilder<State: Default> {
                     ) else {
                         return Err(syn::Error::new_spanned(
                             input.ident.clone(),
-                            format!("{} field not found", name),
+                            format!("{name} field not found"),
                         ));
                     };
                     (name, ty)
@@ -866,7 +866,7 @@ trait ParsableBuilder<State: Default> {
                     ) else {
                         return Err(syn::Error::new_spanned(
                             input.ident.clone(),
-                            format!("{} field not found", name),
+                            format!("{name} field not found"),
                         ));
                     };
                     (name, ty)
@@ -996,7 +996,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             if !state.result_types.contains_key(&i) {
                 return Err(syn::Error::new_spanned(
                     input.ident.clone(),
-                    format!("missing type for result {}", i),
+                    format!("missing type for result {i}"),
                 ));
             }
         }
@@ -1021,7 +1021,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                     if !operands.contains_key(&i) {
                         return Err(syn::Error::new_spanned(
                             input.ident.clone(),
-                            format!("missing operand {}", i),
+                            format!("missing operand {i}"),
                         ));
                     }
                 }
@@ -1048,7 +1048,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                     if !successors.contains_key(&i) {
                         return Err(syn::Error::new_spanned(
                             input.ident.clone(),
-                            format!("missing successor {}", i),
+                            format!("missing successor {i}"),
                         ));
                     }
                 }
@@ -1071,7 +1071,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                     if !regions.contains_key(&i) {
                         return Err(syn::Error::new_spanned(
                             input.ident.clone(),
-                            format!("missing region {}", i),
+                            format!("missing region {i}"),
                         ));
                     }
                 }

@@ -224,7 +224,7 @@ fn print_simple() -> Result<()> {
             }
         }"#]]
     .assert_eq(&printed);
-    println!("{}", printed);
+    println!("{printed}");
     Ok(())
 }
 

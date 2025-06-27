@@ -171,7 +171,7 @@ impl BasicBlock {
         self.args
             .get(arg_idx)
             .map(|arg| arg.into())
-            .unwrap_or_else(|| panic!("Block argument index {} out of bounds", arg_idx))
+            .unwrap_or_else(|| panic!("Block argument index {arg_idx} out of bounds"))
     }
 
     /// Get an iterator over the arguments
@@ -193,14 +193,14 @@ impl BasicBlock {
     pub(crate) fn get_argument_ref(&self, arg_idx: usize) -> &BlockArgument {
         self.args
             .get(arg_idx)
-            .unwrap_or_else(|| panic!("Block argument index {} out of bounds", arg_idx))
+            .unwrap_or_else(|| panic!("Block argument index {arg_idx} out of bounds"))
     }
 
     /// Get a mutable reference to the idx'th argument.
     pub(crate) fn get_argument_mut(&mut self, arg_idx: usize) -> &mut BlockArgument {
         self.args
             .get_mut(arg_idx)
-            .unwrap_or_else(|| panic!("Block argument index {} out of bounds", arg_idx))
+            .unwrap_or_else(|| panic!("Block argument index {arg_idx} out of bounds"))
     }
 
     /// Get the number of arguments.

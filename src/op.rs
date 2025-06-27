@@ -187,7 +187,7 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
                 let dialect = ctx
                     .dialects
                     .get_mut(&dialect)
-                    .unwrap_or_else(|| panic!("Unregistered dialect {}", dialect));
+                    .unwrap_or_else(|| panic!("Unregistered dialect {dialect}"));
                 dialect.add_op(Self::get_opid_static(), op_parser);
             }
         }
