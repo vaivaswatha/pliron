@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::{
     basic_block::BasicBlock,
-    builtin::attributes::TypeAttr,
+    builtin::attributes::{OperandSegmentSizesAttr, TypeAttr},
     context::{Context, Ptr},
     dict_key,
     graph::walkers::interruptible::{WalkResult, walk_advance, walk_break},
@@ -94,6 +94,107 @@ pub trait BranchOpInterface: IsTerminatorInterface {
                 }
             }
         }
+        Ok(())
+    }
+}
+
+dict_key!(
+    /// Key for the `operandSegmentSizes` attribute.
+    ATTR_KEY_OPERAND_SEGMENT_SIZES, "operand_segment_sizes"
+);
+
+#[derive(Error, Debug)]
+/// Error returned when verifying an [OperandSegmentInterface] operation
+pub enum OperandSegmentInterfaceVerifyErr {
+    #[error("operand_segment_sizes attribute not found")]
+    OperandSegmentSizesAttrErr,
+    #[error("operand_segment_sizes total {0} does not match the number of operands {1}")]
+    OperandSegmentSizesTotalMismatchErr(u32, u32),
+}
+
+/// In the case of variadic operands, sometimes it makes sense to group
+/// contiguous operands together into a segment. This interface aids doing that.
+/// MLIR achieves this by having ODS (tablegen)' `AttrSizedOperandSegments` generate
+/// `getODSOperands()` based on the `operandSegmentSizes` attribute.
+///
+/// ## Attribute(s):
+/// | Name | Static Name Identifier | Type |
+/// |------|------------------------| -----|
+/// | operand_segment_sizes | [ATTR_KEY_OPERAND_SEGMENT_SIZES] | [OperandSegmentSizesAttr](crate::builtin::attributes::OperandSegmentSizesAttr) |
+#[op_interface]
+pub trait OperandSegmentInterface {
+    /// Given a list of segmented operands, compute the segment sizes and flatten the operands
+    /// (ready for use in constructing an operation).
+    /// Call `set_operand_segment_sizes` with the computed segment sizes to set the attribute.
+    fn compute_segment_sizes(operands: Vec<Vec<Value>>) -> (Vec<Value>, OperandSegmentSizesAttr)
+    where
+        Self: Sized,
+    {
+        let sizes = operands
+            .iter()
+            .map(|seg| seg.len().try_into().unwrap())
+            .collect::<Vec<_>>();
+        let flat_operands = operands.into_iter().flatten().collect();
+
+        let sizes_attr = OperandSegmentSizesAttr(sizes);
+        (flat_operands, sizes_attr)
+    }
+
+    /// Get the `idx`th segment of operands.
+    fn get_segment(&self, ctx: &Context, idx: usize) -> Vec<Value> {
+        let self_op = self.get_operation().deref(ctx);
+        let sizes_attr = self_op
+            .attributes
+            .get::<OperandSegmentSizesAttr>(&ATTR_KEY_OPERAND_SEGMENT_SIZES)
+            .unwrap();
+        let sizes = &sizes_attr.0;
+
+        if idx >= sizes.len() {
+            return vec![];
+        }
+
+        let start = sizes[..idx].iter().sum::<u32>() as usize;
+        let len = sizes[idx] as usize;
+
+        self_op.operands().skip(start).take(len).collect()
+    }
+
+    /// Set the `operand_segment_sizes` attribute for this operation.
+    fn set_operand_segment_sizes(&self, ctx: &Context, sizes: OperandSegmentSizesAttr) {
+        let mut self_op = self.get_operation().deref_mut(ctx);
+        self_op
+            .attributes
+            .set(ATTR_KEY_OPERAND_SEGMENT_SIZES.clone(), sizes);
+    }
+
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        let self_op = op.get_operation().deref(ctx);
+        let Some(attr) = self_op
+            .attributes
+            .get::<OperandSegmentSizesAttr>(&ATTR_KEY_OPERAND_SEGMENT_SIZES)
+        else {
+            return verify_err!(
+                self_op.loc(),
+                OperandSegmentInterfaceVerifyErr::OperandSegmentSizesAttrErr
+            );
+        };
+
+        let total = attr.0.iter().cloned().sum::<u32>();
+
+        let num_operands: u32 = self_op.get_num_operands().try_into().unwrap();
+        if total != num_operands {
+            return verify_err!(
+                self_op.loc(),
+                OperandSegmentInterfaceVerifyErr::OperandSegmentSizesTotalMismatchErr(
+                    total,
+                    num_operands
+                )
+            );
+        }
+
         Ok(())
     }
 }

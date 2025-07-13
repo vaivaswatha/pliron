@@ -12,7 +12,7 @@ use pliron::{
         op_interfaces::{
             self, BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
             IsolatedFromAboveInterface, OneOpdInterface, OneResultInterface,
-            SameOperandsAndResultType, SameOperandsType, SameResultsType,
+            OperandSegmentInterface, SameOperandsAndResultType, SameOperandsType, SameResultsType,
             SingleBlockRegionInterface, SymbolOpInterface, SymbolUserOpInterface, ZeroOpdInterface,
             ZeroResultInterface,
         },
@@ -541,19 +541,19 @@ impl BrOp {
 #[derive_op_interface_impl(IsTerminatorInterface, ZeroResultInterface)]
 pub struct CondBrOp;
 impl CondBrOp {
-    /// Create anew [CondBrOp].
+    /// Create a new [CondBrOp].
     pub fn new(
         ctx: &mut Context,
         condition: Value,
         true_dest: Ptr<BasicBlock>,
-        mut true_dest_opds: Vec<Value>,
+        true_dest_opds: Vec<Value>,
         false_dest: Ptr<BasicBlock>,
-        mut false_dest_opds: Vec<Value>,
+        false_dest_opds: Vec<Value>,
     ) -> Self {
-        let mut operands = vec![condition];
-        operands.append(&mut true_dest_opds);
-        operands.append(&mut false_dest_opds);
-        CondBrOp {
+        let (operands, segment_sizes) =
+            Self::compute_segment_sizes(vec![vec![condition], true_dest_opds, false_dest_opds]);
+
+        let op = CondBrOp {
             op: Operation::new(
                 ctx,
                 Self::get_opid_static(),
@@ -562,7 +562,11 @@ impl CondBrOp {
                 vec![true_dest, false_dest],
                 0,
             ),
-        }
+        };
+
+        // Set the operand segment sizes attribute.
+        op.set_operand_segment_sizes(ctx, segment_sizes);
+        op
     }
 
     /// Get the condition value for the branch.
@@ -570,6 +574,9 @@ impl CondBrOp {
         self.op.deref(ctx).get_operand(0)
     }
 }
+
+#[op_interface_impl]
+impl OperandSegmentInterface for CondBrOp {}
 
 impl Printable for CondBrOp {
     fn fmt(
@@ -640,22 +647,19 @@ impl Parsable for CondBrOp {
             .then(
                 move |(((condition, true_dest), true_dest_opds), (false_dest, false_dest_opds))| {
                     let results = results.clone();
-                    let mut operands = vec![condition];
-                    operands.extend(true_dest_opds);
-                    operands.extend(false_dest_opds);
                     combine::parser(move |parsable_state: &mut StateStream<'a>| {
                         let ctx = &mut parsable_state.state.ctx;
-                        let op = Operation::new(
+                        let op = CondBrOp::new(
                             ctx,
-                            Self::get_opid_static(),
-                            vec![],
-                            operands.clone(),
-                            vec![true_dest, false_dest],
-                            0,
+                            condition,
+                            true_dest,
+                            true_dest_opds.clone(),
+                            false_dest,
+                            false_dest_opds.clone(),
                         );
 
-                        process_parsed_ssa_defs(parsable_state, &results, op)?;
-                        let op: OpObj = Box::new(CondBrOp { op });
+                        process_parsed_ssa_defs(parsable_state, &results, op.get_operation())?;
+                        let op: OpObj = Box::new(op);
                         Ok(op).into_parse_result()
                     })
                 },
@@ -674,28 +678,9 @@ impl BranchOpInterface for CondBrOp {
             succ_idx == 0 || succ_idx == 1,
             "CondBrOp has exactly two successors"
         );
-        let num_opds_succ0 = self
-            .get_operation()
-            .deref(ctx)
-            .get_successor(0)
-            .deref(ctx)
-            .get_num_arguments();
-        if succ_idx == 0 {
-            // Skip `condition` operand and take num_opds_succ0 operands after that.
-            self.get_operation()
-                .deref(ctx)
-                .operands()
-                .skip(1)
-                .take(num_opds_succ0)
-                .collect()
-        } else {
-            // Skip `condition` and `true_dest_opds`. Take the remaining.
-            self.get_operation()
-                .deref(ctx)
-                .operands()
-                .skip(1 + num_opds_succ0)
-                .collect()
-        }
+
+        // Skip the first segment, which is the condition.
+        self.get_segment(ctx, succ_idx + 1)
     }
 }
 

@@ -261,7 +261,7 @@ impl TypedAttrInterface for FloatAttr {
 
 impl Parsable for FloatAttr {
     type Arg = ();
-    type Parsed = AttrObj;
+    type Parsed = Self;
 
     fn parse<'a>(
         _state_stream: &mut StateStream<'a>,
@@ -397,14 +397,22 @@ impl TypedAttrInterface for TypeAttr {
     }
 }
 
+#[def_attribute("builtin.operand_segment_sizes")]
+#[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+pub struct OperandSegmentSizesAttr(pub Vec<u32>);
+impl_verify_succ!(OperandSegmentSizesAttr);
+
 pub fn register(ctx: &mut Context) {
     IdentifierAttr::register_attr_in_dialect(ctx, IdentifierAttr::parser_fn);
     StringAttr::register_attr_in_dialect(ctx, StringAttr::parser_fn);
     IntegerAttr::register_attr_in_dialect(ctx, IntegerAttr::parser_fn);
+    FloatAttr::register_attr_in_dialect(ctx, FloatAttr::parser_fn);
     DictAttr::register_attr_in_dialect(ctx, DictAttr::parser_fn);
     VecAttr::register_attr_in_dialect(ctx, VecAttr::parser_fn);
     UnitAttr::register_attr_in_dialect(ctx, UnitAttr::parser_fn);
     TypeAttr::register_attr_in_dialect(ctx, TypeAttr::parser_fn);
+    OperandSegmentSizesAttr::register_attr_in_dialect(ctx, OperandSegmentSizesAttr::parser_fn);
 }
 
 #[cfg(test)]
