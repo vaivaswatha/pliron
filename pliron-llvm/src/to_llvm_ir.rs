@@ -35,26 +35,26 @@ use crate::{
     attributes::ICmpPredicateAttr,
     llvm_sys::core::{
         LLVMBasicBlock, LLVMBuilder, LLVMContext, LLVMModule, LLVMType, LLVMValue,
-        instruction_iter, llvm_add_function, llvm_add_global, llvm_add_incoming,
+        instruction_iter, llvm_add_case, llvm_add_function, llvm_add_global, llvm_add_incoming,
         llvm_append_basic_block_in_context, llvm_array_type2, llvm_build_add, llvm_build_and,
         llvm_build_array_alloca, llvm_build_bitcast, llvm_build_br, llvm_build_call2,
         llvm_build_cond_br, llvm_build_extract_value, llvm_build_gep2, llvm_build_icmp,
         llvm_build_insert_value, llvm_build_int_to_ptr, llvm_build_load2, llvm_build_mul,
         llvm_build_or, llvm_build_phi, llvm_build_ptr_to_int, llvm_build_ret, llvm_build_ret_void,
         llvm_build_sdiv, llvm_build_select, llvm_build_sext, llvm_build_shl, llvm_build_srem,
-        llvm_build_store, llvm_build_sub, llvm_build_udiv, llvm_build_urem, llvm_build_xor,
-        llvm_clear_insertion_position, llvm_const_int, llvm_const_null, llvm_delete_function,
-        llvm_function_type, llvm_get_param, llvm_get_undef, llvm_int_type_in_context, llvm_is_a,
-        llvm_pointer_type_in_context, llvm_position_builder_at_end, llvm_set_initializer,
-        llvm_struct_create_named, llvm_struct_set_body, llvm_struct_type_in_context,
-        llvm_void_type_in_context,
+        llvm_build_store, llvm_build_sub, llvm_build_switch, llvm_build_udiv, llvm_build_urem,
+        llvm_build_xor, llvm_clear_insertion_position, llvm_const_int, llvm_const_null,
+        llvm_delete_function, llvm_function_type, llvm_get_param, llvm_get_undef,
+        llvm_int_type_in_context, llvm_is_a, llvm_pointer_type_in_context,
+        llvm_position_builder_at_end, llvm_set_initializer, llvm_struct_create_named,
+        llvm_struct_set_body, llvm_struct_type_in_context, llvm_void_type_in_context,
     },
     op_interfaces::PointerTypeResult,
     ops::{
         AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
         ExtractValueOp, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp, IntToPtrOp, LoadOp,
         MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp,
-        UDivOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
+        SwitchOp, UDivOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
     },
     types::{ArrayType, PointerType, StructType, VoidType},
 };
@@ -439,6 +439,47 @@ impl ToLLVMValue for CondBrOp {
         )?;
 
         Ok(branch_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for SwitchOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let cond = convert_value_operand(cctx, ctx, &self.condition(ctx))?;
+        let default_succ = convert_block_operand(cctx, ctx, self.default_dest(ctx))?;
+        let switch_op = llvm_build_switch(
+            &cctx.builder,
+            cond,
+            default_succ,
+            self.cases(ctx).len() as u32,
+        );
+
+        // Link the arguments we pass to the block with the PHIs there.
+        for case in self.cases(ctx) {
+            let succ_llvm = convert_block_operand(cctx, ctx, case.dest)?;
+            link_succ_operands_with_phis(
+                ctx,
+                cctx,
+                op.get_container().expect("Unlinked operation"),
+                succ_llvm,
+                case.dest_opds,
+            )?;
+
+            let int_ty = case.value.get_type();
+            let int_ty_llvm = convert_type(ctx, llvm_ctx, int_ty.into())?;
+            let ap_int_val: APInt = case.value.clone().into();
+            let case_const_val = llvm_const_int(int_ty_llvm, ap_int_val.to_u64(), false);
+
+            llvm_add_case(switch_op, case_const_val, succ_llvm);
+        }
+
+        Ok(switch_op)
     }
 }
 

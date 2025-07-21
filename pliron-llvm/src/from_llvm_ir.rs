@@ -43,15 +43,15 @@ use crate::{
         llvm_get_operand, llvm_get_param_types, llvm_get_return_type,
         llvm_get_struct_element_types, llvm_get_struct_name, llvm_get_type_kind,
         llvm_get_value_kind, llvm_get_value_name, llvm_global_get_value_type, llvm_is_a,
-        llvm_is_opaque_struct, llvm_type_of, llvm_value_as_basic_block, llvm_value_is_basic_block,
-        param_iter,
+        llvm_is_opaque_struct, llvm_print_value_to_string, llvm_type_of, llvm_value_as_basic_block,
+        llvm_value_is_basic_block, param_iter,
     },
     op_interfaces::{BinArithOp, CastOpInterface, IntBinArithOpWithOverflowFlag},
     ops::{
         AShrOp, AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
         ExtractValueOp, GepIndex, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp, IntToPtrOp,
         LShrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SRemOp, SelectOp, ShlOp,
-        StoreOp, SubOp, UDivOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
+        StoreOp, SubOp, SwitchCase, SwitchOp, UDivOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
     },
     types::{ArrayType, PointerType, StructErr, StructType, VoidType},
 };
@@ -179,7 +179,29 @@ fn successors(block: LLVMBasicBlock) -> Vec<LLVMBasicBlock> {
                 ]
             }
         }
-        _ => vec![],
+        LLVMOpcode::LLVMSwitch => {
+            // The first two operands are the condition value and the default destination.
+            // After that there are pairs of case value and destination.
+            let num_cases = (llvm_get_num_operands(term) - 2) / 2;
+            let mut succs = vec![llvm_value_as_basic_block(llvm_get_operand(term, 1))];
+            for i in 0..num_cases {
+                succs.push(llvm_value_as_basic_block(llvm_get_operand(
+                    term,
+                    2 + (2 * i) + 1,
+                )));
+            }
+            succs
+        }
+        LLVMOpcode::LLVMRet => {
+            // Return has no successors.
+            vec![]
+        }
+        _ => {
+            todo!(
+                "Unsupported instruction: {}",
+                llvm_print_value_to_string(term).unwrap_or_default()
+            )
+        }
     }
 }
 
@@ -219,30 +241,40 @@ fn rpo(function: LLVMValue) -> Vec<LLVMBasicBlock> {
 pub enum ConversionErr {
     #[error("Unable to get operand with idx {0}")]
     OpdMissing(usize),
-    #[error("PHI node must have argument from predecessor block {0}")]
+    #[error("Unable to get successor with idx {0}")]
+    SuccMissing(usize),
+    #[error("PHI node must have argument from predecessor block \"^{0}\"")]
     PhiArgMissing(String),
-    #[error("Definition for value {0} not seen yet")]
+    #[error("Definition for value \"{0}\" not seen yet")]
     UndefinedValue(String),
-    #[error("Block definition {0} not seen yet")]
+    #[error("Block definition \"^{0}\" not seen yet")]
     UndefinedBlock(String),
     #[error("Integer constant has bit-width 0")]
     ZeroWidthIntConst,
 }
 
+/// If a value is a ConstantOp with integer type, return the value.
+fn get_const_op_as_int(ctx: &Context, val: Value) -> Option<IntegerAttr> {
+    let Value::OpResult { op, res_idx: _ } = val else {
+        return None;
+    };
+    Operation::get_op(op, ctx)
+        .downcast_ref::<ConstantOp>()
+        .and_then(|const_op| {
+            const_op
+                .get_value(ctx)
+                .downcast_ref::<IntegerAttr>()
+                .cloned()
+        })
+}
+
 /// If a value is a ConstantOp with a 32-bit integer type, return the value.
 fn get_const_op_as_u32(ctx: &Context, val: Value) -> Option<u32> {
-    if let Value::OpResult { op, res_idx: _ } = val {
-        if let Some(const_op) = Operation::get_op(op, ctx).downcast_ref::<ConstantOp>() {
-            if let Some(int_attr) = const_op.get_value(ctx).downcast_ref::<IntegerAttr>() {
-                let int_ty = int_attr.get_type().deref(ctx);
-                // LLVM integers are signless.
-                if int_ty.is_signless() && int_ty.get_width() == 32 {
-                    return Some(int_attr.get_value().to_u32());
-                }
-            }
-        }
-    }
-    None
+    get_const_op_as_int(ctx, val).and_then(|int_attr| {
+        let int_ty = int_attr.get_type().deref(ctx);
+        // LLVM integers are signless.
+        (int_ty.is_signless() && int_ty.get_width() == 32).then(|| int_attr.get_value().to_u32())
+    })
 }
 
 /// Checks if a constant has been processed already, and if not
@@ -810,7 +842,50 @@ fn convert_instruction(
                     .get_operation(),
             )
         }
-        LLVMOpcode::LLVMSwitch => todo!(),
+        LLVMOpcode::LLVMSwitch => {
+            let cond = get_operand(opds, 0)?;
+            let default_dest = succs
+                .first()
+                .ok_or_else(|| input_error_noloc!(ConversionErr::SuccMissing(0)))?;
+            let cases = opds
+                .iter()
+                // Skip the first operand which is the condition
+                .skip(1)
+                // Skip the first successor which is the default destination
+                .zip(succs.iter().skip(1))
+                .enumerate()
+                .map(|(case_idx, (case_val, dest_block))| {
+                    let case_val = get_const_op_as_int(ctx, *case_val).ok_or_else(|| {
+                        input_error_noloc!("Switch case value must be a constant integer")
+                    })?;
+                    let case_idx: u32 = case_idx.try_into().unwrap();
+                    let llvm_dest =
+                        llvm_value_as_basic_block(llvm_get_operand(inst, 2 + (2 * case_idx) + 1));
+                    assert!(
+                        cctx.block_map.get(&llvm_dest).unwrap() == dest_block,
+                        "Switch case destination block does not match the expected block"
+                    );
+                    let case_args = convert_branch_args(
+                        ctx,
+                        cctx,
+                        llvm_get_instruction_parent(inst).unwrap(),
+                        llvm_dest,
+                    )?;
+                    Ok(SwitchCase {
+                        value: case_val,
+                        dest: *dest_block,
+                        dest_opds: case_args,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let default_dest_args = convert_branch_args(
+                ctx,
+                cctx,
+                llvm_get_instruction_parent(inst).unwrap(),
+                llvm_value_as_basic_block(llvm_get_operand(inst, 1)),
+            )?;
+            Ok(SwitchOp::new(ctx, cond, *default_dest, default_dest_args, cases).get_operation())
+        }
         LLVMOpcode::LLVMTrunc => todo!(),
         LLVMOpcode::LLVMUDiv => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);

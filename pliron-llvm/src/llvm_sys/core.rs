@@ -10,13 +10,14 @@ use llvm_sys::{
     analysis::LLVMVerifyModule,
     bit_writer::LLVMWriteBitcodeToFile,
     core::{
-        LLVMAddFunction, LLVMAddGlobal, LLVMAddIncoming, LLVMAppendBasicBlockInContext,
-        LLVMArrayType2, LLVMBasicBlockAsValue, LLVMBuildAdd, LLVMBuildAnd, LLVMBuildArrayAlloca,
-        LLVMBuildBitCast, LLVMBuildBr, LLVMBuildCall2, LLVMBuildCondBr, LLVMBuildExtractValue,
-        LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildInsertValue, LLVMBuildIntToPtr, LLVMBuildLoad2,
-        LLVMBuildMul, LLVMBuildOr, LLVMBuildPhi, LLVMBuildPtrToInt, LLVMBuildRet, LLVMBuildRetVoid,
-        LLVMBuildSDiv, LLVMBuildSExt, LLVMBuildSRem, LLVMBuildSelect, LLVMBuildShl, LLVMBuildStore,
-        LLVMBuildSub, LLVMBuildTrunc, LLVMBuildUDiv, LLVMBuildURem, LLVMBuildXor, LLVMBuildZExt,
+        LLVMAddCase, LLVMAddFunction, LLVMAddGlobal, LLVMAddIncoming,
+        LLVMAppendBasicBlockInContext, LLVMArrayType2, LLVMBasicBlockAsValue, LLVMBuildAdd,
+        LLVMBuildAnd, LLVMBuildArrayAlloca, LLVMBuildBitCast, LLVMBuildBr, LLVMBuildCall2,
+        LLVMBuildCondBr, LLVMBuildExtractValue, LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildInsertValue,
+        LLVMBuildIntToPtr, LLVMBuildLoad2, LLVMBuildMul, LLVMBuildOr, LLVMBuildPhi,
+        LLVMBuildPtrToInt, LLVMBuildRet, LLVMBuildRetVoid, LLVMBuildSDiv, LLVMBuildSExt,
+        LLVMBuildSRem, LLVMBuildSelect, LLVMBuildShl, LLVMBuildStore, LLVMBuildSub,
+        LLVMBuildSwitch, LLVMBuildTrunc, LLVMBuildUDiv, LLVMBuildURem, LLVMBuildXor, LLVMBuildZExt,
         LLVMClearInsertionPosition, LLVMConstInt, LLVMConstIntGetZExtValue, LLVMConstNull,
         LLVMContextCreate, LLVMContextDispose, LLVMCountIncoming, LLVMCountParamTypes,
         LLVMCountParams, LLVMCountStructElementTypes, LLVMCreateBuilderInContext,
@@ -200,7 +201,7 @@ pub mod llvm_is_a {
         LLVMIsAAllocaInst, LLVMIsAArgument, LLVMIsACallInst, LLVMIsAConstant, LLVMIsAConstantExpr,
         LLVMIsAConstantInt, LLVMIsAExtractValueInst, LLVMIsAGetElementPtrInst, LLVMIsAGlobalValue,
         LLVMIsAGlobalVariable, LLVMIsAICmpInst, LLVMIsAInsertValueInst, LLVMIsAInstruction,
-        LLVMIsAInvokeInst, LLVMIsAPHINode,
+        LLVMIsAInvokeInst, LLVMIsAPHINode, LLVMIsASwitchInst,
     };
 
     use super::*;
@@ -248,6 +249,11 @@ pub mod llvm_is_a {
     /// LLVMIsAICmpInst
     pub fn icmp_inst(val: LLVMValue) -> bool {
         unsafe { !LLVMIsAICmpInst(val.into()).is_null() }
+    }
+
+    /// LLVMIsASwitchInst
+    pub fn switch_inst(val: LLVMValue) -> bool {
+        unsafe { !LLVMIsASwitchInst(val.into()).is_null() }
     }
 
     /// LLVMIsAArgument
@@ -1363,6 +1369,25 @@ pub fn llvm_build_cond_br(
 pub fn llvm_build_br(builder: &LLVMBuilder, dest: LLVMBasicBlock) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe { LLVMBuildBr(builder.0, dest.into()).into() }
+}
+
+/// LLVMBuildSwitch
+pub fn llvm_build_switch(
+    builder: &LLVMBuilder,
+    val: LLVMValue,
+    default_block: LLVMBasicBlock,
+    num_cases: u32,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe { LLVMBuildSwitch(builder.0, val.into(), default_block.into(), num_cases).into() }
+}
+
+/// LLVMAddCase
+pub fn llvm_add_case(switch_inst: LLVMValue, on_val: LLVMValue, dest_block: LLVMBasicBlock) {
+    assert!(llvm_is_a::switch_inst(switch_inst));
+    unsafe {
+        LLVMAddCase(switch_inst.into(), on_val.into(), dest_block.into());
+    }
 }
 
 /// LLVMBuildLoad2

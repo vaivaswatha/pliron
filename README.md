@@ -32,9 +32,10 @@ that can parse LLVM-IR bitcode into the LLVM dialect and output
 LLVM-IR bitcode.
 
 ### Using the Library
-`pliron` is currently in a nascent stage and not yet useful for
-real-world use. In the future it can be used by just adding
-a dependence to the [crate](https://crates.io/crates/pliron)
+`pliron`, is under active development. All effort is made to ensure that the code is well tested
+and of production quality. Current efforts are directed at completing the LLVM dialect, so that
+at least one backend exists for `pliron` and it becomes usable. If someone wants to use just the compiler
+infrastructure, without requiring an LLVM backend, just add a dependence to the [crate](https://crates.io/crates/pliron)
 in your Rust project.
 
 ### Documentation

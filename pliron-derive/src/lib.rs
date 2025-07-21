@@ -117,13 +117,37 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
 /// (which must be an [Identifier](../pliron/identifier/struct.Identifier.html)),
 /// each of which may have an optional concrete Rust type specified,
 /// denoting the [Attribute](../pliron/attribute/trait.Attribute.html)'s concrete type.
+///
 /// ```
 /// # use pliron::derive::{def_op, derive_attr_get_set};
 /// # use pliron::{impl_canonical_syntax, impl_verify_succ};
 /// // A test for the `derive_attr_get_set` macro.
 /// #[def_op("llvm.with_attrs")]
-/// #[derive_attr_get_set(name_any_attr, name_ty_attr : pliron::builtin::attributes::TypeAttr)]
+/// #[derive_attr_get_set(name1_any_attr, name2_ty_attr : pliron::builtin::attributes::TypeAttr)]
 /// pub struct WithAttrsOp {}
+/// # impl_canonical_syntax!(WithAttrsOp);
+/// # impl_verify_succ!(WithAttrsOp);
+/// ```
+///
+/// This expands to add the following getter / setter items:
+/// ```
+/// # use pliron::derive::{def_op, derive_attr_get_set};
+/// # use std::cell::Ref;
+/// # use pliron::{dict_key, impl_canonical_syntax, impl_verify_succ};
+/// # use pliron::{attribute::AttrObj, context::Context};
+/// # use pliron::{builtin::attributes::TypeAttr};
+/// #[def_op("llvm.with_attrs")]
+/// pub struct WithAttrsOp {}
+/// dict_key!(ATTR_KEY_NAME1_ANY_ATTR, "name1_any_attr");
+/// dict_key!(ATTR_KEY_NAME2_TY_ATTR, "name2_ty_attr");
+/// impl WithAttrsOp {
+///   pub fn get_attr_name1_any_attr<'a>
+///     (&self, ctx: &'a Context)-> Option<Ref<'a, AttrObj>> { todo!() }
+///   pub fn set_attr_name1_any_attr(&self, ctx: &Context, value: AttrObj) { todo!() }
+///   pub fn get_attr_name2_ty_attr<'a>
+///     (&self, ctx: &'a Context) -> Option<Ref<'a, TypeAttr>> { todo!() }
+///   pub fn set_attr_name2_ty_attr(&self, ctx: &Context, value: TypeAttr) { todo!() }
+/// }
 /// # impl_canonical_syntax!(WithAttrsOp);
 /// # impl_verify_succ!(WithAttrsOp);
 /// ```

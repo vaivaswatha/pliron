@@ -177,6 +177,13 @@ fn test_select() {
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("select.ll").to_str().unwrap(), 100);
 }
 
+/// Test SwitchOp by compiling switch.ll via pliron.
+#[test]
+fn test_switch() {
+    init_env_logger();
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("switch.ll").to_str().unwrap(), 68);
+}
+
 /// Test const structs and arrays
 #[test]
 fn test_consts() {

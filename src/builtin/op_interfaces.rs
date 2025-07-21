@@ -99,7 +99,7 @@ pub trait BranchOpInterface: IsTerminatorInterface {
 }
 
 dict_key!(
-    /// Key for the `operandSegmentSizes` attribute.
+    /// Key for the `operand_segment_sizes` attribute.
     ATTR_KEY_OPERAND_SEGMENT_SIZES, "operand_segment_sizes"
 );
 
@@ -117,7 +117,7 @@ pub enum OperandSegmentInterfaceVerifyErr {
 /// MLIR achieves this by having ODS (tablegen)' `AttrSizedOperandSegments` generate
 /// `getODSOperands()` based on the `operandSegmentSizes` attribute.
 ///
-/// ## Attribute(s):
+/// ### Attribute(s):
 /// | Name | Static Name Identifier | Type |
 /// |------|------------------------| -----|
 /// | operand_segment_sizes | [ATTR_KEY_OPERAND_SEGMENT_SIZES] | [OperandSegmentSizesAttr](crate::builtin::attributes::OperandSegmentSizesAttr) |

@@ -1,11 +1,16 @@
 //! Attributes belonging to the LLVM dialect.
 
 use pliron::attribute::Attribute;
+use pliron::builtin::attributes::IntegerAttr;
+use pliron::common_traits::Verify;
 use pliron::context::Context;
 use pliron::derive::{def_attribute, format, format_attribute};
+use pliron::printable::Printable;
+use pliron::result::Result;
 
-use pliron::impl_verify_succ;
 use pliron::parsable::Parsable;
+use pliron::{impl_verify_succ, verify_err_noloc};
+use thiserror::Error;
 
 /// Integer overflow flags for arithmetic operations.
 /// The description below is from LLVM's
@@ -59,6 +64,32 @@ pub enum GepIndexAttr {
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct GepIndicesAttr(pub Vec<GepIndexAttr>);
 impl_verify_succ!(GepIndicesAttr);
+
+/// An attribute that contains a list of case values for a switch operation.
+#[def_attribute("llvm.case_values")]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+#[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
+pub struct CaseValuesAttr(pub Vec<IntegerAttr>);
+
+#[derive(Debug, Error)]
+#[error("Case values must be of the same type, but found different types: {0} and {1}")]
+pub struct CaseValuesAttrVerifyErr(pub String, pub String);
+
+impl Verify for CaseValuesAttr {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        self.0.windows(2).try_for_each(|pair| {
+            pair[0].verify(ctx)?;
+            if pair[0].get_type() != pair[1].get_type() {
+                verify_err_noloc!(CaseValuesAttrVerifyErr(
+                    pair[0].get_type().disp(ctx).to_string(),
+                    pair[1].get_type().disp(ctx).to_string()
+                ))
+            } else {
+                Ok(())
+            }
+        })
+    }
+}
 
 pub fn register(ctx: &mut Context) {
     IntegerOverflowFlagsAttr::register_attr_in_dialect(ctx, IntegerOverflowFlagsAttr::parser_fn);

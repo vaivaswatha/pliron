@@ -22,7 +22,7 @@ pub enum Signedness {
 }
 
 #[def_type("builtin.integer")]
-#[derive(Hash, PartialEq, Eq, Debug)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone)]
 pub struct IntegerType {
     width: u32,
     signedness: Signedness,
