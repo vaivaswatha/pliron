@@ -8,7 +8,7 @@ use combine::{Parser, attempt, parser::char::spaces, token};
 use thiserror::Error;
 
 use crate::{
-    attribute::AttributeDict,
+    attribute::{AttributeDict, verify_attr},
     basic_block::BasicBlock,
     common_traits::{Named, RcShare, Verify},
     context::{ArenaCell, Context, Ptr, private::ArenaObj},
@@ -590,8 +590,7 @@ impl<T: DefUseParticipant + DefTrait> Verify for Operand<T> {
 impl Verify for Operation {
     fn verify(&self, ctx: &Context) -> Result<()> {
         for attr in self.attributes.0.values() {
-            attr.verify(ctx)?;
-            attr.verify_interfaces(ctx)?;
+            verify_attr(&**attr, ctx)?;
         }
         for opd in &self.operands {
             opd.verify(ctx)?;
@@ -602,8 +601,10 @@ impl Verify for Operation {
         for region in &self.regions {
             region.verify(ctx)?;
         }
-        Self::get_op(self.self_ptr, ctx).verify_interfaces(ctx)?;
-        Self::get_op(self.self_ptr, ctx).verify(ctx)
+
+        let op = &*Self::get_op(self.self_ptr, ctx);
+        op.verify_interfaces(ctx)?;
+        op.verify(ctx)
     }
 }
 

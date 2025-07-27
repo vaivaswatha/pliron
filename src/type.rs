@@ -28,6 +28,9 @@
 //! (or that it can be checked if the interface is [implemented](type_impls))
 //! with ease.
 //!
+//! Use [verify_type] to verify a [Type] object.
+//! This function verifies all interfaces implemented by the type, and then the type itself.
+//!
 //! [TypeObj]s can be downcasted to their concrete types using
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 
@@ -400,9 +403,20 @@ impl Parsable for Ptr<TypeObj> {
     }
 }
 
+/// Verify a [Type] object:
+/// 1. All interfaces it implements are verified
+/// 2. The type itself is verified.
+pub fn verify_type(ty: &dyn Type, ctx: &Context) -> Result<()> {
+    // Verify all interfaces implemented by this Type.
+    ty.verify_interfaces(ctx)?;
+
+    // Verify the type itself.
+    Verify::verify(ty, ctx)
+}
+
 impl Verify for TypeObj {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        self.as_ref().verify(ctx)
+        verify_type(self.as_ref(), ctx)
     }
 }
 

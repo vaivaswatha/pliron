@@ -29,6 +29,9 @@
 //! (or that it can be checked if the interface is [implemented](attr_impls))
 //! with ease.
 //!
+//! Use [verify_attr] to verify an [Attribute] object.
+//! This function verifies all interfaces implemented by the attribute, and then the attribute itself.
+//!
 //! [AttrObj]s can be downcasted to their concrete types using
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 
@@ -315,9 +318,20 @@ impl Parsable for AttrObj {
     }
 }
 
+/// Verify an [Attribute] object.
+/// 1. Verify all interfaces implemented by this attribute.
+/// 2. Verify the attribute itself.
+pub fn verify_attr(attr: &dyn Attribute, ctx: &Context) -> Result<()> {
+    // Verify all interfaces implemented by this attribute.
+    attr.verify_interfaces(ctx)?;
+
+    // Verify the attribute itself.
+    Verify::verify(attr, ctx)
+}
+
 impl Verify for AttrObj {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        self.as_ref().verify(ctx)
+        verify_attr(self.as_ref(), ctx)
     }
 }
 

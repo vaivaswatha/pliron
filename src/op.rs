@@ -25,6 +25,10 @@
 //! (or that it can be checked if the interface is [implemented](op_impls))
 //! with ease.
 //!
+//! Use [verify_op] to verify an [Op] object. It calls the internal
+//! [Operation]'s `verify` method, which in turn calls the verifiers for operands,
+//! results, attributes and regions, and then the verifiers for all interfaces.
+//!
 //! [OpObj]s can be downcasted to their concrete types using
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 
@@ -215,6 +219,17 @@ pub type OpObj = Box<dyn Op>;
 impl PartialEq for OpObj {
     fn eq(&self, other: &Self) -> bool {
         self.get_operation().eq(&other.get_operation())
+    }
+}
+
+/// Verify an [Op] object. It just calls the `verify` method of the operation.
+pub fn verify_op(op: &dyn Op, ctx: &Context) -> Result<()> {
+    op.get_operation().verify(ctx)
+}
+
+impl Verify for OpObj {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        verify_op(self.as_ref(), ctx)
     }
 }
 

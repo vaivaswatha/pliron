@@ -6,6 +6,7 @@ use combine::Parser;
 use combine::stream::position::SourcePosition;
 use common::{ConstantOp, ReturnOp};
 use expect_test::expect;
+use pliron::attribute::verify_attr;
 use pliron::builtin::attr_interfaces::{OutlinedAttr, PrintOnceAttr};
 use pliron::derive::{
     attr_interface, attr_interface_impl, def_attribute, def_op, def_type, derive_op_interface_impl,
@@ -14,6 +15,7 @@ use pliron::derive::{
 use pliron::location::{self, Located, Source};
 use pliron::parsable::{self, state_stream_from_iterator};
 use pliron::result::ExpectOk;
+use pliron::r#type::verify_type;
 use pliron::{
     attribute::Attribute,
     builtin::{
@@ -256,7 +258,7 @@ fn test_attr_intr_verify_order() -> Result<()> {
     VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
 
     let vio = VerifyIntrAttr {};
-    vio.verify_interfaces(ctx)?;
+    verify_attr(&vio, ctx)?;
 
     expect![[r#"
         TestAttrInterface verified
@@ -332,7 +334,7 @@ fn test_type_intr_verify_order() -> Result<()> {
     VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
 
     let vio = VerifyIntrType {};
-    vio.verify_interfaces(ctx)?;
+    verify_type(&vio, ctx)?;
 
     expect![[r#"
         TestTypeInterface verified
