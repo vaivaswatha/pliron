@@ -51,7 +51,8 @@ use crate::{
         AShrOp, AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
         ExtractValueOp, GepIndex, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp, IntToPtrOp,
         LShrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SRemOp, SelectOp, ShlOp,
-        StoreOp, SubOp, SwitchCase, SwitchOp, UDivOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
+        StoreOp, SubOp, SwitchCase, SwitchOp, TruncOp, UDivOp, URemOp, UndefOp, XorOp, ZExtOp,
+        ZeroOp,
     },
     types::{ArrayType, PointerType, StructErr, StructType, VoidType},
 };
@@ -818,6 +819,11 @@ fn convert_instruction(
             let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
             Ok(ZExtOp::new(ctx, arg, res_ty).get_operation())
         }
+        LLVMOpcode::LLVMTrunc => {
+            let arg = get_operand(opds, 0)?;
+            let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
+            Ok(TruncOp::new(ctx, arg, res_ty).get_operation())
+        }
         LLVMOpcode::LLVMShl => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             Ok(
@@ -886,7 +892,6 @@ fn convert_instruction(
             )?;
             Ok(SwitchOp::new(ctx, cond, *default_dest, default_dest_args, cases).get_operation())
         }
-        LLVMOpcode::LLVMTrunc => todo!(),
         LLVMOpcode::LLVMUDiv => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             Ok(UDivOp::new(ctx, lhs, rhs).get_operation())

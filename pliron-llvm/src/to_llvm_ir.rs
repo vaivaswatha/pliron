@@ -42,9 +42,9 @@ use crate::{
         llvm_build_insert_value, llvm_build_int_to_ptr, llvm_build_load2, llvm_build_mul,
         llvm_build_or, llvm_build_phi, llvm_build_ptr_to_int, llvm_build_ret, llvm_build_ret_void,
         llvm_build_sdiv, llvm_build_select, llvm_build_sext, llvm_build_shl, llvm_build_srem,
-        llvm_build_store, llvm_build_sub, llvm_build_switch, llvm_build_udiv, llvm_build_urem,
-        llvm_build_xor, llvm_clear_insertion_position, llvm_const_int, llvm_const_null,
-        llvm_delete_function, llvm_function_type, llvm_get_param, llvm_get_undef,
+        llvm_build_store, llvm_build_sub, llvm_build_switch, llvm_build_trunc, llvm_build_udiv,
+        llvm_build_urem, llvm_build_xor, llvm_clear_insertion_position, llvm_const_int,
+        llvm_const_null, llvm_delete_function, llvm_function_type, llvm_get_param, llvm_get_undef,
         llvm_int_type_in_context, llvm_is_a, llvm_pointer_type_in_context,
         llvm_position_builder_at_end, llvm_set_initializer, llvm_struct_create_named,
         llvm_struct_set_body, llvm_struct_type_in_context, llvm_void_type_in_context,
@@ -54,7 +54,7 @@ use crate::{
         AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
         ExtractValueOp, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp, IntToPtrOp, LoadOp,
         MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp,
-        SwitchOp, UDivOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
+        SwitchOp, TruncOp, UDivOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
     },
     types::{ArrayType, PointerType, StructType, VoidType},
 };
@@ -720,6 +720,27 @@ impl ToLLVMValue for ZExtOp {
             &self.get_result(ctx).unique_name(ctx),
         );
         Ok(zext_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for TruncOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let trunc_op = llvm_build_trunc(
+            &cctx.builder,
+            arg,
+            ty,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        Ok(trunc_op)
     }
 }
 

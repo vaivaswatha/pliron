@@ -1962,27 +1962,61 @@ impl SymbolUserOpInterface for AddressOfOp {
 }
 
 #[derive(Error, Debug)]
-enum IntExtVerifyErr {
-    #[error("Result must be an integer, wider than the operand type")]
+enum IntCastVerifyErr {
+    #[error("Result must be an integer")]
     ResultTypeErr,
     #[error("Operand must be an integer")]
     OperandTypeErr,
+    #[error("Result type must be larger than operand type")]
+    ResultTypeSmallerThanOperand,
+    #[error("Result type must be smaller than operand type")]
+    ResultTypeLargerThanOperand,
+    #[error("Result type must be equal to operand type")]
+    ResultTypeEqualToOperand,
 }
 
-fn integer_ext_verify(op: &Operation, ctx: &Context) -> Result<()> {
+/// Ensure that the integer cast operation is valid.
+/// This checks that the result type is an integer and that the operand type is also an integer.
+/// It also checks that the result type is larger or smaller than the operand type (`cmp` operand).
+fn integer_cast_verify(op: &Operation, ctx: &Context, cmp: ICmpPredicateAttr) -> Result<()> {
     use pliron::r#type::Typed;
 
     let loc = op.loc();
     let res_ty = op.get_type(0).deref(ctx);
     let opd_ty = op.get_operand(0).get_type(ctx).deref(ctx);
     let Some(res_ty) = res_ty.downcast_ref::<IntegerType>() else {
-        return verify_err!(loc, IntExtVerifyErr::ResultTypeErr);
+        return verify_err!(loc, IntCastVerifyErr::ResultTypeErr);
     };
     let Some(opd_ty) = opd_ty.downcast_ref::<IntegerType>() else {
-        return verify_err!(loc, IntExtVerifyErr::OperandTypeErr);
+        return verify_err!(loc, IntCastVerifyErr::OperandTypeErr);
     };
-    if res_ty.get_width() <= opd_ty.get_width() {
-        return verify_err!(loc, IntExtVerifyErr::ResultTypeErr);
+
+    match cmp {
+        ICmpPredicateAttr::SLT | ICmpPredicateAttr::ULT => {
+            if res_ty.get_width() >= opd_ty.get_width() {
+                return verify_err!(loc, IntCastVerifyErr::ResultTypeLargerThanOperand);
+            }
+        }
+        ICmpPredicateAttr::SGT | ICmpPredicateAttr::UGT => {
+            if res_ty.get_width() <= opd_ty.get_width() {
+                return verify_err!(loc, IntCastVerifyErr::ResultTypeSmallerThanOperand);
+            }
+        }
+        ICmpPredicateAttr::SLE | ICmpPredicateAttr::ULE => {
+            if res_ty.get_width() > opd_ty.get_width() {
+                return verify_err!(loc, IntCastVerifyErr::ResultTypeLargerThanOperand);
+            }
+        }
+        ICmpPredicateAttr::SGE | ICmpPredicateAttr::UGE => {
+            if res_ty.get_width() < opd_ty.get_width() {
+                return verify_err!(loc, IntCastVerifyErr::ResultTypeSmallerThanOperand);
+            }
+        }
+        ICmpPredicateAttr::EQ | ICmpPredicateAttr::NE => {
+            if res_ty.get_width() != opd_ty.get_width() {
+                return verify_err!(loc, IntCastVerifyErr::ResultTypeEqualToOperand);
+            }
+        }
     }
     Ok(())
 }
@@ -2002,7 +2036,11 @@ fn integer_ext_verify(op: &Operation, ctx: &Context) -> Result<()> {
 pub struct SExtOp;
 impl Verify for SExtOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        integer_ext_verify(&self.get_operation().deref(ctx), ctx)
+        integer_cast_verify(
+            &self.get_operation().deref(ctx),
+            ctx,
+            ICmpPredicateAttr::SGT,
+        )
     }
 }
 
@@ -2022,7 +2060,35 @@ pub struct ZExtOp;
 
 impl Verify for ZExtOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        integer_ext_verify(&self.get_operation().deref(ctx), ctx)
+        integer_cast_verify(
+            &self.get_operation().deref(ctx),
+            ctx,
+            ICmpPredicateAttr::UGT,
+        )
+    }
+}
+
+/// Equivalent to LLVM's trunc opcode.
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `arg` | Signless integer |
+/// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | Signless integer |
+#[def_op("llvm.trunc")]
+#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface)]
+#[format_op("$0 ` to ` type($0)")]
+pub struct TruncOp;
+
+impl Verify for TruncOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        integer_cast_verify(
+            &self.get_operation().deref(ctx),
+            ctx,
+            ICmpPredicateAttr::ULT,
+        )
     }
 }
 
@@ -2325,6 +2391,7 @@ pub fn register(ctx: &mut Context) {
     ZeroOp::register(ctx, ZeroOp::parser_fn);
     SExtOp::register(ctx, SExtOp::parser_fn);
     ZExtOp::register(ctx, ZExtOp::parser_fn);
+    TruncOp::register(ctx, TruncOp::parser_fn);
     InsertValueOp::register(ctx, InsertValueOp::parser_fn);
     ExtractValueOp::register(ctx, ExtractValueOp::parser_fn);
     SelectOp::register(ctx, SelectOp::parser_fn);

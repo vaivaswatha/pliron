@@ -198,6 +198,13 @@ fn test_globals() {
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("globals.ll").to_str().unwrap(), 59);
 }
 
+/// Test casts
+#[test]
+fn test_casts() {
+    init_env_logger();
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("casts.ll").to_str().unwrap(), 64);
+}
+
 /// Test fib by compiling fib.ll via pliron.
 #[test]
 fn test_fib() {

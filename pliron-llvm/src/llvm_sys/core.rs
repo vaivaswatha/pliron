@@ -1190,6 +1190,7 @@ pub fn llvm_build_ptr_to_int(
         .into()
     }
 }
+
 /// LLVMBuildTrunc
 pub fn llvm_build_trunc(
     builder: &LLVMBuilder,
