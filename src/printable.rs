@@ -195,6 +195,7 @@ impl_printable_for_display!(u32);
 impl_printable_for_display!(i64);
 impl_printable_for_display!(i32);
 impl_printable_for_display!(bool);
+impl_printable_for_display!(char);
 
 impl<T: Printable + ?Sized> Printable for &T {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
