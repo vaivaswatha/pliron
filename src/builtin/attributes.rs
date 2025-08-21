@@ -1,3 +1,5 @@
+use std::hash::{Hash, Hasher};
+
 use combine::{
     Parser, between, many1,
     parser::char::{char, digit, spaces},
@@ -5,10 +7,12 @@ use combine::{
 };
 use pliron::derive::{attr_interface_impl, def_attribute};
 use pliron_derive::format_attribute;
+use rustc_apfloat::Float;
 use thiserror::Error;
 
 use crate::{
     attribute::{AttrObj, Attribute, AttributeDict},
+    builtin::attr_interfaces::FloatAttr,
     common_traits::Verify,
     context::{Context, Ptr},
     identifier::Identifier,
@@ -22,7 +26,10 @@ use crate::{
     printable::{self, Printable},
     result::Result,
     r#type::{TypeObj, TypePtr, Typed},
-    utils::apint::APInt,
+    utils::{
+        apfloat::{self, double_to_f64, f32_to_single, f64_to_double, single_to_f32},
+        apint::APInt,
+    },
     verify_err_noloc,
 };
 
@@ -205,69 +212,81 @@ impl TypedAttrInterface for IntegerAttr {
     }
 }
 
-/// A dummy implementation until we have a good one.
-#[derive(PartialEq, Clone, Debug, Hash)]
-pub struct APFloat;
+#[def_attribute("builtin.single")]
+#[derive(PartialEq, Clone, Debug)]
+#[format_attribute("$0")]
+/// An attribute that is a single-precision floating-point number.
+pub struct FPSingleAttr(pub apfloat::Single);
+impl_verify_succ!(FPSingleAttr);
 
-/// An attribute containing an floating point value.
-/// Similar to MLIR's [FloatAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#floatattr).
-/// TODO: Use rustc's APFloat.
-#[def_attribute("builtin.float")]
-#[derive(PartialEq, Clone, Debug, Hash)]
-pub struct FloatAttr(APFloat);
-
-impl Printable for FloatAttr {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "<unimplimented>")
+impl From<f32> for FPSingleAttr {
+    fn from(value: f32) -> Self {
+        FPSingleAttr(f32_to_single(value))
     }
 }
 
-impl Verify for FloatAttr {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        todo!()
+impl From<FPSingleAttr> for f32 {
+    fn from(value: FPSingleAttr) -> Self {
+        single_to_f32(value.0)
     }
 }
 
-impl FloatAttr {
-    /// Create a new [FloatAttr].
-    pub fn new(value: APFloat) -> Self {
-        FloatAttr(value)
-    }
-}
-
-impl From<FloatAttr> for APFloat {
-    fn from(value: FloatAttr) -> Self {
-        value.0
-    }
-}
-
-impl Typed for FloatAttr {
-    fn get_type(&self, _cfg: &Context) -> Ptr<TypeObj> {
-        TypedAttrInterface::get_type(self)
+impl Hash for FPSingleAttr {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.to_bits().hash(state);
     }
 }
 
 #[attr_interface_impl]
-impl TypedAttrInterface for FloatAttr {
-    fn get_type(&self) -> Ptr<TypeObj> {
-        todo!()
+impl FloatAttr for FPSingleAttr {
+    fn get_inner(&self) -> &dyn apfloat::DynFloat {
+        &self.0
+    }
+
+    fn build_from(&self, df: Box<dyn apfloat::DynFloat>) -> Box<dyn FloatAttr> {
+        let df = df
+            .downcast::<apfloat::Single>()
+            .expect("Expected a Single precision float");
+        Box::new(FPSingleAttr(*df))
     }
 }
 
-impl Parsable for FloatAttr {
-    type Arg = ();
-    type Parsed = Self;
+#[def_attribute("builtin.double")]
+#[derive(PartialEq, Clone, Debug)]
+#[format_attribute("$0")]
+/// An attribute that is a double-precision floating-point number.
+pub struct FPDoubleAttr(pub apfloat::Double);
+impl_verify_succ!(FPDoubleAttr);
 
-    fn parse<'a>(
-        _state_stream: &mut StateStream<'a>,
-        _arg: Self::Arg,
-    ) -> ParseResult<'a, Self::Parsed> {
-        todo!()
+impl From<f64> for FPDoubleAttr {
+    fn from(value: f64) -> Self {
+        FPDoubleAttr(f64_to_double(value))
+    }
+}
+
+impl From<FPDoubleAttr> for f64 {
+    fn from(value: FPDoubleAttr) -> Self {
+        double_to_f64(value.0)
+    }
+}
+
+impl Hash for FPDoubleAttr {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.to_bits().hash(state);
+    }
+}
+
+#[attr_interface_impl]
+impl FloatAttr for FPDoubleAttr {
+    fn get_inner(&self) -> &dyn apfloat::DynFloat {
+        &self.0
+    }
+
+    fn build_from(&self, df: Box<dyn apfloat::DynFloat>) -> Box<dyn FloatAttr> {
+        let df = df
+            .downcast::<apfloat::Double>()
+            .expect("Expected a Double precision float");
+        Box::new(FPDoubleAttr(*df))
     }
 }
 
@@ -407,12 +426,14 @@ pub fn register(ctx: &mut Context) {
     IdentifierAttr::register_attr_in_dialect(ctx, IdentifierAttr::parser_fn);
     StringAttr::register_attr_in_dialect(ctx, StringAttr::parser_fn);
     IntegerAttr::register_attr_in_dialect(ctx, IntegerAttr::parser_fn);
-    FloatAttr::register_attr_in_dialect(ctx, FloatAttr::parser_fn);
     DictAttr::register_attr_in_dialect(ctx, DictAttr::parser_fn);
     VecAttr::register_attr_in_dialect(ctx, VecAttr::parser_fn);
     UnitAttr::register_attr_in_dialect(ctx, UnitAttr::parser_fn);
     TypeAttr::register_attr_in_dialect(ctx, TypeAttr::parser_fn);
     OperandSegmentSizesAttr::register_attr_in_dialect(ctx, OperandSegmentSizesAttr::parser_fn);
+
+    FPSingleAttr::register_attr_in_dialect(ctx, FPSingleAttr::parser_fn);
+    FPDoubleAttr::register_attr_in_dialect(ctx, FPDoubleAttr::parser_fn);
 }
 
 #[cfg(test)]
@@ -425,7 +446,9 @@ mod tests {
         builtin::{
             self,
             attr_interfaces::TypedAttrInterface,
-            attributes::{IntegerAttr, StringAttr},
+            attributes::{
+                FPDoubleAttr, FPSingleAttr, IntegerAttr, OperandSegmentSizesAttr, StringAttr,
+            },
             types::{IntegerType, Signedness},
         },
         context::Context,
@@ -605,5 +628,65 @@ mod tests {
         );
         let ty_attr_parsed = attr_parser().parse(state_stream).unwrap().0;
         assert_eq!(ty_attr_parsed.disp(&ctx).to_string(), ty_attr);
+    }
+
+    #[test]
+    fn test_operand_segment_sizes_attr() {
+        let mut ctx = Context::new();
+        builtin::register(&mut ctx);
+
+        let sizes = vec![1, 2, 3];
+        let attr: AttrObj = OperandSegmentSizesAttr(sizes.clone()).into();
+        let attr_parsed = attr.downcast_ref::<OperandSegmentSizesAttr>().unwrap();
+        assert_eq!(attr_parsed.0, sizes);
+
+        let attr_disp = attr.disp(&ctx).to_string();
+        let state_stream = state_stream_from_iterator(
+            attr_disp.chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+        let attr_parsed = attr_parser().parse(state_stream).unwrap().0;
+        assert_eq!(attr_parsed.disp(&ctx).to_string(), attr_disp);
+        let attr_parsed = attr_parsed
+            .downcast_ref::<OperandSegmentSizesAttr>()
+            .unwrap();
+        assert_eq!(attr_parsed.0, sizes);
+    }
+
+    #[test]
+    fn test_floating_point_attributes() {
+        let mut ctx = Context::new();
+        builtin::register(&mut ctx);
+
+        // Single precision float
+        let single_attr: AttrObj = FPSingleAttr::from(3.14).into();
+        let single_attr2: AttrObj = FPSingleAttr::from(2.71).into();
+
+        assert!(single_attr.is::<FPSingleAttr>());
+        assert_ne!(&single_attr, &single_attr2);
+
+        let single_attr = *single_attr.downcast::<FPSingleAttr>().unwrap();
+        assert_eq!(f32::from(single_attr.clone()), 3.14);
+
+        let single_attr2 = *single_attr2.downcast::<FPSingleAttr>().unwrap();
+        // Perform addition
+        let sum: f32 = f32::from(single_attr.clone()) + f32::from(single_attr2);
+        assert!((sum - 5.85).abs() < 1e-6);
+
+        // Double precision float
+        let double_attr: AttrObj = FPDoubleAttr::from(6.28).into();
+        let double_attr2: AttrObj = FPDoubleAttr::from(1.414).into();
+
+        assert!(double_attr.is::<FPDoubleAttr>());
+        assert_ne!(&double_attr, &double_attr2);
+
+        let double_attr = *double_attr.downcast::<FPDoubleAttr>().unwrap();
+        assert_eq!(f64::from(double_attr.clone()), 6.28);
+
+        let double_attr2 = *double_attr2.downcast::<FPDoubleAttr>().unwrap();
+        // Perform multiplication
+        let product: f64 = f64::from(double_attr) * f64::from(double_attr2);
+        dbg!(product);
+        assert!((product - 8.87992).abs() < 1e-6);
     }
 }

@@ -45,6 +45,28 @@ impl_printable_for_display!(Quad);
 impl_printable_for_display!(Single);
 impl_printable_for_display!(X87DoubleExtended);
 
+/// Convert from [rustc_apfloat]'s [Single] to Rust [f32].
+pub fn single_to_f32(value: Single) -> f32 {
+    // clippy_utils::consts::Constant::parse_f16 (from rust-lang/rust) does this
+    f32::from_bits(value.to_bits().try_into().unwrap())
+}
+
+/// Convert from Rust [f32] to [rustc_apfloat]'s [Single].
+pub fn f32_to_single(value: f32) -> Single {
+    // rustc_mir_build::builder::parse_float_into_scalar (from rust-lang/rust) does this
+    Single::from_bits(value.to_bits().into())
+}
+
+/// Convert from [rustc_apfloat]'s [Double] to Rust [f64].
+pub fn double_to_f64(value: Double) -> f64 {
+    f64::from_bits(value.to_bits().try_into().unwrap())
+}
+
+/// Convert from Rust [f64] to [rustc_apfloat]'s [Double].
+pub fn f64_to_double(value: f64) -> Double {
+    Double::from_bits(value.to_bits().into())
+}
+
 #[derive(Debug, Error)]
 pub enum FloatErr {
     #[error("Invalid float literal: {0}")]
@@ -185,7 +207,40 @@ impl Parsable for X87DoubleExtended {
 
 /// This is an object safe version of the [Float] trait.
 /// *Panics* if operands to an operation are of different float types.
+///
+/// Some functions that could've been static (Self: Sized) are not,
+/// intentionally, to enable building / constructing [DynFloat] objects
+/// of the same type as `&self`, but when the concrete type is not known.
+/// These functions have a `build_*` prefix.
+/// When the concrete type is known, functions in [Float] can be used.
 pub trait DynFloat: Downcast + core::fmt::Debug {
+    // Function that could've been static (i.e., Self: Sized),
+    // but are not for convenience. The static versions are anyway
+    // available as methods on the [Float] trait.
+
+    /// [Float::qnan], `self` is ignored
+    fn build_qnan(&self, payload: Option<u128>) -> Box<dyn DynFloat>;
+    /// [Float::snan], `self` is ignored
+    fn build_snan(&self, payload: Option<u128>) -> Box<dyn DynFloat>;
+    /// [Float::largest], `self` is ignored
+    fn build_largest(&self) -> Box<dyn DynFloat>;
+    /// [Float::smallest_normalized], `self` is ignored
+    fn build_smallest_normalized(&self) -> Box<dyn DynFloat>;
+    /// [Float::from_bits], `self` is ignored
+    fn build_from_bits(&self, bits: u128) -> Box<dyn DynFloat>;
+    /// [Float::from_u128_r], `self` is ignored
+    fn build_from_u128_r(&self, value: u128, round: Round) -> StatusAnd<Box<dyn DynFloat>>;
+    /// [Float::from_str_r], `self` is ignored
+    fn build_from_str_r(&self, s: &str, round: Round) -> Result<StatusAnd<Box<dyn DynFloat>>>;
+    /// [Float::from_i128_r], `self` is ignored
+    fn build_from_i128_r(&self, value: i128, round: Round) -> StatusAnd<Box<dyn DynFloat>>;
+    /// [Float::from_i128], `self` is ignored
+    fn build_from_i128(&self, value: i128) -> StatusAnd<Box<dyn DynFloat>>;
+    /// [Float::from_u128], `self` is ignored
+    fn build_from_u128(&self, value: u128) -> StatusAnd<Box<dyn DynFloat>>;
+
+    // Rest of the non-static (dyn compatible) functions
+
     /// [core::fmt::Display::fmt]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result;
 
@@ -201,23 +256,6 @@ pub trait DynFloat: Downcast + core::fmt::Debug {
     fn div(&self, rhs: &dyn DynFloat) -> StatusAnd<Box<dyn DynFloat>>;
     /// [Rem::rem]
     fn rem(&self, rhs: &dyn DynFloat) -> StatusAnd<Box<dyn DynFloat>>;
-
-    /// [Float::qnan]
-    fn qnan(payload: Option<u128>) -> Box<dyn DynFloat>
-    where
-        Self: Sized;
-    /// [Float::snan]
-    fn snan(payload: Option<u128>) -> Box<dyn DynFloat>
-    where
-        Self: Sized;
-    /// [Float::largest]
-    fn largest() -> Box<dyn DynFloat>
-    where
-        Self: Sized;
-    /// [Float::smallest_normalized]
-    fn smallest_normalized() -> Box<dyn DynFloat>
-    where
-        Self: Sized;
     /// [Float::add_r]
     fn add_r(&self, rhs: &dyn DynFloat, round: Round) -> StatusAnd<Box<dyn DynFloat>>;
     /// [Float::mul_r]
@@ -239,18 +277,6 @@ pub trait DynFloat: Downcast + core::fmt::Debug {
     fn round_to_integral(&self, round: Round) -> StatusAnd<Box<dyn DynFloat>>;
     /// [Float::next_up]
     fn next_up(&self) -> StatusAnd<Box<dyn DynFloat>>;
-    /// [Float::from_bits]
-    fn from_bits(bits: u128) -> Box<dyn DynFloat>
-    where
-        Self: Sized;
-    /// [Float::from_u128_r]
-    fn from_u128_r(value: u128, round: Round) -> StatusAnd<Box<dyn DynFloat>>
-    where
-        Self: Sized;
-    /// [Float::from_str_r]
-    fn from_str_r(s: &str, round: Round) -> Result<StatusAnd<Box<dyn DynFloat>>>
-    where
-        Self: Sized;
     /// [Float::to_bits]
     fn to_bits(&self) -> u128;
     /// [Float::to_u128_r]
@@ -290,18 +316,6 @@ pub trait DynFloat: Downcast + core::fmt::Debug {
     fn abs(&self) -> Box<dyn DynFloat>;
     /// [Float::copy_sign]
     fn copy_sign(&self, other: &dyn DynFloat) -> Box<dyn DynFloat>;
-    /// [Float::from_i128_r]
-    fn from_i128_r(value: i128, round: Round) -> StatusAnd<Box<dyn DynFloat>>
-    where
-        Self: Sized;
-    /// [Float::from_i128]
-    fn from_i128(value: i128) -> StatusAnd<Box<dyn DynFloat>>
-    where
-        Self: Sized;
-    /// [Float::from_u128]
-    fn from_u128(value: u128) -> StatusAnd<Box<dyn DynFloat>>
-    where
-        Self: Sized;
     /// [Float::to_i128_r]
     fn to_i128_r(&self, width: usize, round: Round, is_exact: &mut bool) -> StatusAnd<i128>;
     /// [Float::to_i128]
@@ -393,16 +407,16 @@ impl<T: Float + core::fmt::Debug + 'static> DynFloat for T {
         <Self as Rem>::rem(*self, *rhs_float).map(|result| Box::new(result) as Box<dyn DynFloat>)
     }
 
-    fn qnan(payload: Option<u128>) -> Box<dyn DynFloat> {
+    fn build_qnan(&self, payload: Option<u128>) -> Box<dyn DynFloat> {
         Box::new(<T as Float>::qnan(payload))
     }
-    fn snan(payload: Option<u128>) -> Box<dyn DynFloat> {
+    fn build_snan(&self, payload: Option<u128>) -> Box<dyn DynFloat> {
         Box::new(<T as Float>::snan(payload))
     }
-    fn largest() -> Box<dyn DynFloat> {
+    fn build_largest(&self) -> Box<dyn DynFloat> {
         Box::new(<T as Float>::largest())
     }
-    fn smallest_normalized() -> Box<dyn DynFloat> {
+    fn build_smallest_normalized(&self) -> Box<dyn DynFloat> {
         Box::new(<T as Float>::smallest_normalized())
     }
     fn add_r(&self, rhs: &dyn DynFloat, round: Round) -> StatusAnd<Box<dyn DynFloat>> {
@@ -462,14 +476,14 @@ impl<T: Float + core::fmt::Debug + 'static> DynFloat for T {
     fn next_up(&self) -> StatusAnd<Box<dyn DynFloat>> {
         <Self as Float>::next_up(*self).map(|result| Box::new(result) as Box<dyn DynFloat>)
     }
-    fn from_bits(bits: u128) -> Box<dyn DynFloat> {
+    fn build_from_bits(&self, bits: u128) -> Box<dyn DynFloat> {
         let float_value = <T as Float>::from_bits(bits);
         Box::new(float_value) as Box<dyn DynFloat>
     }
-    fn from_u128_r(value: u128, round: Round) -> StatusAnd<Box<dyn DynFloat>> {
+    fn build_from_u128_r(&self, value: u128, round: Round) -> StatusAnd<Box<dyn DynFloat>> {
         <T as Float>::from_u128_r(value, round).map(|result| Box::new(result) as Box<dyn DynFloat>)
     }
-    fn from_str_r(s: &str, round: Round) -> Result<StatusAnd<Box<dyn DynFloat>>> {
+    fn build_from_str_r(&self, s: &str, round: Round) -> Result<StatusAnd<Box<dyn DynFloat>>> {
         <T as Float>::from_str_r(s, round)
             .map_err(|e| {
                 // Convert the error to a Result type
@@ -554,13 +568,13 @@ impl<T: Float + core::fmt::Debug + 'static> DynFloat for T {
             .expect("Type mismatch in DynFloat::copy_sign");
         Box::new(<Self as Float>::copy_sign(*self, *other_float))
     }
-    fn from_i128_r(value: i128, round: Round) -> StatusAnd<Box<dyn DynFloat>> {
+    fn build_from_i128_r(&self, value: i128, round: Round) -> StatusAnd<Box<dyn DynFloat>> {
         <T as Float>::from_i128_r(value, round).map(|result| Box::new(result) as Box<dyn DynFloat>)
     }
-    fn from_i128(value: i128) -> StatusAnd<Box<dyn DynFloat>> {
+    fn build_from_i128(&self, value: i128) -> StatusAnd<Box<dyn DynFloat>> {
         <T as Float>::from_i128(value).map(|result| Box::new(result) as Box<dyn DynFloat>)
     }
-    fn from_u128(value: u128) -> StatusAnd<Box<dyn DynFloat>> {
+    fn build_from_u128(&self, value: u128) -> StatusAnd<Box<dyn DynFloat>> {
         <T as Float>::from_u128(value).map(|result| Box::new(result) as Box<dyn DynFloat>)
     }
     fn to_i128_r(&self, width: usize, round: Round, is_exact: &mut bool) -> StatusAnd<i128> {
@@ -680,6 +694,7 @@ mod tests {
         location,
         parsable::{self, state_stream_from_iterator},
         printable::Printable,
+        utils::apfloat::{double_to_f64, f32_to_single, f64_to_double, single_to_f32},
     };
 
     use super::{
@@ -825,5 +840,99 @@ mod tests {
             print_and_parse(v, &mut Context::default())
         }
         Ok(())
+    }
+
+    #[test]
+    fn test_single_to_f32_and_f32_to_single() {
+        let cases = [
+            0.0f32,
+            -0.0f32,
+            1.0f32,
+            -1.0f32,
+            std::f32::MIN,
+            std::f32::MAX,
+            std::f32::EPSILON,
+            std::f32::INFINITY,
+            std::f32::NEG_INFINITY,
+            std::f32::NAN,
+        ];
+
+        for &val in &cases {
+            let single = f32_to_single(val);
+            let back = single_to_f32(single);
+            if val.is_nan() {
+                assert!(back.is_nan(), "Expected NaN for input {}", val);
+            } else {
+                assert_eq!(val, back, "Failed for value: {}", val);
+            }
+        }
+    }
+
+    #[test]
+    fn test_double_to_f64_and_f64_to_double() {
+        let cases = [
+            0.0f64,
+            -0.0f64,
+            1.0f64,
+            -1.0f64,
+            std::f64::MIN,
+            std::f64::MAX,
+            std::f64::EPSILON,
+            std::f64::INFINITY,
+            std::f64::NEG_INFINITY,
+            std::f64::NAN,
+        ];
+
+        for &val in &cases {
+            let double = f64_to_double(val);
+            let back = double_to_f64(double);
+            if val.is_nan() {
+                assert!(back.is_nan(), "Expected NaN for input {}", val);
+            } else {
+                assert_eq!(val, back, "Failed for value: {}", val);
+            }
+        }
+    }
+
+    #[test]
+    fn test_single_to_f32_subnormals_and_extremes() {
+        // Smallest positive subnormal
+        let val = f32::from_bits(0x00000001);
+        let single = f32_to_single(val);
+        let back = single_to_f32(single);
+        assert_eq!(val, back);
+
+        // Largest subnormal
+        let val = f32::from_bits(0x007FFFFF);
+        let single = f32_to_single(val);
+        let back = single_to_f32(single);
+        assert_eq!(val, back);
+
+        // Smallest positive normal
+        let val = f32::from_bits(0x00800000);
+        let single = f32_to_single(val);
+        let back = single_to_f32(single);
+        assert_eq!(val, back);
+    }
+
+    #[test]
+    fn test_double_to_f64_subnormals_and_extremes() {
+        // Smallest positive subnormal
+        let val = f64::from_bits(0x0000000000000001);
+        let double = f64_to_double(val);
+        let back = double_to_f64(double);
+        assert_eq!(val, back);
+
+        // Largest subnormal
+        let val = f64::from_bits(0x000FFFFFFFFFFFFF);
+        let double = f64_to_double(val);
+        let back = double_to_f64(double);
+        assert_eq!(val, back);
+
+        // Smallest positive normal
+        let val = f64::from_bits(0x0010000000000000);
+        let double = f64_to_double(val);
+        let back = double_to_f64(double);
+        assert_eq!(val, back);
     }
 }

@@ -8,7 +8,7 @@ use pliron::{
     basic_block::BasicBlock,
     builtin::{
         attr_interfaces::TypedAttrInterface,
-        attributes::{FloatAttr, IdentifierAttr, IntegerAttr, TypeAttr},
+        attributes::{IdentifierAttr, IntegerAttr, TypeAttr},
         op_interfaces::{
             self, BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
             IsolatedFromAboveInterface, OneOpdInterface, OneResultInterface,
@@ -1639,7 +1639,7 @@ impl Verify for ConstantOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let loc = self.loc(ctx);
         let value = self.get_value(ctx);
-        if !(value.is::<IntegerAttr>() || value.is::<FloatAttr>()) {
+        if !(value.is::<IntegerAttr>()/* || value.is::<FloatAttr>() */) {
             return verify_err!(loc, ConstantOpVerifyErr::InvalidValue)?;
         }
         Ok(())
