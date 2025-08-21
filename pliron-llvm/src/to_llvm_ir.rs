@@ -4,7 +4,7 @@ use llvm_sys::LLVMIntPredicate;
 use pliron::{
     basic_block::BasicBlock,
     builtin::{
-        attributes::{FloatAttr, IntegerAttr},
+        attributes::IntegerAttr,
         op_interfaces::{
             BranchOpInterface, CallOpCallable, CallOpInterface, OneOpdInterface,
             OneRegionInterface, OneResultInterface, SingleBlockRegionInterface, SymbolOpInterface,
@@ -968,8 +968,8 @@ impl ToLLVMConstValue for ConstantOp {
             let ap_int_val: APInt = int_val.clone().into();
             let const_val = llvm_const_int(int_ty_llvm, ap_int_val.to_u64(), false);
             Ok(const_val)
-        } else if let Some(_float_val) = value.downcast_ref::<FloatAttr>() {
-            todo!()
+        // } else if let Some(_float_val) = value.downcast_ref::<FloatAttr>() {
+        //     todo!()
         } else {
             input_err!(op.loc(), ToLLVMErr::ConstOpNotIntOrFloat)
         }

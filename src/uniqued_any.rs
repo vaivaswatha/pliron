@@ -45,7 +45,7 @@ pub fn save<T: Any + Hash + Eq>(ctx: &mut Context, t: T) -> UniquedKey<T> {
 }
 
 /// Given a handle to a stored unique copy of an object, get a reference to the object itself.
-pub fn get<T: Any + Hash + Eq>(ctx: &Context, key: UniquedKey<T>) -> Ref<T> {
+pub fn get<T: Any + Hash + Eq>(ctx: &Context, key: UniquedKey<T>) -> Ref<'_, T> {
     let r = ctx
         .uniqued_any_store
         .unique_store

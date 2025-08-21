@@ -431,7 +431,7 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
                     ::pliron::printable::Printable::fmt(&res, ctx, state, fmt)?;
                 })
             } else {
-                return err;
+                err
             }
         } else if d.name == "region" {
             let err = Err(syn::Error::new_spanned(
@@ -447,7 +447,7 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
                     ::pliron::printable::Printable::fmt(&reg, ctx, state, fmt)?;
                 })
             } else {
-                return err;
+                err
             }
         } else if d.name == "attr" {
             let (attr_name_str, attr_type_path) = parse_attr_directive_args(d, input)?;
@@ -1225,7 +1225,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                     let #res_type = ::pliron::irfmt::parsers::type_parser().parse_stream(state_stream).into_result()?.0;
                 })
             } else {
-                return err;
+                err
             }
         } else if d.name == "region" {
             let Some(Elem::UnnamedVar(UnnamedVar { index: reg_idx, .. })) = &d.args.first() else {
@@ -1497,19 +1497,16 @@ fn get_inner_type_option_vec(ty: &Type) -> Result<Type> {
         qself: None,
         path: Path { segments, .. },
     }) = ty
-    {
-        if let Some(PathSegment {
+        && let Some(PathSegment {
             ident,
             arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }),
         }) = segments.first()
-        {
-            if let Some(GenericArgument::Type(inner_ty)) = args.first() {
-                if ident == "Option" || ident == "Vec" {
-                    return Ok(inner_ty.clone());
-                } else {
-                    return err;
-                }
-            }
+        && let Some(GenericArgument::Type(inner_ty)) = args.first()
+    {
+        if ident == "Option" || ident == "Vec" {
+            return Ok(inner_ty.clone());
+        } else {
+            return err;
         }
     }
 

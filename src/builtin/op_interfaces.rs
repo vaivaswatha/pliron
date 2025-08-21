@@ -354,10 +354,10 @@ pub trait SymbolTableInterface: SingleBlockRegionInterface + OneRegionInterface 
     /// Lookup a symbol in this symbol table op. Linear search.
     fn lookup(&self, ctx: &Context, sym: &Identifier) -> Option<Ptr<Operation>> {
         for op in self.get_body(ctx, 0).deref(ctx).iter(ctx) {
-            if let Some(sym_op) = op_cast::<dyn SymbolOpInterface>(&*Operation::get_op(op, ctx)) {
-                if &sym_op.get_symbol_name(ctx) == sym {
-                    return Some(op);
-                }
+            if let Some(sym_op) = op_cast::<dyn SymbolOpInterface>(&*Operation::get_op(op, ctx))
+                && &sym_op.get_symbol_name(ctx) == sym
+            {
+                return Some(op);
             }
         }
         None
@@ -400,13 +400,11 @@ pub trait SymbolTableInterface: SingleBlockRegionInterface + OneRegionInterface 
         fn callback(ctx: &Context, state: &mut State, op: Ptr<Operation>) -> WalkResult<()> {
             if let Some(sym_user_op) =
                 op_cast::<dyn SymbolUserOpInterface>(&*Operation::get_op(op, ctx))
-            {
-                if let Err(err) =
+                && let Err(err) =
                     sym_user_op.verify_symbol_uses(ctx, &mut state.symbol_table_collection)
-                {
-                    state.res = Err(err);
-                    return walk_break(());
-                }
+            {
+                state.res = Err(err);
+                return walk_break(());
             }
             walk_advance()
         }

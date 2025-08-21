@@ -70,13 +70,13 @@ impl State {
 
     /// Get a reference to the aux data table. The returned [Ref] is borrowed
     /// from the entire [State] object, so release it at the earliest.
-    pub fn aux_data_ref(&self) -> Ref<FxHashMap<Identifier, Box<dyn Any>>> {
+    pub fn aux_data_ref(&self) -> Ref<'_, FxHashMap<Identifier, Box<dyn Any>>> {
         Ref::map(self.0.borrow(), |inner| &inner.aux_data)
     }
 
     /// Get a mutable reference to the aux data table. The returned [RefMut] is borrowed
     /// from the entire [State] object, so release it at the earliest.
-    pub fn aux_data_mut(&self) -> RefMut<FxHashMap<Identifier, Box<dyn Any>>> {
+    pub fn aux_data_mut(&self) -> RefMut<'_, FxHashMap<Identifier, Box<dyn Any>>> {
         RefMut::map(self.0.borrow_mut(), |inner| &mut inner.aux_data)
     }
 }
@@ -195,6 +195,7 @@ impl_printable_for_display!(u32);
 impl_printable_for_display!(i64);
 impl_printable_for_display!(i32);
 impl_printable_for_display!(bool);
+impl_printable_for_display!(char);
 
 impl<T: Printable + ?Sized> Printable for &T {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {

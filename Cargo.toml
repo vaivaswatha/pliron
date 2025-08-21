@@ -28,6 +28,7 @@ keywords = ["pliron", "llvm", "mlir", "compiler"]
 pliron-derive = { path = "./pliron-derive", version = "0" }
 
 awint.workspace = true
+rustc_apfloat.workspace = true
 slotmap = "1"
 downcast-rs = "1"
 rustc-hash.workspace = true
@@ -44,6 +45,7 @@ expect-test.workspace = true
 
 [workspace.dependencies]
 awint = "0"
+rustc_apfloat = "0.2"
 assert_cmd = "2"
 clap = { version = "4", features = ["derive"] }
 dyn-clone = "1"

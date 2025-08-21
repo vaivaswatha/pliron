@@ -8,7 +8,7 @@ use pliron::{
     basic_block::BasicBlock,
     builtin::{
         attr_interfaces::TypedAttrInterface,
-        attributes::{FloatAttr, IdentifierAttr, IntegerAttr, TypeAttr},
+        attributes::{IdentifierAttr, IntegerAttr, TypeAttr},
         op_interfaces::{
             self, BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
             IsolatedFromAboveInterface, OneOpdInterface, OneResultInterface,
@@ -1543,17 +1543,17 @@ impl Verify for CallOp {
             );
         }
 
-        if let Some(res_ty) = callee_ty.get_results().first() {
-            if self.result_type(ctx) != *res_ty {
-                return verify_err!(
-                    self.loc(ctx),
-                    SymbolUserOpVerifyErr::FuncTypeErr(format!(
-                        "result type mismatch: expected {}, got {}",
-                        res_ty.disp(ctx),
-                        self.result_type(ctx).disp(ctx)
-                    ))
-                );
-            }
+        if let Some(res_ty) = callee_ty.get_results().first()
+            && self.result_type(ctx) != *res_ty
+        {
+            return verify_err!(
+                self.loc(ctx),
+                SymbolUserOpVerifyErr::FuncTypeErr(format!(
+                    "result type mismatch: expected {}, got {}",
+                    res_ty.disp(ctx),
+                    self.result_type(ctx).disp(ctx)
+                ))
+            );
         }
 
         Ok(())
@@ -1639,7 +1639,7 @@ impl Verify for ConstantOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let loc = self.loc(ctx);
         let value = self.get_value(ctx);
-        if !(value.is::<IntegerAttr>() || value.is::<FloatAttr>()) {
+        if !(value.is::<IntegerAttr>()/* || value.is::<FloatAttr>() */) {
             return verify_err!(loc, ConstantOpVerifyErr::InvalidValue)?;
         }
         Ok(())
