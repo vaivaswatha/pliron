@@ -1543,17 +1543,17 @@ impl Verify for CallOp {
             );
         }
 
-        if let Some(res_ty) = callee_ty.get_results().first() {
-            if self.result_type(ctx) != *res_ty {
-                return verify_err!(
-                    self.loc(ctx),
-                    SymbolUserOpVerifyErr::FuncTypeErr(format!(
-                        "result type mismatch: expected {}, got {}",
-                        res_ty.disp(ctx),
-                        self.result_type(ctx).disp(ctx)
-                    ))
-                );
-            }
+        if let Some(res_ty) = callee_ty.get_results().first()
+            && self.result_type(ctx) != *res_ty
+        {
+            return verify_err!(
+                self.loc(ctx),
+                SymbolUserOpVerifyErr::FuncTypeErr(format!(
+                    "result type mismatch: expected {}, got {}",
+                    res_ty.disp(ctx),
+                    self.result_type(ctx).disp(ctx)
+                ))
+            );
         }
 
         Ok(())
