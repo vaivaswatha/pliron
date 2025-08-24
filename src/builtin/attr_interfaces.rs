@@ -4,7 +4,7 @@ use crate::attribute::Attribute;
 use crate::context::{Context, Ptr};
 use crate::result::Result;
 use crate::r#type::TypeObj;
-use crate::utils::apfloat::{Category, DynFloat, ExpInt, Round, StatusAnd};
+use crate::utils::apfloat::{Category, DynFloat, ExpInt, Round, Semantics, StatusAnd};
 use pliron::derive::attr_interface;
 
 /// [Attribute]s that have an associated [Type](crate::type::Type).
@@ -66,6 +66,12 @@ pub trait FloatAttr {
     fn get_inner(&self) -> &dyn DynFloat;
     /// Build a [FloatAttr] with the same concrete type as `Self`, from the given trait object.
     fn build_from(&self, df: Box<dyn DynFloat>) -> Box<dyn FloatAttr>;
+    /// Get semantics of the underlying floating point type.
+    fn get_semantics(&self) -> Semantics;
+    /// Static version of `get_semantics`.
+    fn get_semantics_static() -> Semantics
+    where
+        Self: Sized;
 
     /// [Float::qnan](rustc_apfloat::Float::qnan), `self` is ignored
     fn build_qnan(&self, payload: Option<u128>) -> Box<dyn FloatAttr> {

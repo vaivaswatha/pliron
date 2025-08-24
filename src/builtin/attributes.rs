@@ -249,6 +249,17 @@ impl FloatAttr for FPSingleAttr {
             .expect("Expected a Single precision float");
         Box::new(FPSingleAttr(*df))
     }
+
+    fn get_semantics(&self) -> apfloat::Semantics {
+        Self::get_semantics_static()
+    }
+
+    fn get_semantics_static() -> apfloat::Semantics
+    where
+        Self: Sized,
+    {
+        <apfloat::Single as apfloat::GetSemantics>::get_semantics()
+    }
 }
 
 #[def_attribute("builtin.double")]
@@ -287,6 +298,17 @@ impl FloatAttr for FPDoubleAttr {
             .downcast::<apfloat::Double>()
             .expect("Expected a Double precision float");
         Box::new(FPDoubleAttr(*df))
+    }
+
+    fn get_semantics(&self) -> apfloat::Semantics {
+        Self::get_semantics_static()
+    }
+
+    fn get_semantics_static() -> apfloat::Semantics
+    where
+        Self: Sized,
+    {
+        <apfloat::Double as apfloat::GetSemantics>::get_semantics()
     }
 }
 

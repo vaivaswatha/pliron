@@ -24,6 +24,10 @@ use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 use combine::{Parser, parser::char};
 use downcast_rs::{Downcast, impl_downcast};
+use rustc_apfloat::ieee::{
+    BFloatS, DoubleS, Float8E4M3FNS, Float8E5M2S, HalfS, NonfiniteBehavior, QuadS, SingleS,
+    X87DoubleExtendedS,
+};
 use thiserror::Error;
 
 pub use rustc_apfloat::ieee::{
@@ -205,6 +209,59 @@ impl Parsable for X87DoubleExtended {
     }
 }
 
+/// A struct to hold the [semantics](rustc_apfloat::ieee::Semantics) of a floating point type.
+pub struct Semantics {
+    pub bits: usize,
+    pub exp_bits: usize,
+    pub precision: usize,
+    pub nonfinite_behavior: NonfiniteBehavior,
+    pub max_exp: ExpInt,
+    pub ieee_max_exp: ExpInt,
+    pub min_exp: ExpInt,
+    pub ieee_min_exp: ExpInt,
+    pub nan_significand_base: u128,
+    pub nan_payload_mask: u128,
+    pub qnan_significand: u128,
+}
+
+pub trait GetSemantics {
+    fn get_semantics() -> Semantics
+    where
+        Self: Sized;
+}
+
+macro_rules! impl_get_semantics_for_float {
+    ($ty_name:ty, $struct_name:ty) => {
+        impl GetSemantics for $ty_name {
+            fn get_semantics() -> Semantics {
+                use rustc_apfloat::ieee::Semantics;
+                crate::utils::apfloat::Semantics {
+                    bits: <$struct_name>::BITS,
+                    exp_bits: <$struct_name>::EXP_BITS,
+                    precision: <$struct_name>::PRECISION,
+                    nonfinite_behavior: <$struct_name>::NONFINITE_BEHAVIOR,
+                    max_exp: <$struct_name>::MAX_EXP,
+                    ieee_max_exp: <$struct_name>::IEEE_MAX_EXP,
+                    min_exp: <$struct_name>::MIN_EXP,
+                    ieee_min_exp: <$struct_name>::IEEE_MIN_EXP,
+                    nan_significand_base: <$struct_name>::NAN_SIGNIFICAND_BASE,
+                    nan_payload_mask: <$struct_name>::NAN_PAYLOAD_MASK,
+                    qnan_significand: <$struct_name>::QNAN_SIGNIFICAND,
+                }
+            }
+        }
+    };
+}
+
+impl_get_semantics_for_float!(BFloat, BFloatS);
+impl_get_semantics_for_float!(Double, DoubleS);
+impl_get_semantics_for_float!(Float8E4M3FN, Float8E4M3FNS);
+impl_get_semantics_for_float!(Float8E5M2, Float8E5M2S);
+impl_get_semantics_for_float!(Half, HalfS);
+impl_get_semantics_for_float!(Quad, QuadS);
+impl_get_semantics_for_float!(Single, SingleS);
+impl_get_semantics_for_float!(X87DoubleExtended, X87DoubleExtendedS);
+
 /// This is an object safe version of the [Float] trait.
 /// *Panics* if operands to an operation are of different float types.
 ///
@@ -364,10 +421,17 @@ pub trait DynFloat: Downcast + core::fmt::Debug {
     fn scalbn(&self, n: ExpInt) -> Box<dyn DynFloat>;
     /// [Float::frexp]
     fn frexp(&self, exp: &mut ExpInt) -> Box<dyn DynFloat>;
+
+    /// Get [Semantics]
+    fn semantics(&self) -> Semantics;
+    /// Get [Semantics], static version
+    fn semantics_static() -> Semantics
+    where
+        Self: Sized;
 }
 impl_downcast!(DynFloat);
 
-impl<T: Float + core::fmt::Debug + 'static> DynFloat for T {
+impl<T: Float + GetSemantics + core::fmt::Debug + 'static> DynFloat for T {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // Use the Display trait to format the float value
         <Self as core::fmt::Display>::fmt(self, f)
@@ -661,6 +725,16 @@ impl<T: Float + core::fmt::Debug + 'static> DynFloat for T {
     fn frexp(&self, exp: &mut ExpInt) -> Box<dyn DynFloat> {
         Box::new(<Self as Float>::frexp(*self, exp))
     }
+
+    fn semantics(&self) -> Semantics {
+        Self::semantics_static()
+    }
+    fn semantics_static() -> Semantics
+    where
+        Self: Sized,
+    {
+        <Self as GetSemantics>::get_semantics()
+    }
 }
 
 impl Display for dyn DynFloat {
@@ -671,16 +745,10 @@ impl Display for dyn DynFloat {
 
 impl_printable_for_display!(dyn DynFloat);
 
-impl<T: Float + std::fmt::Debug + 'static> From<T> for Box<dyn DynFloat> {
+impl<T: Float + GetSemantics + std::fmt::Debug + 'static> From<T> for Box<dyn DynFloat> {
     fn from(value: T) -> Self {
         Box::new(value)
     }
-}
-
-#[doc(hidden)]
-fn _test(f1: Box<dyn DynFloat>, f2: Box<dyn DynFloat>) {
-    // This function is just a placeholder to ensure that the module compiles
-    f1.add(&*f2).unwrap();
 }
 
 #[cfg(test)]

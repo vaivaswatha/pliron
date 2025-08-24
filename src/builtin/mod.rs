@@ -4,6 +4,7 @@ pub mod attr_interfaces;
 pub mod attributes;
 pub mod op_interfaces;
 pub mod ops;
+pub mod type_interfaces;
 pub mod types;
 
 use crate::{

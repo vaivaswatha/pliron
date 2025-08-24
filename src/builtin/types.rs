@@ -3,15 +3,17 @@ use combine::{
     parser::char::{spaces, string},
 };
 use pliron::derive::def_type;
-use pliron_derive::format_type;
+use pliron_derive::{format_type, type_interface_impl};
 
 use crate::{
+    builtin::type_interfaces::FloatType,
     context::{Context, Ptr},
     impl_verify_succ,
     irfmt::parsers::int_parser,
     parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::{Type, TypeObj, TypePtr},
+    utils::apfloat::{self, GetSemantics, Semantics},
 };
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
@@ -173,10 +175,48 @@ impl UnitType {
 
 impl_verify_succ!(UnitType);
 
+#[def_type("builtin.fp32")]
+#[format_type]
+#[derive(Hash, PartialEq, Eq, Debug)]
+pub struct FP32Type;
+impl_verify_succ!(FP32Type);
+#[type_interface_impl]
+impl FloatType for FP32Type {
+    fn get_semantics(&self) -> Semantics {
+        apfloat::Single::get_semantics()
+    }
+}
+impl FP32Type {
+    /// Get or create a new fp32 type.
+    pub fn get(ctx: &mut Context) -> TypePtr<Self> {
+        Type::register_instance(Self {}, ctx)
+    }
+}
+
+#[def_type("builtin.fp64")]
+#[format_type]
+#[derive(Hash, PartialEq, Eq, Debug)]
+pub struct FP64Type;
+impl_verify_succ!(FP64Type);
+#[type_interface_impl]
+impl FloatType for FP64Type {
+    fn get_semantics(&self) -> Semantics {
+        apfloat::Double::get_semantics()
+    }
+}
+impl FP64Type {
+    /// Get or create a new fp64 type.
+    pub fn get(ctx: &mut Context) -> TypePtr<Self> {
+        Type::register_instance(Self {}, ctx)
+    }
+}
+
 pub fn register(ctx: &mut Context) {
     IntegerType::register_type_in_dialect(ctx, IntegerType::parser_fn);
     FunctionType::register_type_in_dialect(ctx, FunctionType::parser_fn);
     UnitType::register_type_in_dialect(ctx, UnitType::parser_fn);
+    FP32Type::register_type_in_dialect(ctx, FP32Type::parser_fn);
+    FP64Type::register_type_in_dialect(ctx, FP64Type::parser_fn);
 }
 
 #[cfg(test)]
