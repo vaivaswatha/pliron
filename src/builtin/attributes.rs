@@ -12,7 +12,10 @@ use thiserror::Error;
 
 use crate::{
     attribute::{AttrObj, Attribute, AttributeDict},
-    builtin::attr_interfaces::FloatAttr,
+    builtin::{
+        attr_interfaces::FloatAttr,
+        types::{FP32Type, FP64Type},
+    },
     common_traits::Verify,
     context::{Context, Ptr},
     identifier::Identifier,
@@ -102,6 +105,32 @@ impl Parsable for StringAttr {
             .map(StringAttr)
             .parse_stream(state_stream)
             .into_result()
+    }
+}
+
+/// A boolean attribute
+#[def_attribute("builtin.bool")]
+#[format_attribute("$0")]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+pub struct BoolAttr(bool);
+
+impl_verify_succ!(BoolAttr);
+impl BoolAttr {
+    /// Create a new [BoolAttr].
+    pub fn new(value: bool) -> Self {
+        BoolAttr(value)
+    }
+}
+
+impl From<BoolAttr> for bool {
+    fn from(value: BoolAttr) -> Self {
+        value.0
+    }
+}
+
+impl From<bool> for BoolAttr {
+    fn from(value: bool) -> Self {
+        BoolAttr::new(value)
     }
 }
 
@@ -207,7 +236,7 @@ impl Typed for IntegerAttr {
 
 #[attr_interface_impl]
 impl TypedAttrInterface for IntegerAttr {
-    fn get_type(&self) -> Ptr<TypeObj> {
+    fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
         self.ty.into()
     }
 }
@@ -234,6 +263,13 @@ impl From<FPSingleAttr> for f32 {
 impl Hash for FPSingleAttr {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.to_bits().hash(state);
+    }
+}
+
+#[attr_interface_impl]
+impl TypedAttrInterface for FPSingleAttr {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        FP32Type::get(ctx).into()
     }
 }
 
@@ -284,6 +320,13 @@ impl From<FPDoubleAttr> for f64 {
 impl Hash for FPDoubleAttr {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.to_bits().hash(state);
+    }
+}
+
+#[attr_interface_impl]
+impl TypedAttrInterface for FPDoubleAttr {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        FP64Type::get(ctx).into()
     }
 }
 
@@ -433,7 +476,7 @@ impl Typed for TypeAttr {
 
 #[attr_interface_impl]
 impl TypedAttrInterface for TypeAttr {
-    fn get_type(&self) -> Ptr<TypeObj> {
+    fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
         self.0
     }
 }
@@ -447,6 +490,7 @@ impl_verify_succ!(OperandSegmentSizesAttr);
 pub fn register(ctx: &mut Context) {
     IdentifierAttr::register_attr_in_dialect(ctx, IdentifierAttr::parser_fn);
     StringAttr::register_attr_in_dialect(ctx, StringAttr::parser_fn);
+    BoolAttr::register_attr_in_dialect(ctx, BoolAttr::parser_fn);
     IntegerAttr::register_attr_in_dialect(ctx, IntegerAttr::parser_fn);
     DictAttr::register_attr_in_dialect(ctx, DictAttr::parser_fn);
     VecAttr::register_attr_in_dialect(ctx, VecAttr::parser_fn);
@@ -641,7 +685,7 @@ mod tests {
         let ty_attr: AttrObj = TypeAttr::new(ty).into();
 
         let ty_interface = attr_cast::<dyn TypedAttrInterface>(&*ty_attr).unwrap();
-        assert!(ty_interface.get_type() == ty);
+        assert!(ty_interface.get_type(&ctx) == ty);
 
         let ty_attr = ty_attr.disp(&ctx).to_string();
         let state_stream = state_stream_from_iterator(

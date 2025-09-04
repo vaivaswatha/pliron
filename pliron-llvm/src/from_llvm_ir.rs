@@ -2,26 +2,29 @@
 
 use std::num::NonZero;
 
-use llvm_sys::{LLVMIntPredicate, LLVMOpcode, LLVMTypeKind, LLVMValueKind};
+use llvm_sys::{LLVMIntPredicate, LLVMOpcode, LLVMRealPredicate, LLVMTypeKind, LLVMValueKind};
 use pliron::{
+    attribute::AttrObj,
     basic_block::BasicBlock,
     builtin::{
-        attributes::IntegerAttr,
+        attributes::{FPDoubleAttr, FPSingleAttr, IntegerAttr},
         op_interfaces::{
             CallOpCallable, OneRegionInterface, OneResultInterface, SingleBlockRegionInterface,
         },
         ops::{FuncOp, ModuleOp},
-        types::{FunctionType, IntegerType, Signedness},
+        type_interfaces::FloatType,
+        types::{FP32Type, FP64Type, FunctionType, IntegerType, Signedness},
     },
     context::{Context, Ptr},
     debug_info,
+    derive::{type_interface, type_interface_impl},
     identifier::{self, Identifier},
     input_err_noloc, input_error_noloc,
     linked_list::ContainsLinkedList,
     op::Op,
     operation::Operation,
     result::Result,
-    r#type::{TypeObj, TypePtr},
+    r#type::{Type, TypeObj, TypePtr, type_cast},
     utils::apint::APInt,
     value::Value,
 };
@@ -29,33 +32,65 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use thiserror::Error;
 
 use crate::{
-    attributes::{ICmpPredicateAttr, IntegerOverflowFlagsAttr},
+    attributes::{FCmpPredicateAttr, ICmpPredicateAttr, IntegerOverflowFlagsAttr},
     llvm_sys::core::{
         LLVMBasicBlock, LLVMModule, LLVMType, LLVMValue, basic_block_iter, function_iter,
         global_iter, incoming_iter, instruction_iter, llvm_const_int_get_zext_value,
-        llvm_count_struct_element_types, llvm_get_aggregate_element, llvm_get_allocated_type,
-        llvm_get_array_length2, llvm_get_basic_block_name, llvm_get_basic_block_terminator,
-        llvm_get_called_function_type, llvm_get_called_value, llvm_get_const_opcode,
-        llvm_get_element_type, llvm_get_gep_source_element_type, llvm_get_icmp_predicate,
+        llvm_const_real_get_double, llvm_count_struct_element_types, llvm_get_aggregate_element,
+        llvm_get_allocated_type, llvm_get_array_length2, llvm_get_basic_block_name,
+        llvm_get_basic_block_terminator, llvm_get_called_function_type, llvm_get_called_value,
+        llvm_get_const_opcode, llvm_get_element_type, llvm_get_fast_math_flags,
+        llvm_get_fcmp_predicate, llvm_get_gep_source_element_type, llvm_get_icmp_predicate,
         llvm_get_indices, llvm_get_initializer, llvm_get_instruction_opcode,
         llvm_get_instruction_parent, llvm_get_int_type_width, llvm_get_module_identifier,
-        llvm_get_nsw, llvm_get_num_arg_operands, llvm_get_num_operands, llvm_get_nuw,
-        llvm_get_operand, llvm_get_param_types, llvm_get_return_type,
+        llvm_get_nneg, llvm_get_nsw, llvm_get_num_arg_operands, llvm_get_num_operands,
+        llvm_get_nuw, llvm_get_operand, llvm_get_param_types, llvm_get_return_type,
         llvm_get_struct_element_types, llvm_get_struct_name, llvm_get_type_kind,
         llvm_get_value_kind, llvm_get_value_name, llvm_global_get_value_type, llvm_is_a,
         llvm_is_opaque_struct, llvm_print_value_to_string, llvm_type_of, llvm_value_as_basic_block,
         llvm_value_is_basic_block, param_iter,
     },
-    op_interfaces::{BinArithOp, CastOpInterface, IntBinArithOpWithOverflowFlag},
+    op_interfaces::{
+        BinArithOp, CastOpInterface, CastOpWithNNegInterface, FastMathFlags,
+        FloatBinArithOpWithFastMathFlags, IntBinArithOpWithOverflowFlag,
+    },
     ops::{
         AShrOp, AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
-        ExtractValueOp, GepIndex, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp, IntToPtrOp,
-        LShrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SRemOp, SelectOp, ShlOp,
-        StoreOp, SubOp, SwitchCase, SwitchOp, TruncOp, UDivOp, URemOp, UndefOp, XorOp, ZExtOp,
-        ZeroOp,
+        ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp, FNegOp, FPExtOp, FPToSIOp, FPToUIOp,
+        FPTruncOp, FRemOp, FSubOp, GepIndex, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp,
+        IntToPtrOp, LShrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SIToFPOp,
+        SRemOp, SelectOp, ShlOp, StoreOp, SubOp, SwitchCase, SwitchOp, TruncOp, UDivOp, UIToFPOp,
+        URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
     },
     types::{ArrayType, PointerType, StructErr, StructType, VoidType},
 };
+
+/// Given a floating point type and an f64 value, get an equivalent attribute.
+/// LLVM's C-API pretty much restricts us to f64 for floating point constants.
+#[type_interface]
+trait FloatAttrBuilder: FloatType {
+    fn value_from_f64(&self, val: f64) -> AttrObj;
+    fn verify(_attr: &dyn Type, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+}
+
+#[type_interface_impl]
+impl FloatAttrBuilder for FP32Type {
+    fn value_from_f64(&self, val: f64) -> AttrObj {
+        FPSingleAttr::from(val as f32).into()
+    }
+}
+
+#[type_interface_impl]
+impl FloatAttrBuilder for FP64Type {
+    fn value_from_f64(&self, val: f64) -> AttrObj {
+        FPDoubleAttr::from(val).into()
+    }
+}
 
 fn convert_type(
     ctx: &mut Context,
@@ -69,7 +104,6 @@ fn convert_type(
             let elem = convert_type(ctx, cctx, element_ty)?;
             Ok(ArrayType::get(ctx, elem, len).into())
         }
-        LLVMTypeKind::LLVMFloatTypeKind => todo!(),
         LLVMTypeKind::LLVMFunctionTypeKind => {
             let return_type = convert_type(ctx, cctx, llvm_get_return_type(ty))?;
             let param_types = llvm_get_param_types(ty)
@@ -107,9 +141,10 @@ fn convert_type(
             }
         }
         LLVMTypeKind::LLVMVoidTypeKind => Ok(VoidType::get(ctx).into()),
-        LLVMTypeKind::LLVMVectorTypeKind => todo!(),
+        LLVMTypeKind::LLVMFloatTypeKind => Ok(FP32Type::get(ctx).into()),
+        LLVMTypeKind::LLVMDoubleTypeKind => Ok(FP64Type::get(ctx).into()),
         LLVMTypeKind::LLVMHalfTypeKind => todo!(),
-        LLVMTypeKind::LLVMDoubleTypeKind => todo!(),
+        LLVMTypeKind::LLVMVectorTypeKind => todo!(),
         LLVMTypeKind::LLVMX86_FP80TypeKind => todo!(),
         LLVMTypeKind::LLVMFP128TypeKind => todo!(),
         LLVMTypeKind::LLVMPPC_FP128TypeKind => todo!(),
@@ -135,6 +170,27 @@ pub fn convert_ipredicate(ipred: LLVMIntPredicate) -> ICmpPredicateAttr {
         LLVMIntPredicate::LLVMIntSGE => ICmpPredicateAttr::SGE,
         LLVMIntPredicate::LLVMIntSLT => ICmpPredicateAttr::SLT,
         LLVMIntPredicate::LLVMIntSLE => ICmpPredicateAttr::SLE,
+    }
+}
+
+pub fn convert_fpredicate(fpred: LLVMRealPredicate) -> FCmpPredicateAttr {
+    match fpred {
+        LLVMRealPredicate::LLVMRealPredicateFalse => FCmpPredicateAttr::False,
+        LLVMRealPredicate::LLVMRealOEQ => FCmpPredicateAttr::OEQ,
+        LLVMRealPredicate::LLVMRealOGT => FCmpPredicateAttr::OGT,
+        LLVMRealPredicate::LLVMRealOGE => FCmpPredicateAttr::OGE,
+        LLVMRealPredicate::LLVMRealOLT => FCmpPredicateAttr::OLT,
+        LLVMRealPredicate::LLVMRealOLE => FCmpPredicateAttr::OLE,
+        LLVMRealPredicate::LLVMRealONE => FCmpPredicateAttr::ONE,
+        LLVMRealPredicate::LLVMRealORD => FCmpPredicateAttr::ORD,
+        LLVMRealPredicate::LLVMRealUNO => FCmpPredicateAttr::UNO,
+        LLVMRealPredicate::LLVMRealUEQ => FCmpPredicateAttr::UEQ,
+        LLVMRealPredicate::LLVMRealUGT => FCmpPredicateAttr::UGT,
+        LLVMRealPredicate::LLVMRealUGE => FCmpPredicateAttr::UGE,
+        LLVMRealPredicate::LLVMRealULT => FCmpPredicateAttr::ULT,
+        LLVMRealPredicate::LLVMRealULE => FCmpPredicateAttr::ULE,
+        LLVMRealPredicate::LLVMRealUNE => FCmpPredicateAttr::UNE,
+        LLVMRealPredicate::LLVMRealPredicateTrue => FCmpPredicateAttr::True,
     }
 }
 
@@ -252,6 +308,8 @@ pub enum ConversionErr {
     UndefinedBlock(String),
     #[error("Integer constant has bit-width 0")]
     ZeroWidthIntConst,
+    #[error("Floating point constant not of floating point type")]
+    FloatConstNotFloatType,
 }
 
 /// If a value is a ConstantOp with integer type, return the value.
@@ -314,7 +372,20 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             BasicBlock::insert_op_before_terminator(entry_block, const_op.get_operation(), ctx);
             cctx.value_map.insert(val, const_op.get_result(ctx));
         }
-        LLVMValueKind::LLVMConstantFPValueKind => todo!(),
+        LLVMValueKind::LLVMConstantFPValueKind => {
+            let (fp64, lost_info) = llvm_const_real_get_double(val);
+            assert!(!lost_info, "Lost information when converting FP constant");
+            let val_attr: AttrObj = {
+                let float_ty = &**ty.deref(ctx);
+                let Some(float_ty_attr): Option<&dyn FloatAttrBuilder> = type_cast(float_ty) else {
+                    return input_err_noloc!(ConversionErr::FloatConstNotFloatType);
+                };
+                float_ty_attr.value_from_f64(fp64)
+            };
+            let const_op = ConstantOp::new(ctx, val_attr);
+            BasicBlock::insert_op_before_terminator(entry_block, const_op.get_operation(), ctx);
+            cctx.value_map.insert(val, const_op.get_result(ctx));
+        }
         LLVMValueKind::LLVMConstantArrayValueKind
         | LLVMValueKind::LLVMConstantDataArrayValueKind => {
             fn get_operand(val: LLVMValue, index: u32) -> Result<LLVMValue> {
@@ -705,19 +776,108 @@ fn convert_instruction(
         LLVMOpcode::LLVMCleanupPad => todo!(),
         LLVMOpcode::LLVMCleanupRet => todo!(),
         LLVMOpcode::LLVMExtractElement => todo!(),
-        LLVMOpcode::LLVMFNeg => todo!(),
-        LLVMOpcode::LLVMFAdd => todo!(),
-        LLVMOpcode::LLVMFCmp => todo!(),
-        LLVMOpcode::LLVMFDiv => todo!(),
+        LLVMOpcode::LLVMFNeg => {
+            let arg = get_operand(opds, 0)?;
+            Ok(
+                FNegOp::new_with_fast_math_flags(ctx, arg, llvm_get_fast_math_flags(inst).into())
+                    .get_operation(),
+            )
+        }
+        LLVMOpcode::LLVMFAdd => {
+            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
+            Ok(FAddOp::new_with_fast_math_flags(
+                ctx,
+                lhs,
+                rhs,
+                llvm_get_fast_math_flags(inst).into(),
+            )
+            .get_operation())
+        }
+        LLVMOpcode::LLVMFCmp => {
+            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
+            let pred = convert_fpredicate(llvm_get_fcmp_predicate(inst));
+            let fastmath = llvm_get_fast_math_flags(inst);
+            let op = FCmpOp::new(ctx, pred, lhs, rhs);
+            op.set_fast_math_flags(ctx, fastmath.into());
+            Ok(op.get_operation())
+        }
+        LLVMOpcode::LLVMFDiv => {
+            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
+            Ok(FDivOp::new_with_fast_math_flags(
+                ctx,
+                lhs,
+                rhs,
+                llvm_get_fast_math_flags(inst).into(),
+            )
+            .get_operation())
+        }
+        LLVMOpcode::LLVMFMul => {
+            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
+            Ok(FMulOp::new_with_fast_math_flags(
+                ctx,
+                lhs,
+                rhs,
+                llvm_get_fast_math_flags(inst).into(),
+            )
+            .get_operation())
+        }
+        LLVMOpcode::LLVMFRem => {
+            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
+            Ok(FRemOp::new_with_fast_math_flags(
+                ctx,
+                lhs,
+                rhs,
+                llvm_get_fast_math_flags(inst).into(),
+            )
+            .get_operation())
+        }
+        LLVMOpcode::LLVMFSub => {
+            let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
+            Ok(FSubOp::new_with_fast_math_flags(
+                ctx,
+                lhs,
+                rhs,
+                llvm_get_fast_math_flags(inst).into(),
+            )
+            .get_operation())
+        }
+        LLVMOpcode::LLVMFPExt => {
+            let arg = get_operand(opds, 0)?;
+            let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
+            let op = FPExtOp::new(ctx, arg, res_ty);
+            op.set_fast_math_flags(ctx, llvm_get_fast_math_flags(inst).into());
+            Ok(op.get_operation())
+        }
+        LLVMOpcode::LLVMFPTrunc => {
+            let arg = get_operand(opds, 0)?;
+            let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
+            let op = FPTruncOp::new(ctx, arg, res_ty);
+            op.set_fast_math_flags(ctx, llvm_get_fast_math_flags(inst).into());
+            Ok(op.get_operation())
+        }
+        LLVMOpcode::LLVMFPToSI => {
+            let arg = get_operand(opds, 0)?;
+            let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
+            Ok(FPToSIOp::new(ctx, arg, res_ty).get_operation())
+        }
+        LLVMOpcode::LLVMFPToUI => {
+            let arg = get_operand(opds, 0)?;
+            let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
+            Ok(FPToUIOp::new(ctx, arg, res_ty).get_operation())
+        }
+        LLVMOpcode::LLVMSIToFP => {
+            let arg = get_operand(opds, 0)?;
+            let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
+            Ok(SIToFPOp::new(ctx, arg, res_ty).get_operation())
+        }
+        LLVMOpcode::LLVMUIToFP => {
+            let arg = get_operand(opds, 0)?;
+            let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
+            let nneg = llvm_get_nneg(inst);
+            Ok(UIToFPOp::new_with_nneg(ctx, arg, res_ty, nneg).get_operation())
+        }
         LLVMOpcode::LLVMFence => todo!(),
-        LLVMOpcode::LLVMFMul => todo!(),
-        LLVMOpcode::LLVMFPExt => todo!(),
-        LLVMOpcode::LLVMFPToSI => todo!(),
-        LLVMOpcode::LLVMFPToUI => todo!(),
-        LLVMOpcode::LLVMFPTrunc => todo!(),
         LLVMOpcode::LLVMFreeze => todo!(),
-        LLVMOpcode::LLVMFRem => todo!(),
-        LLVMOpcode::LLVMFSub => todo!(),
         LLVMOpcode::LLVMGetElementPtr => {
             let mut opds = opds.iter();
             let base = opds
@@ -817,7 +977,8 @@ fn convert_instruction(
         LLVMOpcode::LLVMZExt => {
             let arg = get_operand(opds, 0)?;
             let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
-            Ok(ZExtOp::new(ctx, arg, res_ty).get_operation())
+            let nneg = llvm_get_nneg(inst);
+            Ok(ZExtOp::new_with_nneg(ctx, arg, res_ty, nneg).get_operation())
         }
         LLVMOpcode::LLVMTrunc => {
             let arg = get_operand(opds, 0)?;
@@ -832,7 +993,6 @@ fn convert_instruction(
             )
         }
         LLVMOpcode::LLVMShuffleVector => todo!(),
-        LLVMOpcode::LLVMSIToFP => todo!(),
         LLVMOpcode::LLVMSRem => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             Ok(SRemOp::new(ctx, lhs, rhs).get_operation())
@@ -896,7 +1056,6 @@ fn convert_instruction(
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             Ok(UDivOp::new(ctx, lhs, rhs).get_operation())
         }
-        LLVMOpcode::LLVMUIToFP => todo!(),
         LLVMOpcode::LLVMUnreachable => todo!(),
         LLVMOpcode::LLVMURem => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);

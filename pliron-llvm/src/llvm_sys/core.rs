@@ -5,44 +5,55 @@ use std::{
     ptr,
 };
 
+use bitflags::bitflags;
+
 use llvm_sys::{
-    LLVMIntPredicate, LLVMOpcode, LLVMTypeKind, LLVMValueKind,
+    LLVMFastMathAllowContract, LLVMFastMathAllowReassoc, LLVMFastMathAllowReciprocal,
+    LLVMFastMathApproxFunc, LLVMFastMathFlags, LLVMFastMathNoInfs, LLVMFastMathNoNaNs,
+    LLVMFastMathNoSignedZeros, LLVMFastMathNone, LLVMIntPredicate, LLVMOpcode, LLVMRealPredicate,
+    LLVMTypeKind, LLVMValueKind,
     analysis::LLVMVerifyModule,
     bit_writer::LLVMWriteBitcodeToFile,
     core::{
         LLVMAddCase, LLVMAddFunction, LLVMAddGlobal, LLVMAddIncoming,
         LLVMAppendBasicBlockInContext, LLVMArrayType2, LLVMBasicBlockAsValue, LLVMBuildAdd,
         LLVMBuildAnd, LLVMBuildArrayAlloca, LLVMBuildBitCast, LLVMBuildBr, LLVMBuildCall2,
-        LLVMBuildCondBr, LLVMBuildExtractValue, LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildInsertValue,
+        LLVMBuildCondBr, LLVMBuildExtractValue, LLVMBuildFAdd, LLVMBuildFCmp, LLVMBuildFDiv,
+        LLVMBuildFMul, LLVMBuildFPExt, LLVMBuildFPToSI, LLVMBuildFPToUI, LLVMBuildFPTrunc,
+        LLVMBuildFRem, LLVMBuildFSub, LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildInsertValue,
         LLVMBuildIntToPtr, LLVMBuildLoad2, LLVMBuildMul, LLVMBuildOr, LLVMBuildPhi,
         LLVMBuildPtrToInt, LLVMBuildRet, LLVMBuildRetVoid, LLVMBuildSDiv, LLVMBuildSExt,
-        LLVMBuildSRem, LLVMBuildSelect, LLVMBuildShl, LLVMBuildStore, LLVMBuildSub,
-        LLVMBuildSwitch, LLVMBuildTrunc, LLVMBuildUDiv, LLVMBuildURem, LLVMBuildXor, LLVMBuildZExt,
+        LLVMBuildSIToFP, LLVMBuildSRem, LLVMBuildSelect, LLVMBuildShl, LLVMBuildStore,
+        LLVMBuildSub, LLVMBuildSwitch, LLVMBuildTrunc, LLVMBuildUDiv, LLVMBuildUIToFP,
+        LLVMBuildURem, LLVMBuildXor, LLVMBuildZExt, LLVMCanValueUseFastMathFlags,
         LLVMClearInsertionPosition, LLVMConstInt, LLVMConstIntGetZExtValue, LLVMConstNull,
-        LLVMContextCreate, LLVMContextDispose, LLVMCountIncoming, LLVMCountParamTypes,
-        LLVMCountParams, LLVMCountStructElementTypes, LLVMCreateBuilderInContext,
-        LLVMCreateMemoryBufferWithContentsOfFile, LLVMDeleteFunction, LLVMDisposeMemoryBuffer,
-        LLVMDisposeMessage, LLVMDisposeModule, LLVMDumpModule, LLVMDumpType, LLVMDumpValue,
-        LLVMFunctionType, LLVMGetAggregateElement, LLVMGetAllocatedType, LLVMGetArrayLength2,
-        LLVMGetBasicBlockName, LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType,
-        LLVMGetCalledValue, LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFirstBasicBlock,
-        LLVMGetFirstFunction, LLVMGetFirstGlobal, LLVMGetFirstInstruction, LLVMGetFirstParam,
-        LLVMGetGEPSourceElementType, LLVMGetICmpPredicate, LLVMGetIncomingBlock,
+        LLVMConstReal, LLVMConstRealGetDouble, LLVMContextCreate, LLVMContextDispose,
+        LLVMCountIncoming, LLVMCountParamTypes, LLVMCountParams, LLVMCountStructElementTypes,
+        LLVMCreateBuilderInContext, LLVMCreateMemoryBufferWithContentsOfFile, LLVMDeleteFunction,
+        LLVMDisposeMemoryBuffer, LLVMDisposeMessage, LLVMDisposeModule, LLVMDoubleTypeInContext,
+        LLVMDumpModule, LLVMDumpType, LLVMDumpValue, LLVMFloatTypeInContext, LLVMFunctionType,
+        LLVMGetAggregateElement, LLVMGetAllocatedType, LLVMGetArrayLength2, LLVMGetBasicBlockName,
+        LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType, LLVMGetCalledValue,
+        LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFCmpPredicate, LLVMGetFastMathFlags,
+        LLVMGetFirstBasicBlock, LLVMGetFirstFunction, LLVMGetFirstGlobal, LLVMGetFirstInstruction,
+        LLVMGetFirstParam, LLVMGetGEPSourceElementType, LLVMGetICmpPredicate, LLVMGetIncomingBlock,
         LLVMGetIncomingValue, LLVMGetIndices, LLVMGetInitializer, LLVMGetInsertBlock,
         LLVMGetInstructionOpcode, LLVMGetInstructionParent, LLVMGetIntTypeWidth,
-        LLVMGetLastFunction, LLVMGetLastGlobal, LLVMGetModuleIdentifier, LLVMGetNSW, LLVMGetNUW,
-        LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextGlobal, LLVMGetNextInstruction,
-        LLVMGetNextParam, LLVMGetNumArgOperands, LLVMGetNumIndices, LLVMGetNumOperands,
-        LLVMGetOperand, LLVMGetParam, LLVMGetParamTypes, LLVMGetPreviousBasicBlock,
-        LLVMGetPreviousFunction, LLVMGetPreviousGlobal, LLVMGetPreviousInstruction,
-        LLVMGetPreviousParam, LLVMGetReturnType, LLVMGetStructElementTypes, LLVMGetStructName,
-        LLVMGetTypeKind, LLVMGetUndef, LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType,
-        LLVMIntTypeInContext, LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser,
-        LLVMIsOpaqueStruct, LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext,
-        LLVMPositionBuilderAtEnd, LLVMPositionBuilderBefore, LLVMPrintModuleToFile,
-        LLVMPrintModuleToString, LLVMPrintTypeToString, LLVMPrintValueToString, LLVMSetInitializer,
-        LLVMStructCreateNamed, LLVMStructSetBody, LLVMStructTypeInContext, LLVMTypeIsSized,
-        LLVMTypeOf, LLVMValueAsBasicBlock, LLVMValueIsBasicBlock, LLVMVoidTypeInContext,
+        LLVMGetLastFunction, LLVMGetLastGlobal, LLVMGetModuleIdentifier, LLVMGetNNeg, LLVMGetNSW,
+        LLVMGetNUW, LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextGlobal,
+        LLVMGetNextInstruction, LLVMGetNextParam, LLVMGetNumArgOperands, LLVMGetNumIndices,
+        LLVMGetNumOperands, LLVMGetOperand, LLVMGetParam, LLVMGetParamTypes,
+        LLVMGetPreviousBasicBlock, LLVMGetPreviousFunction, LLVMGetPreviousGlobal,
+        LLVMGetPreviousInstruction, LLVMGetPreviousParam, LLVMGetReturnType,
+        LLVMGetStructElementTypes, LLVMGetStructName, LLVMGetTypeKind, LLVMGetUndef,
+        LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType, LLVMIntTypeInContext,
+        LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser, LLVMIsOpaqueStruct,
+        LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext, LLVMPositionBuilderAtEnd,
+        LLVMPositionBuilderBefore, LLVMPrintModuleToFile, LLVMPrintModuleToString,
+        LLVMPrintTypeToString, LLVMPrintValueToString, LLVMSetFastMathFlags, LLVMSetInitializer,
+        LLVMSetNNeg, LLVMStructCreateNamed, LLVMStructSetBody, LLVMStructTypeInContext,
+        LLVMTypeIsSized, LLVMTypeOf, LLVMValueAsBasicBlock, LLVMValueIsBasicBlock,
+        LLVMVoidTypeInContext,
     },
     ir_reader::LLVMParseIRInContext,
     prelude::{
@@ -127,6 +138,77 @@ impl LLVMBuilder {
     }
 }
 
+bitflags! {
+    /// Fast math flags for floating point operations.
+    #[derive(PartialEq, Eq, Clone, Debug, Default, Hash, Copy)]
+    pub struct FastmathFlags: u8 {
+        const NNAN = 1;
+        const NINF = 2;
+        const NSZ = 4;
+        const ARCP = 8;
+        const CONTRACT = 16;
+        const AFN = 32;
+        const REASSOC = 64;
+        const FAST = 127;
+    }
+}
+
+impl From<LLVMFastMathFlags> for FastmathFlags {
+    fn from(flags: LLVMFastMathFlags) -> Self {
+        let mut result = FastmathFlags::empty();
+        if flags & LLVMFastMathNoNaNs != 0 {
+            result |= FastmathFlags::NNAN;
+        }
+        if flags & LLVMFastMathNoInfs != 0 {
+            result |= FastmathFlags::NINF;
+        }
+        if flags & LLVMFastMathNoSignedZeros != 0 {
+            result |= FastmathFlags::NSZ;
+        }
+        if flags & LLVMFastMathAllowReciprocal != 0 {
+            result |= FastmathFlags::ARCP;
+        }
+        if flags & LLVMFastMathAllowContract != 0 {
+            result |= FastmathFlags::CONTRACT;
+        }
+        if flags & LLVMFastMathApproxFunc != 0 {
+            result |= FastmathFlags::AFN;
+        }
+        if flags & LLVMFastMathAllowReassoc != 0 {
+            result |= FastmathFlags::REASSOC;
+        }
+        result
+    }
+}
+
+impl From<FastmathFlags> for LLVMFastMathFlags {
+    fn from(flags: FastmathFlags) -> Self {
+        let mut result = LLVMFastMathNone;
+        if flags.contains(FastmathFlags::NNAN) {
+            result |= LLVMFastMathNoNaNs;
+        }
+        if flags.contains(FastmathFlags::NINF) {
+            result |= LLVMFastMathNoInfs;
+        }
+        if flags.contains(FastmathFlags::NSZ) {
+            result |= LLVMFastMathNoSignedZeros;
+        }
+        if flags.contains(FastmathFlags::ARCP) {
+            result |= LLVMFastMathAllowReciprocal;
+        }
+        if flags.contains(FastmathFlags::CONTRACT) {
+            result |= LLVMFastMathAllowContract;
+        }
+        if flags.contains(FastmathFlags::AFN) {
+            result |= LLVMFastMathApproxFunc;
+        }
+        if flags.contains(FastmathFlags::REASSOC) {
+            result |= LLVMFastMathAllowReassoc;
+        }
+        result
+    }
+}
+
 /// LLVMPrintValueToString
 pub fn llvm_print_value_to_string(val: LLVMValue) -> Option<String> {
     let buf_ptr = unsafe { LLVMPrintValueToString(val.into()) };
@@ -199,9 +281,10 @@ pub fn llvm_dump_module(module: &LLVMModule) {
 pub mod llvm_is_a {
     use llvm_sys::core::{
         LLVMIsAAllocaInst, LLVMIsAArgument, LLVMIsACallInst, LLVMIsAConstant, LLVMIsAConstantExpr,
-        LLVMIsAConstantInt, LLVMIsAExtractValueInst, LLVMIsAGetElementPtrInst, LLVMIsAGlobalValue,
-        LLVMIsAGlobalVariable, LLVMIsAICmpInst, LLVMIsAInsertValueInst, LLVMIsAInstruction,
-        LLVMIsAInvokeInst, LLVMIsAPHINode, LLVMIsASwitchInst,
+        LLVMIsAConstantFP, LLVMIsAConstantInt, LLVMIsAExtractValueInst, LLVMIsAFCmpInst,
+        LLVMIsAFPToUIInst, LLVMIsAGetElementPtrInst, LLVMIsAGlobalValue, LLVMIsAGlobalVariable,
+        LLVMIsAICmpInst, LLVMIsAInsertValueInst, LLVMIsAInstruction, LLVMIsAInvokeInst,
+        LLVMIsAPHINode, LLVMIsASwitchInst, LLVMIsAUIToFPInst, LLVMIsAZExtInst,
     };
 
     use super::*;
@@ -231,6 +314,11 @@ pub mod llvm_is_a {
         unsafe { !LLVMIsAConstantInt(val.into()).is_null() }
     }
 
+    /// LLVMIsAConstantFP
+    pub fn constant_fp(val: LLVMValue) -> bool {
+        unsafe { !LLVMIsAConstantFP(val.into()).is_null() }
+    }
+
     /// LLVMIsAConstantExpr
     pub fn constant_expr(val: LLVMValue) -> bool {
         unsafe { !LLVMIsAConstantExpr(val.into()).is_null() }
@@ -249,6 +337,26 @@ pub mod llvm_is_a {
     /// LLVMIsAICmpInst
     pub fn icmp_inst(val: LLVMValue) -> bool {
         unsafe { !LLVMIsAICmpInst(val.into()).is_null() }
+    }
+
+    /// LLVMIsAFCmpInst
+    pub fn fcmp_inst(val: LLVMValue) -> bool {
+        unsafe { !LLVMIsAFCmpInst(val.into()).is_null() }
+    }
+
+    /// LLVMIsAZExtInst
+    pub fn zext_inst(val: LLVMValue) -> bool {
+        unsafe { !LLVMIsAZExtInst(val.into()).is_null() }
+    }
+
+    /// LLVMIsAFPToUIInst
+    pub fn fptoui_inst(val: LLVMValue) -> bool {
+        unsafe { !LLVMIsAFPToUIInst(val.into()).is_null() }
+    }
+
+    /// LLVMIsAUIToFPInst
+    pub fn uitofp_inst(val: LLVMValue) -> bool {
+        unsafe { !LLVMIsAUIToFPInst(val.into()).is_null() }
     }
 
     /// LLVMIsASwitchInst
@@ -632,6 +740,23 @@ pub fn llvm_const_int_get_zext_value(val: LLVMValue) -> u64 {
     unsafe { LLVMConstIntGetZExtValue(val.into()) }
 }
 
+/// LLVMConstRealGetDouble
+pub fn llvm_const_real_get_double(val: LLVMValue) -> (f64, bool) {
+    assert!(llvm_is_a::constant_fp(val));
+    let mut loses_info = 0;
+    let result = unsafe { LLVMConstRealGetDouble(val.into(), &mut loses_info) };
+    (result, loses_info.to_bool())
+}
+
+/// LLVMConstReal
+pub fn llvm_const_real(ty: LLVMType, n: f64) -> LLVMValue {
+    assert!(
+        llvm_get_type_kind(ty) == LLVMTypeKind::LLVMFloatTypeKind
+            || llvm_get_type_kind(ty) == LLVMTypeKind::LLVMDoubleTypeKind
+    );
+    unsafe { LLVMConstReal(ty.into(), n).into() }
+}
+
 /// LLVMConstNull
 pub fn llvm_const_null(ty: LLVMType) -> LLVMValue {
     unsafe { LLVMConstNull(ty.into()).into() }
@@ -647,6 +772,24 @@ pub fn llvm_get_allocated_type(val: LLVMValue) -> LLVMType {
 pub fn llvm_get_icmp_predicate(val: LLVMValue) -> LLVMIntPredicate {
     assert!(llvm_is_a::icmp_inst(val) || llvm_get_const_opcode(val) == LLVMOpcode::LLVMICmp);
     unsafe { LLVMGetICmpPredicate(val.into()) }
+}
+
+/// LLVMGetFCmpPredicate
+pub fn llvm_get_fcmp_predicate(val: LLVMValue) -> LLVMRealPredicate {
+    assert!(llvm_is_a::fcmp_inst(val) || llvm_get_const_opcode(val) == LLVMOpcode::LLVMFCmp);
+    unsafe { LLVMGetFCmpPredicate(val.into()) }
+}
+
+/// LLVMGetNNeg
+pub fn llvm_get_nneg(val: LLVMValue) -> bool {
+    assert!(llvm_is_a::zext_inst(val) || llvm_is_a::uitofp_inst(val));
+    unsafe { LLVMGetNNeg(val.into()).to_bool() }
+}
+
+/// LLVMSetNNeg
+pub fn llvm_set_nneg(val: LLVMValue, nneg: bool) {
+    assert!(llvm_is_a::zext_inst(val) || llvm_is_a::uitofp_inst(val));
+    unsafe { LLVMSetNNeg(val.into(), nneg.into()) }
 }
 
 /// LLVMCountParams
@@ -868,6 +1011,16 @@ pub fn llvm_position_builder_before(builder: &LLVMBuilder, inst: LLVMValue) {
 /// LLVMIntTypeInContext
 pub fn llvm_int_type_in_context(context: &LLVMContext, width: u32) -> LLVMType {
     unsafe { LLVMIntTypeInContext(context.0, width).into() }
+}
+
+/// LLVMFloatTypeInContext
+pub fn llvm_float_type_in_context(context: &LLVMContext) -> LLVMType {
+    unsafe { LLVMFloatTypeInContext(context.0).into() }
+}
+
+/// LLVMDouleTypeInContext
+pub fn llvm_double_type_in_context(context: &LLVMContext) -> LLVMType {
+    unsafe { LLVMDoubleTypeInContext(context.0).into() }
 }
 
 /// ArrayType::isValidElementType
@@ -1326,6 +1479,196 @@ pub fn llvm_build_select(
     }
 }
 
+/// LLVMBuildFAdd
+pub fn llvm_build_fadd(
+    builder: &LLVMBuilder,
+    lhs: LLVMValue,
+    rhs: LLVMValue,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe { LLVMBuildFAdd(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+}
+
+/// LLVMBuildFSub
+pub fn llvm_build_fsub(
+    builder: &LLVMBuilder,
+    lhs: LLVMValue,
+    rhs: LLVMValue,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe { LLVMBuildFSub(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+}
+
+/// LLVMBuildFMul
+pub fn llvm_build_fmul(
+    builder: &LLVMBuilder,
+    lhs: LLVMValue,
+    rhs: LLVMValue,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe { LLVMBuildFMul(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+}
+
+/// LLVMBuildFDiv
+pub fn llvm_build_fdiv(
+    builder: &LLVMBuilder,
+    lhs: LLVMValue,
+    rhs: LLVMValue,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe { LLVMBuildFDiv(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+}
+
+/// LLVMBuildFRem
+pub fn llvm_build_frem(
+    builder: &LLVMBuilder,
+    lhs: LLVMValue,
+    rhs: LLVMValue,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe { LLVMBuildFRem(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+}
+
+/// LLVMBuildFCmp
+pub fn llvm_build_fcmp(
+    builder: &LLVMBuilder,
+    op: LLVMRealPredicate,
+    lhs: LLVMValue,
+    rhs: LLVMValue,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildFCmp(
+            builder.0,
+            op,
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+
+/// LLVMBuildFPExt
+pub fn llvm_build_fpext(
+    builder: &LLVMBuilder,
+    val: LLVMValue,
+    dest_ty: LLVMType,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildFPExt(
+            builder.0,
+            val.into(),
+            dest_ty.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+
+/// LLVMBuildFPTrunc
+pub fn llvm_build_fptrunc(
+    builder: &LLVMBuilder,
+    val: LLVMValue,
+    dest_ty: LLVMType,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildFPTrunc(
+            builder.0,
+            val.into(),
+            dest_ty.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+
+/// LLVMBuildFPToSI
+pub fn llvm_build_fptosi(
+    builder: &LLVMBuilder,
+    val: LLVMValue,
+    dest_ty: LLVMType,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildFPToSI(
+            builder.0,
+            val.into(),
+            dest_ty.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+
+/// LLVMBuildSIToFP
+pub fn llvm_build_sitofp(
+    builder: &LLVMBuilder,
+    val: LLVMValue,
+    dest_ty: LLVMType,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildSIToFP(
+            builder.0,
+            val.into(),
+            dest_ty.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+
+/// LLVMBuildUIToFP
+pub fn llvm_build_uitofp(
+    builder: &LLVMBuilder,
+    val: LLVMValue,
+    dest_ty: LLVMType,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildUIToFP(
+            builder.0,
+            val.into(),
+            dest_ty.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+
+/// LLVMBuildFPToUI
+pub fn llvm_build_fptoui(
+    builder: &LLVMBuilder,
+    val: LLVMValue,
+    dest_ty: LLVMType,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildFPToUI(
+            builder.0,
+            val.into(),
+            dest_ty.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+
 /// LLVMAddIncoming
 pub fn llvm_add_incoming(
     phi_node: LLVMValue,
@@ -1539,6 +1882,23 @@ pub fn llvm_get_nuw(arith_inst: LLVMValue) -> bool {
 pub fn llvm_get_nsw(arith_inst: LLVMValue) -> bool {
     assert!(llvm_is_a::instruction(arith_inst));
     unsafe { LLVMGetNSW(arith_inst.into()).to_bool() }
+}
+
+/// LLVMCanValueUseFastMathFlags
+pub fn llvm_can_value_use_fast_math_flags(fpmath_inst: LLVMValue) -> bool {
+    unsafe { LLVMCanValueUseFastMathFlags(fpmath_inst.into()).to_bool() }
+}
+
+/// LLVMGetFastMathFlags
+pub fn llvm_get_fast_math_flags(fpmath_inst: LLVMValue) -> FastmathFlags {
+    assert!(llvm_can_value_use_fast_math_flags(fpmath_inst));
+    unsafe { LLVMGetFastMathFlags(fpmath_inst.into()) }.into()
+}
+
+/// LLVMSetFastMathFlags
+pub fn llvm_set_fast_math_flags(fpmath_inst: LLVMValue, flags: FastmathFlags) {
+    assert!(llvm_can_value_use_fast_math_flags(fpmath_inst));
+    unsafe { LLVMSetFastMathFlags(fpmath_inst.into(), flags.into()) }
 }
 
 /// LLVMGetGEPSourceElementType

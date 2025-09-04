@@ -186,10 +186,17 @@ impl FloatType for FP32Type {
         apfloat::Single::get_semantics()
     }
 }
+
 impl FP32Type {
-    /// Get or create a new fp32 type.
-    pub fn get(ctx: &mut Context) -> TypePtr<Self> {
-        Type::register_instance(Self {}, ctx)
+    /// Register type in dialect and instantiate the singleton instance.
+    pub fn register_and_instantiate(ctx: &mut Context) {
+        Self::register_type_in_dialect(ctx, Self::parser_fn);
+        Type::register_instance(Self {}, ctx);
+    }
+
+    /// Get the singleton fp32 type.
+    pub fn get(ctx: &Context) -> TypePtr<Self> {
+        Type::get_instance(Self {}, ctx).expect("FP32Type singleton not instantiated")
     }
 }
 
@@ -204,10 +211,17 @@ impl FloatType for FP64Type {
         apfloat::Double::get_semantics()
     }
 }
+
 impl FP64Type {
+    /// Register type in dialect and instantiate the singleton instance.
+    pub fn register_and_instantiate(ctx: &mut Context) {
+        Self::register_type_in_dialect(ctx, Self::parser_fn);
+        Type::register_instance(Self {}, ctx);
+    }
+
     /// Get or create a new fp64 type.
-    pub fn get(ctx: &mut Context) -> TypePtr<Self> {
-        Type::register_instance(Self {}, ctx)
+    pub fn get(ctx: &Context) -> TypePtr<Self> {
+        Type::get_instance(Self {}, ctx).expect("FP64Type singleton not instantiated")
     }
 }
 
@@ -215,8 +229,9 @@ pub fn register(ctx: &mut Context) {
     IntegerType::register_type_in_dialect(ctx, IntegerType::parser_fn);
     FunctionType::register_type_in_dialect(ctx, FunctionType::parser_fn);
     UnitType::register_type_in_dialect(ctx, UnitType::parser_fn);
-    FP32Type::register_type_in_dialect(ctx, FP32Type::parser_fn);
-    FP64Type::register_type_in_dialect(ctx, FP64Type::parser_fn);
+
+    FP32Type::register_and_instantiate(ctx);
+    FP64Type::register_and_instantiate(ctx);
 }
 
 #[cfg(test)]

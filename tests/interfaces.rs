@@ -201,7 +201,7 @@ impl_verify_succ!(MyAttr);
 
 #[attr_interface_impl]
 impl TypedAttrInterface for MyAttr {
-    fn get_type(&self) -> Ptr<TypeObj> {
+    fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
         self.ty
     }
 }

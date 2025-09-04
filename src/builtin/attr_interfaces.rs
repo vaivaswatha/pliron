@@ -12,7 +12,7 @@ use pliron::derive::attr_interface;
 #[attr_interface]
 pub trait TypedAttrInterface {
     /// Get this attribute's type.
-    fn get_type(&self) -> Ptr<TypeObj>;
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj>;
 
     fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
     where
@@ -61,7 +61,7 @@ pub trait PrintOnceAttr: OutlinedAttr {
 /// of an object (but when the concrete type is known), then the static (`Self: Sized`)
 /// methods on the [Float](rustc_apfloat::Float) trait can be used instead.
 #[attr_interface]
-pub trait FloatAttr {
+pub trait FloatAttr: TypedAttrInterface {
     /// Get the underlying floating point value as a [DynFloat] trait object.
     fn get_inner(&self) -> &dyn DynFloat;
     /// Build a [FloatAttr] with the same concrete type as `Self`, from the given trait object.

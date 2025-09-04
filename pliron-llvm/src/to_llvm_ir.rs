@@ -1,19 +1,22 @@
 //! Translate from pliron's LLVM dialect to LLVM-IR
 
-use llvm_sys::LLVMIntPredicate;
+use llvm_sys::{LLVMIntPredicate, LLVMRealPredicate};
 use pliron::{
+    attribute::{Attribute, attr_cast},
     basic_block::BasicBlock,
     builtin::{
-        attributes::IntegerAttr,
+        attr_interfaces::FloatAttr,
+        attributes::{FPDoubleAttr, FPSingleAttr, IntegerAttr},
         op_interfaces::{
             BranchOpInterface, CallOpCallable, CallOpInterface, OneOpdInterface,
             OneRegionInterface, OneResultInterface, SingleBlockRegionInterface, SymbolOpInterface,
         },
         ops::{FuncOp, ModuleOp},
-        types::{FunctionType, IntegerType},
+        types::{FP32Type, FP64Type, FunctionType, IntegerType},
     },
     common_traits::Named,
     context::{Context, Ptr},
+    derive::{attr_interface, attr_interface_impl},
     graph::traversals::region::topological_order,
     identifier::Identifier,
     input_err, input_err_noloc, input_error, input_error_noloc,
@@ -32,29 +35,36 @@ use rustc_hash::FxHashMap;
 use thiserror::Error;
 
 use crate::{
-    attributes::ICmpPredicateAttr,
+    attributes::{FCmpPredicateAttr, ICmpPredicateAttr},
     llvm_sys::core::{
         LLVMBasicBlock, LLVMBuilder, LLVMContext, LLVMModule, LLVMType, LLVMValue,
         instruction_iter, llvm_add_case, llvm_add_function, llvm_add_global, llvm_add_incoming,
         llvm_append_basic_block_in_context, llvm_array_type2, llvm_build_add, llvm_build_and,
         llvm_build_array_alloca, llvm_build_bitcast, llvm_build_br, llvm_build_call2,
-        llvm_build_cond_br, llvm_build_extract_value, llvm_build_gep2, llvm_build_icmp,
+        llvm_build_cond_br, llvm_build_extract_value, llvm_build_fadd, llvm_build_fcmp,
+        llvm_build_fdiv, llvm_build_fmul, llvm_build_fpext, llvm_build_fptosi, llvm_build_fptoui,
+        llvm_build_fptrunc, llvm_build_frem, llvm_build_fsub, llvm_build_gep2, llvm_build_icmp,
         llvm_build_insert_value, llvm_build_int_to_ptr, llvm_build_load2, llvm_build_mul,
         llvm_build_or, llvm_build_phi, llvm_build_ptr_to_int, llvm_build_ret, llvm_build_ret_void,
-        llvm_build_sdiv, llvm_build_select, llvm_build_sext, llvm_build_shl, llvm_build_srem,
-        llvm_build_store, llvm_build_sub, llvm_build_switch, llvm_build_trunc, llvm_build_udiv,
-        llvm_build_urem, llvm_build_xor, llvm_clear_insertion_position, llvm_const_int,
-        llvm_const_null, llvm_delete_function, llvm_function_type, llvm_get_param, llvm_get_undef,
+        llvm_build_sdiv, llvm_build_select, llvm_build_sext, llvm_build_shl, llvm_build_sitofp,
+        llvm_build_srem, llvm_build_store, llvm_build_sub, llvm_build_switch, llvm_build_trunc,
+        llvm_build_udiv, llvm_build_uitofp, llvm_build_urem, llvm_build_xor, llvm_build_zext,
+        llvm_can_value_use_fast_math_flags, llvm_clear_insertion_position, llvm_const_int,
+        llvm_const_null, llvm_const_real, llvm_delete_function, llvm_double_type_in_context,
+        llvm_float_type_in_context, llvm_function_type, llvm_get_param, llvm_get_undef,
         llvm_int_type_in_context, llvm_is_a, llvm_pointer_type_in_context,
-        llvm_position_builder_at_end, llvm_set_initializer, llvm_struct_create_named,
-        llvm_struct_set_body, llvm_struct_type_in_context, llvm_void_type_in_context,
+        llvm_position_builder_at_end, llvm_set_fast_math_flags, llvm_set_initializer,
+        llvm_set_nneg, llvm_struct_create_named, llvm_struct_set_body, llvm_struct_type_in_context,
+        llvm_void_type_in_context,
     },
-    op_interfaces::PointerTypeResult,
+    op_interfaces::{FastMathFlags, NNegFlag, PointerTypeResult},
     ops::{
         AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
-        ExtractValueOp, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp, IntToPtrOp, LoadOp,
-        MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp,
-        SwitchOp, TruncOp, UDivOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
+        ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp, FPExtOp, FPToSIOp, FPToUIOp, FPTruncOp,
+        FRemOp, FSubOp, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp, IntToPtrOp, LoadOp,
+        MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SIToFPOp, SRemOp, SelectOp, ShlOp,
+        StoreOp, SubOp, SwitchOp, TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp, XorOp, ZExtOp,
+        ZeroOp,
     },
     types::{ArrayType, PointerType, StructType, VoidType},
 };
@@ -130,6 +140,53 @@ pub fn convert_ipredicate(pred: ICmpPredicateAttr) -> LLVMIntPredicate {
         ICmpPredicateAttr::SGE => LLVMIntPredicate::LLVMIntSGE,
         ICmpPredicateAttr::SLT => LLVMIntPredicate::LLVMIntSLT,
         ICmpPredicateAttr::SLE => LLVMIntPredicate::LLVMIntSLE,
+    }
+}
+
+pub fn convert_fpredicate(pred: FCmpPredicateAttr) -> LLVMRealPredicate {
+    match pred {
+        FCmpPredicateAttr::False => LLVMRealPredicate::LLVMRealPredicateFalse,
+        FCmpPredicateAttr::OEQ => LLVMRealPredicate::LLVMRealOEQ,
+        FCmpPredicateAttr::OGT => LLVMRealPredicate::LLVMRealOGT,
+        FCmpPredicateAttr::OGE => LLVMRealPredicate::LLVMRealOGE,
+        FCmpPredicateAttr::OLT => LLVMRealPredicate::LLVMRealOLT,
+        FCmpPredicateAttr::OLE => LLVMRealPredicate::LLVMRealOLE,
+        FCmpPredicateAttr::ONE => LLVMRealPredicate::LLVMRealONE,
+        FCmpPredicateAttr::ORD => LLVMRealPredicate::LLVMRealORD,
+        FCmpPredicateAttr::UNO => LLVMRealPredicate::LLVMRealUNO,
+        FCmpPredicateAttr::UEQ => LLVMRealPredicate::LLVMRealUEQ,
+        FCmpPredicateAttr::UGT => LLVMRealPredicate::LLVMRealUGT,
+        FCmpPredicateAttr::UGE => LLVMRealPredicate::LLVMRealUGE,
+        FCmpPredicateAttr::ULT => LLVMRealPredicate::LLVMRealULT,
+        FCmpPredicateAttr::ULE => LLVMRealPredicate::LLVMRealULE,
+        FCmpPredicateAttr::UNE => LLVMRealPredicate::LLVMRealUNE,
+        FCmpPredicateAttr::True => LLVMRealPredicate::LLVMRealPredicateTrue,
+    }
+}
+
+/// Convert a float attribute to fp64 (since LLVM's C-API pretty much restricts us to that).
+#[attr_interface]
+trait FloatAttrToFP64: FloatAttr {
+    fn to_fp64(&self) -> f64;
+    fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+}
+
+#[attr_interface_impl]
+impl FloatAttrToFP64 for FPSingleAttr {
+    fn to_fp64(&self) -> f64 {
+        Into::<f32>::into(self.clone()) as f64
+    }
+}
+
+#[attr_interface_impl]
+impl FloatAttrToFP64 for FPDoubleAttr {
+    fn to_fp64(&self) -> f64 {
+        Into::<f64>::into(self.clone())
     }
 }
 
@@ -231,6 +288,20 @@ impl ToLLVMType for StructType {
                 Ok(llvm_struct_type_in_context(llvm_ctx, &field_types, false))
             }
         }
+    }
+}
+
+#[type_interface_impl]
+impl ToLLVMType for FP32Type {
+    fn convert(&self, _ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+        Ok(llvm_float_type_in_context(llvm_ctx))
+    }
+}
+
+#[type_interface_impl]
+impl ToLLVMType for FP64Type {
+    fn convert(&self, _ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+        Ok(llvm_double_type_in_context(llvm_ctx))
     }
 }
 
@@ -713,12 +784,14 @@ impl ToLLVMValue for ZExtOp {
         let op = self.get_operation().deref(ctx);
         let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
         let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
-        let zext_op = llvm_build_sext(
+        let zext_op = llvm_build_zext(
             &cctx.builder,
             arg,
             ty,
             &self.get_result(ctx).unique_name(ctx),
         );
+        let nneg = self.nneg(ctx);
+        llvm_set_nneg(zext_op, nneg);
         Ok(zext_op)
     }
 }
@@ -852,7 +925,307 @@ impl ToLLVMValue for SelectOp {
     }
 }
 
-/// Conver a pliron [BasicBlock] to [LLVMBasicBlock].
+#[op_interface_impl]
+impl ToLLVMValue for FAddOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        _llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let (lhs, rhs) = (op.get_operand(0), op.get_operand(1));
+        let lhs = convert_value_operand(cctx, ctx, &lhs)?;
+        let rhs = convert_value_operand(cctx, ctx, &rhs)?;
+        let inst = llvm_build_fadd(
+            &cctx.builder,
+            lhs,
+            rhs,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        // The built value may not even be an instruction, but a folded constant.
+        if llvm_can_value_use_fast_math_flags(inst) {
+            let fastmath = self.fast_math_flags(ctx);
+            llvm_set_fast_math_flags(inst, fastmath.into());
+        }
+        Ok(inst)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for FSubOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        _llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let (lhs, rhs) = (op.get_operand(0), op.get_operand(1));
+        let lhs = convert_value_operand(cctx, ctx, &lhs)?;
+        let rhs = convert_value_operand(cctx, ctx, &rhs)?;
+        let inst = llvm_build_fsub(
+            &cctx.builder,
+            lhs,
+            rhs,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        // The built value may not even be an instruction, but a folded constant.
+        if llvm_can_value_use_fast_math_flags(inst) {
+            let fastmath = self.fast_math_flags(ctx);
+            llvm_set_fast_math_flags(inst, fastmath.into());
+        }
+        Ok(inst)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for FMulOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        _llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let (lhs, rhs) = (op.get_operand(0), op.get_operand(1));
+        let lhs = convert_value_operand(cctx, ctx, &lhs)?;
+        let rhs = convert_value_operand(cctx, ctx, &rhs)?;
+        let inst = llvm_build_fmul(
+            &cctx.builder,
+            lhs,
+            rhs,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        // The built value may not even be an instruction, but a folded constant.
+        if llvm_can_value_use_fast_math_flags(inst) {
+            let fastmath = self.fast_math_flags(ctx);
+            llvm_set_fast_math_flags(inst, fastmath.into());
+        }
+        Ok(inst)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for FDivOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        _llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let (lhs, rhs) = (op.get_operand(0), op.get_operand(1));
+        let lhs = convert_value_operand(cctx, ctx, &lhs)?;
+        let rhs = convert_value_operand(cctx, ctx, &rhs)?;
+        let inst = llvm_build_fdiv(
+            &cctx.builder,
+            lhs,
+            rhs,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        // The built value may not even be an instruction, but a folded constant.
+        if llvm_can_value_use_fast_math_flags(inst) {
+            let fastmath = self.fast_math_flags(ctx);
+            llvm_set_fast_math_flags(inst, fastmath.into());
+        }
+        Ok(inst)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for FRemOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        _llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let (lhs, rhs) = (op.get_operand(0), op.get_operand(1));
+        let lhs = convert_value_operand(cctx, ctx, &lhs)?;
+        let rhs = convert_value_operand(cctx, ctx, &rhs)?;
+        let inst = llvm_build_frem(
+            &cctx.builder,
+            lhs,
+            rhs,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        // The built value may not even be an instruction, but a folded constant.
+        if llvm_can_value_use_fast_math_flags(inst) {
+            let fastmath = self.fast_math_flags(ctx);
+            llvm_set_fast_math_flags(inst, fastmath.into());
+        }
+        Ok(inst)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for FCmpOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        _llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let predicate = convert_fpredicate(self.predicate(ctx));
+        let lhs = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        let rhs = convert_value_operand(cctx, ctx, &op.get_operand(1))?;
+        let fcmp_op = llvm_build_fcmp(
+            &cctx.builder,
+            predicate,
+            lhs,
+            rhs,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        // The built value may not even be an instruction, but a folded constant.
+        if llvm_can_value_use_fast_math_flags(fcmp_op) {
+            let fastmath = self.fast_math_flags(ctx);
+            llvm_set_fast_math_flags(fcmp_op, fastmath.into());
+        }
+        Ok(fcmp_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for FPExtOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let fpext_op = llvm_build_fpext(
+            &cctx.builder,
+            arg,
+            ty,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        // The built value may not even be an instruction, but a folded constant.
+        if llvm_can_value_use_fast_math_flags(fpext_op) {
+            let fastmath = self.fast_math_flags(ctx);
+            llvm_set_fast_math_flags(fpext_op, fastmath.into());
+        }
+        Ok(fpext_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for FPTruncOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let fptrunc_op = llvm_build_fptrunc(
+            &cctx.builder,
+            arg,
+            ty,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        // The built value may not even be an instruction, but a folded constant.
+        if llvm_can_value_use_fast_math_flags(fptrunc_op) {
+            llvm_set_fast_math_flags(fptrunc_op, self.fast_math_flags(ctx).into());
+        }
+        Ok(fptrunc_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for FPToSIOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let fptosi_op = llvm_build_fptosi(
+            &cctx.builder,
+            arg,
+            ty,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        Ok(fptosi_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for SIToFPOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let sitofp_op = llvm_build_sitofp(
+            &cctx.builder,
+            arg,
+            ty,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        Ok(sitofp_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for FPToUIOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let fptoui_op = llvm_build_fptoui(
+            &cctx.builder,
+            arg,
+            ty,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        Ok(fptoui_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for UIToFPOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let uitofp_op = llvm_build_uitofp(
+            &cctx.builder,
+            arg,
+            ty,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        let nneg = self.nneg(ctx);
+        llvm_set_nneg(uitofp_op, nneg);
+        Ok(uitofp_op)
+    }
+}
+
+/// Convert a pliron [BasicBlock] to [LLVMBasicBlock].
 fn convert_block(
     ctx: &Context,
     llvm_ctx: &LLVMContext,
@@ -968,8 +1341,11 @@ impl ToLLVMConstValue for ConstantOp {
             let ap_int_val: APInt = int_val.clone().into();
             let const_val = llvm_const_int(int_ty_llvm, ap_int_val.to_u64(), false);
             Ok(const_val)
-        // } else if let Some(_float_val) = value.downcast_ref::<FloatAttr>() {
-        //     todo!()
+        } else if let Some(float_val) = attr_cast::<dyn FloatAttrToFP64>(&*value) {
+            let float_ty = float_val.get_type(ctx);
+            let float_ty_llvm = convert_type(ctx, llvm_ctx, float_ty)?;
+            let const_val = llvm_const_real(float_ty_llvm, float_val.to_fp64());
+            Ok(const_val)
         } else {
             input_err!(op.loc(), ToLLVMErr::ConstOpNotIntOrFloat)
         }

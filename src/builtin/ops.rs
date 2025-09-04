@@ -160,7 +160,7 @@ impl FuncOp {
     pub fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         attr_cast::<dyn TypedAttrInterface>(&*self.get_attr_func_type(ctx).unwrap())
             .unwrap()
-            .get_type()
+            .get_type(ctx)
     }
 
     /// Get the entry block of this function.

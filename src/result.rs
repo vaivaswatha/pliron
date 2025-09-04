@@ -1,4 +1,102 @@
 //! Utilities for error handling
+//!
+//! - [ErrorKind] describes the kind of error.
+//! - [struct@Error] is the main error type used throughout the compiler. This `struct` contains
+//!   the field `err` which holds the actual error that implements [AnyError]. [AnyError] is an
+//!   extension trait to enforce [std::error::Error] + [Downcast].
+//! - [Result] is an alias for `std::result::Result` with the error type set to [struct@Error].
+//!   [Result] implements [ExpectOk], which provides a method [expect_ok](ExpectOk::expect_ok)
+//!   to `unwrap` the result, and if that fails, panics with the error message printed using
+//!   [Printable].
+//!
+//! The following macros are provided to conveniently create [struct@Error] and [Result] objects.
+//!   - [input_error_noloc]: Create [struct@Error] for input errors without location information
+//!   - [input_error]: Create [struct@Error] for input errors with location information
+//!   - [input_err_noloc]: Create [Result] for input errors without location information
+//!   - [input_err]: Create [Result] for input errors with location information
+//!   - [verify_error_noloc]: Create [struct@Error] for verification errors without location information
+//!   - [verify_error]: Create [struct@Error] for verification errors with location information
+//!   - [verify_err_noloc]: Create [Result] for verification errors without location information
+//!   - [verify_err]: Create [Result] for verification errors with location information
+//!   - [arg_error_noloc]: Create [struct@Error] for argument errors without location information
+//!   - [arg_error]: Create [struct@Error] for argument errors with location information
+//!   - [arg_err_noloc]: Create [Result] for argument errors without location information
+//!   - [arg_err]: Create [Result] for argument errors with location information
+//!
+//! The inner `err` when constructing [struct@Error] is typically a custom error type
+//! that derives [std::error::Error] using [thiserror].
+//!
+//! ```
+//! use thiserror::Error;
+//! use expect_test::expect;
+//! use pliron::{
+//!     context::Context,
+//!     input_error_noloc, result::Error
+//! };
+//!
+//! #[derive(Error, Debug)]
+//! #[error("This is my error: {0}")]
+//! pub struct MyError(String);
+//!
+//! let err: Error = input_error_noloc!(MyError("Something went wrong".to_string()));
+//! expect![[r#"
+//!     Compilation error: invalid input program.
+//!     This is my error: Something went wrong"#
+//! ]].assert_eq(&err.to_string());
+//! ```
+//!
+//! The [struct@Error] type can be printed without [Context], as in the example above.
+//! For more informational error messages (such as including a source location),
+//! it should be printed using [Printable], passing the [Context].
+//!
+//! Sometimes the error object may need [Context] for better / more convenient
+//! formatting. In such cases, they can implement [Printable] and mark themselves
+//! using [type_to_trait]. [struct@Error]'s [Printable] implementation will check if
+//! the inner error implements [Printable] and use it if available.
+//!
+//! ```rust
+//! use std::fmt::Display;
+//! use expect_test::expect;
+//! use thiserror::Error;
+//! use pliron::{
+//!     context::Context,
+//!     printable::{State, Printable},
+//!     type_to_trait, input_error_noloc, result::Error
+//! };
+//!
+//! #[derive(Debug, Error)]
+//! #[error("Error displayed using std::fmt::Display: {0}")]
+//! pub struct PrintableErr(String);
+
+//! impl Printable for PrintableErr {
+//!     fn fmt(
+//!         &self,
+//!         ctx: &Context,
+//!         state: &State,
+//!         f: &mut std::fmt::Formatter<'_>,
+//!     ) -> std::fmt::Result {
+//!         write!(f, "Error printed using Printable: {}", self.0)
+//!     }
+//! }
+//!
+//! /// Marking `PrintableErr` as implementing `Printable` enables
+//! /// `dyn AnyError` to be downcasted to `dyn Printable`.
+//! type_to_trait!(PrintableErr, Printable);
+//!
+//! let ctx = &mut Context::new();
+//! let res: Error = input_error_noloc!(PrintableErr("Test error".to_string()));
+//! expect![[r#"
+//!     [?] Compilation error: invalid input program.
+//!     Error printed using Printable: Test error"#
+//! ]].assert_eq(&res.disp(ctx).to_string());
+//! ```
+
+#[cfg(doc)]
+use crate::{
+    arg_err, arg_err_noloc, arg_error, arg_error_noloc, input_err, input_err_noloc, input_error,
+    input_error_noloc, type_to_trait, verify_err, verify_err_noloc, verify_error,
+    verify_error_noloc,
+};
 
 use std::{
     backtrace::{Backtrace, BacktraceStatus},

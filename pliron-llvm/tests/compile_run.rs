@@ -45,9 +45,14 @@ pub fn setup_context_dialects() -> Context {
 /// The expected output is `expected_output`.
 fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
     let llvm_context = LLVMContext::default();
-    let module = LLVMModule::from_ir_in_file(&llvm_context, input_file)
-        .map_err(|err| arg_error_noloc!("{}", err))
-        .unwrap();
+    let module = match LLVMModule::from_ir_in_file(&llvm_context, input_file) {
+        Ok(module) => module,
+        Err(err) => {
+            eprintln!("{err}");
+            panic!("Error reading {input_file}");
+        }
+    };
+
     let ctx = &mut setup_context_dialects();
     let pliron_module = match from_llvm_ir::convert_module(ctx, &module) {
         Ok(plir) => plir,
@@ -217,4 +222,11 @@ fn test_fib() {
 fn test_fib_mem2reg() {
     init_env_logger();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("fib.mem2reg.ll").to_str().unwrap(), 5);
+}
+
+/// Test floating point operations by compiling fpops.ll via pliron
+#[test]
+fn test_fpops() {
+    init_env_logger();
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("fpops.ll").to_str().unwrap(), 45);
 }

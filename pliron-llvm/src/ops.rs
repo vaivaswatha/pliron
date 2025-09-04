@@ -4,10 +4,10 @@ use std::vec;
 
 use pliron::{
     arg_err_noloc,
-    attribute::{AttrObj, attr_cast},
+    attribute::{AttrObj, attr_cast, attr_impls},
     basic_block::BasicBlock,
     builtin::{
-        attr_interfaces::TypedAttrInterface,
+        attr_interfaces::{FloatAttr, TypedAttrInterface},
         attributes::{IdentifierAttr, IntegerAttr, TypeAttr},
         op_interfaces::{
             self, BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
@@ -17,6 +17,7 @@ use pliron::{
             ZeroResultInterface,
         },
         ops::FuncOp,
+        type_interfaces::FloatType,
         types::{FunctionType, IntegerType, Signedness},
     },
     common_traits::{Named, Verify},
@@ -40,16 +41,19 @@ use pliron::{
     region::Region,
     result::{Error, ErrorKind, Result},
     symbol_table::SymbolTableCollection,
-    r#type::{TypeObj, TypePtr},
+    r#type::{TypeObj, TypePtr, type_cast, type_impls},
     utils::vec_exns::VecExtns,
     value::Value,
     verify_err,
 };
 
 use crate::{
-    attributes::{CaseValuesAttr, InsertExtractValueIndicesAttr},
+    attributes::{
+        CaseValuesAttr, FCmpPredicateAttr, FastmathFlagsAttr, InsertExtractValueIndicesAttr,
+    },
     op_interfaces::{
-        BinArithOp, CastOpInterface, IntBinArithOp, IntBinArithOpWithOverflowFlag,
+        BinArithOp, CastOpInterface, CastOpWithNNegInterface, FastMathFlags, FloatBinArithOp,
+        FloatBinArithOpWithFastMathFlags, IntBinArithOp, IntBinArithOpWithOverflowFlag, NNegFlag,
         PointerTypeResult,
     },
     types::{ArrayType, StructType},
@@ -369,7 +373,7 @@ impl PointerTypeResult for AllocaOp {
     fn result_pointee_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         self.get_attr_alloca_element_type(ctx)
             .expect("AllocaOp missing or incorrect type for elem_type attribute")
-            .get_type()
+            .get_type(ctx)
     }
 }
 
@@ -706,10 +710,14 @@ impl BranchOpInterface for CondBrOp {
 #[derive_attr_get_set(switch_case_values: CaseValuesAttr)]
 pub struct SwitchOp;
 
+/// One case of a switch statement.
 #[derive(Clone)]
 pub struct SwitchCase {
+    /// The value being matched against.
     pub value: IntegerAttr,
+    /// The destination block to jump to if this case is taken.
     pub dest: Ptr<BasicBlock>,
+    /// The operands to pass to the destination block.
     pub dest_opds: Vec<Value>,
 }
 
@@ -1117,7 +1125,7 @@ impl GetElementPtrOp {
     pub fn src_elem_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         self.get_attr_gep_src_elem_type(ctx)
             .expect("GetElementPtrOp missing or has incorrect src_elem_type attribute type")
-            .get_type()
+            .get_type(ctx)
     }
 
     /// Get the base (source) pointer of this GEP.
@@ -1613,7 +1621,7 @@ impl ConstantOp {
     pub fn new(ctx: &mut Context, value: AttrObj) -> Self {
         let result_type = attr_cast::<dyn TypedAttrInterface>(&*value)
             .expect("ConstantOp const value must provide TypedAttrInterface")
-            .get_type();
+            .get_type(ctx);
         let op = Operation::new(
             ctx,
             Self::get_opid_static(),
@@ -1639,7 +1647,7 @@ impl Verify for ConstantOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let loc = self.loc(ctx);
         let value = self.get_value(ctx);
-        if !(value.is::<IntegerAttr>()/* || value.is::<FloatAttr>() */) {
+        if !(value.is::<IntegerAttr>() || attr_impls::<dyn FloatAttr>(&*value)) {
             return verify_err!(loc, ConstantOpVerifyErr::InvalidValue)?;
         }
         Ok(())
@@ -2054,8 +2062,16 @@ impl Verify for SExtOp {
 /// |-----|-------|
 /// | `res` | Signless integer |
 #[def_op("llvm.zext")]
-#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface)]
-#[format_op("$0 ` to ` type($0)")]
+#[derive_op_interface_impl(
+    CastOpInterface,
+    OneResultInterface,
+    OneOpdInterface,
+    NNegFlag,
+    CastOpWithNNegInterface
+)]
+#[format_op(
+    "`<nneg=` attr($llvm_nneg_flag, `pliron::builtin::attributes::BoolAttr`) `> ` $0 ` to ` type($0)"
+)]
 pub struct ZExtOp;
 
 impl Verify for ZExtOp {
@@ -2066,6 +2082,58 @@ impl Verify for ZExtOp {
             ICmpPredicateAttr::UGT,
         )
     }
+}
+
+/// Equivalent to LLVM's FPExt opcode.
+///
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `arg` | Floating-point number |
+///
+/// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | Floating-point number |
+#[def_op("llvm.fpext")]
+#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface, FastMathFlags)]
+#[format_op("attr($llvm_fast_math_flags, $FastmathFlagsAttr) ` ` $0 ` to ` type($0)")]
+pub struct FPExtOp;
+
+impl Verify for FPExtOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        // Check operand type to be a float
+        let opd_ty = OneOpdInterface::operand_type(self, ctx).deref(ctx);
+        let Some(opd_float_ty) = type_cast::<dyn FloatType>(&**opd_ty) else {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
+        };
+        let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
+        let Some(res_float_ty) = type_cast::<dyn FloatType>(&**res_ty) else {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
+        };
+
+        let opd_size = opd_float_ty.get_semantics().bits;
+        let res_size = res_float_ty.get_semantics().bits;
+        if res_size <= opd_size {
+            return verify_err!(
+                self.loc(ctx),
+                FloatCastVerifyErr::ResultTypeSmallerThanOperand
+            );
+        }
+        Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum FloatCastVerifyErr {
+    #[error("Incorrect operand type")]
+    OperandTypeErr,
+    #[error("Incorrect result type")]
+    ResultTypeErr,
+    #[error("Result type must be bigger than the operand type")]
+    ResultTypeSmallerThanOperand,
+    #[error("Operand type must be bigger than the result type")]
+    OperandTypeSmallerThanResult,
 }
 
 /// Equivalent to LLVM's trunc opcode.
@@ -2089,6 +2157,188 @@ impl Verify for TruncOp {
             ctx,
             ICmpPredicateAttr::ULT,
         )
+    }
+}
+
+/// Equivalent to LLVM's FPTrunc opcode.
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `arg` | Floating-point number |
+/// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | Floating-point number |
+#[def_op("llvm.fptrunc")]
+#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface, FastMathFlags)]
+#[format_op("attr($llvm_fast_math_flags, $FastmathFlagsAttr) ` ` $0 ` to ` type($0)")]
+pub struct FPTruncOp;
+
+impl Verify for FPTruncOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        // Check operand type to be a float
+        let opd_ty = OneOpdInterface::operand_type(self, ctx).deref(ctx);
+        let Some(opd_float_ty) = type_cast::<dyn FloatType>(&**opd_ty) else {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
+        };
+        let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
+        let Some(res_float_ty) = type_cast::<dyn FloatType>(&**res_ty) else {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
+        };
+
+        let opd_size = opd_float_ty.get_semantics().bits;
+        let res_size = res_float_ty.get_semantics().bits;
+        if opd_size <= res_size {
+            return verify_err!(
+                self.loc(ctx),
+                FloatCastVerifyErr::OperandTypeSmallerThanResult
+            );
+        }
+        Ok(())
+    }
+}
+
+/// Equivalent to LLVM's FPToSI opcode.
+///
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `arg` | Floating-point number |
+///
+/// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | Signed integer |
+#[def_op("llvm.fptosi")]
+#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface)]
+#[format_op("$0 ` to ` type($0)")]
+pub struct FPToSIOp;
+
+impl Verify for FPToSIOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        // Check that the operand is a float and the result is an integer
+        let opd_ty = OneOpdInterface::operand_type(self, ctx).deref(ctx);
+        if !type_impls::<dyn FloatType>(&**opd_ty) {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
+        };
+        let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
+        let Some(res_int_ty) = res_ty.downcast_ref::<IntegerType>() else {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
+        };
+        if !res_int_ty.is_signless() {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
+        }
+        Ok(())
+    }
+}
+
+/// Equivalent to LLVM's FPToUI opcode.
+///
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `arg` | Floating-point number |
+///
+/// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | Unsigned integer |
+#[def_op("llvm.fptoui")]
+#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface)]
+#[format_op("$0 ` to ` type($0)")]
+pub struct FPToUIOp;
+
+impl Verify for FPToUIOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        // Check that the operand is a float and the result is an integer
+        let opd_ty = OneOpdInterface::operand_type(self, ctx).deref(ctx);
+        if !type_impls::<dyn FloatType>(&**opd_ty) {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
+        };
+        let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
+        let Some(res_int_ty) = res_ty.downcast_ref::<IntegerType>() else {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
+        };
+        if !res_int_ty.is_signless() {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
+        }
+        Ok(())
+    }
+}
+
+/// Equivalent to LLVM's SIToFP opcode.
+///
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `arg` | Signed integer |
+///
+/// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | Floating-point number |
+#[def_op("llvm.sitofp")]
+#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface)]
+#[format_op("$0 ` to ` type($0)")]
+pub struct SIToFPOp;
+
+impl Verify for SIToFPOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        // Check that the operand is an integer and the result is a float
+        let opd_ty = OneOpdInterface::operand_type(self, ctx).deref(ctx);
+        let Some(opd_ty_int) = opd_ty.downcast_ref::<IntegerType>() else {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
+        };
+        if !opd_ty_int.is_signless() {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
+        }
+        let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
+        if !type_impls::<dyn FloatType>(&**res_ty) {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
+        }
+        Ok(())
+    }
+}
+
+/// Equivalent to LLVM's UIToFP opcode.
+///
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `arg` | Unsigned integer |
+///
+/// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | Floating-point number |
+#[def_op("llvm.uitofp")]
+#[derive_op_interface_impl(
+    CastOpInterface,
+    OneResultInterface,
+    OneOpdInterface,
+    CastOpWithNNegInterface,
+    NNegFlag
+)]
+#[format_op(
+    "`<nneg=` attr($llvm_nneg_flag, `pliron::builtin::attributes::BoolAttr`) `> `$0 ` to ` type($0)"
+)]
+pub struct UIToFPOp;
+
+impl Verify for UIToFPOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        // Check that the operand is an integer and the result is a float
+        let opd_ty = OneOpdInterface::operand_type(self, ctx).deref(ctx);
+        let Some(opd_ty_int) = opd_ty.downcast_ref::<IntegerType>() else {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
+        };
+        if !opd_ty_int.is_signless() {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
+        }
+        let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
+        if !type_impls::<dyn FloatType>(&**res_ty) {
+            return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
+        }
+        Ok(())
     }
 }
 
@@ -2358,6 +2608,217 @@ pub enum SelectOpVerifyErr {
     ConditionTypeErr,
 }
 
+/// Floating-point negation
+/// Equivalent to LLVM's `fneg` instruction.
+///
+/// Operands:
+/// | operand | description |
+/// |-----|-------|
+/// | `arg` | float |
+///
+/// Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | float |
+#[def_op("llvm.fneg")]
+#[derive_op_interface_impl(
+    OneResultInterface,
+    OneOpdInterface,
+    SameResultsType,
+    SameOperandsType,
+    SameOperandsAndResultType,
+    FastMathFlags
+)]
+#[format_op("attr($llvm_fast_math_flags, $FastmathFlagsAttr) $0 ` : ` type($0)")]
+pub struct FNegOp;
+
+impl Verify for FNegOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        use pliron::r#type::Typed;
+
+        let loc = self.loc(ctx);
+        let op = &*self.op.deref(ctx);
+        let arg_ty = op.get_operand(0).get_type(ctx);
+        if !type_impls::<dyn FloatType>(&**arg_ty.deref(ctx)) {
+            return verify_err!(loc, FNegOpVerifyErr::ArgumentMustBeFloat);
+        }
+        Ok(())
+    }
+}
+
+impl FNegOp {
+    /// Create a new [FNegOp].
+    pub fn new_with_fast_math_flags(
+        ctx: &mut Context,
+        arg: Value,
+        fast_math_flags: FastmathFlagsAttr,
+    ) -> Self {
+        use pliron::r#type::Typed;
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![arg.get_type(ctx)],
+            vec![arg],
+            vec![],
+            0,
+        );
+        let op = FNegOp { op };
+        op.set_fast_math_flags(ctx, fast_math_flags);
+        op
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum FNegOpVerifyErr {
+    #[error("Argument must be a float")]
+    ArgumentMustBeFloat,
+    #[error("Fast math flags must be set")]
+    FastMathFlagsMustBeSet,
+}
+
+macro_rules! new_float_bin_op {
+    (   $(#[$outer:meta])*
+        $op_name:ident, $op_id:literal
+    ) => {
+        #[def_op($op_id)]
+        $(#[$outer])*
+        /// ### Operands:
+        ///
+        /// | operand | description |
+        /// |-----|-------|
+        /// | `lhs` | float |
+        /// | `rhs` | float |
+        ///
+        /// ### Result(s):
+        ///
+        /// | result | description |
+        /// |-----|-------|
+        /// | `res` | float |
+        #[pliron::derive::derive_op_interface_impl(
+            OneResultInterface, SameOperandsType, SameResultsType,
+            SameOperandsAndResultType, BinArithOp, FloatBinArithOp,
+            FloatBinArithOpWithFastMathFlags, FastMathFlags
+        )]
+        #[format_op("attr($llvm_fast_math_flags, $FastmathFlagsAttr) ` ` $0 `, ` $1 ` : ` type($0)")]
+        pub struct $op_name;
+
+        impl_verify_succ!($op_name);
+    }
+}
+
+new_float_bin_op! {
+    /// Equivalent to LLVM's `fadd` instruction.
+    FAddOp,
+    "llvm.fadd"
+}
+
+new_float_bin_op! {
+    /// Equivalent to LLVM's `fsub` instruction.
+    FSubOp,
+    "llvm.fsub"
+}
+
+new_float_bin_op! {
+    /// Equivalent to LLVM's `fmul` instruction.
+    FMulOp,
+    "llvm.fmul"
+}
+
+new_float_bin_op! {
+    /// Equivalent to LLVM's `fdiv` instruction.
+    FDivOp,
+    "llvm.fdiv"
+}
+
+new_float_bin_op! {
+    /// Equivalent to LLVM's `frem` instruction.
+    FRemOp,
+    "llvm.frem"
+}
+
+/// Equivalent to LLVM'same `fcmp` instruction.
+///
+/// ### Operand(s):
+/// | operand | description |
+/// |-----|-------|
+/// | `lhs` | float |
+/// | `rhs` | float |
+///
+/// ### Result(s):
+///
+/// | result | description |
+/// |-----|-------|
+/// | `res` | 1-bit signless integer |
+#[def_op("llvm.fcmp")]
+#[derive_op_interface_impl(OneResultInterface, SameOperandsType, FastMathFlags)]
+#[derive_attr_get_set(fcmp_predicate : FCmpPredicateAttr)]
+#[format_op(
+    "attr($llvm_fast_math_flags, $FastmathFlagsAttr) ` ` $0 ` <` attr($fcmp_predicate, $FCmpPredicateAttr) `> ` $1 ` : ` type($0)"
+)]
+pub struct FCmpOp;
+
+impl FCmpOp {
+    /// Create a new [FCmpOp]
+    pub fn new(ctx: &mut Context, pred: FCmpPredicateAttr, lhs: Value, rhs: Value) -> Self {
+        let bool_ty = IntegerType::get(ctx, 1, Signedness::Signless);
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![bool_ty.into()],
+            vec![lhs, rhs],
+            vec![],
+            0,
+        );
+        let op = FCmpOp { op };
+        op.set_attr_fcmp_predicate(ctx, pred);
+        op
+    }
+
+    /// Get the predicate
+    pub fn predicate(&self, ctx: &Context) -> FCmpPredicateAttr {
+        self.get_attr_fcmp_predicate(ctx)
+            .expect("FCmpOp missing or incorrect predicate attribute type")
+            .clone()
+    }
+}
+
+impl Verify for FCmpOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        let loc = self.loc(ctx);
+
+        if self.get_attr_fcmp_predicate(ctx).is_none() {
+            verify_err!(loc.clone(), FCmpOpVerifyErr::PredAttrErr)?
+        }
+
+        let res_ty: TypePtr<IntegerType> =
+            TypePtr::from_ptr(self.result_type(ctx), ctx).map_err(|mut err| {
+                err.set_loc(loc.clone());
+                err
+            })?;
+
+        if res_ty.deref(ctx).get_width() != 1 {
+            return verify_err!(loc, FCmpOpVerifyErr::ResultNotBool);
+        }
+
+        let opd_ty = self.operand_type(ctx).deref(ctx);
+        if !(type_impls::<dyn FloatType>(&**opd_ty)) {
+            return verify_err!(loc, FCmpOpVerifyErr::IncorrectOperandsType);
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum FCmpOpVerifyErr {
+    #[error("Result must be 1-bit integer (bool)")]
+    ResultNotBool,
+    #[error("Operand must be floating point type")]
+    IncorrectOperandsType,
+    #[error("Missing or incorrect predicate attribute")]
+    PredAttrErr,
+}
+
 /// Register ops in the LLVM dialect.
 pub fn register(ctx: &mut Context) {
     AddOp::register(ctx, AddOp::parser_fn);
@@ -2368,6 +2829,13 @@ pub fn register(ctx: &mut Context) {
     SDivOp::register(ctx, SDivOp::parser_fn);
     URemOp::register(ctx, URemOp::parser_fn);
     SRemOp::register(ctx, SRemOp::parser_fn);
+    FAddOp::register(ctx, FAddOp::parser_fn);
+    FSubOp::register(ctx, FSubOp::parser_fn);
+    FMulOp::register(ctx, FMulOp::parser_fn);
+    FDivOp::register(ctx, FDivOp::parser_fn);
+    FRemOp::register(ctx, FRemOp::parser_fn);
+    FNegOp::register(ctx, FNegOp::parser_fn);
+    FCmpOp::register(ctx, FCmpOp::parser_fn);
     AndOp::register(ctx, AndOp::parser_fn);
     OrOp::register(ctx, OrOp::parser_fn);
     XorOp::register(ctx, XorOp::parser_fn);
@@ -2392,6 +2860,12 @@ pub fn register(ctx: &mut Context) {
     SExtOp::register(ctx, SExtOp::parser_fn);
     ZExtOp::register(ctx, ZExtOp::parser_fn);
     TruncOp::register(ctx, TruncOp::parser_fn);
+    FPTruncOp::register(ctx, FPTruncOp::parser_fn);
+    FPExtOp::register(ctx, FPExtOp::parser_fn);
+    FPToSIOp::register(ctx, FPToSIOp::parser_fn);
+    FPToUIOp::register(ctx, FPToUIOp::parser_fn);
+    SIToFPOp::register(ctx, SIToFPOp::parser_fn);
+    UIToFPOp::register(ctx, UIToFPOp::parser_fn);
     InsertValueOp::register(ctx, InsertValueOp::parser_fn);
     ExtractValueOp::register(ctx, ExtractValueOp::parser_fn);
     SelectOp::register(ctx, SelectOp::parser_fn);

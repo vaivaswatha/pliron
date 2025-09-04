@@ -20,6 +20,7 @@ linkme.workspace = true
 rustc-hash.workspace = true
 llvm-sys = "201"
 log.workspace = true
+bitflags = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
 expect-test.workspace = true
