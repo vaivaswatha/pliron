@@ -30,6 +30,7 @@
 //!
 //! Use [verify_type] to verify a [Type] object.
 //! This function verifies all interfaces implemented by the type, and then the type itself.
+//! The type's verifier must explicitly invoke verifiers on any sub-objects it contains.
 //!
 //! [TypeObj]s can be downcasted to their concrete types using
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).

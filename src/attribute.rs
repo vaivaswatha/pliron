@@ -31,6 +31,7 @@
 //!
 //! Use [verify_attr] to verify an [Attribute] object.
 //! This function verifies all interfaces implemented by the attribute, and then the attribute itself.
+//! The attribute's verifier must explicitly invoke verifiers on any sub-objects it contains.
 //!
 //! [AttrObj]s can be downcasted to their concrete types using
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
