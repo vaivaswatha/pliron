@@ -77,6 +77,12 @@ impl From<&OpResult> for Value {
     }
 }
 
+impl Verify for OpResult {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        Into::<Value>::into(self).verify(ctx)
+    }
+}
+
 impl Named for OpResult {
     fn given_name(&self, ctx: &Context) -> Option<Identifier> {
         debug_info::get_operation_result_name(ctx, self.def_op, self.res_idx)
@@ -344,7 +350,7 @@ impl Operation {
         self.successors.iter().map(|opd| opd.get_def())
     }
 
-    /// Create an OpObj corresponding to self.
+    /// Create an [OpObj] corresponding to self.
     pub fn get_op(ptr: Ptr<Self>, ctx: &Context) -> OpObj {
         op::from_operation(ctx, ptr)
     }
@@ -589,19 +595,16 @@ impl<T: DefUseParticipant + DefTrait> Verify for Operand<T> {
 
 impl Verify for Operation {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        for attr in self.attributes.0.values() {
-            verify_attr(&**attr, ctx)?;
-        }
-        for opd in &self.operands {
-            opd.verify(ctx)?;
-        }
-        for opd in &self.successors {
-            opd.verify(ctx)?;
-        }
-        for region in &self.regions {
-            region.verify(ctx)?;
-        }
-
+        self.attributes
+            .0
+            .values()
+            .try_for_each(|attr| verify_attr(&**attr, ctx))?;
+        self.operands.iter().try_for_each(|opd| opd.verify(ctx))?;
+        self.successors.iter().try_for_each(|opd| opd.verify(ctx))?;
+        self.regions
+            .iter()
+            .try_for_each(|region| region.verify(ctx))?;
+        self.results.iter().try_for_each(|res| res.verify(ctx))?;
         let op = &*Self::get_op(self.self_ptr, ctx);
         op.verify_interfaces(ctx)?;
         op.verify(ctx)

@@ -292,6 +292,17 @@ pub trait SingleBlockRegionInterface {
     }
 }
 
+/// [Op]s whose single-basic-block regions need not have a terminator.
+#[op_interface]
+pub trait NoTerminatorInterface: SingleBlockRegionInterface {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+}
+
 dict_key!(
     /// Key for symbol name attribute when the operation defines a symbol.
     ATTR_KEY_SYM_NAME, "sym_name"

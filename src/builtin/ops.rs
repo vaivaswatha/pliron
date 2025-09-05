@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::{
     attribute::attr_cast,
     basic_block::BasicBlock,
-    builtin::op_interfaces::ZeroResultInterface,
+    builtin::op_interfaces::{NoTerminatorInterface, ZeroResultInterface},
     common_traits::{Named, Verify},
     context::{Context, Ptr},
     identifier::Identifier,
@@ -51,7 +51,8 @@ use super::{
     SymbolOpInterface,
     IsolatedFromAboveInterface,
     ZeroOpdInterface,
-    ZeroResultInterface
+    ZeroResultInterface,
+    NoTerminatorInterface
 )]
 pub struct ModuleOp;
 

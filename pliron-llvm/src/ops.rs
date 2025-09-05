@@ -952,7 +952,10 @@ impl SwitchOp {
     }
 }
 
+#[op_interface_impl]
 impl IsTerminatorInterface for SwitchOp {}
+
+#[op_interface_impl]
 impl BranchOpInterface for SwitchOp {
     fn successor_operands(&self, ctx: &Context, succ_idx: usize) -> Vec<Value> {
         // Skip the first segment, which is the condition.
@@ -960,6 +963,7 @@ impl BranchOpInterface for SwitchOp {
     }
 }
 
+#[op_interface_impl]
 impl OperandSegmentInterface for SwitchOp {}
 
 #[derive(Error, Debug)]
@@ -1937,6 +1941,7 @@ impl AddressOfOp {
     }
 }
 
+#[op_interface_impl]
 impl SymbolUserOpInterface for AddressOfOp {
     fn used_symbols(&self, ctx: &Context) -> Vec<Identifier> {
         vec![self.get_global_name(ctx)]

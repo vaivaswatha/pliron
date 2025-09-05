@@ -207,7 +207,6 @@ mod tests {
         );
         set_block_arg_name(&ctx, block, 0, "foo".try_into().unwrap());
         assert!(get_block_arg_name(&ctx, block, 0).unwrap() == "foo".try_into().unwrap());
-        block.deref(&ctx).verify(&ctx)?;
         Ok(())
     }
 }

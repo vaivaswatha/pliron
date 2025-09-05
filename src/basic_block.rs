@@ -4,10 +4,11 @@ use combine::{
     parser::{Parser, char::spaces},
     sep_by, token,
 };
+use thiserror::Error;
 
 use crate::{
     attribute::AttributeDict,
-    builtin::op_interfaces::IsTerminatorInterface,
+    builtin::op_interfaces::{IsTerminatorInterface, NoTerminatorInterface},
     common_traits::{Named, Verify},
     context::{ArenaCell, Context, Ptr, private::ArenaObj},
     debug_info::{get_block_arg_name, set_block_arg_name},
@@ -20,7 +21,7 @@ use crate::{
     linked_list::{ContainsLinkedList, LinkedList, private},
     location::{Located, Location},
     op::op_impls,
-    operation::{Operation, OperationParserConfig},
+    operation::{DefUseVerifyErr, Operation, OperationParserConfig},
     parsable::{self, IntoParseResult, Parsable, ParseResult},
     printable::{self, ListSeparator, Printable, indented_nl},
     region::Region,
@@ -28,6 +29,7 @@ use crate::{
     r#type::{TypeObj, Typed},
     utils::vec_exns::VecExtns,
     value::{DefNode, Value},
+    verify_err, verify_error,
 };
 
 /// Argument to a [BasicBlock]
@@ -76,6 +78,12 @@ impl Printable for BlockArgument {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         write!(f, "{}: {}", self.unique_name(ctx), self.ty.disp(ctx))
+    }
+}
+
+impl Verify for BlockArgument {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        Into::<Value>::into(self).verify(ctx)
     }
 }
 
@@ -210,11 +218,14 @@ impl BasicBlock {
 
     /// Get all successors of this block.
     pub fn succs(&self, ctx: &Context) -> Vec<Ptr<BasicBlock>> {
-        self.get_tail()
-            .expect("A well formed BasicBlock must have a terminator")
-            .deref(ctx)
-            .successors()
-            .collect()
+        self.get_terminator(ctx)
+            .map(|term| term.deref(ctx).successors().collect())
+            .unwrap_or_default()
+    }
+
+    /// Is `succ` a successor of this block?
+    pub fn has_succ(&self, ctx: &Context, succ: Ptr<BasicBlock>) -> bool {
+        self.succs(ctx).contains(&succ)
     }
 
     /// Get the block terminator, if one exists.
@@ -341,8 +352,38 @@ impl ArenaObj for BasicBlock {
 
 impl Verify for BasicBlock {
     fn verify(&self, ctx: &Context) -> Result<()> {
+        // Ensure that the block has a terminator
+        // (unless the enclosing [Op] is marked [NoTerminatorInterface].
+        let label: String = self.unique_name(ctx).into();
+        let parent_op = self.get_parent_op(ctx).ok_or_else(|| {
+            verify_error!(self.loc(), BasicBlockVerifyErr::NoParent(label.clone()))
+        })?;
+        let parent_op = Operation::get_op(parent_op, ctx);
+        if !op_impls::<dyn NoTerminatorInterface>(&*parent_op) && self.get_terminator(ctx).is_none()
+        {
+            let loc = self.loc();
+            verify_err!(loc, BasicBlockVerifyErr::MissingTerminator(label))?;
+        }
+        // Check that every predecessor points back to this block.
+        for pred in self.self_ptr.preds(ctx) {
+            if !pred.deref(ctx).has_succ(ctx, self.self_ptr) {
+                let loc = self.loc();
+                verify_err!(loc, DefUseVerifyErr)?;
+            }
+        }
+        self.args.iter().try_for_each(|arg| arg.verify(ctx))?;
         self.iter(ctx).try_for_each(|op| op.deref(ctx).verify(ctx))
     }
+}
+
+/// Error indicating that a basic block is missing a terminator.
+#[derive(Debug, Error)]
+
+pub enum BasicBlockVerifyErr {
+    #[error("Basic block \"{0}\" is missing a terminator")]
+    MissingTerminator(String),
+    #[error("Basic block \"{0}\" has no parent operation")]
+    NoParent(String),
 }
 
 impl Printable for BasicBlock {

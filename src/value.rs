@@ -17,14 +17,16 @@ use std::{
 
 use crate::{
     basic_block::BasicBlock,
-    common_traits::Named,
+    common_traits::{Named, Verify},
     context::{Context, Ptr},
     identifier::Identifier,
     linked_list::{ContainsLinkedList, LinkedList},
     location::{Located, Location},
-    operation::Operation,
+    operation::{DefUseVerifyErr, Operation},
     printable::Printable,
+    result::Result,
     r#type::{TypeObj, Typed},
+    verify_err,
 };
 
 /// def-use chains are implemented for [Value]s and `Ptr<BasicBlock`.
@@ -174,6 +176,19 @@ impl Value {
             Value::OpResult { op, res_idx: _ } => op.deref(ctx).loc(),
             Value::BlockArgument { block, arg_idx: _ } => block.deref(ctx).loc(),
         }
+    }
+}
+
+impl Verify for Value {
+    // Check that the value's uses point back to it,
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        for r#use in self.uses(ctx) {
+            let use_operand = r#use.op.deref(ctx).get_operand(r#use.opd_idx);
+            if use_operand != *self {
+                verify_err!(self.loc(ctx), DefUseVerifyErr)?;
+            }
+        }
+        self.get_type(ctx).verify(ctx)
     }
 }
 
