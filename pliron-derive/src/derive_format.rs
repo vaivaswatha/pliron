@@ -539,6 +539,26 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
                 let operands = ::pliron::irfmt::printers::iter_with_sep(operands, #sep);
                 ::pliron::printable::Printable::fmt(&operands, ctx, state, fmt)?;
             })
+        } else if d.name == "types" {
+            let err = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `types` directive takes a single argument to specify the separator.
+                    Refer to the documentation for details"
+                    .to_string(),
+            ));
+            if d.args.len() != 1 {
+                return err;
+            }
+            let Elem::Directive(sep) = &d.args[0] else {
+                return err;
+            };
+            let sep = directive_to_list_separator(sep, true, input.ident.span())?;
+            Ok(quote! {
+                let op = self.get_operation().deref(ctx);
+                let types = op.result_types();
+                let types = ::pliron::irfmt::printers::iter_with_sep(types, #sep);
+                ::pliron::printable::Printable::fmt(&types, ctx, state, fmt)?;
+            })
         } else if d.name == "attr_dict" {
             Ok(quote! {
                 let self_op = self.get_operation().deref(ctx);
@@ -936,7 +956,7 @@ struct OpParserState {
     regions_temp_parent_op: Option<syn::Ident>,
     operands: ElementSpec<usize>,
     successors: ElementSpec<usize>,
-    result_types: FxHashMap<usize, syn::Ident>,
+    result_types: ElementSpec<usize>,
     attributes: ElementSpec<String>,
     regions: ElementSpec<usize>,
 }
@@ -984,35 +1004,6 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
         if state.is_canonical {
             return Ok(output);
         }
-
-        let num_result_types = state
-            .result_types
-            .keys()
-            .map(|idx| idx + 1)
-            .max()
-            .unwrap_or_default();
-
-        for i in 0..num_result_types {
-            if !state.result_types.contains_key(&i) {
-                return Err(syn::Error::new_spanned(
-                    input.ident.clone(),
-                    format!("missing type for result {i}"),
-                ));
-            }
-        }
-
-        let results_check = quote! {
-            if arg.len() != #num_result_types {
-                return
-                    input_err!(cur_loc,
-                        "expected {} results as per spec, got {} during parsing",
-                        #num_result_types,
-                        arg.len()
-                    )?;
-            }
-        };
-
-        output.extend(results_check);
 
         let operands = match state.operands {
             ElementSpec::Individual(ref operands) => {
@@ -1087,10 +1078,31 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             }
         };
 
-        let result_indices = (0..num_result_types).map(|i| state.result_types[&i].clone());
-        let results = quote! {
-            vec![#( #result_indices ),*]
+        let results = match state.result_types {
+            ElementSpec::Individual(ref result_types) => {
+                let num_result_types = result_types
+                    .keys()
+                    .map(|idx| idx + 1)
+                    .max()
+                    .unwrap_or_default();
+                let result_type_indices = (0..num_result_types).map(|i| result_types[&i].clone());
+                quote! {
+                    vec![#( #result_type_indices ),*]
+                }
+            }
+            ElementSpec::All(ref all) => {
+                quote! {
+                    #all
+                }
+            }
         };
+
+        let results_var = format_ident!("results");
+        // Assing the result types to a new variable to avoid
+        // re-evaluating the vec![] expression multiple times.
+        output.extend(quote! {
+            let #results_var = #results;
+        });
 
         let mut attribute_sets = quote! {};
         match &state.attributes {
@@ -1111,11 +1123,24 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             }
         }
 
+        let results_check = quote! {
+            if arg.len() != #results_var.len() {
+                return
+                    input_err!(cur_loc,
+                        "expected {} results as per spec, got {} during parsing",
+                        #results_var.len(),
+                        arg.len()
+                    )?;
+            }
+        };
+
+        output.extend(results_check);
+
         output.extend(quote! {
             let op = ::pliron::operation::Operation::new(
                 state_stream.state.ctx,
                 Self::get_opid_static(),
-                #results,
+                #results_var,
                 #operands,
                 #successors,
                 0,        // regions
@@ -1220,7 +1245,18 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             }
             if let Elem::UnnamedVar(UnnamedVar { index, .. }) = &d.args[0] {
                 let res_type = format_ident!("res_{}", index);
-                state.result_types.insert(*index, res_type.clone());
+                match state.result_types {
+                    ElementSpec::Individual(ref mut result_types) => {
+                        result_types.insert(*index, res_type.clone());
+                    }
+                    ElementSpec::All(_) => {
+                        return Err(syn::Error::new_spanned(
+                            input.ident.clone(),
+                            "Cannot mix result types directive with numbered result types"
+                                .to_string(),
+                        ));
+                    }
+                }
                 Ok(quote! {
                     let #res_type = ::pliron::irfmt::parsers::type_parser().parse_stream(state_stream).into_result()?.0;
                 })
@@ -1379,6 +1415,31 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             state.operands = ElementSpec::All(operands_var_name.clone());
             Ok(quote! {
                 let #operands_var_name = ::pliron::irfmt::parsers::list_parser(#sep, ssa_opd_parser())
+                    .parse_stream(state_stream)
+                    .into_result()?
+                    .0;
+            })
+        } else if d.name == "types" {
+            let Some(Elem::Directive(sep)) = &d.args.first() else {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "The `types` directive takes a single argument to specify the separator.
+                    Refer to the documentation for details"
+                        .to_string(),
+                ));
+            };
+            let sep = directive_to_list_separator(sep, false, input.ident.span())?;
+            let result_types_var_name = format_ident!("{}", "result_types");
+            if matches!(&state.result_types, ElementSpec::Individual(result_types) if !result_types.is_empty())
+            {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "Cannot mix result types directive with numbered result types".to_string(),
+                ));
+            }
+            state.result_types = ElementSpec::All(result_types_var_name.clone());
+            Ok(quote! {
+                let #result_types_var_name = ::pliron::irfmt::parsers::list_parser(#sep, ::pliron::irfmt::parsers::type_parser())
                     .parse_stream(state_stream)
                     .into_result()?
                     .0;

@@ -238,7 +238,8 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 ///   2. An unnamed variable `$i` specifies `operands[i]`, except when inside some directives.
 ///      This cannot be combined with the "operands" directive.
 ///   3. The "type" directive specifies that a type must be parsed. It takes one argument,
-///      which is an unnamed variable `$i` with `i` specifying `result[i]`.
+///      which is an unnamed variable `$i` with `i` specifying `result[i]`. This cannot be
+///      combined with the "types" directive.
 ///   4. The "region" directive specifies that a region must be parsed. It takes one argument,
 ///      which is an unnamed variable `$i` with `i` specifying `region[i]`. This cannot be
 ///      combined with the "regions" directive.
@@ -267,6 +268,9 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 ///      as that for "operands" above. This cannot be combined with the "region" directive.
 ///  10. The "attr_dict" directive specifies an [AttributeDict](../pliron/attribute/struct.AttributeDict.html).
 ///      It cannot be combined with either the "attr" directive or a named variable (`$name`).
+///  11. The "types" directive specifies all the result types of an operation. It takes one argument
+///      which is a directive specifying the separator between result types. The separator directive is same
+///      as that for "operands" above. This cannot be combined with the "type" directive.
 ///
 /// Examples:
 /// 1. Derive for a struct, with no format string (default format):

@@ -275,6 +275,11 @@ impl Operation {
             .unwrap_or_else(|| panic!("Result index {idx} out of bounds"))
     }
 
+    /// Get an iterator over the result types of this operation.
+    pub fn result_types(&self) -> impl Iterator<Item = Ptr<TypeObj>> + Clone + '_ {
+        self.results.iter().map(|res| res.ty)
+    }
+
     /// Get number of operands.
     pub fn get_num_operands(&self) -> usize {
         self.operands.len()

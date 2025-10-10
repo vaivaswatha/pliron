@@ -58,7 +58,7 @@ fn zero_results_zero_operands() {
     assert!(res.verify(ctx).is_ok());
 }
 
-#[format_op("`:` type($0)")]
+#[format_op("`: ` type($0)")]
 #[def_op("test.one_result_zero_operands")]
 #[derive_op_interface_impl(ZeroOpdInterface, OneResultInterface)]
 struct OneResultZeroOperandsOp {}
@@ -88,7 +88,7 @@ fn one_result_zero_operands() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block1v1():
-            res0_op2v1_res0 = test.one_result_zero_operands :builtin.integer si64 !0;
+            res0_op2v1_res0 = test.one_result_zero_operands : builtin.integer si64 !0;
             test.return res0_op2v1_res0 !1
         } !2
 
@@ -134,7 +134,7 @@ fn one_result_one_operand() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block1v1():
-            res0_op2v1_res0 = test.one_result_zero_operands :builtin.integer si64 !0;
+            res0_op2v1_res0 = test.one_result_zero_operands : builtin.integer si64 !0;
             res1_op3v1_res0 = test.one_result_one_operand res0_op2v1_res0:builtin.integer si64 !1;
             test.return res1_op3v1_res0 !2
         } !3
@@ -181,8 +181,55 @@ fn two_result_two_operands() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block1v1():
-            res0_op2v1_res0 = test.one_result_zero_operands :builtin.integer si64 !0;
+            res0_op2v1_res0 = test.one_result_zero_operands : builtin.integer si64 !0;
             res1a_op3v1_res0, res1b_op3v1_res1 = test.two_results_two_operands res0_op2v1_res0,res0_op2v1_res0:(builtin.integer si64,builtin.integer si64) !1;
+            test.return res1a_op3v1_res0 !2
+        } !3
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 5, column: 13], []
+        !3 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+}
+
+#[format_op("$0 `: ` `(` types(CharSpace(`,`)) `)`")]
+#[def_op("test.two_results_one_operand")]
+struct TwoResultsOneOperandOp {}
+impl_verify_succ!(TwoResultsOneOperandOp);
+
+#[test]
+fn two_results_one_operand() {
+    let ctx = &mut setup_context_dialects();
+    OneResultZeroOperandsOp::register(ctx, OneResultZeroOperandsOp::parser_fn);
+    TwoResultsOneOperandOp::register(ctx, TwoResultsOneOperandOp::parser_fn);
+
+    let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.one_result_zero_operands : builtin.integer si64;
+            res1a, res1b = test.two_results_one_operand res0 : (builtin.integer si64, builtin.integer si64);
+            test.return res1a
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::top_level_parser()
+        .parse(state_stream)
+        .expect("TwoResultsOneOperand parser failed");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <()->()> 
+        {
+          ^entry_block1v1():
+            res0_op2v1_res0 = test.one_result_zero_operands : builtin.integer si64 !0;
+            res1a_op3v1_res0, res1b_op3v1_res1 = test.two_results_one_operand res0_op2v1_res0: (builtin.integer si64, builtin.integer si64) !1;
             test.return res1a_op3v1_res0 !2
         } !3
 
@@ -699,7 +746,7 @@ fn multiple_regions2_op() {
     MultipleRegions2Op::register(ctx, MultipleRegions2Op::parser_fn);
 
     let printed = "
-        test.multiple_regions2 () [] [] : <()->()> 
+        test.multiple_regions2 () [] [] : <()->()>
         {
             ^reg1_entry():
                 res0 = test.attr_op <0: si64> :builtin.integer si64;
