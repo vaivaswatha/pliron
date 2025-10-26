@@ -1,16 +1,20 @@
-use combine::{Parser, token};
+use combine::{Parser, optional, token};
 use pliron::derive::{def_op, derive_op_interface_impl};
 use pliron_derive::derive_attr_get_set;
 use thiserror::Error;
 
 use crate::{
-    attribute::attr_cast,
+    attribute::{AttributeDict, attr_cast},
     basic_block::BasicBlock,
-    builtin::op_interfaces::{NoTerminatorInterface, ZeroResultInterface},
+    builtin::{
+        op_interfaces::{ATTR_KEY_SYM_NAME, NoTerminatorInterface, ZeroResultInterface},
+        ops::func_op_attr_names::ATTR_KEY_FUNC_TYPE,
+        type_interfaces::FunctionTypeInterface,
+    },
     common_traits::{Named, Verify},
     context::{Context, Ptr},
     identifier::Identifier,
-    impl_verify_succ, input_err,
+    impl_verify_succ, indented_block, input_err,
     irfmt::{
         parsers::{spaced, type_parser},
         printers::op::{region, symb_op_header, typed_symb_op_header},
@@ -20,7 +24,7 @@ use crate::{
     op::{Op, OpObj},
     operation::Operation,
     parsable::{Parsable, ParseResult, StateStream},
-    printable::{self, Printable},
+    printable::{self, Printable, indented_nl},
     region::Region,
     result::Result,
     r#type::{TypeObj, TypePtr, Typed},
@@ -145,7 +149,7 @@ impl FuncOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
 
         // Create an empty entry block.
-        let arg_types = ty.deref(ctx).get_inputs().clone();
+        let arg_types = ty.deref(ctx).arg_types().clone();
         let region = op.deref_mut(ctx).get_region(0);
         let body = BasicBlock::new(ctx, Some("entry".try_into().unwrap()), arg_types);
         body.insert_at_front(region, ctx);
@@ -168,14 +172,6 @@ impl FuncOp {
     pub fn get_entry_block(&self, ctx: &Context) -> Ptr<BasicBlock> {
         self.get_region(ctx).deref(ctx).get_head().unwrap()
     }
-
-    /// Get an iterator over all operations.
-    pub fn op_iter<'a>(&self, ctx: &'a Context) -> impl Iterator<Item = Ptr<Operation>> + 'a {
-        self.get_region(ctx)
-            .deref(ctx)
-            .iter(ctx)
-            .flat_map(|bb| bb.deref(ctx).iter(ctx))
-    }
 }
 
 impl Typed for FuncOp {
@@ -193,6 +189,16 @@ impl Printable for FuncOp {
     ) -> core::fmt::Result {
         typed_symb_op_header(self).fmt(ctx, state, f)?;
         write!(f, " ")?;
+        let mut attributes_to_print_separately = self.op.deref(ctx).attributes.clone();
+        attributes_to_print_separately
+            .0
+            .retain(|key, _| key != &*ATTR_KEY_FUNC_TYPE && key != &*ATTR_KEY_SYM_NAME);
+        if !attributes_to_print_separately.0.is_empty() {
+            indented_block!(state, {
+                write!(f, "{}", indented_nl(state))?;
+                attributes_to_print_separately.fmt(ctx, state, f)?;
+            });
+        }
         region(self).fmt(ctx, state, f)?;
         Ok(())
     }
@@ -224,14 +230,16 @@ impl Parsable for FuncOp {
         let mut parser = (
             spaced(token('@').with(Identifier::parser(()))).skip(spaced(token(':'))),
             spaced(type_parser()),
+            spaced(optional(AttributeDict::parser(()))),
             spaced(Region::parser(op)),
         );
 
         // Parse and build the function, providing name and type details.
         parser
             .parse_stream(state_stream)
-            .map(|(fname, fty, _region)| -> OpObj {
+            .map(|(fname, fty, attributes, _region)| -> OpObj {
                 let ctx = &mut state_stream.state.ctx;
+                op.deref_mut(ctx).attributes = attributes.unwrap_or_default();
                 let ty_attr = TypeAttr::new(fty);
                 let opop = Box::new(FuncOp { op });
                 opop.set_symbol_name(ctx, fname);

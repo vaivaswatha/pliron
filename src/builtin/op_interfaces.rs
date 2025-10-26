@@ -6,7 +6,10 @@ use thiserror::Error;
 
 use crate::{
     basic_block::BasicBlock,
-    builtin::attributes::{OperandSegmentSizesAttr, TypeAttr},
+    builtin::{
+        attributes::{OperandSegmentSizesAttr, TypeAttr},
+        type_interfaces::FunctionTypeInterface,
+    },
     context::{Context, Ptr},
     dict_key,
     graph::walkers::interruptible::{WalkResult, walk_advance, walk_break},
@@ -19,12 +22,12 @@ use crate::{
     region::Region,
     result::Result,
     symbol_table::{SymbolTableCollection, walk_symbol_table},
-    r#type::{TypeObj, TypePtr, Typed},
+    r#type::{TypeObj, Typed, type_impls},
     value::Value,
     verify_err, verify_error,
 };
 
-use super::{attributes::IdentifierAttr, types::FunctionType};
+use super::attributes::IdentifierAttr;
 
 /// An [Op] implementing this interface is a block terminator.
 #[op_interface]
@@ -249,6 +252,33 @@ pub trait OneRegionInterface {
             return verify_err!(self_op.loc(), OneRegionVerifyErr(op.get_opid().to_string()));
         }
         Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("Op {0} must have at most one region")]
+pub struct AtMostOneRegionVerifyErr(String);
+
+/// [Op]s that have at most one region.
+#[op_interface]
+pub trait AtMostOneRegionInterface {
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        let self_op = op.get_operation().deref(ctx);
+        if self_op.regions.len() > 1 {
+            return verify_err!(
+                self_op.loc(),
+                AtMostOneRegionVerifyErr(op.get_opid().to_string())
+            );
+        }
+        Ok(())
+    }
+
+    fn get_region(&self, ctx: &Context) -> Option<Ptr<Region>> {
+        let self_op = self.get_operation().deref(ctx);
+        self_op.regions().next()
     }
 }
 
@@ -685,7 +715,7 @@ pub enum CallOpCallable {
 pub enum CallOpInterfaceErr {
     #[error("Callee type attribute not found")]
     CalleeTypeAttrNotFoundErr,
-    #[error("Callee type attribute must be FunctionType")]
+    #[error("Callee type attribute must impl FunctionTypeInterface")]
     CalleeTypeAttrIncorrectTypeErr,
 }
 
@@ -709,11 +739,7 @@ pub trait CallOpInterface {
         let Some(callee_type_attr) = op.attributes.get::<TypeAttr>(&ATTR_KEY_CALLEE_TYPE) else {
             return verify_err!(op.loc(), CallOpInterfaceErr::CalleeTypeAttrNotFoundErr);
         };
-        if !callee_type_attr
-            .get_type(ctx)
-            .deref(ctx)
-            .is::<FunctionType>()
-        {
+        if !type_impls::<dyn FunctionTypeInterface>(&**callee_type_attr.get_type(ctx).deref(ctx)) {
             return verify_err!(op.loc(), CallOpInterfaceErr::CalleeTypeAttrIncorrectTypeErr);
         }
         Ok(())
@@ -728,20 +754,19 @@ pub trait CallOpInterface {
     fn args(&self, ctx: &Context) -> Vec<Value>;
 
     /// Type of the callee
-    fn callee_type(&self, ctx: &Context) -> TypePtr<FunctionType> {
+    fn callee_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         let self_op = self.get_operation().deref(ctx);
-        let ty_attr = self_op
+        self_op
             .attributes
             .get::<TypeAttr>(&ATTR_KEY_CALLEE_TYPE)
-            .unwrap();
-        TypePtr::from_ptr(ty_attr.get_type(ctx), ctx)
-            .expect("Incorrect callee type, not a FunctionType")
+            .unwrap()
+            .get_type(ctx)
     }
 
     /// Set callee type
-    fn set_callee_type(&self, ctx: &mut Context, callee_ty: TypePtr<FunctionType>) {
+    fn set_callee_type(&self, ctx: &mut Context, callee_ty: Ptr<TypeObj>) {
         let mut self_op = self.get_operation().deref_mut(ctx);
-        let ty_attr = TypeAttr::new(callee_ty.into());
+        let ty_attr = TypeAttr::new(callee_ty);
         self_op
             .attributes
             .set(ATTR_KEY_CALLEE_TYPE.clone(), ty_attr);

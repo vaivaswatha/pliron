@@ -51,7 +51,7 @@ use thiserror::Error;
 
 use crate::{
     attribute::AttributeDict,
-    builtin::types::FunctionType,
+    builtin::{type_interfaces::FunctionTypeInterface, types::FunctionType},
     common_traits::{Named, Verify},
     context::{Context, Ptr},
     dialect::DialectName,
@@ -404,8 +404,8 @@ pub fn canonical_syntax_parse<'a>(
                 combine::parser(move |parsable_state: &mut StateStream<'a>| {
                     let results = results.clone();
                     let ctx = &mut parsable_state.state.ctx;
-                    let results_types = fty.deref(ctx).get_results().to_vec();
-                    let operands_types = fty.deref(ctx).get_inputs().to_vec();
+                    let results_types = fty.deref(ctx).res_types().to_vec();
+                    let operands_types = fty.deref(ctx).arg_types().to_vec();
                     if results_types.len() != results.len() {
                         input_err!(
                             fty_loc.clone(),

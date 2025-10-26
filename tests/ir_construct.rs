@@ -1,6 +1,8 @@
 use common::{ConstantOp, ReturnOp};
 use expect_test::{Expect, expect};
+use pliron::builtin::attributes::StringAttr;
 use pliron::derive::def_op;
+use pliron::dict_key;
 use pliron::{
     basic_block::BasicBlock,
     builtin::{
@@ -253,6 +255,72 @@ fn parse_simple() -> Result<()> {
             .0
     };
     println!("{}", op.disp(ctx));
+    Ok(())
+}
+
+dict_key!(ATTR_KEY_TEST_ON_FUNC_VALUE, "test_on_func_value");
+
+#[test]
+fn parse_function_with_attrs() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    let (module_op, _, _const_op, ret_op) = const_ret_in_mod(ctx).unwrap();
+
+    let func_op = ret_op
+        .get_operation()
+        .deref(ctx)
+        .get_parent_op(ctx)
+        .unwrap();
+    func_op.deref_mut(ctx).attributes.set(
+        ATTR_KEY_TEST_ON_FUNC_VALUE.clone(),
+        StringAttr::new("func_attr_value".into()),
+    );
+
+    let printed = format!("{}", module_op.disp(ctx));
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block1v1():
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+              [(test_on_func_value: builtin.string "func_attr_value")]
+            {
+              ^entry_block2v1():
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                test.return c0_op3v1_res0
+            }
+        }"#]]
+    .assert_eq(&printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let parsed = spaced(Operation::top_level_parser())
+        .parse(state_stream)
+        .unwrap()
+        .0;
+
+    let print_parsed = format!("{}", parsed.disp(ctx));
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block1v1_block4v1():
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+              [(test_on_func_value: builtin.string "func_attr_value")]
+            {
+              ^entry_block2v1_block3v1():
+                c0_op3v1_res0_op7v1_res0 = test.constant builtin.integer <0: si64> !0;
+                test.return c0_op3v1_res0_op7v1_res0 !1
+            } !2
+        } !3
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 8, column: 9], []
+        !1 = @[<in-memory>: line: 9, column: 9], []
+        !2 = @[<in-memory>: line: 4, column: 5], []
+        !3 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
+    .assert_eq(&print_parsed);
+
     Ok(())
 }
 

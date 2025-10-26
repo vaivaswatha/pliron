@@ -2,18 +2,21 @@
 
 use std::num::NonZero;
 
-use llvm_sys::{LLVMIntPredicate, LLVMOpcode, LLVMRealPredicate, LLVMTypeKind, LLVMValueKind};
+use llvm_sys::{
+    LLVMIntPredicate, LLVMLinkage, LLVMOpcode, LLVMRealPredicate, LLVMTypeKind, LLVMValueKind,
+};
 use pliron::{
     attribute::AttrObj,
     basic_block::BasicBlock,
     builtin::{
         attributes::{FPDoubleAttr, FPSingleAttr, IntegerAttr},
         op_interfaces::{
-            CallOpCallable, OneRegionInterface, OneResultInterface, SingleBlockRegionInterface,
+            AtMostOneRegionInterface, CallOpCallable, OneResultInterface,
+            SingleBlockRegionInterface,
         },
-        ops::{FuncOp, ModuleOp},
-        type_interfaces::FloatType,
-        types::{FP32Type, FP64Type, FunctionType, IntegerType, Signedness},
+        ops::ModuleOp,
+        type_interfaces::FloatTypeInterface,
+        types::{FP32Type, FP64Type, IntegerType, Signedness},
     },
     context::{Context, Ptr},
     debug_info,
@@ -32,7 +35,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use thiserror::Error;
 
 use crate::{
-    attributes::{FCmpPredicateAttr, ICmpPredicateAttr, IntegerOverflowFlagsAttr},
+    attributes::{FCmpPredicateAttr, ICmpPredicateAttr, IntegerOverflowFlagsAttr, LinkageAttr},
     llvm_sys::core::{
         LLVMBasicBlock, LLVMModule, LLVMType, LLVMValue, basic_block_iter, function_iter,
         global_iter, incoming_iter, instruction_iter, llvm_const_int_get_zext_value,
@@ -42,13 +45,13 @@ use crate::{
         llvm_get_const_opcode, llvm_get_element_type, llvm_get_fast_math_flags,
         llvm_get_fcmp_predicate, llvm_get_gep_source_element_type, llvm_get_icmp_predicate,
         llvm_get_indices, llvm_get_initializer, llvm_get_instruction_opcode,
-        llvm_get_instruction_parent, llvm_get_int_type_width, llvm_get_module_identifier,
-        llvm_get_nneg, llvm_get_nsw, llvm_get_num_arg_operands, llvm_get_num_operands,
-        llvm_get_nuw, llvm_get_operand, llvm_get_param_types, llvm_get_return_type,
-        llvm_get_struct_element_types, llvm_get_struct_name, llvm_get_type_kind,
-        llvm_get_value_kind, llvm_get_value_name, llvm_global_get_value_type, llvm_is_a,
-        llvm_is_opaque_struct, llvm_print_value_to_string, llvm_type_of, llvm_value_as_basic_block,
-        llvm_value_is_basic_block, param_iter,
+        llvm_get_instruction_parent, llvm_get_int_type_width, llvm_get_linkage,
+        llvm_get_module_identifier, llvm_get_nneg, llvm_get_nsw, llvm_get_num_arg_operands,
+        llvm_get_num_operands, llvm_get_nuw, llvm_get_operand, llvm_get_param_types,
+        llvm_get_return_type, llvm_get_struct_element_types, llvm_get_struct_name,
+        llvm_get_type_kind, llvm_get_value_kind, llvm_get_value_name, llvm_global_get_value_type,
+        llvm_is_a, llvm_is_declaration, llvm_is_opaque_struct, llvm_print_value_to_string,
+        llvm_type_of, llvm_value_as_basic_block, llvm_value_is_basic_block, param_iter,
     },
     op_interfaces::{
         BinArithOp, CastOpInterface, CastOpWithNNegInterface, FastMathFlags,
@@ -57,18 +60,18 @@ use crate::{
     ops::{
         AShrOp, AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
         ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp, FNegOp, FPExtOp, FPToSIOp, FPToUIOp,
-        FPTruncOp, FRemOp, FSubOp, GepIndex, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp,
-        IntToPtrOp, LShrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SIToFPOp,
-        SRemOp, SelectOp, ShlOp, StoreOp, SubOp, SwitchCase, SwitchOp, TruncOp, UDivOp, UIToFPOp,
-        URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
+        FPTruncOp, FRemOp, FSubOp, FuncOp, GepIndex, GetElementPtrOp, GlobalOp, ICmpOp,
+        InsertValueOp, IntToPtrOp, LShrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp,
+        SExtOp, SIToFPOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp, SwitchCase, SwitchOp, TruncOp,
+        UDivOp, UIToFPOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
     },
-    types::{ArrayType, PointerType, StructErr, StructType, VoidType},
+    types::{ArrayType, FuncType, PointerType, StructErr, StructType, VoidType},
 };
 
 /// Given a floating point type and an f64 value, get an equivalent attribute.
 /// LLVM's C-API pretty much restricts us to f64 for floating point constants.
 #[type_interface]
-trait FloatAttrBuilder: FloatType {
+trait FloatAttrBuilder: FloatTypeInterface {
     fn value_from_f64(&self, val: f64) -> AttrObj;
     fn verify(_attr: &dyn Type, _ctx: &Context) -> Result<()>
     where
@@ -110,9 +113,7 @@ fn convert_type(
                 .into_iter()
                 .map(|ty| convert_type(ctx, cctx, ty))
                 .collect::<Result<_>>()?;
-            // TODO: Use llvm::types::FuncType.
-            // Not already doing it because we don't have a corresponding llvm::ops::FuncOp.
-            Ok(FunctionType::get(ctx, param_types, vec![return_type]).into())
+            Ok(FuncType::get(ctx, return_type, param_types).into())
         }
         LLVMTypeKind::LLVMIntegerTypeKind => {
             let bit_width = llvm_get_int_type_width(ty);
@@ -191,6 +192,28 @@ pub fn convert_fpredicate(fpred: LLVMRealPredicate) -> FCmpPredicateAttr {
         LLVMRealPredicate::LLVMRealULE => FCmpPredicateAttr::ULE,
         LLVMRealPredicate::LLVMRealUNE => FCmpPredicateAttr::UNE,
         LLVMRealPredicate::LLVMRealPredicateTrue => FCmpPredicateAttr::True,
+    }
+}
+
+pub fn convert_linkage(linkage: LLVMLinkage) -> LinkageAttr {
+    match linkage {
+        LLVMLinkage::LLVMExternalLinkage => LinkageAttr::ExternalLinkage,
+        LLVMLinkage::LLVMAvailableExternallyLinkage => LinkageAttr::AvailableExternallyLinkage,
+        LLVMLinkage::LLVMLinkOnceAnyLinkage => LinkageAttr::LinkOnceAnyLinkage,
+        LLVMLinkage::LLVMLinkOnceODRLinkage => LinkageAttr::LinkOnceODRLinkage,
+        LLVMLinkage::LLVMWeakAnyLinkage => LinkageAttr::WeakAnyLinkage,
+        LLVMLinkage::LLVMWeakODRLinkage => LinkageAttr::WeakODRLinkage,
+        LLVMLinkage::LLVMLinkOnceODRAutoHideLinkage => LinkageAttr::LinkOnceODRAutoHideLinkage,
+        LLVMLinkage::LLVMCommonLinkage => LinkageAttr::CommonLinkage,
+        LLVMLinkage::LLVMAppendingLinkage => LinkageAttr::AppendingLinkage,
+        LLVMLinkage::LLVMInternalLinkage => LinkageAttr::InternalLinkage,
+        LLVMLinkage::LLVMPrivateLinkage => LinkageAttr::PrivateLinkage,
+        LLVMLinkage::LLVMDLLImportLinkage => LinkageAttr::DLLImportLinkage,
+        LLVMLinkage::LLVMDLLExportLinkage => LinkageAttr::DLLExportLinkage,
+        LLVMLinkage::LLVMExternalWeakLinkage => LinkageAttr::ExternalWeakLinkage,
+        LLVMLinkage::LLVMLinkerPrivateLinkage => LinkageAttr::LinkerPrivateLinkage,
+        LLVMLinkage::LLVMLinkerPrivateWeakLinkage => LinkageAttr::LinkerPrivateWeakLinkage,
+        LLVMLinkage::LLVMGhostLinkage => LinkageAttr::GhostLinkage,
     }
 }
 
@@ -670,7 +693,7 @@ fn convert_call(
     };
 
     let callee_ty = llvm_get_called_function_type(inst);
-    let callee_ty: TypePtr<FunctionType> =
+    let callee_ty: TypePtr<FuncType> =
         convert_type(ctx, cctx, callee_ty).and_then(|ty| TypePtr::from_ptr(ty, ctx))?;
     Ok(CallOp::new(ctx, callee, callee_ty, args).get_operation())
 }
@@ -1112,11 +1135,19 @@ fn convert_function(
         .expect("Expected functions to have names");
     let fn_ty = convert_type(ctx, cctx, llvm_global_get_value_type(function))?;
     let fn_ty = TypePtr::from_ptr(fn_ty, ctx)?;
-    // Create a new FuncOp, which also creates an entry block with the right parameters.
+    // Create a new FuncOp.
     let m_func = FuncOp::new(ctx, name, fn_ty);
-    let m_func_reg = m_func.get_region(ctx);
 
-    let m_entry_block = m_func.get_entry_block(ctx);
+    let linkage = convert_linkage(llvm_get_linkage(function));
+    m_func.set_attr_llvm_function_linkage(ctx, linkage);
+
+    // If function is just a declaration, we have nothing more to do.
+    if llvm_is_declaration(function) {
+        return Ok(m_func);
+    }
+
+    let m_entry_block = m_func.get_or_create_entry_block(ctx);
+    let m_func_reg = m_func.get_region(ctx).unwrap();
     cctx.reset_for_region(m_entry_block);
 
     let blocks = rpo(function);
@@ -1175,6 +1206,7 @@ fn convert_global(
     let op = GlobalOp::new(ctx, name, ty);
 
     if let Some(init) = llvm_get_initializer(global) {
+        assert!(!llvm_is_declaration(global));
         // TODO: Use attribute based initializer for simple constants.
         let init_region = op.add_initializer_region(ctx);
         let entry_block = init_region.deref(ctx).iter(ctx).next().unwrap();

@@ -4,25 +4,24 @@ use std::vec;
 
 use pliron::{
     arg_err_noloc,
-    attribute::{AttrObj, attr_cast, attr_impls},
+    attribute::{AttrObj, AttributeDict, attr_cast, attr_impls},
     basic_block::BasicBlock,
     builtin::{
         attr_interfaces::{FloatAttr, TypedAttrInterface},
-        attributes::{IdentifierAttr, IntegerAttr, TypeAttr},
+        attributes::{IdentifierAttr, IntegerAttr, StringAttr, TypeAttr},
         op_interfaces::{
-            self, BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
-            IsolatedFromAboveInterface, OneOpdInterface, OneResultInterface,
-            OperandSegmentInterface, SameOperandsAndResultType, SameOperandsType, SameResultsType,
-            SingleBlockRegionInterface, SymbolOpInterface, SymbolUserOpInterface, ZeroOpdInterface,
-            ZeroResultInterface,
+            self, ATTR_KEY_SYM_NAME, AtMostOneRegionInterface, BranchOpInterface, CallOpCallable,
+            CallOpInterface, IsTerminatorInterface, IsolatedFromAboveInterface, OneOpdInterface,
+            OneResultInterface, OperandSegmentInterface, SameOperandsAndResultType,
+            SameOperandsType, SameResultsType, SingleBlockRegionInterface, SymbolOpInterface,
+            SymbolUserOpInterface, ZeroOpdInterface, ZeroResultInterface,
         },
-        ops::FuncOp,
-        type_interfaces::FloatType,
-        types::{FunctionType, IntegerType, Signedness},
+        type_interfaces::{FloatTypeInterface, FunctionTypeInterface},
+        types::{IntegerType, Signedness},
     },
     common_traits::{Named, Verify},
     context::{Context, Ptr},
-    derive::{derive_attr_get_set, format, format_op},
+    derive::{derive_attr_get_set, format_op},
     identifier::Identifier,
     impl_verify_succ, indented_block, input_err,
     irfmt::{
@@ -31,13 +30,14 @@ use pliron::{
             attr_parser, block_opd_parser, delimited_list_parser, process_parsed_ssa_defs, spaced,
             ssa_opd_parser, type_parser,
         },
-        printers::{iter_with_sep, list_with_sep},
+        printers::{iter_with_sep, list_with_sep, op::typed_symb_op_header},
     },
+    linked_list::ContainsLinkedList,
     location::{Located, Location},
     op::{Op, OpObj},
     operation::Operation,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
-    printable::{Printable, indented_nl},
+    printable::{self, Printable, indented_nl},
     region::Region,
     result::{Error, ErrorKind, Result},
     symbol_table::SymbolTableCollection,
@@ -50,17 +50,19 @@ use pliron::{
 use crate::{
     attributes::{
         CaseValuesAttr, FCmpPredicateAttr, FastmathFlagsAttr, InsertExtractValueIndicesAttr,
+        LinkageAttr,
     },
     op_interfaces::{
         BinArithOp, CastOpInterface, CastOpWithNNegInterface, FastMathFlags, FloatBinArithOp,
-        FloatBinArithOpWithFastMathFlags, IntBinArithOp, IntBinArithOpWithOverflowFlag, NNegFlag,
-        PointerTypeResult,
+        FloatBinArithOpWithFastMathFlags, IntBinArithOp, IntBinArithOpWithOverflowFlag,
+        IsDeclaration, NNegFlag, PointerTypeResult,
     },
-    types::{ArrayType, StructType},
+    ops::func_op_attr_names::ATTR_KEY_LLVM_FUNC_TYPE,
+    types::{ArrayType, FuncType, StructType},
 };
 
 use combine::{
-    between,
+    between, optional,
     parser::{Parser, char::spaces},
     token,
 };
@@ -1322,10 +1324,10 @@ impl CallOp {
     pub fn new(
         ctx: &mut Context,
         callee: CallOpCallable,
-        callee_ty: TypePtr<FunctionType>,
+        callee_ty: TypePtr<FuncType>,
         mut args: Vec<Value>,
     ) -> Self {
-        let res_ty = callee_ty.deref(ctx).get_results()[0];
+        let res_ty = callee_ty.deref(ctx).result_type();
         let op = match callee {
             CallOpCallable::Direct(cval) => {
                 let op =
@@ -1341,7 +1343,8 @@ impl CallOp {
                 CallOp { op }
             }
         };
-        op.set_callee_type(ctx, callee_ty);
+
+        op.set_callee_type(ctx, callee_ty.into());
         op
     }
 }
@@ -1350,8 +1353,8 @@ impl CallOp {
 pub enum SymbolUserOpVerifyErr {
     #[error("Symbol {0} not found")]
     SymbolNotFound(String),
-    #[error("Function {0} should have been builtin.func")]
-    NotBuiltinFunc(String),
+    #[error("Function {0} should have been llvm.func type")]
+    NotLlvmFunc(String),
     #[error("AddressOf Op can only refer to a function or a global variable")]
     AddressOfInvalidReference,
     #[error("Function call has incorrect type: {0}")]
@@ -1380,25 +1383,18 @@ impl SymbolUserOpInterface for CallOp {
                 let Some(func_op) = (&*callee as &dyn Op).downcast_ref::<FuncOp>() else {
                     return verify_err!(
                         self.loc(ctx),
-                        SymbolUserOpVerifyErr::NotBuiltinFunc(callee_sym.to_string())
+                        SymbolUserOpVerifyErr::NotLlvmFunc(callee_sym.to_string())
                     );
                 };
-                let func_op_ty = func_op.get_type(ctx).deref(ctx);
-                let Some(func_op_ty) = func_op_ty.downcast_ref::<FunctionType>() else {
-                    return verify_err!(
-                        self.loc(ctx),
-                        SymbolUserOpVerifyErr::FuncTypeErr("Calle is not a function".to_string())
-                    );
-                };
+                let func_op_ty = func_op.get_type(ctx);
 
-                let callee_ty = &*self.callee_type(ctx).deref(ctx);
-                if func_op_ty != callee_ty {
+                if func_op_ty.to_ptr() != self.callee_type(ctx) {
                     return verify_err!(
                         self.loc(ctx),
                         SymbolUserOpVerifyErr::FuncTypeErr(format!(
                             "expected {}, got {}",
                             func_op_ty.disp(ctx),
-                            callee_ty.disp(ctx)
+                            self.callee_type(ctx).disp(ctx)
                         ))
                     );
                 }
@@ -1499,7 +1495,7 @@ impl Parsable for CallOp {
         let indirect_callee = ssa_opd_parser().map(CallOpCallable::Indirect);
         let callee_parser = direct_callee.or(indirect_callee);
         let args_parser = delimited_list_parser('(', ')', ',', ssa_opd_parser());
-        let ty_parser = spaced(combine::token(':')).with(TypePtr::<FunctionType>::parser(()));
+        let ty_parser = spaced(combine::token(':')).with(TypePtr::<FuncType>::parser(()));
 
         let mut final_parser = spaced(callee_parser)
             .and(spaced(args_parser))
@@ -1522,9 +1518,15 @@ impl Verify for CallOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         // Check that the argument and result types match the callee type.
         let callee_ty = &*self.callee_type(ctx).deref(ctx);
+        let Some(callee_ty) = callee_ty.downcast_ref::<FuncType>() else {
+            return verify_err!(
+                self.loc(ctx),
+                SymbolUserOpVerifyErr::FuncTypeErr("Callee is not a function".to_string())
+            );
+        };
         // Check the function type against the arguments.
         let args = self.args(ctx);
-        let expected_args = callee_ty.get_inputs();
+        let expected_args = callee_ty.arg_types();
         if args.len() != expected_args.len() {
             return verify_err!(
                 self.loc(ctx),
@@ -1546,23 +1548,12 @@ impl Verify for CallOp {
             }
         }
 
-        if callee_ty.get_results().len() > 1 {
-            return verify_err!(
-                self.loc(ctx),
-                SymbolUserOpVerifyErr::FuncTypeErr(
-                    "LLVM dialect allows only a single result".to_string()
-                )
-            );
-        }
-
-        if let Some(res_ty) = callee_ty.get_results().first()
-            && self.result_type(ctx) != *res_ty
-        {
+        if callee_ty.result_type() != self.result_type(ctx) {
             return verify_err!(
                 self.loc(ctx),
                 SymbolUserOpVerifyErr::FuncTypeErr(format!(
                     "result type mismatch: expected {}, got {}",
-                    res_ty.disp(ctx),
+                    callee_ty.result_type().disp(ctx),
                     self.result_type(ctx).disp(ctx)
                 ))
             );
@@ -1704,7 +1695,7 @@ pub enum GlobalOpVerifyErr {
     SymbolOpInterface,
     SingleBlockRegionInterface
 )]
-#[derive_attr_get_set(global_type : TypeAttr, global_initializer)]
+#[derive_attr_get_set(global_type : TypeAttr, global_initializer, llvm_global_linkage : LinkageAttr)]
 pub struct GlobalOp;
 
 impl GlobalOp {
@@ -1765,6 +1756,12 @@ impl GlobalOp {
         entry.insert_at_front(region, ctx);
 
         region
+    }
+}
+
+impl IsDeclaration for GlobalOp {
+    fn is_declaration(&self, ctx: &Context) -> bool {
+        self.get_initializer_value(ctx).is_none() && self.get_initializer_region(ctx).is_none()
     }
 }
 
@@ -2109,11 +2106,11 @@ impl Verify for FPExtOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         // Check operand type to be a float
         let opd_ty = OneOpdInterface::operand_type(self, ctx).deref(ctx);
-        let Some(opd_float_ty) = type_cast::<dyn FloatType>(&**opd_ty) else {
+        let Some(opd_float_ty) = type_cast::<dyn FloatTypeInterface>(&**opd_ty) else {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
         };
         let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
-        let Some(res_float_ty) = type_cast::<dyn FloatType>(&**res_ty) else {
+        let Some(res_float_ty) = type_cast::<dyn FloatTypeInterface>(&**res_ty) else {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
         };
 
@@ -2183,11 +2180,11 @@ impl Verify for FPTruncOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         // Check operand type to be a float
         let opd_ty = OneOpdInterface::operand_type(self, ctx).deref(ctx);
-        let Some(opd_float_ty) = type_cast::<dyn FloatType>(&**opd_ty) else {
+        let Some(opd_float_ty) = type_cast::<dyn FloatTypeInterface>(&**opd_ty) else {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
         };
         let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
-        let Some(res_float_ty) = type_cast::<dyn FloatType>(&**res_ty) else {
+        let Some(res_float_ty) = type_cast::<dyn FloatTypeInterface>(&**res_ty) else {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
         };
 
@@ -2223,7 +2220,7 @@ impl Verify for FPToSIOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         // Check that the operand is a float and the result is an integer
         let opd_ty = OneOpdInterface::operand_type(self, ctx).deref(ctx);
-        if !type_impls::<dyn FloatType>(&**opd_ty) {
+        if !type_impls::<dyn FloatTypeInterface>(&**opd_ty) {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
         };
         let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
@@ -2257,7 +2254,7 @@ impl Verify for FPToUIOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         // Check that the operand is a float and the result is an integer
         let opd_ty = OneOpdInterface::operand_type(self, ctx).deref(ctx);
-        if !type_impls::<dyn FloatType>(&**opd_ty) {
+        if !type_impls::<dyn FloatTypeInterface>(&**opd_ty) {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
         };
         let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
@@ -2298,7 +2295,7 @@ impl Verify for SIToFPOp {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
         }
         let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
-        if !type_impls::<dyn FloatType>(&**res_ty) {
+        if !type_impls::<dyn FloatTypeInterface>(&**res_ty) {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
         }
         Ok(())
@@ -2340,7 +2337,7 @@ impl Verify for UIToFPOp {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
         }
         let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
-        if !type_impls::<dyn FloatType>(&**res_ty) {
+        if !type_impls::<dyn FloatTypeInterface>(&**res_ty) {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
         }
         Ok(())
@@ -2644,7 +2641,7 @@ impl Verify for FNegOp {
         let loc = self.loc(ctx);
         let op = &*self.op.deref(ctx);
         let arg_ty = op.get_operand(0).get_type(ctx);
-        if !type_impls::<dyn FloatType>(&**arg_ty.deref(ctx)) {
+        if !type_impls::<dyn FloatTypeInterface>(&**arg_ty.deref(ctx)) {
             return verify_err!(loc, FNegOpVerifyErr::ArgumentMustBeFloat);
         }
         Ok(())
@@ -2806,7 +2803,7 @@ impl Verify for FCmpOp {
         }
 
         let opd_ty = self.operand_type(ctx).deref(ctx);
-        if !(type_impls::<dyn FloatType>(&**opd_ty)) {
+        if !(type_impls::<dyn FloatTypeInterface>(&**opd_ty)) {
             return verify_err!(loc, FCmpOpVerifyErr::IncorrectOperandsType);
         }
 
@@ -2822,6 +2819,180 @@ pub enum FCmpOpVerifyErr {
     IncorrectOperandsType,
     #[error("Missing or incorrect predicate attribute")]
     PredAttrErr,
+}
+
+/// All LLVM intrinsic declarations are represented by this [Op].
+/// Unlike in MLIR's LLVM dialect, we do not create a separate [Op] for each intrinsic.
+/// Instead, we use an attribute to specify which intrinsic is being called.
+#[def_op("llvm.intrinsic")]
+#[format_op]
+#[derive_attr_get_set(llvm_intrinsic_name : StringAttr)]
+pub struct IntrinsicOp;
+
+impl Verify for IntrinsicOp {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
+        todo!()
+    }
+}
+
+/// Equivalent to LLVM's `func` operation.
+/// See [llvm.func](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmfunc-llvmllvmfuncop).
+#[def_op("llvm.func")]
+#[derive_op_interface_impl(
+    SymbolOpInterface,
+    IsolatedFromAboveInterface,
+    AtMostOneRegionInterface,
+    ZeroOpdInterface,
+    ZeroResultInterface
+)]
+#[derive_attr_get_set(llvm_func_type : TypeAttr, llvm_function_linkage : LinkageAttr)]
+pub struct FuncOp;
+
+impl FuncOp {
+    /// Create a new empty [FuncOp].
+    pub fn new(ctx: &mut Context, name: Identifier, ty: TypePtr<FuncType>) -> Self {
+        let ty_attr = TypeAttr::new(ty.into());
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 0);
+        let opop = FuncOp { op };
+        opop.set_symbol_name(ctx, name);
+        opop.set_attr_llvm_func_type(ctx, ty_attr);
+
+        opop
+    }
+
+    /// Get the function signature (type).
+    pub fn get_type(&self, ctx: &Context) -> TypePtr<FuncType> {
+        let ty = attr_cast::<dyn TypedAttrInterface>(&*self.get_attr_llvm_func_type(ctx).unwrap())
+            .unwrap()
+            .get_type(ctx);
+        TypePtr::from_ptr(ty, ctx).unwrap()
+    }
+
+    /// Get the entry block (if it exists) of this function.
+    pub fn get_entry_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
+        self.op
+            .deref(ctx)
+            .regions()
+            .next()
+            .and_then(|region| region.deref(ctx).get_head())
+    }
+
+    /// Get the entry block of this function, creating it if it does not exist.
+    pub fn get_or_create_entry_block(&self, ctx: &mut Context) -> Ptr<BasicBlock> {
+        if let Some(entry_block) = self.get_entry_block(ctx) {
+            return entry_block;
+        }
+
+        // Create an empty entry block.
+        assert!(
+            self.op.deref(ctx).regions().next().is_none(),
+            "FuncOp already has a region, but no block inside it"
+        );
+        let region = Operation::add_region(self.op, ctx);
+        let arg_types = self.get_type(ctx).deref(ctx).arg_types().clone();
+        let body = BasicBlock::new(ctx, Some("entry".try_into().unwrap()), arg_types);
+        body.insert_at_front(region, ctx);
+        body
+    }
+}
+
+impl pliron::r#type::Typed for FuncOp {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        self.get_type(ctx).into()
+    }
+}
+
+impl Printable for FuncOp {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        typed_symb_op_header(self).fmt(ctx, state, f)?;
+
+        // Print attributes except for function type and symbol name.
+        let mut attributes_to_print_separately = self.op.deref(ctx).attributes.clone();
+        attributes_to_print_separately
+            .0
+            .retain(|key, _| key != &*ATTR_KEY_LLVM_FUNC_TYPE && key != &*ATTR_KEY_SYM_NAME);
+        indented_block!(state, {
+            write!(
+                f,
+                "{}{}",
+                indented_nl(state),
+                attributes_to_print_separately.disp(ctx)
+            )?;
+        });
+
+        if let Some(r) = self.get_region(ctx) {
+            write!(f, " ")?;
+            r.fmt(ctx, state, f)?;
+        }
+        Ok(())
+    }
+}
+
+impl Parsable for FuncOp {
+    type Arg = Vec<(Identifier, Location)>;
+    type Parsed = OpObj;
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        results: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        if !results.is_empty() {
+            input_err!(
+                state_stream.loc(),
+                op_interfaces::ZeroResultVerifyErr(Self::get_opid_static().to_string())
+            )?
+        }
+
+        let op = Operation::new(
+            state_stream.state.ctx,
+            Self::get_opid_static(),
+            vec![],
+            vec![],
+            vec![],
+            0,
+        );
+
+        let mut parser = (
+            spaced(token('@').with(Identifier::parser(()))).skip(spaced(token(':'))),
+            spaced(type_parser()),
+            spaced(AttributeDict::parser(())),
+            spaced(optional(Region::parser(op))),
+        );
+
+        // Parse and build the function, providing name and type details.
+        parser
+            .parse_stream(state_stream)
+            .map(|(fname, fty, attrs, _region)| -> OpObj {
+                let ctx = &mut state_stream.state.ctx;
+                op.deref_mut(ctx).attributes = attrs;
+                let ty_attr = TypeAttr::new(fty);
+                let opop = Box::new(FuncOp { op });
+                opop.set_symbol_name(ctx, fname);
+                opop.set_attr_llvm_func_type(ctx, ty_attr);
+                opop
+            })
+            .into()
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("llvm.func op does not have llvm.func type")]
+pub struct FuncOpTypeErr;
+
+impl Verify for FuncOp {
+    fn verify(&self, _ctx: &Context) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl IsDeclaration for FuncOp {
+    fn is_declaration(&self, ctx: &Context) -> bool {
+        self.get_region(ctx).is_none()
+    }
 }
 
 /// Register ops in the LLVM dialect.
@@ -2876,4 +3047,6 @@ pub fn register(ctx: &mut Context) {
     SelectOp::register(ctx, SelectOp::parser_fn);
     UndefOp::register(ctx, UndefOp::parser_fn);
     ReturnOp::register(ctx, ReturnOp::parser_fn);
+    IntrinsicOp::register(ctx, IntrinsicOp::parser_fn);
+    FuncOp::register(ctx, FuncOp::parser_fn);
 }

@@ -6,7 +6,7 @@ use pliron::derive::def_type;
 use pliron_derive::{format_type, type_interface_impl};
 
 use crate::{
-    builtin::type_interfaces::FloatType,
+    builtin::type_interfaces::{FloatTypeInterface, FunctionTypeInterface},
     context::{Context, Ptr},
     impl_verify_succ,
     irfmt::parsers::int_parser,
@@ -147,15 +147,18 @@ impl FunctionType {
     ) -> Option<TypePtr<Self>> {
         Type::get_instance(FunctionType { inputs, results }, ctx)
     }
+}
 
+#[type_interface_impl]
+impl FunctionTypeInterface for FunctionType {
     /// Get a reference to the function input / argument types.
-    pub fn get_inputs(&self) -> &Vec<Ptr<TypeObj>> {
-        &self.inputs
+    fn arg_types(&self) -> Vec<Ptr<TypeObj>> {
+        self.inputs.clone()
     }
 
     /// Get a reference to the function result / output types.
-    pub fn get_results(&self) -> &Vec<Ptr<TypeObj>> {
-        &self.results
+    fn res_types(&self) -> Vec<Ptr<TypeObj>> {
+        self.results.clone()
     }
 }
 
@@ -181,7 +184,7 @@ impl_verify_succ!(UnitType);
 pub struct FP32Type;
 impl_verify_succ!(FP32Type);
 #[type_interface_impl]
-impl FloatType for FP32Type {
+impl FloatTypeInterface for FP32Type {
     fn get_semantics(&self) -> Semantics {
         apfloat::Single::get_semantics()
     }
@@ -206,7 +209,7 @@ impl FP32Type {
 pub struct FP64Type;
 impl_verify_succ!(FP64Type);
 #[type_interface_impl]
-impl FloatType for FP64Type {
+impl FloatTypeInterface for FP64Type {
     fn get_semantics(&self) -> Semantics {
         apfloat::Double::get_semantics()
     }
@@ -243,6 +246,7 @@ mod tests {
     use crate::{
         builtin::{
             self,
+            type_interfaces::FunctionTypeInterface as _,
             types::{IntegerType, Signedness},
         },
         context::Context,
@@ -284,8 +288,8 @@ mod tests {
         let ft_ref = FunctionType::get(&mut ctx, vec![int32_1_ptr.into()], vec![int64_ptr.into()])
             .deref(&ctx);
         assert!(
-            ft_ref.get_inputs()[0] == int32_1_ptr.into()
-                && ft_ref.get_results()[0] == int64_ptr.into()
+            ft_ref.arg_types()[0] == int32_1_ptr.into()
+                && ft_ref.res_types()[0] == int64_ptr.into()
         );
     }
 

@@ -1,6 +1,6 @@
 //! Translate from pliron's LLVM dialect to LLVM-IR
 
-use llvm_sys::{LLVMIntPredicate, LLVMRealPredicate};
+use llvm_sys::{LLVMIntPredicate, LLVMLinkage, LLVMRealPredicate};
 use pliron::{
     attribute::{Attribute, attr_cast},
     basic_block::BasicBlock,
@@ -8,11 +8,12 @@ use pliron::{
         attr_interfaces::FloatAttr,
         attributes::{FPDoubleAttr, FPSingleAttr, IntegerAttr},
         op_interfaces::{
-            BranchOpInterface, CallOpCallable, CallOpInterface, OneOpdInterface,
-            OneRegionInterface, OneResultInterface, SingleBlockRegionInterface, SymbolOpInterface,
+            AtMostOneRegionInterface, BranchOpInterface, CallOpCallable, CallOpInterface,
+            OneOpdInterface, OneResultInterface, SingleBlockRegionInterface, SymbolOpInterface,
         },
-        ops::{FuncOp, ModuleOp},
-        types::{FP32Type, FP64Type, FunctionType, IntegerType},
+        ops::ModuleOp,
+        type_interfaces::FunctionTypeInterface,
+        types::{FP32Type, FP64Type, IntegerType},
     },
     common_traits::Named,
     context::{Context, Ptr},
@@ -24,6 +25,7 @@ use pliron::{
     location::Located,
     op::{Op, op_cast},
     operation::Operation,
+    printable::Printable,
     result::Result,
     r#type::{Type, TypeObj, Typed, type_cast},
     utils::apint::APInt,
@@ -35,7 +37,7 @@ use rustc_hash::FxHashMap;
 use thiserror::Error;
 
 use crate::{
-    attributes::{FCmpPredicateAttr, ICmpPredicateAttr},
+    attributes::{FCmpPredicateAttr, ICmpPredicateAttr, LinkageAttr},
     llvm_sys::core::{
         LLVMBasicBlock, LLVMBuilder, LLVMContext, LLVMModule, LLVMType, LLVMValue,
         instruction_iter, llvm_add_case, llvm_add_function, llvm_add_global, llvm_add_incoming,
@@ -54,19 +56,19 @@ use crate::{
         llvm_float_type_in_context, llvm_function_type, llvm_get_param, llvm_get_undef,
         llvm_int_type_in_context, llvm_is_a, llvm_pointer_type_in_context,
         llvm_position_builder_at_end, llvm_set_fast_math_flags, llvm_set_initializer,
-        llvm_set_nneg, llvm_struct_create_named, llvm_struct_set_body, llvm_struct_type_in_context,
-        llvm_void_type_in_context,
+        llvm_set_linkage, llvm_set_nneg, llvm_struct_create_named, llvm_struct_set_body,
+        llvm_struct_type_in_context, llvm_void_type_in_context,
     },
-    op_interfaces::{FastMathFlags, NNegFlag, PointerTypeResult},
+    op_interfaces::{FastMathFlags, IsDeclaration, NNegFlag, PointerTypeResult},
     ops::{
         AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
         ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp, FPExtOp, FPToSIOp, FPToUIOp, FPTruncOp,
-        FRemOp, FSubOp, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp, IntToPtrOp, LoadOp,
-        MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SIToFPOp, SRemOp, SelectOp, ShlOp,
-        StoreOp, SubOp, SwitchOp, TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp, XorOp, ZExtOp,
+        FRemOp, FSubOp, FuncOp, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp, IntToPtrOp,
+        LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SIToFPOp, SRemOp, SelectOp,
+        ShlOp, StoreOp, SubOp, SwitchOp, TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp, XorOp, ZExtOp,
         ZeroOp,
     },
-    types::{ArrayType, PointerType, StructType, VoidType},
+    types::{ArrayType, FuncType, PointerType, StructType, VoidType},
 };
 
 /// Mapping from pliron entities to LLVM entities.
@@ -164,6 +166,28 @@ pub fn convert_fpredicate(pred: FCmpPredicateAttr) -> LLVMRealPredicate {
     }
 }
 
+pub fn convert_linkage(linkage: LinkageAttr) -> LLVMLinkage {
+    match linkage {
+        LinkageAttr::ExternalLinkage => LLVMLinkage::LLVMExternalLinkage,
+        LinkageAttr::AvailableExternallyLinkage => LLVMLinkage::LLVMAvailableExternallyLinkage,
+        LinkageAttr::LinkOnceAnyLinkage => LLVMLinkage::LLVMLinkOnceAnyLinkage,
+        LinkageAttr::LinkOnceODRLinkage => LLVMLinkage::LLVMLinkOnceODRLinkage,
+        LinkageAttr::WeakAnyLinkage => LLVMLinkage::LLVMWeakAnyLinkage,
+        LinkageAttr::WeakODRLinkage => LLVMLinkage::LLVMWeakODRLinkage,
+        LinkageAttr::AppendingLinkage => LLVMLinkage::LLVMAppendingLinkage,
+        LinkageAttr::InternalLinkage => LLVMLinkage::LLVMInternalLinkage,
+        LinkageAttr::PrivateLinkage => LLVMLinkage::LLVMPrivateLinkage,
+        LinkageAttr::DLLImportLinkage => LLVMLinkage::LLVMDLLImportLinkage,
+        LinkageAttr::DLLExportLinkage => LLVMLinkage::LLVMDLLExportLinkage,
+        LinkageAttr::ExternalWeakLinkage => LLVMLinkage::LLVMExternalWeakLinkage,
+        LinkageAttr::GhostLinkage => LLVMLinkage::LLVMGhostLinkage,
+        LinkageAttr::CommonLinkage => LLVMLinkage::LLVMCommonLinkage,
+        LinkageAttr::LinkOnceODRAutoHideLinkage => LLVMLinkage::LLVMLinkOnceODRAutoHideLinkage,
+        LinkageAttr::LinkerPrivateLinkage => LLVMLinkage::LLVMLinkerPrivateLinkage,
+        LinkageAttr::LinkerPrivateWeakLinkage => LLVMLinkage::LLVMLinkerPrivateWeakLinkage,
+    }
+}
+
 /// Convert a float attribute to fp64 (since LLVM's C-API pretty much restricts us to that).
 #[attr_interface]
 trait FloatAttrToFP64: FloatAttr {
@@ -239,18 +263,14 @@ impl ToLLVMType for ArrayType {
 }
 
 #[type_interface_impl]
-impl ToLLVMType for FunctionType {
+impl ToLLVMType for FuncType {
     fn convert(&self, ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
         let args_tys: Vec<_> = self
-            .get_inputs()
+            .arg_types()
             .iter()
             .map(|ty| convert_type(ctx, llvm_ctx, *ty))
             .collect::<Result<_>>()?;
-        let ret_ty = self
-            .get_results()
-            .first()
-            .map(|ty| convert_type(ctx, llvm_ctx, *ty))
-            .unwrap_or(Ok(llvm_void_type_in_context(llvm_ctx)))?;
+        let ret_ty = convert_type(ctx, llvm_ctx, self.result_type())?;
         Ok(llvm_function_type(ret_ty, &args_tys, false))
     }
 }
@@ -737,7 +757,7 @@ impl ToLLVMValue for CallOp {
                 .into_iter()
                 .map(|v| convert_value_operand(cctx, ctx, &v))
                 .collect::<Result<_>>()?;
-            let ty = convert_type(ctx, llvm_ctx, self.callee_type(ctx).into())?;
+            let ty = convert_type(ctx, llvm_ctx, self.callee_type(ctx))?;
             let call_val = llvm_build_call2(
                 &cctx.builder,
                 ty,
@@ -1267,11 +1287,17 @@ fn convert_function(
     cctx.clear_per_function_data();
     let func_llvm = cctx.function_map[&func_op.get_symbol_name(ctx)];
 
+    if let Some(linkage) = func_op.get_attr_llvm_function_linkage(ctx) {
+        let llvm_linkage: LLVMLinkage = convert_linkage(linkage.clone());
+        llvm_set_linkage(func_llvm, llvm_linkage);
+    }
+
+    let f_region = func_op.get_region(ctx).expect("Function missing region");
+
     // Map all blocks, staring with entry.
-    let mut block_iter = func_op.get_region(ctx).deref(ctx).iter(ctx);
+    let mut block_iter = f_region.deref(ctx).iter(ctx);
     {
         let entry = block_iter.next().expect("Missing entry block");
-        assert!(entry == func_op.get_entry_block(ctx));
         // Map entry block arguments to LLVM function arguments.
         for (arg_idx, arg) in entry.deref(ctx).arguments().enumerate() {
             cctx.value_map
@@ -1300,7 +1326,7 @@ fn convert_function(
     }
 
     // Convert within every block.
-    for block in topological_order(ctx, func_op.get_region(ctx)) {
+    for block in topological_order(ctx, f_region) {
         convert_block(ctx, llvm_ctx, cctx, block)?;
     }
 
@@ -1506,8 +1532,8 @@ pub fn convert_module(
         if let Some(func_op) = Operation::get_op(op, ctx).downcast_ref::<FuncOp>() {
             let func_ty = func_op.get_type(ctx).deref(ctx);
             let func_ty_to_llvm =
-                type_cast::<dyn ToLLVMType>(&**func_ty).ok_or(input_error_noloc!(
-                    ToLLVMErr::MissingOpConversion(func_ty.disp(ctx).to_string())
+                type_cast::<dyn ToLLVMType>(&*func_ty).ok_or(input_error_noloc!(
+                    ToLLVMErr::MissingTypeConversion(func_ty.disp(ctx).to_string())
                 ))?;
             let fn_ty_llvm = func_ty_to_llvm.convert(ctx, llvm_ctx)?;
             let func_llvm =
@@ -1525,10 +1551,14 @@ pub fn convert_module(
     }
 
     for op in module.get_body(ctx, 0).deref(ctx).iter(ctx) {
-        if let Some(func_op) = Operation::get_op(op, ctx).downcast_ref::<FuncOp>() {
+        if let Some(func_op) = Operation::get_op(op, ctx).downcast_ref::<FuncOp>()
+            && !func_op.is_declaration(ctx)
+        {
             convert_function(ctx, llvm_ctx, cctx, *func_op)?;
         }
-        if let Some(global_op) = Operation::get_op(op, ctx).downcast_ref::<GlobalOp>() {
+        if let Some(global_op) = Operation::get_op(op, ctx).downcast_ref::<GlobalOp>()
+            && !global_op.is_declaration(ctx)
+        {
             let global_name = global_op.get_symbol_name(ctx);
             let global_llvm = cctx.globals_map[&global_name];
             if let Some(initializer) = convert_global_initializer(ctx, llvm_ctx, cctx, global_op)? {

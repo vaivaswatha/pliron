@@ -10,8 +10,8 @@ use bitflags::bitflags;
 use llvm_sys::{
     LLVMFastMathAllowContract, LLVMFastMathAllowReassoc, LLVMFastMathAllowReciprocal,
     LLVMFastMathApproxFunc, LLVMFastMathFlags, LLVMFastMathNoInfs, LLVMFastMathNoNaNs,
-    LLVMFastMathNoSignedZeros, LLVMFastMathNone, LLVMIntPredicate, LLVMOpcode, LLVMRealPredicate,
-    LLVMTypeKind, LLVMValueKind,
+    LLVMFastMathNoSignedZeros, LLVMFastMathNone, LLVMIntPredicate, LLVMLinkage, LLVMOpcode,
+    LLVMRealPredicate, LLVMTypeKind, LLVMValueKind,
     analysis::LLVMVerifyModule,
     bit_writer::LLVMWriteBitcodeToFile,
     core::{
@@ -36,24 +36,24 @@ use llvm_sys::{
         LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType, LLVMGetCalledValue,
         LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFCmpPredicate, LLVMGetFastMathFlags,
         LLVMGetFirstBasicBlock, LLVMGetFirstFunction, LLVMGetFirstGlobal, LLVMGetFirstInstruction,
-        LLVMGetFirstParam, LLVMGetGEPSourceElementType, LLVMGetICmpPredicate, LLVMGetIncomingBlock,
-        LLVMGetIncomingValue, LLVMGetIndices, LLVMGetInitializer, LLVMGetInsertBlock,
-        LLVMGetInstructionOpcode, LLVMGetInstructionParent, LLVMGetIntTypeWidth,
-        LLVMGetLastFunction, LLVMGetLastGlobal, LLVMGetModuleIdentifier, LLVMGetNNeg, LLVMGetNSW,
-        LLVMGetNUW, LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextGlobal,
-        LLVMGetNextInstruction, LLVMGetNextParam, LLVMGetNumArgOperands, LLVMGetNumIndices,
-        LLVMGetNumOperands, LLVMGetOperand, LLVMGetParam, LLVMGetParamTypes,
-        LLVMGetPreviousBasicBlock, LLVMGetPreviousFunction, LLVMGetPreviousGlobal,
-        LLVMGetPreviousInstruction, LLVMGetPreviousParam, LLVMGetReturnType,
+        LLVMGetFirstParam, LLVMGetGEPSourceElementType, LLVMGetGlobalParent, LLVMGetICmpPredicate,
+        LLVMGetIncomingBlock, LLVMGetIncomingValue, LLVMGetIndices, LLVMGetInitializer,
+        LLVMGetInsertBlock, LLVMGetInstructionOpcode, LLVMGetInstructionParent,
+        LLVMGetIntTypeWidth, LLVMGetLastFunction, LLVMGetLastGlobal, LLVMGetLinkage,
+        LLVMGetModuleIdentifier, LLVMGetNNeg, LLVMGetNSW, LLVMGetNUW, LLVMGetNextBasicBlock,
+        LLVMGetNextFunction, LLVMGetNextGlobal, LLVMGetNextInstruction, LLVMGetNextParam,
+        LLVMGetNumArgOperands, LLVMGetNumIndices, LLVMGetNumOperands, LLVMGetOperand, LLVMGetParam,
+        LLVMGetParamTypes, LLVMGetPreviousBasicBlock, LLVMGetPreviousFunction,
+        LLVMGetPreviousGlobal, LLVMGetPreviousInstruction, LLVMGetPreviousParam, LLVMGetReturnType,
         LLVMGetStructElementTypes, LLVMGetStructName, LLVMGetTypeKind, LLVMGetUndef,
         LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType, LLVMIntTypeInContext,
-        LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser, LLVMIsOpaqueStruct,
+        LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser, LLVMIsDeclaration, LLVMIsOpaqueStruct,
         LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext, LLVMPositionBuilderAtEnd,
         LLVMPositionBuilderBefore, LLVMPrintModuleToFile, LLVMPrintModuleToString,
         LLVMPrintTypeToString, LLVMPrintValueToString, LLVMSetFastMathFlags, LLVMSetInitializer,
-        LLVMSetNNeg, LLVMStructCreateNamed, LLVMStructSetBody, LLVMStructTypeInContext,
-        LLVMTypeIsSized, LLVMTypeOf, LLVMValueAsBasicBlock, LLVMValueIsBasicBlock,
-        LLVMVoidTypeInContext,
+        LLVMSetLinkage, LLVMSetNNeg, LLVMStructCreateNamed, LLVMStructSetBody,
+        LLVMStructTypeInContext, LLVMTypeIsSized, LLVMTypeOf, LLVMValueAsBasicBlock,
+        LLVMValueIsBasicBlock, LLVMVoidTypeInContext,
     },
     ir_reader::LLVMParseIRInContext,
     prelude::{
@@ -416,6 +416,21 @@ pub fn llvm_global_get_value_type(val: LLVMValue) -> LLVMType {
     unsafe { LLVMGlobalGetValueType(val.into()).into() }
 }
 
+/// LLVMGetGlobalParent
+pub fn llvm_get_global_parent(val: LLVMValue) -> Option<LLVMModule> {
+    assert!(llvm_is_a::global_value(val));
+    unsafe {
+        let module_ref = LLVMGetGlobalParent(val.into());
+        (!module_ref.is_null()).then_some(LLVMModule(module_ref))
+    }
+}
+
+/// LLVMIsDeclaration
+pub fn llvm_is_declaration(val: LLVMValue) -> bool {
+    assert!(llvm_is_a::global_value(val));
+    unsafe { LLVMIsDeclaration(val.into()).to_bool() }
+}
+
 /// LLVMTypeIsSized
 pub fn llvm_type_is_sized(ty: LLVMType) -> bool {
     unsafe { LLVMTypeIsSized(ty.into()).to_bool() }
@@ -432,6 +447,16 @@ pub fn llvm_is_aggregate_type(ty: LLVMType) -> bool {
 /// LLVMGetTypeKind
 pub fn llvm_get_type_kind(ty: LLVMType) -> LLVMTypeKind {
     unsafe { LLVMGetTypeKind(ty.into()) }
+}
+
+/// LLVMGetLinkage
+pub fn llvm_get_linkage(val: LLVMValue) -> LLVMLinkage {
+    unsafe { LLVMGetLinkage(val.into()) }
+}
+
+/// LLVMSetLinkage
+pub fn llvm_set_linkage(val: LLVMValue, linkage: LLVMLinkage) {
+    unsafe { LLVMSetLinkage(val.into(), linkage) }
 }
 
 /// LLVMGetElementType

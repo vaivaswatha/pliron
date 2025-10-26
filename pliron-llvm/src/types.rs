@@ -1,7 +1,8 @@
 //! [Type]s defined in the LLVM dialect.
 
 use combine::{Parser, between, optional, token};
-use pliron::derive::{def_type, format_type};
+use pliron::builtin::type_interfaces::FunctionTypeInterface;
+use pliron::derive::{def_type, format_type, type_interface_impl};
 use pliron::{
     common_traits::Verify,
     context::{Context, Ptr},
@@ -366,10 +367,31 @@ pub struct FuncType {
     args: Vec<Ptr<TypeObj>>,
 }
 
+#[derive(Debug, Error)]
+pub enum FuncTypeErr {
+    #[error("Expected at most one result")]
+    TooManyResults,
+}
+
 impl FuncType {
     /// Get or create a new Func type.
     pub fn get(ctx: &mut Context, res: Ptr<TypeObj>, args: Vec<Ptr<TypeObj>>) -> TypePtr<Self> {
         Type::register_instance(FuncType { res, args }, ctx)
+    }
+
+    /// Result type
+    pub fn result_type(&self) -> Ptr<TypeObj> {
+        self.res
+    }
+}
+
+#[type_interface_impl]
+impl FunctionTypeInterface for FuncType {
+    fn arg_types(&self) -> Vec<Ptr<TypeObj>> {
+        self.args.clone()
+    }
+    fn res_types(&self) -> Vec<Ptr<TypeObj>> {
+        vec![self.res]
     }
 }
 

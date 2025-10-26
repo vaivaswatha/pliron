@@ -188,6 +188,30 @@ impl Verify for CaseValuesAttr {
     }
 }
 
+#[def_attribute("llvm.linkage")]
+#[format_attribute]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+pub enum LinkageAttr {
+    ExternalLinkage,
+    AvailableExternallyLinkage,
+    LinkOnceAnyLinkage,
+    LinkOnceODRLinkage,
+    LinkOnceODRAutoHideLinkage,
+    WeakAnyLinkage,
+    WeakODRLinkage,
+    AppendingLinkage,
+    InternalLinkage,
+    PrivateLinkage,
+    DLLImportLinkage,
+    DLLExportLinkage,
+    ExternalWeakLinkage,
+    GhostLinkage,
+    CommonLinkage,
+    LinkerPrivateLinkage,
+    LinkerPrivateWeakLinkage,
+}
+impl_verify_succ!(LinkageAttr);
+
 pub fn register(ctx: &mut Context) {
     IntegerOverflowFlagsAttr::register_attr_in_dialect(ctx, IntegerOverflowFlagsAttr::parser_fn);
     ICmpPredicateAttr::register_attr_in_dialect(ctx, ICmpPredicateAttr::parser_fn);
@@ -199,6 +223,7 @@ pub fn register(ctx: &mut Context) {
         InsertExtractValueIndicesAttr::parser_fn,
     );
     FastmathFlagsAttr::register_attr_in_dialect(ctx, FastmathFlagsAttr::parser_fn);
+    LinkageAttr::register_attr_in_dialect(ctx, LinkageAttr::parser_fn);
 }
 
 #[def_attribute("llvm.insert_extract_value_indices")]

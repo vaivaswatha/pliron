@@ -1,7 +1,9 @@
 //! [Op] Interfaces defined in the LLVM dialect.
 
 use pliron::{
-    builtin::{attributes::BoolAttr, op_interfaces::OneOpdInterface, type_interfaces::FloatType},
+    builtin::{
+        attributes::BoolAttr, op_interfaces::OneOpdInterface, type_interfaces::FloatTypeInterface,
+    },
     derive::op_interface,
     dict_key,
     r#type::type_cast,
@@ -176,7 +178,7 @@ pub trait FloatBinArithOp: BinArithOp {
             .expect("Op must impl SameOperandsAndResultType")
             .get_type(ctx)
             .deref(ctx);
-        if type_cast::<dyn FloatType>(&**ty).is_none() {
+        if type_cast::<dyn FloatTypeInterface>(&**ty).is_none() {
             return verify_err!(op.loc(ctx), FloatBinArithOpErr);
         }
         Ok(())
@@ -376,6 +378,22 @@ pub trait CastOpWithNNegInterface: CastOpInterface + NNegFlag {
         op.set_nneg(ctx, nneg);
         op
     }
+
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+}
+
+/// Is a global value (variable or function) declaration.
+#[op_interface]
+pub trait IsDeclaration {
+    /// Check if this global value (variable or function) is a declaration.
+    fn is_declaration(&self, ctx: &Context) -> bool
+    where
+        Self: Sized;
 
     fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
     where
