@@ -90,12 +90,12 @@ pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Usage:
 ///
 /// ```
-/// use pliron::derive::def_op;
-/// use pliron::{impl_canonical_syntax, impl_verify_succ};
+/// use pliron::derive::{format_op, def_op};
+/// use pliron::impl_verify_succ;
 ///
 /// #[def_op("my_dialect.op")]
+/// #[format_op]
 /// pub struct MyOp;
-/// impl_canonical_syntax!(MyOp);
 /// impl_verify_succ!(MyOp);
 /// ```
 /// The example will create a struct definition equivalent to:
@@ -119,23 +119,24 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
 /// denoting the [Attribute](../pliron/attribute/trait.Attribute.html)'s concrete type.
 ///
 /// ```
-/// # use pliron::derive::{def_op, derive_attr_get_set};
-/// # use pliron::{impl_canonical_syntax, impl_verify_succ};
+/// # use pliron::derive::{def_op, derive_attr_get_set, format_op};
+/// # use pliron::impl_verify_succ;
 /// // A test for the `derive_attr_get_set` macro.
 /// #[def_op("llvm.with_attrs")]
+/// #[format_op]
 /// #[derive_attr_get_set(name1_any_attr, name2_ty_attr : pliron::builtin::attributes::TypeAttr)]
 /// pub struct WithAttrsOp {}
-/// # impl_canonical_syntax!(WithAttrsOp);
 /// # impl_verify_succ!(WithAttrsOp);
 /// ```
 ///
 /// This expands to add the following getter / setter items:
 /// ```
-/// # use pliron::derive::{def_op, derive_attr_get_set};
+/// # use pliron::derive::{def_op, format_op, derive_attr_get_set};
 /// # use std::cell::Ref;
-/// # use pliron::{dict_key, impl_canonical_syntax, impl_verify_succ};
+/// # use pliron::{dict_key, impl_verify_succ};
 /// # use pliron::{attribute::AttrObj, context::Context};
 /// # use pliron::{builtin::attributes::TypeAttr};
+/// #[format_op]
 /// #[def_op("llvm.with_attrs")]
 /// pub struct WithAttrsOp {}
 /// dict_key!(ATTR_KEY_NAME1_ANY_ATTR, "name1_any_attr");
@@ -148,7 +149,6 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
 ///     (&self, ctx: &'a Context) -> Option<Ref<'a, TypeAttr>> { todo!() }
 ///   pub fn set_attr_name2_ty_attr(&self, ctx: &Context, value: TypeAttr) { todo!() }
 /// }
-/// # impl_canonical_syntax!(WithAttrsOp);
 /// # impl_verify_succ!(WithAttrsOp);
 /// ```
 #[proc_macro_attribute]
@@ -376,9 +376,10 @@ pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Usage:
 /// ```
-/// # use pliron::derive::{def_op, op_interface, op_interface_impl};
+/// # use pliron::derive::{def_op, format_op, op_interface, op_interface_impl};
 ///
 /// #[def_op("dialect.name")]
+/// #[format_op]
 /// struct MyOp;
 ///
 /// #[op_interface]
@@ -399,7 +400,6 @@ pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #     op::Op, context::Context, result::Result, common_traits::Verify
 /// # };
 /// # pliron::impl_verify_succ!(MyOp);
-/// # pliron::impl_canonical_syntax!(MyOp);
 /// ```
 #[proc_macro_attribute]
 pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -422,9 +422,10 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Usage:
 /// ```
-/// # use pliron::derive::{op_interface, derive_op_interface_impl};
+/// # use pliron::derive::{op_interface, format_op, derive_op_interface_impl};
 ///
 /// #[def_op("dialect.name")]
+/// #[format_op]
 /// #[derive_op_interface_impl(MyOpInterface)]
 /// struct MyOp;
 ///
@@ -443,7 +444,6 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #     common_traits::Verify
 /// # };
 /// # pliron::impl_verify_succ!(MyOp);
-/// # pliron::impl_canonical_syntax!(MyOp);
 /// ```
 #[proc_macro_attribute]
 pub fn derive_op_interface_impl(attr: TokenStream, item: TokenStream) -> TokenStream {

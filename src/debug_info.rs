@@ -134,6 +134,7 @@ pub fn get_block_arg_name(
 #[cfg(test)]
 mod tests {
     use pliron::derive::{def_op, derive_op_interface_impl};
+    use pliron_derive::format_op;
 
     use crate::{
         basic_block::BasicBlock,
@@ -146,7 +147,7 @@ mod tests {
         context::Context,
         debug_info::{get_block_arg_name, set_block_arg_name},
         dialect::{Dialect, DialectName},
-        impl_canonical_syntax, impl_verify_succ,
+        impl_verify_succ,
         op::Op,
         operation::Operation,
         parsable::Parsable,
@@ -154,9 +155,9 @@ mod tests {
     };
 
     #[def_op("test.zero")]
+    #[format_op]
     #[derive_op_interface_impl(ZeroOpdInterface, OneResultInterface)]
     struct ZeroOp;
-    impl_canonical_syntax!(ZeroOp);
     impl_verify_succ!(ZeroOp);
     impl ZeroOp {
         pub fn new(ctx: &mut Context) -> Self {

@@ -459,49 +459,6 @@ pub fn canonical_syntax_parser<'a>(
     .boxed()
 }
 
-/// Shorthand for defining a canonical syntax [Printable] and [Parsable] for an [Op]
-/// ```
-/// use pliron::derive::def_op;
-/// use pliron::{impl_canonical_syntax, impl_verify_succ};
-/// #[def_op("dialect.name")]
-/// pub struct MyOp;
-/// impl_canonical_syntax!(MyOp);
-/// impl_verify_succ!(MyOp);
-/// ```
-#[macro_export]
-macro_rules! impl_canonical_syntax {
-    ($op_name:path) => {
-        // Implement [Printable]($crate::printable::Printable)
-        impl $crate::printable::Printable for $op_name {
-            fn fmt(
-                &self,
-                ctx: &$crate::context::Context,
-                state: &$crate::printable::State,
-                f: &mut std::fmt::Formatter<'_>,
-            ) -> std::fmt::Result {
-                $crate::op::canonical_syntax_print(Box::new(*self), ctx, state, f)
-            }
-        }
-
-        // Implement [Parsable]($crate::parsable::Parsable)
-        impl $crate::parsable::Parsable for $op_name {
-            type Arg = Vec<($crate::identifier::Identifier, $crate::location::Location)>;
-            type Parsed = $crate::op::OpObj;
-            fn parse<'a>(
-                state_stream: &mut $crate::parsable::StateStream<'a>,
-                results: Self::Arg,
-            ) -> $crate::parsable::ParseResult<'a, Self::Parsed> {
-                $crate::op::canonical_syntax_parser(
-                    <Self as $crate::op::Op>::get_opid_static(),
-                    results,
-                )
-                .parse_stream(state_stream)
-                .into()
-            }
-        }
-    };
-}
-
 #[cfg(test)]
 mod tests {
 

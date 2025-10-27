@@ -28,7 +28,7 @@ use pliron::{
     common_traits::Verify,
     context::{Context, Ptr},
     identifier::Identifier,
-    impl_canonical_syntax, impl_verify_succ,
+    impl_verify_succ,
     location::Location,
     op::{Op, OpObj, op_cast},
     operation::Operation,
@@ -142,10 +142,10 @@ trait TestOpInterface2: TestOpInterface {
     }
 }
 
+#[format_op]
 #[def_op("test.verify_intr_op")]
 #[derive_op_interface_impl(TestOpInterface, TestOpInterface2)]
 struct VerifyIntrOp {}
-impl_canonical_syntax!(VerifyIntrOp);
 impl_verify_succ!(VerifyIntrOp);
 impl VerifyIntrOp {
     fn new(ctx: &mut Context) -> VerifyIntrOp {
@@ -351,9 +351,9 @@ trait TestNoInbuiltVerifyInterface {
         Self: Sized;
 }
 
+#[format_op]
 #[def_op("test.no_inbuilt_verify_op")]
 struct NoInbuiltVerifyOp {}
-impl_canonical_syntax!(NoInbuiltVerifyOp);
 impl_verify_succ!(NoInbuiltVerifyOp);
 impl NoInbuiltVerifyOp {
     fn new(ctx: &mut Context) -> NoInbuiltVerifyOp {
@@ -381,9 +381,9 @@ fn test_no_inbuilt_verify() -> Result<()> {
     Ok(())
 }
 
+#[format_op]
 #[def_op("test.no_inbuilt_verify_op2")]
 struct NoInbuiltVerifyOp2 {}
-impl_canonical_syntax!(NoInbuiltVerifyOp2);
 impl_verify_succ!(NoInbuiltVerifyOp2);
 impl NoInbuiltVerifyOp2 {
     fn new(ctx: &mut Context) -> NoInbuiltVerifyOp2 {

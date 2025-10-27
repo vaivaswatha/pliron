@@ -17,7 +17,7 @@ use pliron::{
         WALKCONFIG_PREORDER_FORWARD,
         interruptible::{self, walk_advance, walk_break},
     },
-    impl_canonical_syntax, impl_verify_succ,
+    impl_verify_succ,
     irfmt::parsers::spaced,
     location,
     op::Op,
@@ -26,6 +26,7 @@ use pliron::{
     printable::Printable,
     result::Result,
 };
+use pliron_derive::format_op;
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
 use combine::parser::Parser;
@@ -130,10 +131,10 @@ fn replace_c0_with_c1_operand() -> Result<()> {
     Ok(())
 }
 
+#[format_op]
 #[def_op("test.dual_def")]
 struct DualDefOp {}
 impl_verify_succ!(DualDefOp);
-impl_canonical_syntax!(DualDefOp);
 
 /// If an Op has multiple results, or a block multiple args,
 /// replacing all uses of one with the other should work.
