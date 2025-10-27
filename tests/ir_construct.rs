@@ -281,7 +281,7 @@ fn parse_function_with_attrs() -> Result<()> {
         {
           ^block1v1():
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
-              [(test_on_func_value: builtin.string "func_attr_value")]
+              [test_on_func_value: builtin.string "func_attr_value"]
             {
               ^entry_block2v1():
                 c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
@@ -305,7 +305,7 @@ fn parse_function_with_attrs() -> Result<()> {
         {
           ^block1v1_block4v1():
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
-              [(test_on_func_value: builtin.string "func_attr_value")]
+              [test_on_func_value: builtin.string "func_attr_value"]
             {
               ^entry_block2v1_block3v1():
                 c0_op3v1_res0_op7v1_res0 = test.constant builtin.integer <0: si64> !0;

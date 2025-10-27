@@ -365,7 +365,7 @@ pub fn canonical_syntax_print(
         op.get_opid().disp(ctx),
         operands.disp(ctx),
         successors.disp(ctx),
-        op.attributes.disp(ctx),
+        op.attributes.clone_skip_outlined().disp(ctx),
         op_type.disp(ctx),
     )?;
 

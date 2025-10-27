@@ -699,8 +699,8 @@ fn attr_dict_op() {
           ^entry():
             res0 = test.attr_op <3: si64> :builtin.integer si64;
             test.attr_dict [
-                (attr1: builtin.integer <0: si64>),
-                (attr2: builtin.integer <1: si64>)
+                attr1: builtin.integer <0: si64>,
+                attr2: builtin.integer <1: si64>
             ];
             test.return res0
         }";
@@ -719,7 +719,7 @@ fn attr_dict_op() {
         {
           ^entry_block1v1():
             res0_op2v1_res0 = test.attr_op <3: si64>:builtin.integer si64 !0;
-            test.attr_dict [(attr1: builtin.integer <0: si64>), (attr2: builtin.integer <1: si64>)] !1;
+            test.attr_dict [attr1: builtin.integer <0: si64>, attr2: builtin.integer <1: si64>] !1;
             test.return res0_op2v1_res0 !2
         } !3
 

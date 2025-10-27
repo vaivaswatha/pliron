@@ -105,7 +105,7 @@ pub(crate) fn print_outlines(
                 }
                 first = false;
                 if attr_impls::<dyn PrintOnceAttr>(&**attr) {
-                    if let Some(outindex) = print_state.print_once_attrs.get_mut(attr) {
+                    if let Some(outindex) = print_state.print_once_attrs.get(attr) {
                         write!(f, "{attr_name} = !{outindex}")?;
                     } else {
                         // If this is the first time we see this PrintOnceAttr,

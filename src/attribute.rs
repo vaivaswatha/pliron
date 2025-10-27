@@ -44,13 +44,14 @@ use std::{
     sync::LazyLock,
 };
 
-use combine::{Parser, between, parser, token};
+use combine::{Parser, parser, token};
 use downcast_rs::{Downcast, impl_downcast};
 use dyn_clone::DynClone;
 use linkme::distributed_slice;
 use rustc_hash::FxHashMap;
 
 use crate::{
+    builtin::attr_interfaces::OutlinedAttr,
     common_traits::Verify,
     context::Context,
     dialect::DialectName,
@@ -67,39 +68,37 @@ use crate::{
     storage_uniquer::TypeValueHash,
 };
 
+/// Convenience type to easily print and parse key-value pairs in an [AttributeDict].
 #[derive(Clone)]
-struct AttributeDictKeyVal {
-    key: Identifier,
-    val: AttrObj,
+struct AttributeDictKeyVal<'a> {
+    key: &'a Identifier,
+    val: &'a AttrObj,
 }
-impl Printable for AttributeDictKeyVal {
+
+impl<'a> Printable for AttributeDictKeyVal<'a> {
     fn fmt(
         &self,
         ctx: &Context,
         _state: &printable::State,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        write!(f, "({}: {})", self.key, self.val.disp(ctx))
+        write!(f, "{}: {}", self.key, self.val.disp(ctx))
     }
 }
 
-impl Parsable for AttributeDictKeyVal {
+impl<'b> Parsable for AttributeDictKeyVal<'b> {
     type Arg = ();
 
-    type Parsed = Self;
+    type Parsed = (Identifier, AttrObj);
 
     fn parse<'a>(
         state_stream: &mut StateStream<'a>,
         _arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
-        between(
-            token('('),
-            token(')'),
-            (Identifier::parser(()), spaced(token(':')), attr_parser()),
-        )
-        .map(|(key, _, val)| AttributeDictKeyVal { key, val })
-        .parse_stream(state_stream)
-        .into_result()
+        (Identifier::parser(()), spaced(token(':')), attr_parser())
+            .map(|(key, _, val)| (key, val))
+            .parse_stream(state_stream)
+            .into_result()
     }
 }
 
@@ -114,10 +113,9 @@ impl Printable for AttributeDict {
             f,
             "[{}]",
             iter_with_sep(
-                self.0.iter().map(|(key, val)| AttributeDictKeyVal {
-                    key: key.clone(),
-                    val: val.clone()
-                }),
+                self.0
+                    .iter()
+                    .map(|(key, val)| AttributeDictKeyVal { key, val }),
                 printable::ListSeparator::CharSpace(','),
             )
             .disp(ctx)
@@ -134,14 +132,7 @@ impl Parsable for AttributeDict {
         _arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
         delimited_list_parser('[', ']', ',', AttributeDictKeyVal::parser(()))
-            .map(|key_vals| {
-                AttributeDict(
-                    key_vals
-                        .into_iter()
-                        .map(|key_val| (key_val.key, key_val.val))
-                        .collect(),
-                )
-            })
+            .map(|key_vals| AttributeDict(key_vals.into_iter().collect()))
             .parse_stream(state_stream)
             .into_result()
     }
@@ -178,6 +169,27 @@ impl AttributeDict {
     /// Set the attribute value for key `k`.
     pub fn set<T: Attribute>(&mut self, k: Identifier, v: T) {
         self.0.insert(k, Box::new(v));
+    }
+
+    /// Clone, but skip Outlined attributes.
+    pub fn clone_skip_outlined(&self) -> Self {
+        self.0
+            .iter()
+            .filter_map(|(k, v)| {
+                if attr_impls::<dyn OutlinedAttr>(&**v) {
+                    None
+                } else {
+                    Some((k.clone(), dyn_clone::clone_box(&**v)))
+                }
+            })
+            .collect::<FxHashMap<Identifier, AttrObj>>()
+            .into()
+    }
+}
+
+impl From<FxHashMap<Identifier, AttrObj>> for AttributeDict {
+    fn from(value: FxHashMap<Identifier, AttrObj>) -> Self {
+        AttributeDict(value)
     }
 }
 

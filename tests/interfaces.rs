@@ -39,7 +39,7 @@ use pliron::{
     utils::trait_cast::any_to_trait,
 };
 use pliron::{input_error, verify_err};
-use pliron_derive::format_attribute;
+use pliron_derive::{format_attribute, format_op};
 use thiserror::Error;
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
@@ -581,6 +581,49 @@ fn test_outline_printonce_attr() -> Result<()> {
         !6 = test.outline_print_once_test_attr <builtin.integer si32>
     "#]]
     .assert_eq(&parsed_op.disp(ctx).to_string());
+
+    Ok(())
+}
+
+#[def_op("test.canonical_op")]
+#[format_op]
+pub struct CanonicalOp;
+impl_verify_succ!(CanonicalOp);
+
+impl CanonicalOp {
+    pub fn new(ctx: &mut Context) -> CanonicalOp {
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 0);
+        Self { op }
+    }
+}
+
+#[test]
+fn test_outline_attr_canonical_op() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+
+    CanonicalOp::register(ctx, CanonicalOp::parser_fn);
+    OutlineTestAttr::register_attr_in_dialect(ctx, OutlineTestAttr::parser_fn);
+    let attr = OutlineTestAttr {
+        ty: IntegerType::get(ctx, 32, pliron::builtin::types::Signedness::Signed).into(),
+    };
+
+    let op = CanonicalOp::new(ctx);
+    op.get_operation()
+        .deref_mut(ctx)
+        .attributes
+        .0
+        .insert("test_attr".try_into().unwrap(), Box::new(attr));
+
+    // Print the op
+    let printed = op.get_operation().deref(ctx).disp(ctx).to_string();
+
+    expect![[r#"
+        test.canonical_op () [] []: <() -> ()> !0
+
+        outlined_attributes:
+        !0 = [test_attr = test.outline_test_attr <builtin.integer si32>]
+    "#]]
+    .assert_eq(&printed);
 
     Ok(())
 }
