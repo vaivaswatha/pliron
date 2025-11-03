@@ -33,21 +33,23 @@ use llvm_sys::{
         LLVMDisposeMemoryBuffer, LLVMDisposeMessage, LLVMDisposeModule, LLVMDoubleTypeInContext,
         LLVMDumpModule, LLVMDumpType, LLVMDumpValue, LLVMFloatTypeInContext, LLVMFunctionType,
         LLVMGetAggregateElement, LLVMGetAllocatedType, LLVMGetArrayLength2, LLVMGetBasicBlockName,
-        LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType, LLVMGetCalledValue,
-        LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFCmpPredicate, LLVMGetFastMathFlags,
-        LLVMGetFirstBasicBlock, LLVMGetFirstFunction, LLVMGetFirstGlobal, LLVMGetFirstInstruction,
-        LLVMGetFirstParam, LLVMGetGEPSourceElementType, LLVMGetGlobalParent, LLVMGetICmpPredicate,
-        LLVMGetIncomingBlock, LLVMGetIncomingValue, LLVMGetIndices, LLVMGetInitializer,
-        LLVMGetInsertBlock, LLVMGetInstructionOpcode, LLVMGetInstructionParent,
-        LLVMGetIntTypeWidth, LLVMGetLastFunction, LLVMGetLastGlobal, LLVMGetLinkage,
-        LLVMGetModuleIdentifier, LLVMGetNNeg, LLVMGetNSW, LLVMGetNUW, LLVMGetNextBasicBlock,
-        LLVMGetNextFunction, LLVMGetNextGlobal, LLVMGetNextInstruction, LLVMGetNextParam,
-        LLVMGetNumArgOperands, LLVMGetNumIndices, LLVMGetNumOperands, LLVMGetOperand, LLVMGetParam,
-        LLVMGetParamTypes, LLVMGetPreviousBasicBlock, LLVMGetPreviousFunction,
-        LLVMGetPreviousGlobal, LLVMGetPreviousInstruction, LLVMGetPreviousParam, LLVMGetReturnType,
+        LLVMGetBasicBlockParent, LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType,
+        LLVMGetCalledValue, LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFCmpPredicate,
+        LLVMGetFastMathFlags, LLVMGetFirstBasicBlock, LLVMGetFirstFunction, LLVMGetFirstGlobal,
+        LLVMGetFirstInstruction, LLVMGetFirstParam, LLVMGetGEPSourceElementType,
+        LLVMGetICmpPredicate, LLVMGetIncomingBlock, LLVMGetIncomingValue, LLVMGetIndices,
+        LLVMGetInitializer, LLVMGetInsertBlock, LLVMGetInstructionOpcode, LLVMGetInstructionParent,
+        LLVMGetIntTypeWidth, LLVMGetIntrinsicDeclaration, LLVMGetLastFunction, LLVMGetLastGlobal,
+        LLVMGetLinkage, LLVMGetModuleIdentifier, LLVMGetNNeg, LLVMGetNSW, LLVMGetNUW,
+        LLVMGetNamedFunction, LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextGlobal,
+        LLVMGetNextInstruction, LLVMGetNextParam, LLVMGetNumArgOperands, LLVMGetNumIndices,
+        LLVMGetNumOperands, LLVMGetOperand, LLVMGetParam, LLVMGetParamTypes,
+        LLVMGetPreviousBasicBlock, LLVMGetPreviousFunction, LLVMGetPreviousGlobal,
+        LLVMGetPreviousInstruction, LLVMGetPreviousParam, LLVMGetReturnType,
         LLVMGetStructElementTypes, LLVMGetStructName, LLVMGetTypeKind, LLVMGetUndef,
         LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType, LLVMIntTypeInContext,
-        LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser, LLVMIsDeclaration, LLVMIsOpaqueStruct,
+        LLVMIntrinsicIsOverloaded, LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser,
+        LLVMIsDeclaration, LLVMIsOpaqueStruct, LLVMLookupIntrinsicID,
         LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext, LLVMPositionBuilderAtEnd,
         LLVMPositionBuilderBefore, LLVMPrintModuleToFile, LLVMPrintModuleToString,
         LLVMPrintTypeToString, LLVMPrintValueToString, LLVMSetFastMathFlags, LLVMSetInitializer,
@@ -62,9 +64,9 @@ use llvm_sys::{
     },
 };
 
-use crate::llvm_sys::{ToBool, c_array_to_vec, cstr_to_string, uninitialized_vec};
-
-use super::{sized_cstr_to_string, to_c_str};
+use crate::llvm_sys::{
+    ToBool, c_array_to_vec, cstr_to_string, sized_cstr_to_string, to_c_str, uninitialized_vec,
+};
 
 /// Opaque wrapper around LLVMValueRef to hide the raw pointer
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -98,20 +100,32 @@ impl From<LLVMType> for LLVMTypeRef {
     }
 }
 
-/// Managed LLVMContext
-pub struct LLVMContext(LLVMContextRef);
+// We wrap LLVMContext in a module to limit its visibility for constructing
+mod llvm_context {
+    use super::*;
 
-impl Default for LLVMContext {
-    fn default() -> Self {
-        unsafe { LLVMContext(LLVMContextCreate()) }
+    /// Managed LLVMContext
+    pub struct LLVMContext(LLVMContextRef);
+
+    impl Default for LLVMContext {
+        fn default() -> Self {
+            unsafe { LLVMContext(LLVMContextCreate()) }
+        }
+    }
+
+    impl Drop for LLVMContext {
+        fn drop(&mut self) {
+            unsafe { LLVMContextDispose(self.0) }
+        }
+    }
+
+    impl LLVMContext {
+        pub(crate) fn inner_ref(&self) -> LLVMContextRef {
+            self.0
+        }
     }
 }
-
-impl Drop for LLVMContext {
-    fn drop(&mut self) {
-        unsafe { LLVMContextDispose(self.0) }
-    }
-}
+pub use llvm_context::LLVMContext;
 
 /// Opaque wrapper around LLVMBasicBlockRef to hide the raw pointer
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -129,18 +143,38 @@ impl From<LLVMBasicBlock> for LLVMBasicBlockRef {
     }
 }
 
-/// Managed LLVMBuilder.
-pub struct LLVMBuilder(LLVMBuilderRef);
+mod llvm_builder {
 
-impl LLVMBuilder {
-    pub fn new(context: &LLVMContext) -> Self {
-        unsafe { LLVMBuilder(LLVMCreateBuilderInContext(context.0)) }
+    use llvm_sys::core::LLVMDisposeBuilder;
+
+    use super::*;
+    /// Managed LLVMBuilder.
+    pub struct LLVMBuilder(LLVMBuilderRef);
+
+    impl LLVMBuilder {
+        /// Create a new LLVMBuilder in the given context.
+        pub fn new(context: &LLVMContext) -> Self {
+            unsafe { LLVMBuilder(LLVMCreateBuilderInContext(context.inner_ref())) }
+        }
+
+        /// Get the inner LLVMBuilderRef
+        pub(crate) fn inner_ref(&self) -> LLVMBuilderRef {
+            self.0
+        }
+    }
+
+    impl Drop for LLVMBuilder {
+        fn drop(&mut self) {
+            unsafe { LLVMDisposeBuilder(self.0) }
+        }
     }
 }
 
+pub use llvm_builder::LLVMBuilder;
+
 bitflags! {
     /// Fast math flags for floating point operations.
-    #[derive(PartialEq, Eq, Clone, Debug, Default, Hash, Copy)]
+    #[derive(PartialEq, Eq, Clone, Debug, Hash, Copy)]
     pub struct FastmathFlags: u8 {
         const NNAN = 1;
         const NINF = 2;
@@ -233,7 +267,7 @@ pub fn llvm_print_type_to_string(ty: LLVMType) -> Option<String> {
 
 /// LLVMPrintModuleToString
 pub fn llvm_print_module_to_string(module: &LLVMModule) -> Option<String> {
-    let buf_ptr = unsafe { LLVMPrintModuleToString(module.0) };
+    let buf_ptr = unsafe { LLVMPrintModuleToString(module.inner_ref()) };
     if buf_ptr.is_null() {
         return None;
     }
@@ -255,7 +289,7 @@ pub fn llvm_get_value_name(val: LLVMValue) -> Option<String> {
 /// LLVMGetModuleIdentifier
 pub fn llvm_get_module_identifier(module: &LLVMModule) -> Option<String> {
     let mut len = 0;
-    let buf_ptr = unsafe { LLVMGetModuleIdentifier(module.0, &mut len) };
+    let buf_ptr = unsafe { LLVMGetModuleIdentifier(module.inner_ref(), &mut len) };
     if buf_ptr.is_null() {
         return None;
     }
@@ -274,7 +308,7 @@ pub fn llvm_dump_type(ty: LLVMType) {
 
 /// LLVMDumpModule
 pub fn llvm_dump_module(module: &LLVMModule) {
-    unsafe { LLVMDumpModule(module.0) }
+    unsafe { LLVMDumpModule(module.inner_ref()) }
 }
 
 /// The family of LLVMIsA* functions for Value
@@ -419,10 +453,7 @@ pub fn llvm_global_get_value_type(val: LLVMValue) -> LLVMType {
 /// LLVMGetGlobalParent
 pub fn llvm_get_global_parent(val: LLVMValue) -> Option<LLVMModule> {
     assert!(llvm_is_a::global_value(val));
-    unsafe {
-        let module_ref = LLVMGetGlobalParent(val.into());
-        (!module_ref.is_null()).then_some(LLVMModule(module_ref))
-    }
+    unimplemented!("Returning LLVMModule, which owns the underlying LLVMModuleRef is not safe");
 }
 
 /// LLVMIsDeclaration
@@ -613,6 +644,14 @@ pub fn llvm_value_as_basic_block(val: LLVMValue) -> LLVMBasicBlock {
 /// LLVMGetBasicBlockName
 pub fn llvm_get_basic_block_name(block: LLVMBasicBlock) -> Option<String> {
     cstr_to_string(unsafe { LLVMGetBasicBlockName(block.into()) })
+}
+
+/// LLVMGetBasicBlockParent
+pub fn llvm_get_basic_block_parent(block: LLVMBasicBlock) -> Option<LLVMValue> {
+    unsafe {
+        let parent = LLVMGetBasicBlockParent(block.into());
+        (!parent.is_null()).then_some(parent.into())
+    }
 }
 
 /// LLVMGetFirstBasicBlock
@@ -881,7 +920,7 @@ pub fn llvm_get_param(func: LLVMValue, idx: u32) -> LLVMValue {
 /// LLVMGetFirstFunction
 pub fn llvm_get_first_function(module: &LLVMModule) -> Option<LLVMValue> {
     unsafe {
-        let first_func = LLVMGetFirstFunction(module.0);
+        let first_func = LLVMGetFirstFunction(module.inner_ref());
         (!first_func.is_null()).then_some(first_func.into())
     }
 }
@@ -907,7 +946,7 @@ pub fn llvm_get_previous_function(func: LLVMValue) -> Option<LLVMValue> {
 /// LLVMGetLasFunction
 pub fn llvm_get_last_function(module: &LLVMModule) -> Option<LLVMValue> {
     unsafe {
-        let last_func = LLVMGetLastFunction(module.0);
+        let last_func = LLVMGetLastFunction(module.inner_ref());
         (!last_func.is_null()).then_some(last_func.into())
     }
 }
@@ -936,7 +975,7 @@ pub fn function_iter(module: &LLVMModule) -> FunctionIter {
 /// LLVMGetFirstGlobal
 pub fn llvm_get_first_global(module: &LLVMModule) -> Option<LLVMValue> {
     unsafe {
-        let first_global = LLVMGetFirstGlobal(module.0);
+        let first_global = LLVMGetFirstGlobal(module.inner_ref());
         (!first_global.is_null()).then_some(first_global.into())
     }
 }
@@ -962,7 +1001,7 @@ pub fn llvm_get_previous_global(val: LLVMValue) -> Option<LLVMValue> {
 /// LLVMGetLastGlobal
 pub fn llvm_get_last_global(module: &LLVMModule) -> Option<LLVMValue> {
     unsafe {
-        let last_global = LLVMGetLastGlobal(module.0);
+        let last_global = LLVMGetLastGlobal(module.inner_ref());
         (!last_global.is_null()).then_some(last_global.into())
     }
 }
@@ -1006,46 +1045,46 @@ pub fn llvm_set_initializer(val: LLVMValue, init: LLVMValue) {
 
 /// LLVMAddGlobal
 pub fn llvm_add_global(module: &LLVMModule, ty: LLVMType, name: &str) -> LLVMValue {
-    unsafe { LLVMAddGlobal(module.0, ty.into(), to_c_str(name).as_ptr()).into() }
+    unsafe { LLVMAddGlobal(module.inner_ref(), ty.into(), to_c_str(name).as_ptr()).into() }
 }
 
 /// LLVMGetInsertBlock
 pub fn llvm_get_insert_block(builder: &LLVMBuilder) -> Option<LLVMBasicBlock> {
     unsafe {
-        let insert_block = LLVMGetInsertBlock(builder.0);
+        let insert_block = LLVMGetInsertBlock(builder.inner_ref());
         (!insert_block.is_null()).then_some(insert_block.into())
     }
 }
 
 /// LLVMClearInsertionPosition
 pub fn llvm_clear_insertion_position(builder: &LLVMBuilder) {
-    unsafe { LLVMClearInsertionPosition(builder.0) }
+    unsafe { LLVMClearInsertionPosition(builder.inner_ref()) }
 }
 
 /// LLVMPositionBuilderAtEnd
 pub fn llvm_position_builder_at_end(builder: &LLVMBuilder, block: LLVMBasicBlock) {
-    unsafe { LLVMPositionBuilderAtEnd(builder.0, block.into()) }
+    unsafe { LLVMPositionBuilderAtEnd(builder.inner_ref(), block.into()) }
 }
 
 /// LLVMPositionBuilderBefore
 pub fn llvm_position_builder_before(builder: &LLVMBuilder, inst: LLVMValue) {
     assert!(llvm_is_a::instruction(inst));
-    unsafe { LLVMPositionBuilderBefore(builder.0, inst.into()) }
+    unsafe { LLVMPositionBuilderBefore(builder.inner_ref(), inst.into()) }
 }
 
 /// LLVMIntTypeInContext
 pub fn llvm_int_type_in_context(context: &LLVMContext, width: u32) -> LLVMType {
-    unsafe { LLVMIntTypeInContext(context.0, width).into() }
+    unsafe { LLVMIntTypeInContext(context.inner_ref(), width).into() }
 }
 
 /// LLVMFloatTypeInContext
 pub fn llvm_float_type_in_context(context: &LLVMContext) -> LLVMType {
-    unsafe { LLVMFloatTypeInContext(context.0).into() }
+    unsafe { LLVMFloatTypeInContext(context.inner_ref()).into() }
 }
 
-/// LLVMDouleTypeInContext
+/// LLVMDoubleTypeInContext
 pub fn llvm_double_type_in_context(context: &LLVMContext) -> LLVMType {
-    unsafe { LLVMDoubleTypeInContext(context.0).into() }
+    unsafe { LLVMDoubleTypeInContext(context.inner_ref()).into() }
 }
 
 /// ArrayType::isValidElementType
@@ -1112,17 +1151,17 @@ pub fn llvm_function_type(ret_ty: LLVMType, param_tys: &[LLVMType], is_var_arg: 
 
 /// LLVMVoidTypeInContext
 pub fn llvm_void_type_in_context(context: &LLVMContext) -> LLVMType {
-    unsafe { LLVMVoidTypeInContext(context.0).into() }
+    unsafe { LLVMVoidTypeInContext(context.inner_ref()).into() }
 }
 
 /// LLVMPointerTypeInContext
 pub fn llvm_pointer_type_in_context(context: &LLVMContext, addr_space: u32) -> LLVMType {
-    unsafe { LLVMPointerTypeInContext(context.0, addr_space).into() }
+    unsafe { LLVMPointerTypeInContext(context.inner_ref(), addr_space).into() }
 }
 
 /// LLVMStructCreateNamed
 pub fn llvm_struct_create_named(context: &LLVMContext, name: &str) -> LLVMType {
-    unsafe { LLVMStructCreateNamed(context.0, to_c_str(name).as_ptr()).into() }
+    unsafe { LLVMStructCreateNamed(context.inner_ref(), to_c_str(name).as_ptr()).into() }
 }
 
 /// StructType::isValidElementType
@@ -1151,7 +1190,7 @@ pub fn llvm_struct_type_in_context(
     let mut elem_tys: Vec<_> = elem_tys.iter().cloned().map(Into::into).collect();
     unsafe {
         LLVMStructTypeInContext(
-            context.0,
+            context.inner_ref(),
             elem_tys.as_mut_ptr(),
             elem_tys.len().try_into().unwrap(),
             is_packed as i32,
@@ -1187,7 +1226,15 @@ pub fn llvm_build_add(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildAdd(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildAdd(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildSub
@@ -1198,7 +1245,15 @@ pub fn llvm_build_sub(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildSub(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildSub(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildMul
@@ -1209,7 +1264,15 @@ pub fn llvm_build_mul(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildMul(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildMul(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildSDiv
@@ -1220,7 +1283,15 @@ pub fn llvm_build_sdiv(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildSDiv(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildSDiv(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildUDiv
@@ -1231,7 +1302,15 @@ pub fn llvm_build_udiv(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildUDiv(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildUDiv(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildURem
@@ -1242,7 +1321,15 @@ pub fn llvm_build_urem(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildURem(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildURem(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildSRem
@@ -1253,7 +1340,15 @@ pub fn llvm_build_srem(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildSRem(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildSRem(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildAnd
@@ -1264,7 +1359,15 @@ pub fn llvm_build_and(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildAnd(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildAnd(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildOr
@@ -1275,7 +1378,15 @@ pub fn llvm_build_or(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildOr(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildOr(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildXor
@@ -1286,7 +1397,15 @@ pub fn llvm_build_xor(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildXor(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildXor(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildShl
@@ -1297,7 +1416,15 @@ pub fn llvm_build_shl(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildShl(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildShl(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildArrayAlloca
@@ -1309,7 +1436,13 @@ pub fn llvm_build_array_alloca(
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
-        LLVMBuildArrayAlloca(builder.0, ty.into(), size.into(), to_c_str(name).as_ptr()).into()
+        LLVMBuildArrayAlloca(
+            builder.inner_ref(),
+            ty.into(),
+            size.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
     }
 }
 
@@ -1323,7 +1456,7 @@ pub fn llvm_build_bitcast(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildBitCast(
-            builder.0,
+            builder.inner_ref(),
             val.into(),
             dest_ty.into(),
             to_c_str(name).as_ptr(),
@@ -1342,7 +1475,7 @@ pub fn llvm_build_int_to_ptr(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildIntToPtr(
-            builder.0,
+            builder.inner_ref(),
             val.into(),
             dest_ty.into(),
             to_c_str(name).as_ptr(),
@@ -1360,7 +1493,7 @@ pub fn llvm_build_ptr_to_int(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildPtrToInt(
-            builder.0,
+            builder.inner_ref(),
             val.into(),
             dest_ty.into(),
             to_c_str(name).as_ptr(),
@@ -1379,7 +1512,7 @@ pub fn llvm_build_trunc(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildTrunc(
-            builder.0,
+            builder.inner_ref(),
             val.into(),
             dest_ty.into(),
             to_c_str(name).as_ptr(),
@@ -1398,7 +1531,7 @@ pub fn llvm_build_sext(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildSExt(
-            builder.0,
+            builder.inner_ref(),
             val.into(),
             dest_ty.into(),
             to_c_str(name).as_ptr(),
@@ -1417,7 +1550,7 @@ pub fn llvm_build_zext(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildZExt(
-            builder.0,
+            builder.inner_ref(),
             val.into(),
             dest_ty.into(),
             to_c_str(name).as_ptr(),
@@ -1438,7 +1571,7 @@ pub fn llvm_build_gep2(
     let mut indices: Vec<_> = indices.iter().cloned().map(Into::into).collect();
     unsafe {
         LLVMBuildGEP2(
-            builder.0,
+            builder.inner_ref(),
             ty.into(),
             ptr.into(),
             indices.as_mut_ptr(),
@@ -1460,7 +1593,7 @@ pub fn llvm_build_insert_value(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildInsertValue(
-            builder.0,
+            builder.inner_ref(),
             agg_val.into(),
             element_val.into(),
             index,
@@ -1479,7 +1612,13 @@ pub fn llvm_build_extract_value(
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
-        LLVMBuildExtractValue(builder.0, agg_val.into(), index, to_c_str(name).as_ptr()).into()
+        LLVMBuildExtractValue(
+            builder.inner_ref(),
+            agg_val.into(),
+            index,
+            to_c_str(name).as_ptr(),
+        )
+        .into()
     }
 }
 
@@ -1494,7 +1633,7 @@ pub fn llvm_build_select(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildSelect(
-            builder.0,
+            builder.inner_ref(),
             if_val.into(),
             then_val.into(),
             else_val.into(),
@@ -1512,7 +1651,15 @@ pub fn llvm_build_fadd(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildFAdd(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildFAdd(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildFSub
@@ -1523,7 +1670,15 @@ pub fn llvm_build_fsub(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildFSub(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildFSub(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildFMul
@@ -1534,7 +1689,15 @@ pub fn llvm_build_fmul(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildFMul(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildFMul(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildFDiv
@@ -1545,7 +1708,15 @@ pub fn llvm_build_fdiv(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildFDiv(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildFDiv(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildFRem
@@ -1556,7 +1727,15 @@ pub fn llvm_build_frem(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildFRem(builder.0, lhs.into(), rhs.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMBuildFRem(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
 }
 
 /// LLVMBuildFCmp
@@ -1570,7 +1749,7 @@ pub fn llvm_build_fcmp(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildFCmp(
-            builder.0,
+            builder.inner_ref(),
             op,
             lhs.into(),
             rhs.into(),
@@ -1590,7 +1769,7 @@ pub fn llvm_build_fpext(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildFPExt(
-            builder.0,
+            builder.inner_ref(),
             val.into(),
             dest_ty.into(),
             to_c_str(name).as_ptr(),
@@ -1609,7 +1788,7 @@ pub fn llvm_build_fptrunc(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildFPTrunc(
-            builder.0,
+            builder.inner_ref(),
             val.into(),
             dest_ty.into(),
             to_c_str(name).as_ptr(),
@@ -1628,7 +1807,7 @@ pub fn llvm_build_fptosi(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildFPToSI(
-            builder.0,
+            builder.inner_ref(),
             val.into(),
             dest_ty.into(),
             to_c_str(name).as_ptr(),
@@ -1647,7 +1826,7 @@ pub fn llvm_build_sitofp(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildSIToFP(
-            builder.0,
+            builder.inner_ref(),
             val.into(),
             dest_ty.into(),
             to_c_str(name).as_ptr(),
@@ -1666,7 +1845,7 @@ pub fn llvm_build_uitofp(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildUIToFP(
-            builder.0,
+            builder.inner_ref(),
             val.into(),
             dest_ty.into(),
             to_c_str(name).as_ptr(),
@@ -1685,7 +1864,7 @@ pub fn llvm_build_fptoui(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildFPToUI(
-            builder.0,
+            builder.inner_ref(),
             val.into(),
             dest_ty.into(),
             to_c_str(name).as_ptr(),
@@ -1725,7 +1904,7 @@ pub fn llvm_build_cond_br(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildCondBr(
-            builder.0,
+            builder.inner_ref(),
             if_val.into(),
             then_block.into(),
             else_block.into(),
@@ -1737,7 +1916,7 @@ pub fn llvm_build_cond_br(
 /// LLVMBuildBr
 pub fn llvm_build_br(builder: &LLVMBuilder, dest: LLVMBasicBlock) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildBr(builder.0, dest.into()).into() }
+    unsafe { LLVMBuildBr(builder.inner_ref(), dest.into()).into() }
 }
 
 /// LLVMBuildSwitch
@@ -1748,7 +1927,15 @@ pub fn llvm_build_switch(
     num_cases: u32,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildSwitch(builder.0, val.into(), default_block.into(), num_cases).into() }
+    unsafe {
+        LLVMBuildSwitch(
+            builder.inner_ref(),
+            val.into(),
+            default_block.into(),
+            num_cases,
+        )
+        .into()
+    }
 }
 
 /// LLVMAddCase
@@ -1769,7 +1956,7 @@ pub fn llvm_build_load2(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildLoad2(
-            builder.0,
+            builder.inner_ref(),
             ty.into(),
             pointer_val.into(),
             to_c_str(name).as_ptr(),
@@ -1781,7 +1968,7 @@ pub fn llvm_build_load2(
 /// LLVMBuildStore
 pub fn llvm_build_store(builder: &LLVMBuilder, val: LLVMValue, ptr: LLVMValue) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildStore(builder.0, val.into(), ptr.into()).into() }
+    unsafe { LLVMBuildStore(builder.inner_ref(), val.into(), ptr.into()).into() }
 }
 
 /// LLVMBuildICmp
@@ -1795,7 +1982,7 @@ pub fn llvm_build_icmp(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildICmp(
-            builder.0,
+            builder.inner_ref(),
             op,
             lhs.into(),
             rhs.into(),
@@ -1808,19 +1995,19 @@ pub fn llvm_build_icmp(
 /// LLVMBuildRetVoid
 pub fn llvm_build_ret_void(builder: &LLVMBuilder) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildRetVoid(builder.0).into() }
+    unsafe { LLVMBuildRetVoid(builder.inner_ref()).into() }
 }
 
 /// LLVMBuildRet
 pub fn llvm_build_ret(builder: &LLVMBuilder, val: LLVMValue) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildRet(builder.0, val.into()).into() }
+    unsafe { LLVMBuildRet(builder.inner_ref(), val.into()).into() }
 }
 
 /// LLVMBuildPhi
 pub fn llvm_build_phi(builder: &LLVMBuilder, ty: LLVMType, name: &str) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
-    unsafe { LLVMBuildPhi(builder.0, ty.into(), to_c_str(name).as_ptr()).into() }
+    unsafe { LLVMBuildPhi(builder.inner_ref(), ty.into(), to_c_str(name).as_ptr()).into() }
 }
 
 /// LLVMBuildCall2
@@ -1832,10 +2019,11 @@ pub fn llvm_build_call2(
     name: &str,
 ) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
+    assert!(llvm_get_type_kind(ty) == LLVMTypeKind::LLVMFunctionTypeKind);
     let mut args: Vec<_> = args.iter().cloned().map(Into::into).collect();
     unsafe {
         LLVMBuildCall2(
-            builder.0,
+            builder.inner_ref(),
             ty.into(),
             callee.into(),
             args.as_mut_ptr(),
@@ -1860,7 +2048,15 @@ pub fn llvm_get_undef(ty: LLVMType) -> LLVMValue {
 /// LLVMAddFunction
 pub fn llvm_add_function(module: &LLVMModule, name: &str, fn_ty: LLVMType) -> LLVMValue {
     assert!(llvm_get_type_kind(fn_ty) == LLVMTypeKind::LLVMFunctionTypeKind);
-    unsafe { LLVMAddFunction(module.0, to_c_str(name).as_ptr(), fn_ty.into()).into() }
+    unsafe { LLVMAddFunction(module.inner_ref(), to_c_str(name).as_ptr(), fn_ty.into()).into() }
+}
+
+/// LLVMGetNamedFunction
+pub fn llvm_get_named_function(module: &LLVMModule, name: &str) -> Option<LLVMValue> {
+    unsafe {
+        let func = LLVMGetNamedFunction(module.inner_ref(), to_c_str(name).as_ptr());
+        (!func.is_null()).then_some(func.into())
+    }
 }
 
 /// LLVMDeleteFunction
@@ -1876,7 +2072,10 @@ pub fn llvm_append_basic_block_in_context(
     name: &str,
 ) -> LLVMBasicBlock {
     assert!(llvm_is_a::function(func));
-    unsafe { LLVMAppendBasicBlockInContext(context.0, func.into(), to_c_str(name).as_ptr()).into() }
+    unsafe {
+        LLVMAppendBasicBlockInContext(context.inner_ref(), func.into(), to_c_str(name).as_ptr())
+            .into()
+    }
 }
 
 /// LLVMGetCalledValue
@@ -1950,143 +2149,241 @@ pub fn llvm_get_indices(inst: LLVMValue) -> Vec<u32> {
     c_array_to_vec(indices, num_indices as usize)
 }
 
-/// RAII wrapper around LLVMModuleRef
-pub struct LLVMModule(LLVMModuleRef);
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct IntrinsicID(u32);
 
-impl Drop for LLVMModule {
-    fn drop(&mut self) {
-        unsafe { LLVMDisposeModule(self.0) }
-    }
+/// Can this be an intrinsic name?
+/// Valid intrinsic names start with "llvm."
+fn llvm_name_has_intrinsic_prefix(name: &str) -> bool {
+    name.starts_with("llvm.")
 }
 
-impl LLVMModule {
-    pub fn new(module_id: &str, context: &LLVMContext) -> Self {
-        Self(unsafe { LLVMModuleCreateWithNameInContext(to_c_str(module_id).as_ptr(), context.0) })
+/// LLVMLookupIntrinsicID
+pub fn llvm_lookup_intrinsic_id(name: &str) -> Option<IntrinsicID> {
+    if !llvm_name_has_intrinsic_prefix(name) {
+        return None;
+    }
+    let id = unsafe { LLVMLookupIntrinsicID(to_c_str(name).as_ptr(), name.len()) };
+    (id != 0).then_some(IntrinsicID(id))
+}
+
+/// LLVMIntrinsicIsOverloaded
+pub fn llvm_intrinsic_is_overloaded(id: IntrinsicID) -> bool {
+    unsafe { LLVMIntrinsicIsOverloaded(id.0).to_bool() }
+}
+
+/// LLVMGetIntrinsicDeclaration
+pub fn llvm_get_intrinsic_declaration(
+    module: &LLVMModule,
+    id: IntrinsicID,
+    param_tys: &[LLVMType],
+) -> Result<LLVMValue, String> {
+    let overloaded = llvm_intrinsic_is_overloaded(id);
+
+    // For overloaded intrinsics, param_tys must not be empty.
+    // Intrinsic::getName(ID) asserts for overloaded intrinsics
+    if overloaded && param_tys.is_empty() {
+        return Err(format!(
+            "Intrinsic with ID {} is overloaded and requires parameter types",
+            id.0
+        ));
     }
 
-    /// Parse IR in memory buffer to [LLVMModule]
-    pub fn from_ir_in_memory_buffer(
-        context: &LLVMContext,
-        memory_buffer: LLVMMemoryBuffer,
-    ) -> Result<LLVMModule, String> {
-        let mut module_ref = MaybeUninit::uninit();
-        let mut err_string = MaybeUninit::uninit();
+    // For non-overloaded intrinsics, param_tys must be empty.
+    // Intrinsic::getName(ID Id, ArrayRef<Type *>, Module *M, FunctionType *)
+    //   asserts for non-overloaded intrinsics.
+    if !overloaded && !param_tys.is_empty() {
+        return Err(format!(
+            "Intrinsic with ID {} is not overloaded and does not accept parameter types",
+            id.0
+        ));
+    }
 
-        let success = unsafe {
-            LLVMParseIRInContext(
-                context.0,
-                memory_buffer.memory_buffer_ref,
-                module_ref.as_mut_ptr(),
-                err_string.as_mut_ptr(),
-            )
-        };
+    let mut param_tys: Vec<_> = param_tys.iter().cloned().map(Into::into).collect();
+    unsafe {
+        let decl = LLVMGetIntrinsicDeclaration(
+            module.inner_ref(),
+            id.0,
+            param_tys.as_mut_ptr(),
+            param_tys.len(),
+        );
+        (!decl.is_null()).then_some(decl.into())
+    }
+    .ok_or_else(|| {
+        format!(
+            "Failed to get intrinsic declaration for ID {} in the given module",
+            id.0
+        )
+    })
+}
 
-        // LLVMParseIRInContext consumes the memory buffer.
-        forget(memory_buffer);
+// We wrap LLVMModule in a module to limit its visibility for constructing
+mod llvm_module {
+    use super::*;
 
-        if success != 0 {
+    /// RAII wrapper around LLVMModuleRef
+    pub struct LLVMModule(LLVMModuleRef);
+
+    impl Drop for LLVMModule {
+        fn drop(&mut self) {
+            unsafe { LLVMDisposeModule(self.0) }
+        }
+    }
+
+    impl LLVMModule {
+        pub fn new(module_id: &str, context: &LLVMContext) -> Self {
+            Self(unsafe {
+                LLVMModuleCreateWithNameInContext(to_c_str(module_id).as_ptr(), context.inner_ref())
+            })
+        }
+
+        /// Parse IR in memory buffer to [LLVMModule]
+        pub fn from_ir_in_memory_buffer(
+            context: &LLVMContext,
+            memory_buffer: LLVMMemoryBuffer,
+        ) -> Result<LLVMModule, String> {
+            let mut module_ref = MaybeUninit::uninit();
+            let mut err_string = MaybeUninit::uninit();
+
+            let success = unsafe {
+                LLVMParseIRInContext(
+                    context.inner_ref(),
+                    memory_buffer.inner_ref(),
+                    module_ref.as_mut_ptr(),
+                    err_string.as_mut_ptr(),
+                )
+            };
+
+            // LLVMParseIRInContext consumes the memory buffer.
+            forget(memory_buffer);
+
+            if success != 0 {
+                unsafe {
+                    let err_str = err_string.assume_init();
+                    let err_string = cstr_to_string(err_str).unwrap();
+                    LLVMDisposeMessage(err_str);
+                    return Err(err_string);
+                }
+            }
+
+            unsafe { Ok(LLVMModule(module_ref.assume_init())) }
+        }
+
+        /// Parse IR in file given by filename into a [LLVMModule]
+        pub fn from_ir_in_file(
+            context: &LLVMContext,
+            filename: &str,
+        ) -> Result<LLVMModule, String> {
+            let memory_buffer = LLVMMemoryBuffer::from_file_name(filename)?;
+            Self::from_ir_in_memory_buffer(context, memory_buffer)
+        }
+
+        /// Print [LLVMModule] to a text assembly file
+        pub fn asm_to_file(&self, filename: &str) -> Result<(), String> {
+            let mut err_string = MaybeUninit::uninit();
+            let return_code = unsafe {
+                LLVMPrintModuleToFile(self.0, to_c_str(filename).as_ptr(), err_string.as_mut_ptr())
+            };
+
+            if return_code == 1 {
+                unsafe {
+                    let err_str = err_string.assume_init();
+                    let err_string = cstr_to_string(err_str).unwrap();
+                    LLVMDisposeMessage(err_str);
+                    return Err(err_string);
+                }
+            }
+
+            Ok(())
+        }
+
+        /// Print this [LLVMModule] to a bitcode file
+        pub fn bitcode_to_file(&self, filename: &str) -> Result<(), String> {
             unsafe {
-                let err_str = err_string.assume_init();
-                let err_string = cstr_to_string(err_str).unwrap();
-                LLVMDisposeMessage(err_str);
-                return Err(err_string);
+                if LLVMWriteBitcodeToFile(self.0, to_c_str(filename).as_ptr()) == 0 {
+                    Ok(())
+                } else {
+                    Err("Error writing bitcode to file".into())
+                }
             }
         }
 
-        unsafe { Ok(LLVMModule(module_ref.assume_init())) }
-    }
-
-    /// Parse IR in file given by filename into a [LLVMModule]
-    pub fn from_ir_in_file(context: &LLVMContext, filename: &str) -> Result<LLVMModule, String> {
-        let memory_buffer = LLVMMemoryBuffer::from_file_name(filename)?;
-        Self::from_ir_in_memory_buffer(context, memory_buffer)
-    }
-
-    /// Print [LLVMModule] to a text assembly file
-    pub fn asm_to_file(&self, filename: &str) -> Result<(), String> {
-        let mut err_string = MaybeUninit::uninit();
-        let return_code = unsafe {
-            LLVMPrintModuleToFile(self.0, to_c_str(filename).as_ptr(), err_string.as_mut_ptr())
-        };
-
-        if return_code == 1 {
-            unsafe {
-                let err_str = err_string.assume_init();
-                let err_string = cstr_to_string(err_str).unwrap();
-                LLVMDisposeMessage(err_str);
-                return Err(err_string);
+        /// Verify this module
+        pub fn verify(&self) -> Result<(), String> {
+            let mut err_string = MaybeUninit::uninit();
+            let return_code = unsafe {
+                LLVMVerifyModule(
+                    self.0,
+                    llvm_sys::analysis::LLVMVerifierFailureAction::LLVMReturnStatusAction,
+                    err_string.as_mut_ptr(),
+                )
+            };
+            if return_code == 1 {
+                unsafe {
+                    let err_str = err_string.assume_init();
+                    let err_string = cstr_to_string(err_str).unwrap();
+                    LLVMDisposeMessage(err_str);
+                    return Err(err_string);
+                }
             }
+            Ok(())
         }
 
-        Ok(())
-    }
-
-    /// Print this [LLVMModule] to a bitcode file
-    pub fn bitcode_to_file(&self, filename: &str) -> Result<(), String> {
-        unsafe {
-            if LLVMWriteBitcodeToFile(self.0, to_c_str(filename).as_ptr()) == 0 {
-                Ok(())
-            } else {
-                Err("Error writing bitcode to file".into())
-            }
+        ///  Get internal reference
+        pub(super) fn inner_ref(&self) -> LLVMModuleRef {
+            self.0
         }
-    }
-
-    /// Verify this module
-    pub fn verify(&self) -> Result<(), String> {
-        let mut err_string = MaybeUninit::uninit();
-        let return_code = unsafe {
-            LLVMVerifyModule(
-                self.0,
-                llvm_sys::analysis::LLVMVerifierFailureAction::LLVMReturnStatusAction,
-                err_string.as_mut_ptr(),
-            )
-        };
-        if return_code == 1 {
-            unsafe {
-                let err_str = err_string.assume_init();
-                let err_string = cstr_to_string(err_str).unwrap();
-                LLVMDisposeMessage(err_str);
-                return Err(err_string);
-            }
-        }
-        Ok(())
     }
 }
 
-pub struct LLVMMemoryBuffer {
-    pub memory_buffer_ref: LLVMMemoryBufferRef,
-}
+pub use llvm_module::LLVMModule;
 
-impl LLVMMemoryBuffer {
-    /// Create [LLVMMemoryBuffer] from a filename.
-    pub fn from_file_name(name: &str) -> Result<LLVMMemoryBuffer, String> {
-        let mut memory_buffer_ref = ptr::null_mut();
-        let mut err_string = MaybeUninit::uninit();
+// We wrap LLVMMemoryBuffer in a module to limit its visibility for constructing
+mod llvm_memory_buffer {
+    use super::*;
 
-        let return_code = unsafe {
-            LLVMCreateMemoryBufferWithContentsOfFile(
-                to_c_str(name).as_ptr(),
-                &mut memory_buffer_ref,
-                err_string.as_mut_ptr(),
-            )
-        };
+    /// RAII wrapper around LLVMMemoryBufferRef
+    pub struct LLVMMemoryBuffer(LLVMMemoryBufferRef);
 
-        if return_code == 1 {
-            unsafe {
-                let err_str = err_string.assume_init();
-                let err_string = cstr_to_string(err_str).unwrap();
-                LLVMDisposeMessage(err_str);
-                return Err(err_string);
+    impl LLVMMemoryBuffer {
+        /// Create [LLVMMemoryBuffer] from a filename.
+        pub fn from_file_name(name: &str) -> Result<LLVMMemoryBuffer, String> {
+            let mut memory_buffer_ref = ptr::null_mut();
+            let mut err_string = MaybeUninit::uninit();
+
+            let return_code = unsafe {
+                LLVMCreateMemoryBufferWithContentsOfFile(
+                    to_c_str(name).as_ptr(),
+                    &mut memory_buffer_ref,
+                    err_string.as_mut_ptr(),
+                )
+            };
+
+            if return_code == 1 {
+                unsafe {
+                    let err_str = err_string.assume_init();
+                    let err_string = cstr_to_string(err_str).unwrap();
+                    LLVMDisposeMessage(err_str);
+                    return Err(err_string);
+                }
             }
+
+            Ok(LLVMMemoryBuffer(memory_buffer_ref))
         }
+    }
 
-        Ok(LLVMMemoryBuffer { memory_buffer_ref })
+    impl Drop for LLVMMemoryBuffer {
+        fn drop(&mut self) {
+            unsafe { LLVMDisposeMemoryBuffer(self.inner_ref()) }
+        }
+    }
+
+    impl LLVMMemoryBuffer {
+        /// Get internal reference
+        pub(super) fn inner_ref(&self) -> LLVMMemoryBufferRef {
+            self.0
+        }
     }
 }
 
-impl Drop for LLVMMemoryBuffer {
-    fn drop(&mut self) {
-        unsafe { LLVMDisposeMemoryBuffer(self.memory_buffer_ref) }
-    }
-}
+pub use llvm_memory_buffer::LLVMMemoryBuffer;

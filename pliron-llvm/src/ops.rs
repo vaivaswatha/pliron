@@ -52,12 +52,16 @@ use crate::{
         CaseValuesAttr, FCmpPredicateAttr, FastmathFlagsAttr, InsertExtractValueIndicesAttr,
         LinkageAttr,
     },
+    llvm_sys::core::llvm_lookup_intrinsic_id,
     op_interfaces::{
         BinArithOp, CastOpInterface, CastOpWithNNegInterface, FastMathFlags, FloatBinArithOp,
         FloatBinArithOpWithFastMathFlags, IntBinArithOp, IntBinArithOpWithOverflowFlag,
-        IsDeclaration, NNegFlag, PointerTypeResult,
+        IsDeclaration, LlvmSymbolName, NNegFlag, PointerTypeResult,
     },
-    ops::func_op_attr_names::ATTR_KEY_LLVM_FUNC_TYPE,
+    ops::{
+        func_op_attr_names::ATTR_KEY_LLVM_FUNC_TYPE,
+        global_op_attr_names::{ATTR_KEY_GLOBAL_INITIALIZER, ATTR_KEY_LLVM_GLOBAL_TYPE},
+    },
     types::{ArrayType, FuncType, StructType},
 };
 
@@ -1316,7 +1320,7 @@ impl Verify for StoreOp {
 /// | `res` | LLVM type |
 #[def_op("llvm.call")]
 #[derive_op_interface_impl(OneResultInterface)]
-#[derive_attr_get_set(call_callee : IdentifierAttr)]
+#[derive_attr_get_set(llvm_call_callee : IdentifierAttr, llvm_call_fastmath_flags : FastmathFlagsAttr)]
 pub struct CallOp;
 
 impl CallOp {
@@ -1333,7 +1337,7 @@ impl CallOp {
                 let op =
                     Operation::new(ctx, Self::get_opid_static(), vec![res_ty], args, vec![], 0);
                 let op = CallOp { op };
-                op.set_attr_call_callee(ctx, IdentifierAttr::new(cval));
+                op.set_attr_llvm_call_callee(ctx, IdentifierAttr::new(cval));
                 op
             }
             CallOpCallable::Indirect(csym) => {
@@ -1343,7 +1347,6 @@ impl CallOp {
                 CallOp { op }
             }
         };
-
         op.set_callee_type(ctx, callee_ty.into());
         op
     }
@@ -1424,7 +1427,7 @@ impl SymbolUserOpInterface for CallOp {
 impl CallOpInterface for CallOp {
     fn callee(&self, ctx: &Context) -> CallOpCallable {
         let op = self.op.deref(ctx);
-        if let Some(callee_sym) = self.get_attr_call_callee(ctx) {
+        if let Some(callee_sym) = self.get_attr_llvm_call_callee(ctx) {
             CallOpCallable::Direct(callee_sym.clone().into())
         } else {
             assert!(
@@ -1469,6 +1472,13 @@ impl Printable for CallOp {
                 write!(f, "{}", callee_val.disp(ctx))?;
             }
         }
+
+        if let Some(fmf) = self.get_attr_llvm_call_fastmath_flags(ctx)
+            && *fmf != FastmathFlagsAttr::default()
+        {
+            write!(f, " {}", fmf.disp(ctx))?;
+        }
+
         let args = self.args(ctx);
         let ty = self.callee_type(ctx);
         write!(
@@ -1494,17 +1504,22 @@ impl Parsable for CallOp {
             .map(CallOpCallable::Direct);
         let indirect_callee = ssa_opd_parser().map(CallOpCallable::Indirect);
         let callee_parser = direct_callee.or(indirect_callee);
+        let fastmath_flags_parser = optional(FastmathFlagsAttr::parser(()));
         let args_parser = delimited_list_parser('(', ')', ',', ssa_opd_parser());
         let ty_parser = spaced(combine::token(':')).with(TypePtr::<FuncType>::parser(()));
 
         let mut final_parser = spaced(callee_parser)
+            .and(spaced(fastmath_flags_parser))
             .and(spaced(args_parser))
             .and(ty_parser)
-            .then(move |((callee, args), ty)| {
+            .then(move |(((callee, fastmath_flags), args), ty)| {
                 let results = results.clone();
                 combine::parser(move |parsable_state: &mut StateStream<'a>| {
                     let ctx = &mut parsable_state.state.ctx;
                     let op = CallOp::new(ctx, callee.clone(), ty, args.clone());
+                    if let Some(fmf) = &fastmath_flags {
+                        op.set_attr_llvm_call_fastmath_flags(ctx, *fmf);
+                    }
                     process_parsed_ssa_defs(parsable_state, &results, op.get_operation())?;
                     Ok(Box::new(op) as Box<dyn Op>).into_parse_result()
                 })
@@ -1693,9 +1708,10 @@ pub enum GlobalOpVerifyErr {
     ZeroOpdInterface,
     ZeroResultInterface,
     SymbolOpInterface,
-    SingleBlockRegionInterface
+    SingleBlockRegionInterface,
+    LlvmSymbolName
 )]
-#[derive_attr_get_set(global_type : TypeAttr, global_initializer, llvm_global_linkage : LinkageAttr)]
+#[derive_attr_get_set(llvm_global_type : TypeAttr, global_initializer, llvm_global_linkage : LinkageAttr)]
 pub struct GlobalOp;
 
 impl GlobalOp {
@@ -1704,7 +1720,7 @@ impl GlobalOp {
         let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 0);
         let op = GlobalOp { op };
         op.set_symbol_name(ctx, name);
-        op.set_attr_global_type(ctx, TypeAttr::new(ty));
+        op.set_attr_llvm_global_type(ctx, TypeAttr::new(ty));
         op
     }
 }
@@ -1713,7 +1729,7 @@ impl pliron::r#type::Typed for GlobalOp {
     fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         pliron::r#type::Typed::get_type(
             &*self
-                .get_attr_global_type(ctx)
+                .get_attr_llvm_global_type(ctx)
                 .expect("GlobalOp missing or has incorrect type attribute"),
             ctx,
         )
@@ -1771,7 +1787,7 @@ impl Verify for GlobalOp {
 
         // The name must be set. That is checked by the SymbolOpInterface.
         // So we check that other attributes are set. Start with type.
-        if self.get_attr_global_type(ctx).is_none() {
+        if self.get_attr_llvm_global_type(ctx).is_none() {
             return verify_err!(loc, GlobalOpVerifyErr::MissingType);
         }
 
@@ -1799,6 +1815,23 @@ impl Printable for GlobalOp {
             <Self as pliron::r#type::Typed>::get_type(self, ctx).disp(ctx)
         )?;
 
+        // Print attributes except for type, initializer and symbol name.
+        let mut attributes_to_print_separately =
+            self.op.deref(ctx).attributes.clone_skip_outlined();
+        attributes_to_print_separately.0.retain(|key, _| {
+            key != &*ATTR_KEY_LLVM_GLOBAL_TYPE
+                && key != &*ATTR_KEY_SYM_NAME
+                && key != &*ATTR_KEY_GLOBAL_INITIALIZER
+        });
+        indented_block!(state, {
+            write!(
+                f,
+                "{}{}",
+                indented_nl(state),
+                attributes_to_print_separately.disp(ctx)
+            )?;
+        });
+
         if let Some(init_value) = self.get_initializer_value(ctx) {
             write!(f, " = {}", init_value.disp(ctx))?;
         }
@@ -1824,13 +1857,20 @@ impl Parsable for GlobalOp {
         }
         let name_parser = combine::token('@').with(Identifier::parser(()));
         let type_parser = type_parser();
+        let attr_dict_parser = AttributeDict::parser(());
 
         let mut parser = name_parser
             .skip(spaced(combine::token(':')))
-            .and(type_parser);
+            .and(type_parser)
+            .and(spaced(attr_dict_parser));
 
-        let ((name, ty), _) = parser.parse_stream(state_stream).into_result()?;
+        let (((name, ty), attr_dict), _) = parser.parse_stream(state_stream).into_result()?;
         let op = GlobalOp::new(state_stream.state.ctx, name, ty);
+        op.get_operation()
+            .deref_mut(state_stream.state.ctx)
+            .attributes
+            .0
+            .extend(attr_dict.0);
 
         enum Initializer {
             Value(AttrObj),
@@ -2821,17 +2861,181 @@ pub enum FCmpOpVerifyErr {
     PredAttrErr,
 }
 
-/// All LLVM intrinsic declarations are represented by this [Op].
-/// Unlike in MLIR's LLVM dialect, we do not create a separate [Op] for each intrinsic.
-/// Instead, we use an attribute to specify which intrinsic is being called.
-#[def_op("llvm.intrinsic")]
-#[format_op]
-#[derive_attr_get_set(llvm_intrinsic_name : StringAttr)]
-pub struct IntrinsicOp;
+/// All LLVM intrinsic calls are represented by this [Op].
+/// Same as MLIR's [llvm.call_intrinsic](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmcall_intrinsic-llvmcallintrinsicop).
+#[def_op("llvm.call_intrinsic")]
+#[derive_attr_get_set(
+    llvm_intrinsic_name : StringAttr,
+    llvm_intrinsic_type: TypeAttr,
+    llvm_intrinsic_fastmath_flags : FastmathFlagsAttr,
+)]
+#[derive_op_interface_impl(OneResultInterface)]
+pub struct CallIntrinsicOp;
 
-impl Verify for IntrinsicOp {
-    fn verify(&self, _ctx: &Context) -> Result<()> {
-        todo!()
+impl CallIntrinsicOp {
+    /// Create a new [CallIntrinsicOp].
+    pub fn new(
+        ctx: &mut Context,
+        intrinsic_name: StringAttr,
+        intrinsic_type: TypePtr<FuncType>,
+        operands: Vec<Value>,
+    ) -> Self {
+        let res_ty = intrinsic_type.deref(ctx).result_type();
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![res_ty],
+            operands,
+            vec![],
+            0,
+        );
+        let op = CallIntrinsicOp { op };
+        op.set_attr_llvm_intrinsic_name(ctx, intrinsic_name);
+        op.set_attr_llvm_intrinsic_type(ctx, TypeAttr::new(intrinsic_type.into()));
+        op
+    }
+}
+
+impl Printable for CallIntrinsicOp {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        // [result = ] llvm.call_intrinsic @name <FastMathFlags> (operands) : type
+        if let Some(res) = self.op.deref(ctx).results().next() {
+            write!(f, "{} = ", res.disp(ctx))?;
+        }
+
+        write!(
+            f,
+            "{} @{} ",
+            Self::get_opid_static(),
+            self.get_attr_llvm_intrinsic_name(ctx)
+                .expect("CallIntrinsicOp missing or incorrect intrinsic name attribute")
+                .disp(ctx),
+        )?;
+
+        if let Some(fmf) = self.get_attr_llvm_intrinsic_fastmath_flags(ctx)
+            && *fmf != FastmathFlagsAttr::default()
+        {
+            write!(f, " {} ", fmf.disp(ctx))?;
+        }
+
+        write!(
+            f,
+            "({}) : {}",
+            iter_with_sep(
+                self.op.deref(ctx).operands(),
+                printable::ListSeparator::CharSpace(',')
+            )
+            .disp(ctx),
+            self.get_attr_llvm_intrinsic_type(ctx)
+                .expect("CallIntrinsicOp missing or incorrect intrinsic type attribute")
+                .disp(ctx),
+        )
+    }
+}
+
+impl Parsable for CallIntrinsicOp {
+    type Arg = Vec<(Identifier, Location)>;
+    type Parsed = OpObj;
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        results: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        let pos = state_stream.loc();
+
+        let mut parser = (
+            spaced(token('@').with(StringAttr::parser(()))),
+            optional(spaced(FastmathFlagsAttr::parser(()))),
+            delimited_list_parser('(', ')', ',', ssa_opd_parser()).skip(spaced(token(':'))),
+            spaced(type_parser()),
+        );
+
+        // Parse and build the call intrinsic op.
+        let (iname, fmf, operands, ftype) = parser.parse_stream(state_stream).into_result()?.0;
+
+        let ctx = &mut state_stream.state.ctx;
+        let intr_ty = TypePtr::<FuncType>::from_ptr(ftype, ctx).map_err(|mut err| {
+            err.set_loc(pos);
+            err
+        })?;
+        let op = CallIntrinsicOp::new(ctx, iname, intr_ty, operands);
+        if let Some(fmf) = fmf {
+            op.set_attr_llvm_intrinsic_fastmath_flags(ctx, fmf);
+        }
+        process_parsed_ssa_defs(state_stream, &results, op.get_operation())?;
+        Ok(Box::new(op) as OpObj).into_parse_result()
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum CallIntrinsicVerifyErr {
+    #[error("Missing or incorrect intrinsic name attribute")]
+    MissingIntrinsicNameAttr,
+    #[error("Missing or incorrect intrinsic type attribute")]
+    MissingIntrinsicTypeAttr,
+    #[error("Number or types of operands does not match intrinsic type")]
+    OperandsMismatch,
+    #[error("Number or types of results does not match intrinsic type")]
+    ResultsMismatch,
+    #[error("Intrinsic name does not correspond to a known LLVM intrinsic")]
+    UnknownIntrinsicName,
+}
+
+impl Verify for CallIntrinsicOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        // Check that the intrinsic name and type attributes are present.
+        let Some(name) = self.get_attr_llvm_intrinsic_name(ctx) else {
+            return verify_err!(
+                self.loc(ctx),
+                CallIntrinsicVerifyErr::MissingIntrinsicNameAttr
+            );
+        };
+
+        let Some(ty) = self
+            .get_attr_llvm_intrinsic_type(ctx)
+            .and_then(|ty| TypePtr::<FuncType>::from_ptr(ty.get_type(ctx), ctx).ok())
+        else {
+            return verify_err!(
+                self.loc(ctx),
+                CallIntrinsicVerifyErr::MissingIntrinsicTypeAttr
+            );
+        };
+
+        let arg_types = ty.deref(ctx).arg_types();
+        let res_type = ty.deref(ctx).result_type();
+
+        // Check that the operand and result types match the intrinsic type.
+        let op = &*self.op.deref(ctx);
+        let intrinsic_arg_types = ty.deref(ctx).arg_types();
+        if op.operands().count() != intrinsic_arg_types.len() {
+            return verify_err!(self.loc(ctx), CallIntrinsicVerifyErr::OperandsMismatch);
+        }
+
+        for (i, operand) in op.operands().enumerate() {
+            let opd_ty = pliron::r#type::Typed::get_type(&operand, ctx);
+            if opd_ty != arg_types[i] {
+                return verify_err!(self.loc(ctx), CallIntrinsicVerifyErr::OperandsMismatch);
+            }
+        }
+
+        let mut result_types = op.result_types();
+        if let Some(result_type) = result_types.next()
+            && result_type == res_type
+            && result_types.next().is_none()
+        {
+        } else {
+            return verify_err!(self.loc(ctx), CallIntrinsicVerifyErr::ResultsMismatch);
+        }
+
+        if llvm_lookup_intrinsic_id(&<StringAttr as Into<String>>::into(name.clone())).is_none() {
+            return verify_err!(self.loc(ctx), CallIntrinsicVerifyErr::UnknownIntrinsicName);
+        }
+
+        Ok(())
     }
 }
 
@@ -2843,7 +3047,8 @@ impl Verify for IntrinsicOp {
     IsolatedFromAboveInterface,
     AtMostOneRegionInterface,
     ZeroOpdInterface,
-    ZeroResultInterface
+    ZeroResultInterface,
+    LlvmSymbolName
 )]
 #[derive_attr_get_set(llvm_func_type : TypeAttr, llvm_function_linkage : LinkageAttr)]
 pub struct FuncOp;
@@ -3048,6 +3253,6 @@ pub fn register(ctx: &mut Context) {
     SelectOp::register(ctx, SelectOp::parser_fn);
     UndefOp::register(ctx, UndefOp::parser_fn);
     ReturnOp::register(ctx, ReturnOp::parser_fn);
-    IntrinsicOp::register(ctx, IntrinsicOp::parser_fn);
+    CallIntrinsicOp::register(ctx, CallIntrinsicOp::parser_fn);
     FuncOp::register(ctx, FuncOp::parser_fn);
 }

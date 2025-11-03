@@ -74,6 +74,12 @@ impl StringAttr {
     }
 }
 
+impl From<String> for StringAttr {
+    fn from(value: String) -> Self {
+        StringAttr::new(value)
+    }
+}
+
 impl From<StringAttr> for String {
     fn from(value: StringAttr) -> Self {
         value.0

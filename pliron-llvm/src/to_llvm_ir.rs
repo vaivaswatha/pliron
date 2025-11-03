@@ -6,7 +6,7 @@ use pliron::{
     basic_block::BasicBlock,
     builtin::{
         attr_interfaces::FloatAttr,
-        attributes::{FPDoubleAttr, FPSingleAttr, IntegerAttr},
+        attributes::{FPDoubleAttr, FPSingleAttr, IntegerAttr, StringAttr},
         op_interfaces::{
             AtMostOneRegionInterface, BranchOpInterface, CallOpCallable, CallOpInterface,
             OneOpdInterface, OneResultInterface, SingleBlockRegionInterface, SymbolOpInterface,
@@ -53,26 +53,28 @@ use crate::{
         llvm_build_udiv, llvm_build_uitofp, llvm_build_urem, llvm_build_xor, llvm_build_zext,
         llvm_can_value_use_fast_math_flags, llvm_clear_insertion_position, llvm_const_int,
         llvm_const_null, llvm_const_real, llvm_delete_function, llvm_double_type_in_context,
-        llvm_float_type_in_context, llvm_function_type, llvm_get_param, llvm_get_undef,
-        llvm_int_type_in_context, llvm_is_a, llvm_pointer_type_in_context,
-        llvm_position_builder_at_end, llvm_set_fast_math_flags, llvm_set_initializer,
-        llvm_set_linkage, llvm_set_nneg, llvm_struct_create_named, llvm_struct_set_body,
-        llvm_struct_type_in_context, llvm_void_type_in_context,
+        llvm_float_type_in_context, llvm_function_type, llvm_get_named_function, llvm_get_param,
+        llvm_get_undef, llvm_int_type_in_context, llvm_is_a, llvm_lookup_intrinsic_id,
+        llvm_pointer_type_in_context, llvm_position_builder_at_end, llvm_set_fast_math_flags,
+        llvm_set_initializer, llvm_set_linkage, llvm_set_nneg, llvm_struct_create_named,
+        llvm_struct_set_body, llvm_struct_type_in_context, llvm_void_type_in_context,
     },
-    op_interfaces::{FastMathFlags, IsDeclaration, NNegFlag, PointerTypeResult},
+    op_interfaces::{FastMathFlags, IsDeclaration, LlvmSymbolName, NNegFlag, PointerTypeResult},
     ops::{
-        AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
-        ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp, FPExtOp, FPToSIOp, FPToUIOp, FPTruncOp,
-        FRemOp, FSubOp, FuncOp, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp, IntToPtrOp,
-        LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SIToFPOp, SRemOp, SelectOp,
-        ShlOp, StoreOp, SubOp, SwitchOp, TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp, XorOp, ZExtOp,
-        ZeroOp,
+        AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallIntrinsicOp, CallOp, CondBrOp,
+        ConstantOp, ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp, FPExtOp, FPToSIOp, FPToUIOp,
+        FPTruncOp, FRemOp, FSubOp, FuncOp, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp,
+        IntToPtrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SIToFPOp, SRemOp,
+        SelectOp, ShlOp, StoreOp, SubOp, SwitchOp, TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp,
+        XorOp, ZExtOp, ZeroOp,
     },
     types::{ArrayType, FuncType, PointerType, StructType, VoidType},
 };
 
 /// Mapping from pliron entities to LLVM entities.
-pub struct ConversionContext {
+pub struct ConversionContext<'a> {
+    // The current LLVMModule being converted to.
+    cur_llvm_module: &'a LLVMModule,
     // A map from pliron Values to LLVM Values.
     value_map: FxHashMap<Value, LLVMValue>,
     // A map from pliron basic blocks to LLVM.
@@ -87,9 +89,10 @@ pub struct ConversionContext {
     scratch_builder: LLVMBuilder,
 }
 
-impl ConversionContext {
-    pub fn new(llvm_ctx: &LLVMContext) -> Self {
+impl<'a> ConversionContext<'a> {
+    pub fn new(llvm_ctx: &'a LLVMContext, cur_llvm_module: &'a LLVMModule) -> Self {
         Self {
+            cur_llvm_module,
             value_map: FxHashMap::default(),
             block_map: FxHashMap::default(),
             function_map: FxHashMap::default(),
@@ -765,10 +768,73 @@ impl ToLLVMValue for CallOp {
                 &args,
                 &self.get_result(ctx).unique_name(ctx),
             );
+
+            if let Some(fmf) = self.get_attr_llvm_call_fastmath_flags(ctx)
+                && llvm_can_value_use_fast_math_flags(call_val)
+            {
+                llvm_set_fast_math_flags(call_val, (*fmf).into());
+            }
+
             Ok(call_val)
         } else {
             todo!()
         }
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for CallIntrinsicOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let args: Vec<_> = (0..op.get_num_operands())
+            .map(|i| convert_value_operand(cctx, ctx, &op.get_operand(i)))
+            .collect::<Result<_>>()?;
+        let fn_ty = convert_type(
+            ctx,
+            llvm_ctx,
+            self.get_attr_llvm_intrinsic_type(ctx)
+                .unwrap()
+                .get_type(ctx),
+        )?;
+
+        let intrinsic_name = <StringAttr as Into<String>>::into(
+            self.get_attr_llvm_intrinsic_name(ctx)
+                .expect("Intrinsic call does not name the intrinsic to be called")
+                .clone(),
+        );
+
+        let _intrinsic_id = llvm_lookup_intrinsic_id(&intrinsic_name).ok_or_else(|| {
+            input_error_noloc!(ToLLVMErr::UndefinedValue(intrinsic_name.to_string()))
+        })?;
+
+        // We just use llvm_add_function instead of llvm_get_intrinsic_declaration here
+        // because the latter requires that (and I quote from Intrinsics.h::getOrInsertDeclaration):
+        //   "For a declaration of an overloaded intrinsic, Tys must provide exactly one
+        //    type for each overloaded type in the intrinsic."
+        // I don't know how to determine that from just the name and argument types.
+        let intrinsic_fn = llvm_get_named_function(cctx.cur_llvm_module, &intrinsic_name)
+            .unwrap_or_else(|| llvm_add_function(cctx.cur_llvm_module, &intrinsic_name, fn_ty));
+
+        let intrinsic_op = llvm_build_call2(
+            &cctx.builder,
+            fn_ty,
+            intrinsic_fn,
+            &args,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+
+        if let Some(fmf) = self.get_attr_llvm_intrinsic_fastmath_flags(ctx)
+            && llvm_can_value_use_fast_math_flags(intrinsic_op)
+        {
+            llvm_set_fast_math_flags(intrinsic_op, (*fmf).into());
+        }
+
+        Ok(intrinsic_op)
     }
 }
 
@@ -1512,7 +1578,7 @@ pub fn convert_module(
 ) -> Result<LLVMModule> {
     let mod_name = module.get_symbol_name(ctx);
     let llvm_module = LLVMModule::new(&mod_name, llvm_ctx);
-    let cctx = &mut ConversionContext::new(llvm_ctx);
+    let cctx = &mut ConversionContext::new(llvm_ctx, &llvm_module);
 
     // Setup the scratch builder for evaluating constants.
     let scratch_function = {
@@ -1536,16 +1602,19 @@ pub fn convert_module(
                     ToLLVMErr::MissingTypeConversion(func_ty.disp(ctx).to_string())
                 ))?;
             let fn_ty_llvm = func_ty_to_llvm.convert(ctx, llvm_ctx)?;
-            let func_llvm =
-                llvm_add_function(&llvm_module, &func_op.get_symbol_name(ctx), fn_ty_llvm);
-            cctx.function_map
-                .insert(func_op.get_symbol_name(ctx), func_llvm);
+            let name = func_op.get_symbol_name(ctx);
+            let llvm_name = func_op.llvm_symbol_name(ctx).unwrap_or(name.clone().into());
+            let func_llvm = llvm_add_function(&llvm_module, &llvm_name, fn_ty_llvm);
+            cctx.function_map.insert(name, func_llvm);
         }
         if let Some(global_op) = Operation::get_op(op, ctx).downcast_ref::<GlobalOp>() {
             let global_ty = global_op.get_type(ctx);
             let global_ty_llvm = convert_type(ctx, llvm_ctx, global_ty)?;
             let global_name = global_op.get_symbol_name(ctx);
-            let global_llvm = llvm_add_global(&llvm_module, global_ty_llvm, &global_name);
+            let llvm_global_name = global_op
+                .llvm_symbol_name(ctx)
+                .unwrap_or(global_name.clone().into());
+            let global_llvm = llvm_add_global(&llvm_module, global_ty_llvm, &llvm_global_name);
             cctx.globals_map.insert(global_name, global_llvm);
         }
     }
@@ -1556,13 +1625,18 @@ pub fn convert_module(
         {
             convert_function(ctx, llvm_ctx, cctx, *func_op)?;
         }
-        if let Some(global_op) = Operation::get_op(op, ctx).downcast_ref::<GlobalOp>()
-            && !global_op.is_declaration(ctx)
-        {
+        if let Some(global_op) = Operation::get_op(op, ctx).downcast_ref::<GlobalOp>() {
             let global_name = global_op.get_symbol_name(ctx);
             let global_llvm = cctx.globals_map[&global_name];
-            if let Some(initializer) = convert_global_initializer(ctx, llvm_ctx, cctx, global_op)? {
+            if !global_op.is_declaration(ctx)
+                && let Some(initializer) =
+                    convert_global_initializer(ctx, llvm_ctx, cctx, global_op)?
+            {
                 llvm_set_initializer(global_llvm, initializer);
+            }
+            if let Some(linkage) = global_op.get_attr_llvm_global_linkage(ctx) {
+                let llvm_linkage: LLVMLinkage = convert_linkage(linkage.clone());
+                llvm_set_linkage(global_llvm, llvm_linkage);
             }
         }
     }

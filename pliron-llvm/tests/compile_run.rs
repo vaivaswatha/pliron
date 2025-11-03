@@ -8,7 +8,8 @@ use common::init_env_logger;
 
 use assert_cmd::Command;
 use pliron::{
-    arg_error_noloc, builtin,
+    arg_error_noloc,
+    builtin::{self, ops::ModuleOp},
     common_traits::Verify,
     context::Context,
     location,
@@ -111,8 +112,14 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         }
     }
 
+    let parsed_module_op = Operation::get_op(parsed_res, ctx);
+    let parsed_module_op = *parsed_module_op
+        .downcast::<ModuleOp>()
+        .ok()
+        .expect("Parsed operation must be a ModuleOp");
+
     // Execute it and try.
-    let module = match to_llvm_ir::convert_module(ctx, &llvm_context, pliron_module) {
+    let module = match to_llvm_ir::convert_module(ctx, &llvm_context, parsed_module_op) {
         Ok(module) => module,
         Err(err) => {
             eprintln!("{}", err.disp(ctx));
@@ -229,4 +236,11 @@ fn test_fib_mem2reg() {
 fn test_fpops() {
     init_env_logger();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("fpops.ll").to_str().unwrap(), 45);
+}
+
+/// Test intrinsics by compiling intrinsics.ll via pliron
+#[test]
+fn test_intrinsics() {
+    init_env_logger();
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("intrinsics.ll").to_str().unwrap(), 66);
 }

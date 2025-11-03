@@ -40,6 +40,10 @@ entry:
   %s_f32 = call float @llvm.sqrt.f32(float 4.000000e+00)
   %s_f32_i = fptosi float %s_f32 to i32
 
+  %s_f32_again = call float @llvm.sqrt.f32(float 4.000000e+00)
+  %s_f32_i_again = fptosi float %s_f32_again to i32
+
+
   %s_f64 = call double @llvm.sqrt.f64(double 9.000000000000000e+00)
   %s_f64_i = fptosi double %s_f64 to i32
 
@@ -89,7 +93,7 @@ entry:
   %copysign_f64_i = fptosi double %copysign_f64 to i32
 
   ; accumulate results into a single integer return value
-  %sum0 = add i32 0, %s_f32_i
+  %sum0 = add i32 %s_f32_i_again, %s_f32_i
   %sum1 = add i32 %sum0, %s_f64_i
   %sum2 = add i32 %sum1, %p1_f32_i
   %sum3 = add i32 %sum2, %p2_f64_i

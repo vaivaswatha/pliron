@@ -42,6 +42,12 @@ impl_verify_succ!(IntegerOverflowFlagsAttr);
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct FastmathFlagsAttr(pub FastmathFlags);
 
+impl Default for FastmathFlagsAttr {
+    fn default() -> Self {
+        FastmathFlagsAttr(FastmathFlags::empty())
+    }
+}
+
 impl From<FastmathFlags> for FastmathFlagsAttr {
     fn from(value: FastmathFlags) -> Self {
         FastmathFlagsAttr(value)
@@ -243,9 +249,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_fastmath_flags_attr_default() {
-        let flags = FastmathFlags::default();
+    fn test_fastmath_flags_attr_empty() {
+        let flags = FastmathFlags::empty();
         assert_eq!(flags.bits(), 0);
+
+        let ctx = &mut Context::default();
+        let flags_attr: FastmathFlagsAttr = flags.into();
+        expect!["<>"].assert_eq(&flags_attr.disp(ctx).to_string());
+
+        let input = "<>";
+        let mut state_stream = state_stream_from_iterator(
+            input.chars(),
+            parsable::State::new(ctx, location::Source::InMemory),
+        );
+        let (parsed, _) = FastmathFlagsAttr::parse(&mut state_stream, ()).unwrap();
+        assert_eq!(parsed, flags_attr);
     }
 
     #[test]

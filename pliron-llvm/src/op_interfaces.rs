@@ -2,7 +2,9 @@
 
 use pliron::{
     builtin::{
-        attributes::BoolAttr, op_interfaces::OneOpdInterface, type_interfaces::FloatTypeInterface,
+        attributes::BoolAttr,
+        op_interfaces::{OneOpdInterface, SymbolOpInterface},
+        type_interfaces::FloatTypeInterface,
     },
     derive::op_interface,
     dict_key,
@@ -394,6 +396,41 @@ pub trait IsDeclaration {
     fn is_declaration(&self, ctx: &Context) -> bool
     where
         Self: Sized;
+
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+}
+
+dict_key!(
+    /// Attribute key for LLVM symbol name.
+    ATTR_KEY_LLVM_SYMBOL_NAME,
+    "llvm_symbol_name"
+);
+
+/// Since LLVM symbols can have characters that are illegal in pliron,
+/// this interface provides a way to get the original LLVM symbol name.
+#[op_interface]
+pub trait LlvmSymbolName: SymbolOpInterface {
+    /// Get the original LLVM symbol name, if it's different from the pliron symbol name.
+    fn llvm_symbol_name(&self, ctx: &Context) -> Option<String> {
+        self.get_operation()
+            .deref(ctx)
+            .attributes
+            .get::<pliron::builtin::attributes::StringAttr>(&ATTR_KEY_LLVM_SYMBOL_NAME)
+            .map(|attr| attr.clone().into())
+    }
+
+    /// Set the original LLVM symbol name.
+    fn set_llvm_symbol_name(&self, ctx: &Context, name: String) {
+        self.get_operation().deref_mut(ctx).attributes.set(
+            ATTR_KEY_LLVM_SYMBOL_NAME.clone(),
+            pliron::builtin::attributes::StringAttr::new(name),
+        );
+    }
 
     fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
     where

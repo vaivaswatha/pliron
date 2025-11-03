@@ -35,35 +35,39 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use thiserror::Error;
 
 use crate::{
-    attributes::{FCmpPredicateAttr, ICmpPredicateAttr, IntegerOverflowFlagsAttr, LinkageAttr},
+    attributes::{
+        FCmpPredicateAttr, FastmathFlagsAttr, ICmpPredicateAttr, IntegerOverflowFlagsAttr,
+        LinkageAttr,
+    },
     llvm_sys::core::{
         LLVMBasicBlock, LLVMModule, LLVMType, LLVMValue, basic_block_iter, function_iter,
-        global_iter, incoming_iter, instruction_iter, llvm_const_int_get_zext_value,
-        llvm_const_real_get_double, llvm_count_struct_element_types, llvm_get_aggregate_element,
-        llvm_get_allocated_type, llvm_get_array_length2, llvm_get_basic_block_name,
-        llvm_get_basic_block_terminator, llvm_get_called_function_type, llvm_get_called_value,
-        llvm_get_const_opcode, llvm_get_element_type, llvm_get_fast_math_flags,
-        llvm_get_fcmp_predicate, llvm_get_gep_source_element_type, llvm_get_icmp_predicate,
-        llvm_get_indices, llvm_get_initializer, llvm_get_instruction_opcode,
-        llvm_get_instruction_parent, llvm_get_int_type_width, llvm_get_linkage,
-        llvm_get_module_identifier, llvm_get_nneg, llvm_get_nsw, llvm_get_num_arg_operands,
-        llvm_get_num_operands, llvm_get_nuw, llvm_get_operand, llvm_get_param_types,
-        llvm_get_return_type, llvm_get_struct_element_types, llvm_get_struct_name,
-        llvm_get_type_kind, llvm_get_value_kind, llvm_get_value_name, llvm_global_get_value_type,
-        llvm_is_a, llvm_is_declaration, llvm_is_opaque_struct, llvm_print_value_to_string,
-        llvm_type_of, llvm_value_as_basic_block, llvm_value_is_basic_block, param_iter,
+        global_iter, incoming_iter, instruction_iter, llvm_can_value_use_fast_math_flags,
+        llvm_const_int_get_zext_value, llvm_const_real_get_double, llvm_count_struct_element_types,
+        llvm_get_aggregate_element, llvm_get_allocated_type, llvm_get_array_length2,
+        llvm_get_basic_block_name, llvm_get_basic_block_terminator, llvm_get_called_function_type,
+        llvm_get_called_value, llvm_get_const_opcode, llvm_get_element_type,
+        llvm_get_fast_math_flags, llvm_get_fcmp_predicate, llvm_get_gep_source_element_type,
+        llvm_get_icmp_predicate, llvm_get_indices, llvm_get_initializer,
+        llvm_get_instruction_opcode, llvm_get_instruction_parent, llvm_get_int_type_width,
+        llvm_get_linkage, llvm_get_module_identifier, llvm_get_nneg, llvm_get_nsw,
+        llvm_get_num_arg_operands, llvm_get_num_operands, llvm_get_nuw, llvm_get_operand,
+        llvm_get_param_types, llvm_get_return_type, llvm_get_struct_element_types,
+        llvm_get_struct_name, llvm_get_type_kind, llvm_get_value_kind, llvm_get_value_name,
+        llvm_global_get_value_type, llvm_is_a, llvm_is_declaration, llvm_is_opaque_struct,
+        llvm_lookup_intrinsic_id, llvm_print_value_to_string, llvm_type_of,
+        llvm_value_as_basic_block, llvm_value_is_basic_block, param_iter,
     },
     op_interfaces::{
         BinArithOp, CastOpInterface, CastOpWithNNegInterface, FastMathFlags,
-        FloatBinArithOpWithFastMathFlags, IntBinArithOpWithOverflowFlag,
+        FloatBinArithOpWithFastMathFlags, IntBinArithOpWithOverflowFlag, LlvmSymbolName,
     },
     ops::{
-        AShrOp, AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallOp, CondBrOp, ConstantOp,
-        ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp, FNegOp, FPExtOp, FPToSIOp, FPToUIOp,
-        FPTruncOp, FRemOp, FSubOp, FuncOp, GepIndex, GetElementPtrOp, GlobalOp, ICmpOp,
-        InsertValueOp, IntToPtrOp, LShrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp,
-        SExtOp, SIToFPOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp, SwitchCase, SwitchOp, TruncOp,
-        UDivOp, UIToFPOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
+        AShrOp, AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallIntrinsicOp, CallOp,
+        CondBrOp, ConstantOp, ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp, FNegOp, FPExtOp,
+        FPToSIOp, FPToUIOp, FPTruncOp, FRemOp, FSubOp, FuncOp, GepIndex, GetElementPtrOp, GlobalOp,
+        ICmpOp, InsertValueOp, IntToPtrOp, LShrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp,
+        SDivOp, SExtOp, SIToFPOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp, SwitchCase, SwitchOp,
+        TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
     },
     types::{ArrayType, FuncType, PointerType, StructErr, StructType, VoidType},
 };
@@ -682,20 +686,55 @@ fn convert_call(
     let (args, _) = convert_operands(ctx, cctx, &llvm_operands)?;
 
     let callee = llvm_get_called_value(inst);
+
+    enum Callee {
+        FnCall(CallOpCallable),
+        IntrinsicCall(String),
+    }
     let callee = if llvm_is_a::function(callee) {
-        let fn_name = llvm_get_value_name(callee)
-            .map(|name| cctx.id_legaliser.legalise(&name))
-            .expect("Unable to obtain valid function name");
-        CallOpCallable::Direct(fn_name)
+        let llvm_fn_name =
+            llvm_get_value_name(callee).expect("Unable to obtain valid function name");
+        if llvm_lookup_intrinsic_id(&llvm_fn_name).is_some() {
+            Callee::IntrinsicCall(llvm_fn_name)
+        } else {
+            let fn_name = cctx.id_legaliser.legalise(&llvm_fn_name);
+            Callee::FnCall(CallOpCallable::Direct(fn_name))
+        }
     } else {
         let (callee_converted, _) = convert_operands(ctx, cctx, &[callee])?;
-        CallOpCallable::Indirect(callee_converted[0])
+        Callee::FnCall(CallOpCallable::Indirect(callee_converted[0]))
     };
 
     let callee_ty = llvm_get_called_function_type(inst);
     let callee_ty: TypePtr<FuncType> =
         convert_type(ctx, cctx, callee_ty).and_then(|ty| TypePtr::from_ptr(ty, ctx))?;
-    Ok(CallOp::new(ctx, callee, callee_ty, args).get_operation())
+
+    let fmf: Option<FastmathFlagsAttr> = if llvm_can_value_use_fast_math_flags(inst) {
+        // Not all calls can have fast-math flags.
+        let fmf = llvm_get_fast_math_flags(inst);
+        (!fmf.is_empty()).then_some(fmf.into())
+    } else {
+        None
+    };
+
+    let op = match callee {
+        Callee::FnCall(callable) => {
+            let op = CallOp::new(ctx, callable, callee_ty, args);
+            if let Some(fmf) = fmf {
+                op.set_attr_llvm_call_fastmath_flags(ctx, fmf);
+            }
+            op.get_operation()
+        }
+        Callee::IntrinsicCall(name) => {
+            let op = CallIntrinsicOp::new(ctx, name.into(), callee_ty, args);
+            if let Some(fmf) = fmf {
+                op.set_attr_llvm_intrinsic_fastmath_flags(ctx, fmf);
+            }
+            op.get_operation()
+        }
+    };
+
+    Ok(op)
 }
 
 fn convert_instruction(
@@ -1130,16 +1169,20 @@ fn convert_function(
     function: LLVMValue,
 ) -> Result<FuncOp> {
     assert!(llvm_is_a::function(function));
-    let name = llvm_get_value_name(function)
-        .map(|name| cctx.id_legaliser.legalise(&name))
-        .expect("Expected functions to have names");
+
+    let llvm_name = llvm_get_value_name(function).expect("Expected function to have a name");
+    let name = cctx.id_legaliser.legalise(&llvm_name);
     let fn_ty = convert_type(ctx, cctx, llvm_global_get_value_type(function))?;
     let fn_ty = TypePtr::from_ptr(fn_ty, ctx)?;
     // Create a new FuncOp.
-    let m_func = FuncOp::new(ctx, name, fn_ty);
+    let m_func = FuncOp::new(ctx, name.clone(), fn_ty);
 
     let linkage = convert_linkage(llvm_get_linkage(function));
     m_func.set_attr_llvm_function_linkage(ctx, linkage);
+
+    if llvm_name != <Identifier as Into<String>>::into(name) {
+        m_func.set_llvm_symbol_name(ctx, llvm_name);
+    }
 
     // If function is just a declaration, we have nothing more to do.
     if llvm_is_declaration(function) {
@@ -1194,8 +1237,8 @@ fn convert_global(
     cctx: &mut ConversionContext,
     global: LLVMValue,
 ) -> Result<GlobalOp> {
-    let name = llvm_get_value_name(global).unwrap_or_default();
-    let name = cctx.id_legaliser.legalise(&name);
+    let llvm_name = llvm_get_value_name(global).unwrap_or_default();
+    let name = cctx.id_legaliser.legalise(&llvm_name);
 
     let ty = convert_type(
         ctx,
@@ -1203,7 +1246,14 @@ fn convert_global(
         llvm_global_get_value_type(global),
     )?;
 
-    let op = GlobalOp::new(ctx, name, ty);
+    let op = GlobalOp::new(ctx, name.clone(), ty);
+
+    if <Identifier as Into<String>>::into(name) != llvm_name {
+        op.set_llvm_symbol_name(ctx, llvm_name);
+    }
+
+    let linkage = convert_linkage(llvm_get_linkage(global));
+    op.set_attr_llvm_global_linkage(ctx, linkage);
 
     if let Some(init) = llvm_get_initializer(global) {
         assert!(!llvm_is_declaration(global));
@@ -1242,6 +1292,11 @@ pub fn convert_module(ctx: &mut Context, module: &LLVMModule) -> Result<ModuleOp
 
     // Convert functions.
     for fun in function_iter(module) {
+        let llvm_name = llvm_get_value_name(fun).expect("Expected function to have a name");
+        if llvm_lookup_intrinsic_id(&llvm_name).is_some() {
+            // Skip LLVM intrinsics.
+            continue;
+        }
         let m_fun = convert_function(ctx, cctx, fun)?;
         m.append_operation(ctx, m_fun.get_operation(), 0);
     }

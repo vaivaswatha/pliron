@@ -6,7 +6,7 @@ target triple = "x86_64-pc-linux-gnu"
 declare i64 @declared_function(i32)
 
 ; Function Attrs: noinline nounwind optnone uwtable
-define dso_local i32 @fib(i32 noundef %0) #0 {
+define dso_local i32 @fib$1(i32 noundef %0) #0 {
   %2 = alloca i32, align 4
   %3 = alloca i32, align 4
   %4 = alloca i32, align 4
@@ -72,7 +72,7 @@ define dso_local i32 @fib(i32 noundef %0) #0 {
 
 define dso_local i32 @main() #0 {
   %1 = alloca i32, align 4
-  %2 = call i32 @fib(i32 5)
+  %2 = call i32 @fib$1(i32 5)
   store i32 %2, ptr %1, align 4
   %3 = load i32, ptr %1, align 4
   ret i32 %3
