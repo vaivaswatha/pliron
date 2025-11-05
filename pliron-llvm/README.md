@@ -6,9 +6,11 @@ This crate provides the following functionality:
   converting to and from our LLVM dialect. This necessitates
   that LLVM be installed locally.
 
-We currently support LLVM-21, and hence LLVM-21 needs to be on your computer.
-On Ubuntu, this means, you require the `libllvm21` and `libpolly-21-dev`
-[packages](https://apt.llvm.org/).
+We currently support LLVM-21 and it needs to be on your computer.
+For installing on Debian / Ubuntu, it is recommended to use the
+[automatic installation script](https://apt.llvm.org/). If you
+prefer to install individual packages, you will need `libllvm21`,
+`llvm-21-dev`, `llvm-21-tools`, `clang-21`, `libpolly-21-dev`, etc.
 
 pliron-llvm also provides an [llvm-opt](llvm-opt/README.md) tool.
 

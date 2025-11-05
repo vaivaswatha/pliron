@@ -29,7 +29,7 @@ static RESOURCES_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
 // Test Fibonacci code present in `input_file`, which contains fibonacci IR / Bitcode.
 fn test_fib(tmp_dir: &TempDir, input_file: &str) {
     // llvm-opt -S -i $tmp/fib.bc -o $tmp/fib.opt.ll
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("llvm-opt");
     let compile_fib = cmd
         .current_dir(&*RESOURCES_DIR)
         .args([
