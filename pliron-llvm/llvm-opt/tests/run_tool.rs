@@ -1,6 +1,6 @@
 use std::{env, path::PathBuf, sync::LazyLock};
 
-use assert_cmd::Command;
+use assert_cmd::{Command, cargo::cargo_bin_cmd};
 use cargo_manifest::Manifest;
 use expect_test::expect;
 use tempfile::{TempDir, tempdir};
@@ -29,7 +29,7 @@ static RESOURCES_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
 // Test Fibonacci code present in `input_file`, which contains fibonacci IR / Bitcode.
 fn test_fib(tmp_dir: &TempDir, input_file: &str) {
     // llvm-opt -S -i $tmp/fib.bc -o $tmp/fib.opt.ll
-    let mut cmd = Command::cargo_bin("llvm-opt").unwrap();
+    let mut cmd = cargo_bin_cmd!();
     let compile_fib = cmd
         .current_dir(&*RESOURCES_DIR)
         .args([
