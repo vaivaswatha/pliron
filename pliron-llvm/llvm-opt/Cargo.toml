@@ -2,6 +2,7 @@
 name = "llvm-opt"
 description = "llvm-opt tool for pliron"
 readme = "README.md"
+publish = false
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -15,12 +16,11 @@ license.workspace = true
 pliron = { path = "../../", version = "0" }
 pliron-llvm = { path = "../", version = "0" }
 clap.workspace = true
-llvm-sys = "201"
 log = { workspace = true, features = ["release_max_level_warn"] }
-env_logger = "0"
+env_logger.workspace = true
 
 [dev-dependencies]
 expect-test.workspace = true
 tempfile.workspace = true
 assert_cmd.workspace = true
-
+cargo-manifest.workspace = true

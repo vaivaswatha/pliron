@@ -7,6 +7,7 @@ use combine::Parser;
 use common::init_env_logger;
 
 use assert_cmd::Command;
+use cargo_manifest::Manifest;
 use pliron::{
     arg_error_noloc,
     builtin::{self, ops::ModuleOp},
@@ -25,7 +26,20 @@ use pliron_llvm::{
 };
 use tempfile::tempdir;
 
-const LLI_BINARY: &str = "lli-20";
+/// Get the LLI binary path based on the llvm-sys version used.
+static LLI_BINARY: LazyLock<PathBuf> = LazyLock::new(|| {
+    let manifest =
+        Manifest::from_path(env!("CARGO_MANIFEST_PATH")).expect("Could not read Cargo.toml");
+    let lli_version = manifest.dependencies.expect("Expected llvm-sys dependency")["llvm-sys"]
+        .req()
+        .to_string();
+    assert!(
+        lli_version.len() == 3,
+        "Unexpected llvm-sys version format: Expected two-digit major version and one digit minor version, got {}",
+        lli_version
+    );
+    format!("lli-{}", &lli_version[..2]).into()
+});
 
 static RESOURCES_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     [env!("CARGO_MANIFEST_DIR"), "tests", "resources"]
@@ -147,7 +161,7 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         .map_err(|_err| arg_error_noloc!("{}", "Error writing bitcode to file"))
         .unwrap();
 
-    let mut cmd = Command::new(LLI_BINARY);
+    let mut cmd = Command::new(LLI_BINARY.clone());
 
     let run_output = cmd
         .current_dir(&*RESOURCES_DIR)

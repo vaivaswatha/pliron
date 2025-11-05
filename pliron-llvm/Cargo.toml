@@ -18,6 +18,7 @@ dyn-clone.workspace = true
 thiserror.workspace = true
 linkme.workspace = true
 rustc-hash.workspace = true
+# When upgrading the LLVM version, also change the LLVM versions in README.md.
 llvm-sys = "201"
 log.workspace = true
 bitflags = { workspace = true, features = ["std"] }
@@ -27,4 +28,5 @@ expect-test.workspace = true
 tempfile.workspace = true
 assert_cmd.workspace = true
 log = { workspace = true, features = ["release_max_level_warn"] }
-env_logger = "0"
+env_logger.workspace = true
+cargo-manifest.workspace = true

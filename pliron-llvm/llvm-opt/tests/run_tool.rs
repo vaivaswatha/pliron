@@ -1,10 +1,24 @@
 use std::{env, path::PathBuf, sync::LazyLock};
 
 use assert_cmd::Command;
+use cargo_manifest::Manifest;
 use expect_test::expect;
 use tempfile::{TempDir, tempdir};
 
-const CLANG_BINARY: &str = "clang-20";
+const CLANG_BINARY: LazyLock<PathBuf> = LazyLock::new(|| {
+    // Read Cargo.toml from pliron-llvm to get the llvm-sys version.
+    let manifest = Manifest::from_path(env!("CARGO_MANIFEST_DIR").to_string() + "/../Cargo.toml")
+        .expect("Could not read pliron-llvm Cargo.toml");
+    let lli_version = manifest.dependencies.expect("Expected llvm-sys dependency")["llvm-sys"]
+        .req()
+        .to_string();
+    assert!(
+        lli_version.len() == 3,
+        "Unexpected llvm-sys version format: Expected two-digit major version and one digit minor version, got {}",
+        lli_version
+    );
+    format!("clang-{}", &lli_version[..2]).into()
+});
 
 static RESOURCES_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     [env!("CARGO_MANIFEST_DIR"), "tests", "resources"]
@@ -34,7 +48,7 @@ fn test_fib(tmp_dir: &TempDir, input_file: &str) {
     );
 
     // clang -o $tmp/fib $tmp/fib.out.ll tests/resources/fib-main.c
-    let mut cmd = Command::new(CLANG_BINARY);
+    let mut cmd = Command::new(CLANG_BINARY.clone());
     let compile_fib = cmd
         .current_dir(&*RESOURCES_DIR)
         .args([
@@ -73,7 +87,7 @@ fn test_fib_from_c() {
     let tmp_dir = tempdir().unwrap();
 
     // clang -c -emit-llvm -o $tmp/fib.bc tests/resources/fib.c
-    let mut cmd = Command::new(CLANG_BINARY);
+    let mut cmd = Command::new(CLANG_BINARY.clone());
     let compile_fib = cmd
         .current_dir(&*RESOURCES_DIR)
         .args([
