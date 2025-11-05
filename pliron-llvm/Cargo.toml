@@ -18,8 +18,8 @@ dyn-clone.workspace = true
 thiserror.workspace = true
 linkme.workspace = true
 rustc-hash.workspace = true
-# When upgrading the LLVM version, also change the LLVM versions in README.md.
-llvm-sys = "201"
+# When upgrading the LLVM version, also change the LLVM versions in README.md and ci.yml
+llvm-sys = "211"
 log.workspace = true
 bitflags = { workspace = true, features = ["std"] }
 
