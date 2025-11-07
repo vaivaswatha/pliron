@@ -50,14 +50,15 @@ use crate::{
         llvm_build_or, llvm_build_phi, llvm_build_ptr_to_int, llvm_build_ret, llvm_build_ret_void,
         llvm_build_sdiv, llvm_build_select, llvm_build_sext, llvm_build_shl, llvm_build_sitofp,
         llvm_build_srem, llvm_build_store, llvm_build_sub, llvm_build_switch, llvm_build_trunc,
-        llvm_build_udiv, llvm_build_uitofp, llvm_build_urem, llvm_build_xor, llvm_build_zext,
-        llvm_can_value_use_fast_math_flags, llvm_clear_insertion_position, llvm_const_int,
-        llvm_const_null, llvm_const_real, llvm_delete_function, llvm_double_type_in_context,
-        llvm_float_type_in_context, llvm_function_type, llvm_get_named_function, llvm_get_param,
-        llvm_get_undef, llvm_int_type_in_context, llvm_is_a, llvm_lookup_intrinsic_id,
-        llvm_pointer_type_in_context, llvm_position_builder_at_end, llvm_set_fast_math_flags,
-        llvm_set_initializer, llvm_set_linkage, llvm_set_nneg, llvm_struct_create_named,
-        llvm_struct_set_body, llvm_struct_type_in_context, llvm_void_type_in_context,
+        llvm_build_udiv, llvm_build_uitofp, llvm_build_urem, llvm_build_va_arg, llvm_build_xor,
+        llvm_build_zext, llvm_can_value_use_fast_math_flags, llvm_clear_insertion_position,
+        llvm_const_int, llvm_const_null, llvm_const_real, llvm_delete_function,
+        llvm_double_type_in_context, llvm_float_type_in_context, llvm_function_type,
+        llvm_get_named_function, llvm_get_param, llvm_get_undef, llvm_int_type_in_context,
+        llvm_is_a, llvm_lookup_intrinsic_id, llvm_pointer_type_in_context,
+        llvm_position_builder_at_end, llvm_set_fast_math_flags, llvm_set_initializer,
+        llvm_set_linkage, llvm_set_nneg, llvm_struct_create_named, llvm_struct_set_body,
+        llvm_struct_type_in_context, llvm_void_type_in_context,
     },
     op_interfaces::{FastMathFlags, IsDeclaration, LlvmSymbolName, NNegFlag, PointerTypeResult},
     ops::{
@@ -66,7 +67,7 @@ use crate::{
         FPTruncOp, FRemOp, FSubOp, FuncOp, GetElementPtrOp, GlobalOp, ICmpOp, InsertValueOp,
         IntToPtrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SIToFPOp, SRemOp,
         SelectOp, ShlOp, StoreOp, SubOp, SwitchOp, TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp,
-        XorOp, ZExtOp, ZeroOp,
+        VAArgOp, XorOp, ZExtOp, ZeroOp,
     },
     types::{ArrayType, FuncType, PointerType, StructType, VoidType},
 };
@@ -274,7 +275,7 @@ impl ToLLVMType for FuncType {
             .map(|ty| convert_type(ctx, llvm_ctx, *ty))
             .collect::<Result<_>>()?;
         let ret_ty = convert_type(ctx, llvm_ctx, self.result_type())?;
-        Ok(llvm_function_type(ret_ty, &args_tys, false))
+        Ok(llvm_function_type(ret_ty, &args_tys, self.is_var_arg()))
     }
 }
 
@@ -761,13 +762,14 @@ impl ToLLVMValue for CallOp {
                 .map(|v| convert_value_operand(cctx, ctx, &v))
                 .collect::<Result<_>>()?;
             let ty = convert_type(ctx, llvm_ctx, self.callee_type(ctx))?;
-            let call_val = llvm_build_call2(
-                &cctx.builder,
-                ty,
-                callee,
-                &args,
-                &self.get_result(ctx).unique_name(ctx),
-            );
+            let res = self.get_result(ctx);
+            let name = if res.get_type(ctx).deref(ctx).is::<VoidType>() {
+                ""
+            } else {
+                &res.unique_name(ctx)
+            };
+
+            let call_val = llvm_build_call2(&cctx.builder, ty, callee, &args, name);
 
             if let Some(fmf) = self.get_attr_llvm_call_fastmath_flags(ctx)
                 && llvm_can_value_use_fast_math_flags(call_val)
@@ -820,13 +822,14 @@ impl ToLLVMValue for CallIntrinsicOp {
         let intrinsic_fn = llvm_get_named_function(cctx.cur_llvm_module, &intrinsic_name)
             .unwrap_or_else(|| llvm_add_function(cctx.cur_llvm_module, &intrinsic_name, fn_ty));
 
-        let intrinsic_op = llvm_build_call2(
-            &cctx.builder,
-            fn_ty,
-            intrinsic_fn,
-            &args,
-            &self.get_result(ctx).unique_name(ctx),
-        );
+        let res = self.get_result(ctx);
+        let name = if res.get_type(ctx).deref(ctx).is::<VoidType>() {
+            ""
+        } else {
+            &res.unique_name(ctx)
+        };
+
+        let intrinsic_op = llvm_build_call2(&cctx.builder, fn_ty, intrinsic_fn, &args, name);
 
         if let Some(fmf) = self.get_attr_llvm_intrinsic_fastmath_flags(ctx)
             && llvm_can_value_use_fast_math_flags(intrinsic_op)
@@ -1308,6 +1311,28 @@ impl ToLLVMValue for UIToFPOp {
         let nneg = self.nneg(ctx);
         llvm_set_nneg(uitofp_op, nneg);
         Ok(uitofp_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for VAArgOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let opd = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        log::warn!("Generating va_arg instruction: It is poorly supported by LLVM");
+        let vaarg_op = llvm_build_va_arg(
+            &cctx.builder,
+            opd,
+            ty,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        Ok(vaarg_op)
     }
 }
 

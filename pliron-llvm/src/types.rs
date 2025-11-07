@@ -360,11 +360,12 @@ impl VoidType {
 impl_verify_succ!(VoidType);
 
 #[def_type("llvm.func")]
-#[format_type("`<` $res `(` vec($args, CharSpace(`,`)) `)` `>`")]
+#[format_type("`<` $res `(` vec($args, CharSpace(`,`)) `) variadic = ` $is_var_arg `>`")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FuncType {
     res: Ptr<TypeObj>,
     args: Vec<Ptr<TypeObj>>,
+    is_var_arg: bool,
 }
 
 #[derive(Debug, Error)]
@@ -375,13 +376,30 @@ pub enum FuncTypeErr {
 
 impl FuncType {
     /// Get or create a new Func type.
-    pub fn get(ctx: &mut Context, res: Ptr<TypeObj>, args: Vec<Ptr<TypeObj>>) -> TypePtr<Self> {
-        Type::register_instance(FuncType { res, args }, ctx)
+    pub fn get(
+        ctx: &mut Context,
+        res: Ptr<TypeObj>,
+        args: Vec<Ptr<TypeObj>>,
+        is_var_arg: bool,
+    ) -> TypePtr<Self> {
+        Type::register_instance(
+            FuncType {
+                res,
+                args,
+                is_var_arg,
+            },
+            ctx,
+        )
     }
 
     /// Result type
     pub fn result_type(&self) -> Ptr<TypeObj> {
         self.res
+    }
+
+    /// Is this a variadic function type?
+    pub fn is_var_arg(&self) -> bool {
+        self.is_var_arg
     }
 }
 
@@ -665,7 +683,7 @@ mod tests {
 
         let si32 = IntegerType::get(&mut ctx, 32, Signedness::Signed);
 
-        let input = "llvm.func <llvm.void (builtin.integer si32)>";
+        let input = "llvm.func <llvm.void (builtin.integer si32) variadic = false>";
         let state_stream = state_stream_from_iterator(
             input.chars(),
             parsable::State::new(&mut ctx, location::Source::InMemory),
@@ -674,7 +692,7 @@ mod tests {
         let res = type_parser().and(eof()).parse(state_stream).unwrap().0.0;
 
         let void_ty = VoidType::get(&mut ctx);
-        assert!(res == FuncType::get(&mut ctx, void_ty.to_ptr(), vec![si32.into()]).into());
+        assert!(res == FuncType::get(&mut ctx, void_ty.to_ptr(), vec![si32.into()], false).into());
         assert_eq!(input, &res.disp(&ctx).to_string());
     }
 }

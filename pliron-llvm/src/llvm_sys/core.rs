@@ -25,7 +25,7 @@ use llvm_sys::{
         LLVMBuildPtrToInt, LLVMBuildRet, LLVMBuildRetVoid, LLVMBuildSDiv, LLVMBuildSExt,
         LLVMBuildSIToFP, LLVMBuildSRem, LLVMBuildSelect, LLVMBuildShl, LLVMBuildStore,
         LLVMBuildSub, LLVMBuildSwitch, LLVMBuildTrunc, LLVMBuildUDiv, LLVMBuildUIToFP,
-        LLVMBuildURem, LLVMBuildXor, LLVMBuildZExt, LLVMCanValueUseFastMathFlags,
+        LLVMBuildURem, LLVMBuildVAArg, LLVMBuildXor, LLVMBuildZExt, LLVMCanValueUseFastMathFlags,
         LLVMClearInsertionPosition, LLVMConstInt, LLVMConstIntGetZExtValue, LLVMConstNull,
         LLVMConstReal, LLVMConstRealGetDouble, LLVMContextCreate, LLVMContextDispose,
         LLVMCountIncoming, LLVMCountParamTypes, LLVMCountParams, LLVMCountStructElementTypes,
@@ -49,7 +49,7 @@ use llvm_sys::{
         LLVMGetStructElementTypes, LLVMGetStructName, LLVMGetTypeKind, LLVMGetUndef,
         LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType, LLVMIntTypeInContext,
         LLVMIntrinsicIsOverloaded, LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser,
-        LLVMIsDeclaration, LLVMIsOpaqueStruct, LLVMLookupIntrinsicID,
+        LLVMIsDeclaration, LLVMIsFunctionVarArg, LLVMIsOpaqueStruct, LLVMLookupIntrinsicID,
         LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext, LLVMPositionBuilderAtEnd,
         LLVMPositionBuilderBefore, LLVMPrintModuleToFile, LLVMPrintModuleToString,
         LLVMPrintTypeToString, LLVMPrintValueToString, LLVMSetFastMathFlags, LLVMSetInitializer,
@@ -528,6 +528,12 @@ pub fn llvm_get_param_types(ty: LLVMType) -> Vec<LLVMType> {
     .into_iter()
     .map(Into::into)
     .collect()
+}
+
+/// LLVMIsFunctionVarArg
+pub fn llvm_is_function_type_var_arg(ty: LLVMType) -> bool {
+    assert!(llvm_get_type_kind(ty) == LLVMTypeKind::LLVMFunctionTypeKind);
+    unsafe { LLVMIsFunctionVarArg(ty.into()).to_bool() }
 }
 
 /// LLVMGetIntTypeWidth
@@ -2028,6 +2034,25 @@ pub fn llvm_build_call2(
             callee.into(),
             args.as_mut_ptr(),
             args.len().try_into().unwrap(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+
+/// LLVMBuildVAArg
+pub fn llvm_build_va_arg(
+    builder: &LLVMBuilder,
+    val: LLVMValue,
+    ty: LLVMType,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildVAArg(
+            builder.inner_ref(),
+            val.into(),
+            ty.into(),
             to_c_str(name).as_ptr(),
         )
         .into()

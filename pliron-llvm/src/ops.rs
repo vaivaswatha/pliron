@@ -1542,10 +1542,10 @@ impl Verify for CallOp {
         // Check the function type against the arguments.
         let args = self.args(ctx);
         let expected_args = callee_ty.arg_types();
-        if args.len() != expected_args.len() {
+        if !callee_ty.is_var_arg() && args.len() != expected_args.len() {
             return verify_err!(
                 self.loc(ctx),
-                SymbolUserOpVerifyErr::FuncTypeErr("arguement count mismatch.".to_string())
+                SymbolUserOpVerifyErr::FuncTypeErr("argument count mismatch.".to_string())
             );
         }
         use pliron::r#type::Typed;
@@ -1554,7 +1554,7 @@ impl Verify for CallOp {
                 return verify_err!(
                     self.loc(ctx),
                     SymbolUserOpVerifyErr::FuncTypeErr(format!(
-                        "arguement {} type mismatch: expected {}, got {}",
+                        "argument {} type mismatch: expected {}, got {}",
                         arg_idx,
                         expected_arg.disp(ctx),
                         arg.get_type(ctx).disp(ctx)
@@ -3039,6 +3039,47 @@ impl Verify for CallIntrinsicOp {
     }
 }
 
+/// Equivalent to LLVM's `va_arg` operation.
+#[def_op("llvm.va_arg")]
+#[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
+#[format_op("$0 ` : ` type($0)")]
+pub struct VAArgOp;
+
+#[derive(Error, Debug)]
+pub enum VAArgOpVerifyErr {
+    #[error("Operand must be a pointer type")]
+    OperandNotPointer,
+}
+
+impl Verify for VAArgOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        let loc = self.loc(ctx);
+
+        // Check that the argument is a pointer.
+        let opd_ty = self.operand_type(ctx).deref(ctx);
+        if !opd_ty.is::<PointerType>() {
+            return verify_err!(loc, VAArgOpVerifyErr::OperandNotPointer);
+        }
+
+        Ok(())
+    }
+}
+
+impl VAArgOp {
+    /// Create a new [VAArgOp].
+    pub fn new(ctx: &mut Context, list: Value, ty: Ptr<TypeObj>) -> Self {
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![ty],
+            vec![list],
+            vec![],
+            0,
+        );
+        VAArgOp { op }
+    }
+}
+
 /// Equivalent to LLVM's `func` operation.
 /// See [llvm.func](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmfunc-llvmllvmfuncop).
 #[def_op("llvm.func")]
@@ -3255,4 +3296,5 @@ pub fn register(ctx: &mut Context) {
     ReturnOp::register(ctx, ReturnOp::parser_fn);
     CallIntrinsicOp::register(ctx, CallIntrinsicOp::parser_fn);
     FuncOp::register(ctx, FuncOp::parser_fn);
+    VAArgOp::register(ctx, VAArgOp::parser_fn);
 }

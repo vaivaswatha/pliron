@@ -258,3 +258,13 @@ fn test_intrinsics() {
     init_env_logger();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("intrinsics.ll").to_str().unwrap(), 66);
 }
+
+/// Test `va_arg` by compiling va_arg.ll via pliron.
+/// `va_arg` is poorly supported in LLVM.
+/// If the test fails on non unix-x86_64 platforms, that wouldn't be surprising.
+/// We'll need to fix it then.
+#[test]
+fn test_va_arg() {
+    init_env_logger();
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("va_arg.ll").to_str().unwrap(), 75);
+}

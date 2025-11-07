@@ -53,8 +53,8 @@ use crate::{
         llvm_get_num_arg_operands, llvm_get_num_operands, llvm_get_nuw, llvm_get_operand,
         llvm_get_param_types, llvm_get_return_type, llvm_get_struct_element_types,
         llvm_get_struct_name, llvm_get_type_kind, llvm_get_value_kind, llvm_get_value_name,
-        llvm_global_get_value_type, llvm_is_a, llvm_is_declaration, llvm_is_opaque_struct,
-        llvm_lookup_intrinsic_id, llvm_print_value_to_string, llvm_type_of,
+        llvm_global_get_value_type, llvm_is_a, llvm_is_declaration, llvm_is_function_type_var_arg,
+        llvm_is_opaque_struct, llvm_lookup_intrinsic_id, llvm_print_value_to_string, llvm_type_of,
         llvm_value_as_basic_block, llvm_value_is_basic_block, param_iter,
     },
     op_interfaces::{
@@ -67,7 +67,7 @@ use crate::{
         FPToSIOp, FPToUIOp, FPTruncOp, FRemOp, FSubOp, FuncOp, GepIndex, GetElementPtrOp, GlobalOp,
         ICmpOp, InsertValueOp, IntToPtrOp, LShrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp,
         SDivOp, SExtOp, SIToFPOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp, SwitchCase, SwitchOp,
-        TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
+        TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp, VAArgOp, XorOp, ZExtOp, ZeroOp,
     },
     types::{ArrayType, FuncType, PointerType, StructErr, StructType, VoidType},
 };
@@ -117,7 +117,8 @@ fn convert_type(
                 .into_iter()
                 .map(|ty| convert_type(ctx, cctx, ty))
                 .collect::<Result<_>>()?;
-            Ok(FuncType::get(ctx, return_type, param_types).into())
+            let is_var_arg = llvm_is_function_type_var_arg(ty);
+            Ok(FuncType::get(ctx, return_type, param_types, is_var_arg).into())
         }
         LLVMTypeKind::LLVMIntegerTypeKind => {
             let bit_width = llvm_get_int_type_width(ty);
@@ -1123,9 +1124,14 @@ fn convert_instruction(
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             Ok(URemOp::new(ctx, lhs, rhs).get_operation())
         }
+        LLVMOpcode::LLVMVAArg => {
+            let arg = get_operand(opds, 0)?;
+            let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
+            Ok(VAArgOp::new(ctx, arg, res_ty).get_operation())
+        }
         LLVMOpcode::LLVMUserOp1 => todo!(),
         LLVMOpcode::LLVMUserOp2 => todo!(),
-        LLVMOpcode::LLVMVAArg => todo!(),
+
         LLVMOpcode::LLVMXor => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             Ok(XorOp::new(ctx, lhs, rhs).get_operation())
