@@ -601,8 +601,31 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             BasicBlock::insert_op_before_terminator(entry_block, global_op.get_operation(), ctx);
             cctx.value_map.insert(val, global_op.get_result(ctx));
         }
+        LLVMValueKind::LLVMFunctionValueKind => {
+            let fn_name = llvm_get_value_name(val).unwrap_or_default();
+            let fn_name = cctx.id_legaliser.legalise(&fn_name);
+            let func_op = AddressOfOp::new(ctx, fn_name);
+            BasicBlock::insert_op_before_terminator(entry_block, func_op.get_operation(), ctx);
+            cctx.value_map.insert(val, func_op.get_result(ctx));
+        }
         LLVMValueKind::LLVMConstantVectorValueKind => todo!(),
-        _ => (),
+        LLVMValueKind::LLVMArgumentValueKind => todo!(),
+        LLVMValueKind::LLVMBasicBlockValueKind => todo!(),
+        LLVMValueKind::LLVMMemoryUseValueKind => todo!(),
+        LLVMValueKind::LLVMMemoryDefValueKind => todo!(),
+        LLVMValueKind::LLVMMemoryPhiValueKind => todo!(),
+        LLVMValueKind::LLVMGlobalAliasValueKind => todo!(),
+        LLVMValueKind::LLVMGlobalIFuncValueKind => todo!(),
+        LLVMValueKind::LLVMBlockAddressValueKind => todo!(),
+        LLVMValueKind::LLVMConstantAggregateZeroValueKind => todo!(),
+        LLVMValueKind::LLVMConstantDataVectorValueKind => todo!(),
+        LLVMValueKind::LLVMConstantTokenNoneValueKind => todo!(),
+        LLVMValueKind::LLVMMetadataAsValueValueKind => todo!(),
+        LLVMValueKind::LLVMInlineAsmValueKind => todo!(),
+        LLVMValueKind::LLVMInstructionValueKind => todo!(),
+        LLVMValueKind::LLVMPoisonValueKind => todo!(),
+        LLVMValueKind::LLVMConstantTargetNoneValueKind => todo!(),
+        LLVMValueKind::LLVMConstantPtrAuthValueKind => todo!(),
     }
     Ok(())
 }

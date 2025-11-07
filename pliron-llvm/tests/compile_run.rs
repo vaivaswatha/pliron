@@ -268,3 +268,10 @@ fn test_va_arg() {
     init_env_logger();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("va_arg.ll").to_str().unwrap(), 75);
 }
+
+/// Test indirect-call by compiling indirect_call.ll via pliron
+#[test]
+fn test_indirect_call() {
+    init_env_logger();
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("indirect_call.ll").to_str().unwrap(), 84);
+}

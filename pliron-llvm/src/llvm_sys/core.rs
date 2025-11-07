@@ -16,22 +16,23 @@ use llvm_sys::{
     bit_writer::LLVMWriteBitcodeToFile,
     core::{
         LLVMAddCase, LLVMAddFunction, LLVMAddGlobal, LLVMAddIncoming,
-        LLVMAppendBasicBlockInContext, LLVMArrayType2, LLVMBasicBlockAsValue, LLVMBuildAdd,
-        LLVMBuildAnd, LLVMBuildArrayAlloca, LLVMBuildBitCast, LLVMBuildBr, LLVMBuildCall2,
-        LLVMBuildCondBr, LLVMBuildExtractValue, LLVMBuildFAdd, LLVMBuildFCmp, LLVMBuildFDiv,
-        LLVMBuildFMul, LLVMBuildFPExt, LLVMBuildFPToSI, LLVMBuildFPToUI, LLVMBuildFPTrunc,
-        LLVMBuildFRem, LLVMBuildFSub, LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildInsertValue,
-        LLVMBuildIntToPtr, LLVMBuildLoad2, LLVMBuildMul, LLVMBuildOr, LLVMBuildPhi,
-        LLVMBuildPtrToInt, LLVMBuildRet, LLVMBuildRetVoid, LLVMBuildSDiv, LLVMBuildSExt,
-        LLVMBuildSIToFP, LLVMBuildSRem, LLVMBuildSelect, LLVMBuildShl, LLVMBuildStore,
-        LLVMBuildSub, LLVMBuildSwitch, LLVMBuildTrunc, LLVMBuildUDiv, LLVMBuildUIToFP,
-        LLVMBuildURem, LLVMBuildVAArg, LLVMBuildXor, LLVMBuildZExt, LLVMCanValueUseFastMathFlags,
-        LLVMClearInsertionPosition, LLVMConstInt, LLVMConstIntGetZExtValue, LLVMConstNull,
-        LLVMConstReal, LLVMConstRealGetDouble, LLVMContextCreate, LLVMContextDispose,
-        LLVMCountIncoming, LLVMCountParamTypes, LLVMCountParams, LLVMCountStructElementTypes,
-        LLVMCreateBuilderInContext, LLVMCreateMemoryBufferWithContentsOfFile, LLVMDeleteFunction,
-        LLVMDisposeMemoryBuffer, LLVMDisposeMessage, LLVMDisposeModule, LLVMDoubleTypeInContext,
-        LLVMDumpModule, LLVMDumpType, LLVMDumpValue, LLVMFloatTypeInContext, LLVMFunctionType,
+        LLVMAppendBasicBlockInContext, LLVMArrayType2, LLVMBasicBlockAsValue, LLVMBuildAShr,
+        LLVMBuildAdd, LLVMBuildAnd, LLVMBuildArrayAlloca, LLVMBuildBitCast, LLVMBuildBr,
+        LLVMBuildCall2, LLVMBuildCondBr, LLVMBuildExtractValue, LLVMBuildFAdd, LLVMBuildFCmp,
+        LLVMBuildFDiv, LLVMBuildFMul, LLVMBuildFPExt, LLVMBuildFPToSI, LLVMBuildFPToUI,
+        LLVMBuildFPTrunc, LLVMBuildFRem, LLVMBuildFSub, LLVMBuildGEP2, LLVMBuildICmp,
+        LLVMBuildInsertValue, LLVMBuildIntToPtr, LLVMBuildLShr, LLVMBuildLoad2, LLVMBuildMul,
+        LLVMBuildOr, LLVMBuildPhi, LLVMBuildPtrToInt, LLVMBuildRet, LLVMBuildRetVoid,
+        LLVMBuildSDiv, LLVMBuildSExt, LLVMBuildSIToFP, LLVMBuildSRem, LLVMBuildSelect,
+        LLVMBuildShl, LLVMBuildStore, LLVMBuildSub, LLVMBuildSwitch, LLVMBuildTrunc, LLVMBuildUDiv,
+        LLVMBuildUIToFP, LLVMBuildURem, LLVMBuildVAArg, LLVMBuildXor, LLVMBuildZExt,
+        LLVMCanValueUseFastMathFlags, LLVMClearInsertionPosition, LLVMConstInt,
+        LLVMConstIntGetZExtValue, LLVMConstNull, LLVMConstReal, LLVMConstRealGetDouble,
+        LLVMContextCreate, LLVMContextDispose, LLVMCountIncoming, LLVMCountParamTypes,
+        LLVMCountParams, LLVMCountStructElementTypes, LLVMCreateBuilderInContext,
+        LLVMCreateMemoryBufferWithContentsOfFile, LLVMDeleteFunction, LLVMDisposeMemoryBuffer,
+        LLVMDisposeMessage, LLVMDisposeModule, LLVMDoubleTypeInContext, LLVMDumpModule,
+        LLVMDumpType, LLVMDumpValue, LLVMFloatTypeInContext, LLVMFunctionType,
         LLVMGetAggregateElement, LLVMGetAllocatedType, LLVMGetArrayLength2, LLVMGetBasicBlockName,
         LLVMGetBasicBlockParent, LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType,
         LLVMGetCalledValue, LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFCmpPredicate,
@@ -1424,6 +1425,44 @@ pub fn llvm_build_shl(
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe {
         LLVMBuildShl(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+
+/// LLVMBuildLShr
+pub fn llvm_build_lshr(
+    builder: &LLVMBuilder,
+    lhs: LLVMValue,
+    rhs: LLVMValue,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildLShr(
+            builder.inner_ref(),
+            lhs.into(),
+            rhs.into(),
+            to_c_str(name).as_ptr(),
+        )
+        .into()
+    }
+}
+
+/// LLVMBuildAShr
+pub fn llvm_build_ashr(
+    builder: &LLVMBuilder,
+    lhs: LLVMValue,
+    rhs: LLVMValue,
+    name: &str,
+) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe {
+        LLVMBuildAShr(
             builder.inner_ref(),
             lhs.into(),
             rhs.into(),
