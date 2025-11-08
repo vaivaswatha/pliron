@@ -100,6 +100,35 @@ entry:
   ret i32 %sum4
 }
 
+define i32 @const_aggregate_zero() {
+entry:
+  ; Zero-initialized array [3 x i32]
+  %arr = alloca [3 x i32]
+  store [3 x i32] zeroinitializer, [3 x i32]* %arr
+  %arr_val = load [3 x i32], [3 x i32]* %arr
+  %arr_e0 = extractvalue [3 x i32] %arr_val, 0
+  %arr_e1 = extractvalue [3 x i32] %arr_val, 1
+  %arr_e2 = extractvalue [3 x i32] %arr_val, 2
+
+  ; Zero-initialized struct { i32, [2 x i32] }
+  %st = alloca { i32, [2 x i32] }
+  store { i32, [2 x i32] } zeroinitializer, { i32, [2 x i32] }* %st
+  %st_val = load { i32, [2 x i32] }, { i32, [2 x i32] }* %st
+  %st_f0 = extractvalue { i32, [2 x i32] } %st_val, 0
+  %st_arr = extractvalue { i32, [2 x i32] } %st_val, 1
+  %st_a0 = extractvalue [2 x i32] %st_arr, 0
+  %st_a1 = extractvalue [2 x i32] %st_arr, 1
+
+  ; Sum all extracted values (should be 0)
+  %s1 = add i32 %arr_e0, %arr_e1
+  %s2 = add i32 %s1, %arr_e2
+  %s3 = add i32 %s2, %st_f0
+  %s4 = add i32 %s3, %st_a0
+  %s5 = add i32 %s4, %st_a1
+
+  ret i32 %s5
+}
+
 define i32 @const_expr() {
 entry:
   ; Return the result of the constant expression
@@ -133,12 +162,16 @@ entry:
   ; Call the const_expr function
   %result5 = call i32 @const_expr()
 
+  ; Call the const_aggregate_zero function
+  %result6 = call i32 @const_aggregate_zero()
+
   ; Add the results to the final sum
   %temp_sum0 = add i32 %result1, %result2
   %temp_sum1 = add i32 %temp_sum0, %result3
   %temp_sum2 = add i32 %temp_sum1, %result4
   %temp_sum3 = add i32 %temp_sum2, %result5
+  %temp_sum4 = sub i32 %temp_sum3, %result6
 
   ; Return the final sum
-  ret i32 %temp_sum3
+  ret i32 %temp_sum4
 }

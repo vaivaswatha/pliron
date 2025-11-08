@@ -25,8 +25,8 @@ use llvm_sys::{
         LLVMBuildOr, LLVMBuildPhi, LLVMBuildPtrToInt, LLVMBuildRet, LLVMBuildRetVoid,
         LLVMBuildSDiv, LLVMBuildSExt, LLVMBuildSIToFP, LLVMBuildSRem, LLVMBuildSelect,
         LLVMBuildShl, LLVMBuildStore, LLVMBuildSub, LLVMBuildSwitch, LLVMBuildTrunc, LLVMBuildUDiv,
-        LLVMBuildUIToFP, LLVMBuildURem, LLVMBuildVAArg, LLVMBuildXor, LLVMBuildZExt,
-        LLVMCanValueUseFastMathFlags, LLVMClearInsertionPosition, LLVMConstInt,
+        LLVMBuildUIToFP, LLVMBuildURem, LLVMBuildUnreachable, LLVMBuildVAArg, LLVMBuildXor,
+        LLVMBuildZExt, LLVMCanValueUseFastMathFlags, LLVMClearInsertionPosition, LLVMConstInt,
         LLVMConstIntGetZExtValue, LLVMConstNull, LLVMConstReal, LLVMConstRealGetDouble,
         LLVMContextCreate, LLVMContextDispose, LLVMCountIncoming, LLVMCountParamTypes,
         LLVMCountParams, LLVMCountStructElementTypes, LLVMCreateBuilderInContext,
@@ -2047,6 +2047,12 @@ pub fn llvm_build_ret_void(builder: &LLVMBuilder) -> LLVMValue {
 pub fn llvm_build_ret(builder: &LLVMBuilder, val: LLVMValue) -> LLVMValue {
     assert!(llvm_get_insert_block(builder).is_some());
     unsafe { LLVMBuildRet(builder.inner_ref(), val.into()).into() }
+}
+
+/// LLVMBuildUnreachable
+pub fn llvm_build_unreachable(builder: &LLVMBuilder) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe { LLVMBuildUnreachable(builder.inner_ref()).into() }
 }
 
 /// LLVMBuildPhi

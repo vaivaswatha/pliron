@@ -50,15 +50,16 @@ use crate::{
         llvm_build_lshr, llvm_build_mul, llvm_build_or, llvm_build_phi, llvm_build_ptr_to_int,
         llvm_build_ret, llvm_build_ret_void, llvm_build_sdiv, llvm_build_select, llvm_build_sext,
         llvm_build_shl, llvm_build_sitofp, llvm_build_srem, llvm_build_store, llvm_build_sub,
-        llvm_build_switch, llvm_build_trunc, llvm_build_udiv, llvm_build_uitofp, llvm_build_urem,
-        llvm_build_va_arg, llvm_build_xor, llvm_build_zext, llvm_can_value_use_fast_math_flags,
-        llvm_clear_insertion_position, llvm_const_int, llvm_const_null, llvm_const_real,
-        llvm_delete_function, llvm_double_type_in_context, llvm_float_type_in_context,
-        llvm_function_type, llvm_get_named_function, llvm_get_param, llvm_get_undef,
-        llvm_int_type_in_context, llvm_is_a, llvm_lookup_intrinsic_id,
-        llvm_pointer_type_in_context, llvm_position_builder_at_end, llvm_set_fast_math_flags,
-        llvm_set_initializer, llvm_set_linkage, llvm_set_nneg, llvm_struct_create_named,
-        llvm_struct_set_body, llvm_struct_type_in_context, llvm_void_type_in_context,
+        llvm_build_switch, llvm_build_trunc, llvm_build_udiv, llvm_build_uitofp,
+        llvm_build_unreachable, llvm_build_urem, llvm_build_va_arg, llvm_build_xor,
+        llvm_build_zext, llvm_can_value_use_fast_math_flags, llvm_clear_insertion_position,
+        llvm_const_int, llvm_const_null, llvm_const_real, llvm_delete_function,
+        llvm_double_type_in_context, llvm_float_type_in_context, llvm_function_type,
+        llvm_get_named_function, llvm_get_param, llvm_get_undef, llvm_int_type_in_context,
+        llvm_is_a, llvm_lookup_intrinsic_id, llvm_pointer_type_in_context,
+        llvm_position_builder_at_end, llvm_set_fast_math_flags, llvm_set_initializer,
+        llvm_set_linkage, llvm_set_nneg, llvm_struct_create_named, llvm_struct_set_body,
+        llvm_struct_type_in_context, llvm_void_type_in_context,
     },
     op_interfaces::{FastMathFlags, IsDeclaration, LlvmSymbolName, NNegFlag, PointerTypeResult},
     ops::{
@@ -67,7 +68,7 @@ use crate::{
         FPToUIOp, FPTruncOp, FRemOp, FSubOp, FuncOp, GetElementPtrOp, GlobalOp, ICmpOp,
         InsertValueOp, IntToPtrOp, LShrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp,
         SExtOp, SIToFPOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp, SwitchOp, TruncOp, UDivOp,
-        UIToFPOp, URemOp, UndefOp, VAArgOp, XorOp, ZExtOp, ZeroOp,
+        UIToFPOp, URemOp, UndefOp, UnreachableOp, VAArgOp, XorOp, ZExtOp, ZeroOp,
     },
     types::{ArrayType, FuncType, PointerType, StructType, VoidType},
 };
@@ -653,6 +654,18 @@ impl ToLLVMValue for ReturnOp {
             llvm_build_ret_void(&cctx.builder)
         };
         Ok(ret_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for UnreachableOp {
+    fn convert(
+        &self,
+        _ctx: &Context,
+        _llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        Ok(llvm_build_unreachable(&cctx.builder))
     }
 }
 

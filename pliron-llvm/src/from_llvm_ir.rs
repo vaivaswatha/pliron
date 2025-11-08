@@ -67,7 +67,7 @@ use crate::{
         FPToSIOp, FPToUIOp, FPTruncOp, FRemOp, FSubOp, FuncOp, GepIndex, GetElementPtrOp, GlobalOp,
         ICmpOp, InsertValueOp, IntToPtrOp, LShrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp,
         SDivOp, SExtOp, SIToFPOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp, SwitchCase, SwitchOp,
-        TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp, VAArgOp, XorOp, ZExtOp, ZeroOp,
+        TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp, UnreachableOp, VAArgOp, XorOp, ZExtOp, ZeroOp,
     },
     types::{ArrayType, FuncType, PointerType, StructErr, StructType, VoidType},
 };
@@ -277,8 +277,8 @@ fn successors(block: LLVMBasicBlock) -> Vec<LLVMBasicBlock> {
             }
             succs
         }
-        LLVMOpcode::LLVMRet => {
-            // Return has no successors.
+        LLVMOpcode::LLVMRet | LLVMOpcode::LLVMUnreachable => {
+            // No successors.
             vec![]
         }
         _ => {
@@ -608,6 +608,11 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             BasicBlock::insert_op_before_terminator(entry_block, func_op.get_operation(), ctx);
             cctx.value_map.insert(val, func_op.get_result(ctx));
         }
+        LLVMValueKind::LLVMConstantAggregateZeroValueKind => {
+            let zero_op = ZeroOp::new(ctx, ty);
+            BasicBlock::insert_op_before_terminator(entry_block, zero_op.get_operation(), ctx);
+            cctx.value_map.insert(val, zero_op.get_result(ctx));
+        }
         LLVMValueKind::LLVMConstantVectorValueKind => todo!(),
         LLVMValueKind::LLVMArgumentValueKind => todo!(),
         LLVMValueKind::LLVMBasicBlockValueKind => todo!(),
@@ -617,7 +622,6 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
         LLVMValueKind::LLVMGlobalAliasValueKind => todo!(),
         LLVMValueKind::LLVMGlobalIFuncValueKind => todo!(),
         LLVMValueKind::LLVMBlockAddressValueKind => todo!(),
-        LLVMValueKind::LLVMConstantAggregateZeroValueKind => todo!(),
         LLVMValueKind::LLVMConstantDataVectorValueKind => todo!(),
         LLVMValueKind::LLVMConstantTokenNoneValueKind => todo!(),
         LLVMValueKind::LLVMMetadataAsValueValueKind => todo!(),
@@ -1142,7 +1146,7 @@ fn convert_instruction(
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             Ok(UDivOp::new(ctx, lhs, rhs).get_operation())
         }
-        LLVMOpcode::LLVMUnreachable => todo!(),
+        LLVMOpcode::LLVMUnreachable => Ok(UnreachableOp::new(ctx).get_operation()),
         LLVMOpcode::LLVMURem => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             Ok(URemOp::new(ctx, lhs, rhs).get_operation())

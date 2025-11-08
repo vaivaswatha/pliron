@@ -115,6 +115,22 @@ impl ReturnOp {
 }
 impl_verify_succ!(ReturnOp);
 
+/// Equivalent to LLVM's unreachable opcode.
+/// No operands or results.
+#[def_op("llvm.unreachable")]
+#[derive_op_interface_impl(IsTerminatorInterface, ZeroOpdInterface, ZeroResultInterface)]
+#[format_op("")]
+pub struct UnreachableOp;
+impl_verify_succ!(UnreachableOp);
+
+impl UnreachableOp {
+    /// Create a new [UnreachableOp]
+    pub fn new(ctx: &mut Context) -> Self {
+        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 0);
+        UnreachableOp { op }
+    }
+}
+
 macro_rules! new_int_bin_op_without_format {
     (   $(#[$outer:meta])*
         $op_name:ident, $op_id:literal
@@ -3294,6 +3310,7 @@ pub fn register(ctx: &mut Context) {
     SelectOp::register(ctx, SelectOp::parser_fn);
     UndefOp::register(ctx, UndefOp::parser_fn);
     ReturnOp::register(ctx, ReturnOp::parser_fn);
+    UnreachableOp::register(ctx, UnreachableOp::parser_fn);
     CallIntrinsicOp::register(ctx, CallIntrinsicOp::parser_fn);
     FuncOp::register(ctx, FuncOp::parser_fn);
     VAArgOp::register(ctx, VAArgOp::parser_fn);
