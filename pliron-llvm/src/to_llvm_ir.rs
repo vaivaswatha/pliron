@@ -1,5 +1,7 @@
 //! Translate from pliron's LLVM dialect to LLVM-IR
 
+use std::collections::hash_map;
+
 use llvm_sys::{LLVMIntPredicate, LLVMLinkage, LLVMRealPredicate};
 use pliron::{
     attribute::{Attribute, attr_cast},
@@ -85,6 +87,8 @@ pub struct ConversionContext<'a> {
     function_map: FxHashMap<Identifier, LLVMValue>,
     // A map from pliron globals to LLVM globals.
     globals_map: FxHashMap<Identifier, LLVMValue>,
+    // A map from pliron StructTypes to LLVM StructTypes.
+    structs_map: FxHashMap<Identifier, LLVMType>,
     // The active LLVM builder.
     builder: LLVMBuilder,
     // Scratch builder in a scratch function for attempting to evaluate constants.
@@ -99,6 +103,7 @@ impl<'a> ConversionContext<'a> {
             block_map: FxHashMap::default(),
             function_map: FxHashMap::default(),
             globals_map: FxHashMap::default(),
+            structs_map: FxHashMap::default(),
             builder: LLVMBuilder::new(llvm_ctx),
             scratch_builder: LLVMBuilder::new(llvm_ctx),
         }
@@ -223,7 +228,12 @@ impl FloatAttrToFP64 for FPDoubleAttr {
 #[type_interface]
 trait ToLLVMType {
     /// Convert from pliron [Type] to [LLVMType].
-    fn convert(&self, ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType>;
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMType>;
 
     fn verify(_type: &dyn Type, _ctx: &Context) -> Result<()>
     where
@@ -254,61 +264,97 @@ trait ToLLVMValue {
 
 #[type_interface_impl]
 impl ToLLVMType for IntegerType {
-    fn convert(&self, _ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+    fn convert(
+        &self,
+        _ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        _cctx: &mut ConversionContext,
+    ) -> Result<LLVMType> {
         Ok(llvm_int_type_in_context(llvm_ctx, self.get_width()))
     }
 }
 
 #[type_interface_impl]
 impl ToLLVMType for ArrayType {
-    fn convert(&self, ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
-        let elem_ty = convert_type(ctx, llvm_ctx, self.elem_type())?;
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMType> {
+        let elem_ty = convert_type(ctx, llvm_ctx, cctx, self.elem_type())?;
         Ok(llvm_array_type2(elem_ty, self.size()))
     }
 }
 
 #[type_interface_impl]
 impl ToLLVMType for FuncType {
-    fn convert(&self, ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMType> {
         let args_tys: Vec<_> = self
             .arg_types()
             .iter()
-            .map(|ty| convert_type(ctx, llvm_ctx, *ty))
+            .map(|ty| convert_type(ctx, llvm_ctx, cctx, *ty))
             .collect::<Result<_>>()?;
-        let ret_ty = convert_type(ctx, llvm_ctx, self.result_type())?;
+        let ret_ty = convert_type(ctx, llvm_ctx, cctx, self.result_type())?;
         Ok(llvm_function_type(ret_ty, &args_tys, self.is_var_arg()))
     }
 }
 
 #[type_interface_impl]
 impl ToLLVMType for VoidType {
-    fn convert(&self, _ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+    fn convert(
+        &self,
+        _ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        _cctx: &mut ConversionContext,
+    ) -> Result<LLVMType> {
         Ok(llvm_void_type_in_context(llvm_ctx))
     }
 }
 
 #[type_interface_impl]
 impl ToLLVMType for PointerType {
-    fn convert(&self, _ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+    fn convert(
+        &self,
+        _ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        _cctx: &mut ConversionContext,
+    ) -> Result<LLVMType> {
         Ok(llvm_pointer_type_in_context(llvm_ctx, 0))
     }
 }
 
 #[type_interface_impl]
 impl ToLLVMType for StructType {
-    fn convert(&self, ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMType> {
         if self.is_opaque() {
             let name = self.name().expect("Opaqaue struct must have a name");
             Ok(llvm_struct_create_named(llvm_ctx, name.as_str()))
         } else {
             let field_types = self
                 .fields()
-                .map(|fty| convert_type(ctx, llvm_ctx, fty))
+                .map(|fty| convert_type(ctx, llvm_ctx, cctx, fty))
                 .collect::<Result<Vec<_>>>()?;
             if let Some(name) = self.name() {
-                let str_ty = llvm_struct_create_named(llvm_ctx, name.as_str());
-                llvm_struct_set_body(str_ty, &field_types, false);
-                Ok(str_ty)
+                match cctx.structs_map.entry(name) {
+                    hash_map::Entry::Occupied(entry) => Ok(*entry.get()),
+                    hash_map::Entry::Vacant(entry) => {
+                        let str_ty = llvm_struct_create_named(llvm_ctx, entry.key());
+                        llvm_struct_set_body(str_ty, &field_types, false);
+                        entry.insert(str_ty);
+                        Ok(str_ty)
+                    }
+                }
             } else {
                 Ok(llvm_struct_type_in_context(llvm_ctx, &field_types, false))
             }
@@ -318,22 +364,37 @@ impl ToLLVMType for StructType {
 
 #[type_interface_impl]
 impl ToLLVMType for FP32Type {
-    fn convert(&self, _ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+    fn convert(
+        &self,
+        _ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        _cctx: &mut ConversionContext,
+    ) -> Result<LLVMType> {
         Ok(llvm_float_type_in_context(llvm_ctx))
     }
 }
 
 #[type_interface_impl]
 impl ToLLVMType for FP64Type {
-    fn convert(&self, _ctx: &Context, llvm_ctx: &LLVMContext) -> Result<LLVMType> {
+    fn convert(
+        &self,
+        _ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        _cctx: &mut ConversionContext,
+    ) -> Result<LLVMType> {
         Ok(llvm_double_type_in_context(llvm_ctx))
     }
 }
 
 /// Convert a pliron [Type] to [LLVMType].
-pub fn convert_type(ctx: &Context, llvm_ctx: &LLVMContext, ty: Ptr<TypeObj>) -> Result<LLVMType> {
+pub fn convert_type(
+    ctx: &Context,
+    llvm_ctx: &LLVMContext,
+    cctx: &mut ConversionContext,
+    ty: Ptr<TypeObj>,
+) -> Result<LLVMType> {
     if let Some(converter) = type_cast::<dyn ToLLVMType>(&**ty.deref(ctx)) {
-        return converter.convert(ctx, llvm_ctx);
+        return converter.convert(ctx, llvm_ctx, cctx);
     }
     input_err_noloc!(ToLLVMErr::MissingTypeConversion(
         ty.deref(ctx).get_type_id().to_string()
@@ -415,7 +476,7 @@ impl ToLLVMValue for AllocaOp {
         llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let ty = convert_type(ctx, llvm_ctx, self.result_pointee_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_pointee_type(ctx))?;
         let size = convert_value_operand(cctx, ctx, &self.get_operand(ctx))?;
         let alloca_op = llvm_build_array_alloca(
             &cctx.builder,
@@ -436,7 +497,7 @@ impl ToLLVMValue for BitcastOp {
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let arg = convert_value_operand(cctx, ctx, &self.get_operand(ctx))?;
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let bitcast_op = llvm_build_bitcast(
             &cctx.builder,
             arg,
@@ -570,7 +631,7 @@ impl ToLLVMValue for SwitchOp {
             )?;
 
             let int_ty = case.value.get_type();
-            let int_ty_llvm = convert_type(ctx, llvm_ctx, int_ty.into())?;
+            let int_ty_llvm = convert_type(ctx, llvm_ctx, cctx, int_ty.into())?;
             let ap_int_val: APInt = case.value.clone().into();
             let case_const_val = llvm_const_int(int_ty_llvm, ap_int_val.to_u64(), false);
 
@@ -589,7 +650,7 @@ impl ToLLVMValue for LoadOp {
         llvm_ctx: &LLVMContext,
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let pointee_ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let pointee_ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let ptr = convert_value_operand(cctx, ctx, &self.get_operand(ctx))?;
         let load_op = llvm_build_load2(
             &cctx.builder,
@@ -703,7 +764,7 @@ impl ToLLVMValue for IntToPtrOp {
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
         let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let inttoptr_op = llvm_build_int_to_ptr(
             &cctx.builder,
             arg,
@@ -724,7 +785,7 @@ impl ToLLVMValue for PtrToIntOp {
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
         let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let ptrtoint_op = llvm_build_ptr_to_int(
             &cctx.builder,
             arg,
@@ -772,7 +833,7 @@ impl ToLLVMValue for CallOp {
             .into_iter()
             .map(|v| convert_value_operand(cctx, ctx, &v))
             .collect::<Result<_>>()?;
-        let ty = convert_type(ctx, llvm_ctx, self.callee_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.callee_type(ctx))?;
         let res = self.get_result(ctx);
         let name = if res.get_type(ctx).deref(ctx).is::<VoidType>() {
             ""
@@ -812,6 +873,7 @@ impl ToLLVMValue for CallIntrinsicOp {
         let fn_ty = convert_type(
             ctx,
             llvm_ctx,
+            cctx,
             self.get_attr_llvm_intrinsic_type(ctx)
                 .unwrap()
                 .get_type(ctx),
@@ -864,7 +926,7 @@ impl ToLLVMValue for SExtOp {
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
         let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let sext_op = llvm_build_sext(
             &cctx.builder,
             arg,
@@ -885,7 +947,7 @@ impl ToLLVMValue for ZExtOp {
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
         let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let zext_op = llvm_build_zext(
             &cctx.builder,
             arg,
@@ -908,7 +970,7 @@ impl ToLLVMValue for TruncOp {
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
         let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let trunc_op = llvm_build_trunc(
             &cctx.builder,
             arg,
@@ -942,7 +1004,7 @@ impl ToLLVMValue for GetElementPtrOp {
 
         let base = convert_value_operand(cctx, ctx, &self.src_ptr(ctx))?;
 
-        let src_elem_type = convert_type(ctx, llvm_ctx, self.src_elem_type(ctx))?;
+        let src_elem_type = convert_type(ctx, llvm_ctx, cctx, self.src_elem_type(ctx))?;
         let gep_op = llvm_build_gep2(
             &cctx.builder,
             src_elem_type,
@@ -1200,7 +1262,7 @@ impl ToLLVMValue for FPExtOp {
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
         let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let fpext_op = llvm_build_fpext(
             &cctx.builder,
             arg,
@@ -1226,7 +1288,7 @@ impl ToLLVMValue for FPTruncOp {
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
         let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let fptrunc_op = llvm_build_fptrunc(
             &cctx.builder,
             arg,
@@ -1251,7 +1313,7 @@ impl ToLLVMValue for FPToSIOp {
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
         let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let fptosi_op = llvm_build_fptosi(
             &cctx.builder,
             arg,
@@ -1272,7 +1334,7 @@ impl ToLLVMValue for SIToFPOp {
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
         let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let sitofp_op = llvm_build_sitofp(
             &cctx.builder,
             arg,
@@ -1293,7 +1355,7 @@ impl ToLLVMValue for FPToUIOp {
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
         let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let fptoui_op = llvm_build_fptoui(
             &cctx.builder,
             arg,
@@ -1314,7 +1376,7 @@ impl ToLLVMValue for UIToFPOp {
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
         let arg = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let uitofp_op = llvm_build_uitofp(
             &cctx.builder,
             arg,
@@ -1336,7 +1398,7 @@ impl ToLLVMValue for VAArgOp {
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let opd = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
         log::warn!("Generating va_arg instruction: It is poorly supported by LLVM");
         let vaarg_op = llvm_build_va_arg(
@@ -1422,7 +1484,7 @@ fn convert_function(
         );
         llvm_position_builder_at_end(&cctx.builder, llvm_block);
         for arg in block.deref(ctx).arguments() {
-            let arg_type = convert_type(ctx, llvm_ctx, arg.get_type(ctx))?;
+            let arg_type = convert_type(ctx, llvm_ctx, cctx, arg.get_type(ctx))?;
             let phi = llvm_build_phi(&cctx.builder, arg_type, &arg.unique_name(ctx));
             cctx.value_map.insert(arg, phi);
         }
@@ -1461,19 +1523,19 @@ impl ToLLVMConstValue for ConstantOp {
         &self,
         ctx: &Context,
         llvm_ctx: &LLVMContext,
-        _cctx: &mut ConversionContext,
+        cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
         let value = self.get_value(ctx);
         if let Some(int_val) = value.downcast_ref::<IntegerAttr>() {
             let int_ty = int_val.get_type();
-            let int_ty_llvm = convert_type(ctx, llvm_ctx, int_ty.into())?;
+            let int_ty_llvm = convert_type(ctx, llvm_ctx, cctx, int_ty.into())?;
             let ap_int_val: APInt = int_val.clone().into();
             let const_val = llvm_const_int(int_ty_llvm, ap_int_val.to_u64(), false);
             Ok(const_val)
         } else if let Some(float_val) = attr_cast::<dyn FloatAttrToFP64>(&*value) {
             let float_ty = float_val.get_type(ctx);
-            let float_ty_llvm = convert_type(ctx, llvm_ctx, float_ty)?;
+            let float_ty_llvm = convert_type(ctx, llvm_ctx, cctx, float_ty)?;
             let const_val = llvm_const_real(float_ty_llvm, float_val.to_fp64());
             Ok(const_val)
         } else {
@@ -1488,9 +1550,9 @@ impl ToLLVMConstValue for UndefOp {
         &self,
         ctx: &Context,
         llvm_ctx: &LLVMContext,
-        _cctx: &mut ConversionContext,
+        cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         Ok(llvm_get_undef(ty))
     }
 }
@@ -1501,9 +1563,9 @@ impl ToLLVMConstValue for ZeroOp {
         &self,
         ctx: &Context,
         llvm_ctx: &LLVMContext,
-        _cctx: &mut ConversionContext,
+        cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
-        let ty = convert_type(ctx, llvm_ctx, self.result_type(ctx))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
         let zero_val = llvm_const_null(ty);
         Ok(zero_val)
     }
@@ -1639,7 +1701,7 @@ pub fn convert_module(
                 type_cast::<dyn ToLLVMType>(&*func_ty).ok_or(input_error_noloc!(
                     ToLLVMErr::MissingTypeConversion(func_ty.disp(ctx).to_string())
                 ))?;
-            let fn_ty_llvm = func_ty_to_llvm.convert(ctx, llvm_ctx)?;
+            let fn_ty_llvm = func_ty_to_llvm.convert(ctx, llvm_ctx, cctx)?;
             let name = func_op.get_symbol_name(ctx);
             let llvm_name = func_op.llvm_symbol_name(ctx).unwrap_or(name.clone().into());
             let func_llvm = llvm_add_function(&llvm_module, &llvm_name, fn_ty_llvm);
@@ -1647,7 +1709,7 @@ pub fn convert_module(
         }
         if let Some(global_op) = Operation::get_op(op, ctx).downcast_ref::<GlobalOp>() {
             let global_ty = global_op.get_type(ctx);
-            let global_ty_llvm = convert_type(ctx, llvm_ctx, global_ty)?;
+            let global_ty_llvm = convert_type(ctx, llvm_ctx, cctx, global_ty)?;
             let global_name = global_op.get_symbol_name(ctx);
             let llvm_global_name = global_op
                 .llvm_symbol_name(ctx)
