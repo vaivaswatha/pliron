@@ -10,7 +10,7 @@ use crate::{
     attribute::AttributeDict,
     builtin::op_interfaces::{IsTerminatorInterface, NoTerminatorInterface},
     common_traits::{Named, Verify},
-    context::{ArenaCell, Context, Ptr, private::ArenaObj},
+    context::{Arena, Context, Ptr, private::ArenaObj},
     debug_info::{get_block_arg_name, set_block_arg_name},
     identifier::Identifier,
     indented_block,
@@ -237,7 +237,8 @@ impl BasicBlock {
 
     /// Insert an instruction at the end of this block, but before the terminator if it exists.
     pub fn insert_op_before_terminator(block: Ptr<Self>, op: Ptr<Operation>, ctx: &Context) {
-        if let Some(term) = block.deref(ctx).get_terminator(ctx) {
+        let terminator = block.deref(ctx).get_terminator(ctx);
+        if let Some(term) = terminator {
             op.insert_before(ctx, term);
         } else {
             op.insert_at_back(block, ctx);
@@ -333,10 +334,10 @@ impl LinkedList for BasicBlock {
 }
 
 impl ArenaObj for BasicBlock {
-    fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
+    fn get_arena(ctx: &Context) -> &Arena<Self> {
         &ctx.basic_blocks
     }
-    fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
+    fn get_arena_mut(ctx: &mut Context) -> &mut Arena<Self> {
         &mut ctx.basic_blocks
     }
     fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context) {

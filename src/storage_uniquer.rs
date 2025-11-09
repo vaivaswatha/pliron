@@ -10,7 +10,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use crate::context::{ArenaCell, ArenaIndex};
+use crate::context::{Arena, ArenaIndex};
 
 /// Computes the hash of a rust value and its rust type.
 /// ```rust
@@ -55,7 +55,7 @@ pub type UniqueStoreIs<'a, T> = &'a dyn Fn(&T) -> bool;
 /// Store unique copy of objects.
 pub(crate) struct UniqueStore<T: 'static> {
     /// The actual store, owning the objects.
-    pub(crate) unique_store: ArenaCell<T>,
+    pub(crate) unique_store: Arena<T>,
     /// A hash index into the store.
     pub(crate) unique_stores_map: FxHashMap<TypeValueHash, Vec<ArenaIndex>>,
 }

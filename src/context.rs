@@ -43,17 +43,17 @@ impl Display for ArenaIndex {
     }
 }
 
-// pub type ArenaIndex = slotmap::DefaultKey;
-pub type ArenaCell<T> = SlotMap<ArenaIndex, RefCell<T>>;
+/// An arena allocation pool for IR objects.
+pub type Arena<T> = SlotMap<ArenaIndex, RefCell<T>>;
 
 /// A context stores all IR data of this compilation session.
 pub struct Context {
     /// Allocation pool for [Operation]s.
-    pub operations: ArenaCell<Operation>,
+    pub operations: Arena<Operation>,
     /// Allocation pool for [BasicBlock]s.
-    pub basic_blocks: ArenaCell<BasicBlock>,
+    pub basic_blocks: Arena<BasicBlock>,
     /// Allocation pool for [Region]s.
-    pub regions: ArenaCell<Region>,
+    pub regions: Arena<Region>,
     /// Registered [Dialect]s.
     pub dialects: FxHashMap<DialectName, Dialect>,
     /// Registered [Op](crate::op::Op)s.
@@ -80,9 +80,9 @@ impl Context {
 impl Default for Context {
     fn default() -> Self {
         let ctx = Context {
-            operations: ArenaCell::default(),
-            basic_blocks: ArenaCell::default(),
-            regions: ArenaCell::default(),
+            operations: Arena::default(),
+            basic_blocks: Arena::default(),
+            regions: Arena::default(),
             dialects: FxHashMap::default(),
             ops: FxHashMap::default(),
             type_store: UniqueStore::default(),
@@ -105,7 +105,7 @@ impl Default for Context {
 pub(crate) mod private {
     use std::{cell::RefCell, marker::PhantomData};
 
-    use super::{ArenaCell, ArenaIndex, Context, Ptr};
+    use super::{Arena, ArenaIndex, Context, Ptr};
 
     /// An IR object owned by Context
     pub trait ArenaObj
@@ -113,9 +113,9 @@ pub(crate) mod private {
         Self: Sized,
     {
         /// Get the arena that has allocated this object.
-        fn get_arena(ctx: &Context) -> &ArenaCell<Self>;
+        fn get_arena(ctx: &Context) -> &Arena<Self>;
         /// Get the arena that has allocated this object.
-        fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self>;
+        fn get_arena_mut(ctx: &mut Context) -> &mut Arena<Self>;
         /// Get a Ptr to self.
         fn get_self_ptr(&self, ctx: &Context) -> Ptr<Self>;
         /// If this object contains any ArenaObj itself, it must dealloc()
@@ -158,6 +158,9 @@ impl<'a, T: ArenaObj> Ptr<T> {
     /// Return a [Ref] to the pointee.
     /// This borrows from a RefCell and the borrow is live
     /// as long as the returned Ref lives.
+    /// Run `cargo` with options `+nightly -Zbuild-std -Zbuild-std-features="debug_refcell"`
+    /// to enable printing the interior mutability violation locations.
+    #[track_caller]
     pub fn deref(&self, ctx: &'a Context) -> Ref<'a, T> {
         T::get_arena(ctx)
             .get(self.idx)
@@ -168,6 +171,9 @@ impl<'a, T: ArenaObj> Ptr<T> {
     /// Return a RefMut to the pointee.
     /// This mutably borrows from a RefCell and the borrow is live
     /// as long as the returned RefMut lives.
+    /// Run `cargo` with options `+nightly -Zbuild-std -Zbuild-std-features="debug_refcell"`
+    /// to enable printing the interior mutability violation locations.
+    #[track_caller]
     pub fn deref_mut(&self, ctx: &'a Context) -> RefMut<'a, T> {
         T::get_arena(ctx)
             .get(self.idx)

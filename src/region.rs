@@ -95,11 +95,11 @@ impl ContainsLinkedList<BasicBlock> for Region {
 }
 
 impl ArenaObj for Region {
-    fn get_arena(ctx: &Context) -> &crate::context::ArenaCell<Self> {
+    fn get_arena(ctx: &Context) -> &crate::context::Arena<Self> {
         &ctx.regions
     }
 
-    fn get_arena_mut(ctx: &mut Context) -> &mut crate::context::ArenaCell<Self> {
+    fn get_arena_mut(ctx: &mut Context) -> &mut crate::context::Arena<Self> {
         &mut ctx.regions
     }
 

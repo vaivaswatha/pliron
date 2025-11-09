@@ -36,7 +36,7 @@
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 
 use crate::common_traits::Verify;
-use crate::context::{ArenaCell, Context, Ptr, private::ArenaObj};
+use crate::context::{Arena, Context, Ptr, private::ArenaObj};
 use crate::dialect::DialectName;
 use crate::identifier::Identifier;
 use crate::irfmt::parsers::spaced;
@@ -343,11 +343,11 @@ impl Hash for TypeObj {
 }
 
 impl ArenaObj for TypeObj {
-    fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
+    fn get_arena(ctx: &Context) -> &Arena<Self> {
         &ctx.type_store.unique_store
     }
 
-    fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
+    fn get_arena_mut(ctx: &mut Context) -> &mut Arena<Self> {
         &mut ctx.type_store.unique_store
     }
 

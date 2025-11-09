@@ -86,6 +86,9 @@ neg_block:
 shared_block:
   %phi_val = phi i32 [ %x, %switch_block ], [ %val2, %case2 ], [ %vald, %default_block ], [ %valn, %neg_block ]
   ret i32 %phi_val
+
+unreachable_block:
+  unreachable
 }
 
 define i32 @main() {

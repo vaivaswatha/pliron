@@ -308,7 +308,7 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
     use super::{ContainsLinkedList, LinkedList, private};
-    use crate::context::{ArenaCell, Context, Ptr, private::ArenaObj};
+    use crate::context::{Arena, Context, Ptr, private::ArenaObj};
 
     #[derive(PartialEq)]
     struct LLNode {
@@ -319,11 +319,11 @@ pub(crate) mod tests {
         self_ptr: Ptr<LLNode>,
     }
     impl ArenaObj for LLNode {
-        fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
+        fn get_arena(ctx: &Context) -> &Arena<Self> {
             &ctx.linked_list_store.nodes
         }
 
-        fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
+        fn get_arena_mut(ctx: &mut Context) -> &mut Arena<Self> {
             &mut ctx.linked_list_store.nodes
         }
 
@@ -395,11 +395,11 @@ pub(crate) mod tests {
     }
 
     impl ArenaObj for LLRoot {
-        fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
+        fn get_arena(ctx: &Context) -> &Arena<Self> {
             &ctx.linked_list_store.containers
         }
 
-        fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
+        fn get_arena_mut(ctx: &mut Context) -> &mut Arena<Self> {
             &mut ctx.linked_list_store.containers
         }
 
@@ -432,8 +432,8 @@ pub(crate) mod tests {
 
     #[derive(Default)]
     pub(crate) struct LinkedListTestArena {
-        nodes: ArenaCell<LLNode>,
-        containers: ArenaCell<LLRoot>,
+        nodes: Arena<LLNode>,
+        containers: Arena<LLRoot>,
     }
 
     fn validate_list(ctx: &Context, root: Ptr<LLRoot>, gold: Vec<u64>) {

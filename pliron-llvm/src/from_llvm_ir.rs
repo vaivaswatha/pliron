@@ -294,6 +294,7 @@ fn successors(block: LLVMBasicBlock) -> Vec<LLVMBasicBlock> {
 fn rpo(function: LLVMValue) -> Vec<LLVMBasicBlock> {
     let visited = &mut FxHashSet::<LLVMBasicBlock>::default();
     let mut po = Vec::<LLVMBasicBlock>::new();
+    let mut revpo = Vec::<LLVMBasicBlock>::new();
 
     fn walk(
         block: LLVMBasicBlock,
@@ -314,12 +315,16 @@ fn rpo(function: LLVMValue) -> Vec<LLVMBasicBlock> {
 
     // Walk every block (not just entry) since we may have unreachable blocks.
     for block in basic_block_iter(function) {
+        if visited.contains(&block) {
+            continue;
+        }
         walk(block, visited, &mut po);
+        // We collect the RPO for this connected component right now
+        // so that the entry block of the function comes first in the final ordering.
+        revpo.extend(po.drain(..).rev());
     }
 
-    // RPO is the reverse of PO.
-    po.reverse();
-    po
+    revpo
 }
 
 #[derive(Error, Debug)]

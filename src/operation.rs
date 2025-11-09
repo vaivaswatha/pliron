@@ -11,7 +11,7 @@ use crate::{
     attribute::{AttributeDict, verify_attr},
     basic_block::BasicBlock,
     common_traits::{Named, RcShare, Verify},
-    context::{ArenaCell, Context, Ptr, private::ArenaObj},
+    context::{Arena, Context, Ptr, private::ArenaObj},
     debug_info,
     identifier::Identifier,
     input_err,
@@ -497,10 +497,10 @@ impl Operation {
 }
 
 impl ArenaObj for Operation {
-    fn get_arena(ctx: &Context) -> &ArenaCell<Self> {
+    fn get_arena(ctx: &Context) -> &Arena<Self> {
         &ctx.operations
     }
-    fn get_arena_mut(ctx: &mut Context) -> &mut ArenaCell<Self> {
+    fn get_arena_mut(ctx: &mut Context) -> &mut Arena<Self> {
         &mut ctx.operations
     }
     fn dealloc_sub_objects(ptr: Ptr<Self>, ctx: &mut Context) {
