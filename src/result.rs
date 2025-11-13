@@ -86,7 +86,7 @@
 //! let ctx = &mut Context::new();
 //! let res: Error = input_error_noloc!(PrintableErr("Test error".to_string()));
 //! expect![[r#"
-//!     [?] Compilation error: invalid input program.
+//!     Compilation error: invalid input program.
 //!     Error printed using Printable: Test error"#
 //! ]].assert_eq(&res.disp(ctx).to_string());
 //! ```
@@ -163,12 +163,16 @@ impl Printable for Error {
         _state: &State,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        writeln!(
-            f,
-            "[{}] Compilation error: {}.",
-            self.loc.disp(ctx),
-            self.kind,
-        )?;
+        if self.loc.is_unknown() {
+            writeln!(f, "Compilation error: {}.", self.kind,)
+        } else {
+            writeln!(
+                f,
+                "[{}] Compilation error: {}.",
+                self.loc.disp(ctx),
+                self.kind,
+            )
+        }?;
 
         if let Some(self_val) = self.err.downcast_ref::<Error>() {
             write!(f, "{}", self_val.disp(ctx))?;
