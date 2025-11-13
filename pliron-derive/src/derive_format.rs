@@ -1,6 +1,6 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, format_ident, quote};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use syn::{Data, DeriveInput, LitStr, Result, spanned::Spanned};
 
 use crate::irfmt::{
@@ -449,20 +449,45 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
             } else {
                 err
             }
-        } else if d.name == "attr" {
-            let (attr_name_str, attr_type_path) = parse_attr_directive_args(d, input)?;
+        } else if d.name == "attr" || d.name == "opt_attr" {
+            let DeriveAttrDirectiveArgs {
+                attr_dict_key,
+                attr_type,
+                label: label_opt,
+                delimiters: delimiters_opt,
+            } = parse_attr_directive_args(d, input)?;
+
             let missing_attr_err = format!(
                 "Missing attribute {} on Op {}",
-                &attr_name_str,
+                &attr_dict_key,
                 &input.ident.clone()
             );
-            Ok(quote! {
+            let mut res = TokenStream::new();
+
+            let label = label_opt.map(|l| l + " : ").unwrap_or_default();
+            let (starting_delimiter, ending_delimiter) = delimiters_opt.unwrap_or_default();
+
+            res.extend(quote! {
                 let self_op = self.get_operation().deref(ctx);
-                let attr = self_op.attributes.get::<#attr_type_path>(
-                    &::pliron::identifier::Identifier::try_from(#attr_name_str).unwrap()
-                ).expect(#missing_attr_err);
-                ::pliron::printable::Printable::fmt(attr, ctx, state, fmt)?;
-            })
+                let attr = self_op.attributes.get::<#attr_type>(
+                    &::pliron::identifier::Identifier::try_from(#attr_dict_key).unwrap()
+                );
+                if let Some(attr) = attr {
+                    write!(fmt, "{}{}", #starting_delimiter, #label)?;
+                    ::pliron::printable::Printable::fmt(attr, ctx, state, fmt)?;
+                    write!(fmt, "{}", #ending_delimiter)?;
+                }
+            });
+            if d.name == "attr" {
+                // For `attr`, we need to error if the attribute is missing.
+                res.extend(quote! {
+                    else {
+                        panic!("{}", &#missing_attr_err);
+                    }
+                });
+            }
+
+            Ok(res)
         } else if d.name == "succ" {
             let err = Err(syn::Error::new_spanned(
                 input.ident.clone(),
@@ -957,7 +982,8 @@ struct OpParserState {
     operands: ElementSpec<usize>,
     successors: ElementSpec<usize>,
     result_types: ElementSpec<usize>,
-    attributes: ElementSpec<String>,
+    // The second element specifies attribtues that are specified as optional.
+    attributes: (ElementSpec<String>, FxHashSet<String>),
     regions: ElementSpec<usize>,
 }
 
@@ -1105,15 +1131,28 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
         });
 
         let mut attribute_sets = quote! {};
-        match &state.attributes {
+        match &state.attributes.0 {
             ElementSpec::Individual(attributes) => {
                 for (attr_name, attr_ident) in attributes {
-                    attribute_sets.extend(quote! {
-                        op.deref_mut(state_stream.state.ctx).attributes.0.insert(
-                            ::pliron::identifier::Identifier::try_from(#attr_name).unwrap(),
-                            #attr_ident,
-                        );
-                    });
+                    let set_attr = if state.attributes.1.contains(attr_name) {
+                        // This is an optional attribute.
+                        quote! {
+                            if let Some(#attr_ident) = #attr_ident {
+                                op.deref_mut(state_stream.state.ctx).attributes.0.insert(
+                                    ::pliron::identifier::Identifier::try_from(#attr_name).unwrap(),
+                                    Box::new(#attr_ident),
+                                );
+                            }
+                        }
+                    } else {
+                        quote! {
+                            op.deref_mut(state_stream.state.ctx).attributes.0.insert(
+                                ::pliron::identifier::Identifier::try_from(#attr_name).unwrap(),
+                                #attr_ident,
+                            );
+                        }
+                    };
+                    attribute_sets.extend(set_attr);
                 }
             }
             ElementSpec::All(attr_sets_name) => {
@@ -1178,7 +1217,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
         let attr_name = attr_name.to_string();
         let attr_name_ident = format_ident!("{}", attr_name);
 
-        match state.attributes {
+        match state.attributes.0 {
             ElementSpec::Individual(ref mut attributes) => {
                 attributes.insert(attr_name.clone(), attr_name_ident.clone());
             }
@@ -1293,15 +1332,23 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                 let #reg_name = ::pliron::region::Region::parser
                     (#regions_temp_parent_op).parse_stream(state_stream).into_result()?.0;
             })
-        } else if d.name == "attr" {
-            let (attr_name_str, attr_type_path) = parse_attr_directive_args(d, input)?;
-            let attr_name_ident = format_ident!("{}", attr_name_str);
+        } else if d.name == "attr" || d.name == "opt_attr" {
+            let DeriveAttrDirectiveArgs {
+                attr_dict_key,
+                attr_type,
+                label: label_opt,
+                delimiters: delimiters_opt,
+            } = parse_attr_directive_args(d, input)?;
+            let attr_name_ident = format_ident!("{}", attr_dict_key);
 
-            match state.attributes {
-                ElementSpec::Individual(ref mut attributes) => {
-                    attributes.insert(attr_name_str.clone(), attr_name_ident.clone());
+            match &mut state.attributes {
+                (ElementSpec::Individual(attributes), optionals) => {
+                    attributes.insert(attr_dict_key.clone(), attr_name_ident.clone());
+                    if d.name == "opt_attr" {
+                        optionals.insert(attr_dict_key.clone());
+                    }
                 }
-                ElementSpec::All(_) => {
+                (ElementSpec::All(_), _optionals) => {
                     return Err(syn::Error::new_spanned(
                         input.ident.clone(),
                         "Cannot mix attributes directive with named attributes".to_string(),
@@ -1309,12 +1356,41 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
                 }
             }
 
-            Ok(quote! {
-                let #attr_name_ident = Box::new(#attr_type_path::parser(())
-                    .parse_stream(state_stream)
-                    .into_result()?
-                    .0);
-            })
+            let attr_parser = quote! {
+                #attr_type::parser(())
+            };
+            let labelled_parser = if let Some(label) = &label_opt {
+                quote! {
+                (::pliron::irfmt::parsers::spaced(::combine::parser::char::string(#label))
+                    .skip(::combine::parser::char::char(':').skip(::combine::parser::char::spaces()))).with(#attr_parser)
+                }
+            } else {
+                attr_parser
+            };
+            let delimited_labelled_parser = if let Some((open, close)) = &delimiters_opt {
+                quote! {
+                    ::combine::parser::sequence::between(
+                        ::pliron::irfmt::parsers::spaced(::combine::parser::char::string(#open)),
+                        ::pliron::irfmt::parsers::spaced(::combine::parser::char::string(#close)),
+                        #labelled_parser
+                    )
+                }
+            } else {
+                labelled_parser
+            };
+
+            if d.name == "opt_attr" {
+                Ok(quote! {
+                    let #attr_name_ident = ::combine::parser::choice::optional
+                        (#delimited_labelled_parser).parse_stream(state_stream).into_result()?.0;
+                })
+            } else {
+                Ok(quote! {
+                    let parsed = #delimited_labelled_parser
+                        .parse_stream(state_stream).into_result()?.0;
+                    let #attr_name_ident = Box::new(parsed);
+                })
+            }
         } else if d.name == "succ" {
             let Some(Elem::UnnamedVar(UnnamedVar { index, .. })) = &d.args.first() else {
                 return Err(syn::Error::new_spanned(
@@ -1446,14 +1522,14 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             })
         } else if d.name == "attr_dict" {
             let attr_sets_name = format_ident!("attr_sets");
-            if matches!(&state.attributes, ElementSpec::Individual(attributes) if !attributes.is_empty())
+            if matches!(&state.attributes.0, ElementSpec::Individual(attributes) if !attributes.is_empty())
             {
                 return Err(syn::Error::new_spanned(
                     input.ident.clone(),
                     "Cannot mix attributes directive with named attributes".to_string(),
                 ));
             }
-            state.attributes = ElementSpec::All(attr_sets_name.clone());
+            state.attributes.0 = ElementSpec::All(attr_sets_name.clone());
             Ok(quote! {
                 let #attr_sets_name =
                     ::pliron::attribute::AttributeDict::parser(()).parse_stream(state_stream).into_result()?.0;
@@ -1505,18 +1581,29 @@ impl ParsableBuilder<()> for DeriveTypeParsable {
     }
 }
 
-fn parse_attr_directive_args(d: &Directive, input: &FmtInput) -> Result<(String, syn::Type)> {
-    if d.args.len() != 2 {
+/// Arguments for the `attr` and `opt_attr` directives.
+struct DeriveAttrDirectiveArgs {
+    attr_dict_key: String,
+    attr_type: syn::Type,
+    label: Option<String>,
+    delimiters: Option<(String, String)>,
+}
+
+fn parse_attr_directive_args(d: &Directive, input: &FmtInput) -> Result<DeriveAttrDirectiveArgs> {
+    if d.args.len() < 2 {
         return Err(syn::Error::new_spanned(
             input.ident.clone(),
-            "The `attr` directive takes two arguments,
-                        the first is attribute name, and second attribute type"
+            "The `attr` directive takes two mandatory arguments. \
+            Check the documentation for details"
                 .to_string(),
         ));
     }
+
+    let mut args = d.args.iter();
     let Elem::Var(Var {
-        name: attr_name, ..
-    }) = &d.args[0]
+        name: attr_dict_key,
+        ..
+    }) = args.next().unwrap()
     else {
         return Err(syn::Error::new_spanned(
             input.ident.clone(),
@@ -1524,20 +1611,82 @@ fn parse_attr_directive_args(d: &Directive, input: &FmtInput) -> Result<(String,
                 .to_string(),
         ));
     };
-    let attr_type = match &d.args[1] {
-                 Elem::Var(Var { name, .. }) => name.clone(),
-                 Elem::Lit(lit) => {
-                    lit.lit.clone()
-                 }
-                 _ =>
+
+    let attr_type =
+        match args.next().unwrap() {
+            Elem::Var(Var { name, .. }) => name.clone(),
+            Elem::Lit(lit) => {
+                lit.lit.clone()
+            }
+            _ =>
                 return Err(syn::Error::new_spanned(
                     input.ident.clone(),
                     "The second argument to `attr` directive must be a named variable or a literal representing its type".to_string(),
                 ))
+        };
+
+    let mut label = None;
+    let mut delimiters = None;
+
+    let mut process_arg = |arg: &Elem| -> Result<()> {
+        let err_arg = Err(syn::Error::new_spanned(
+            input.ident.clone(),
+            "Unexpected argument to `attr` directive".to_string(),
+        ));
+        let Elem::Directive(directive) = arg else {
+            return err_arg;
+        };
+        if directive.name == "label" {
+            let err_args = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `label` directive takes a single named variable argument".to_string(),
+            ));
+            if directive.args.len() != 1 {
+                return err_args;
+            }
+            let Elem::Var(Var {
+                name: label_var, ..
+            }) = &directive.args[0]
+            else {
+                return err_args;
             };
-    let attr_type_path = syn::parse_str::<syn::Type>(&attr_type)?;
-    let attr_name_str = attr_name.to_string();
-    Ok((attr_name_str, attr_type_path))
+            label = Some(label_var.clone());
+        } else if directive.name == "delimiters" {
+            let err_args = Err(syn::Error::new_spanned(
+                input.ident.clone(),
+                "The `delimiters` directive takes two literal arguments".to_string(),
+            ));
+            if directive.args.len() != 2 {
+                return err_args;
+            }
+            let Elem::Lit(Lit { lit: open_lit, .. }) = &directive.args[0] else {
+                return err_args;
+            };
+            let Elem::Lit(Lit { lit: close_lit, .. }) = &directive.args[1] else {
+                return err_args;
+            };
+            delimiters = Some((open_lit.clone(), close_lit.clone()));
+        } else {
+            return err_arg;
+        }
+        Ok(())
+    };
+
+    // Process 3rd and 4th arguments if present.
+    if let Some(arg) = args.next() {
+        process_arg(arg)?;
+    }
+    if let Some(arg) = args.next() {
+        process_arg(arg)?;
+    }
+
+    let attr_type = syn::parse_str::<syn::Type>(&attr_type)?;
+    Ok(DeriveAttrDirectiveArgs {
+        attr_dict_key: attr_dict_key.clone(),
+        attr_type,
+        label,
+        delimiters,
+    })
 }
 
 use syn::{

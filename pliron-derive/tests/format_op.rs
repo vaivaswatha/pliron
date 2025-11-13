@@ -289,7 +289,10 @@ fn attr_op() {
     assert!(res.verify(ctx).is_ok());
 }
 
-#[format_op("attr($attr, `pliron::builtin::attributes::StringAttr`) `:` type($0)")]
+#[format_op(
+    "attr($attr, `pliron::builtin::attributes::StringAttr`) ` ` \
+    opt_attr($opt_attr, `pliron::builtin::attributes::IntegerAttr`) `:` type($0)"
+)]
 #[def_op("test.attr_op2")]
 struct AttrOp2 {}
 impl_verify_succ!(AttrOp2);
@@ -318,8 +321,274 @@ fn attr_op2() {
         builtin.func @testfunc: builtin.function <()->()> 
         {
           ^entry_block1v1():
-            res0_op2v1_res0 = test.attr_op2 "Hello World":builtin.integer si64 !0;
+            res0_op2v1_res0 = test.attr_op2 "Hello World" :builtin.integer si64 !0;
             test.return res0_op2v1_res0 !1
+        } !2
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+
+    let printed_with_opt_attr = "builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.attr_op2 \"Hello World\" <42: si64> :builtin.integer si64;
+            test.return res0
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed_with_opt_attr.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::top_level_parser()
+        .parse(state_stream)
+        .expect("AttrOp parser failed with optional attribute");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <()->()> 
+        {
+          ^entry_block2v1():
+            res0_op5v1_res0 = test.attr_op2 "Hello World" <42: si64>:builtin.integer si64 !0;
+            test.return res0_op5v1_res0 !1
+        } !2
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+}
+
+#[format_op(
+    "attr($attr, `pliron::builtin::attributes::StringAttr`, label($name)) ` ` \
+    opt_attr($opt_attr, `pliron::builtin::attributes::IntegerAttr`, label($value)) `:` type($0)"
+)]
+#[def_op("test.attr_op2_labeled")]
+struct AttrOp2Labeled {}
+impl_verify_succ!(AttrOp2Labeled);
+
+#[test]
+fn attr_op2_labeled() {
+    let ctx = &mut setup_context_dialects();
+    AttrOp2Labeled::register(ctx, AttrOp2Labeled::parser_fn);
+
+    let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.attr_op2_labeled name: \"Hello World\" :builtin.integer si64;
+            test.return res0
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::top_level_parser()
+        .parse(state_stream)
+        .expect("AttrOp parser failed");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <()->()> 
+        {
+          ^entry_block1v1():
+            res0_op2v1_res0 = test.attr_op2_labeled name : "Hello World" :builtin.integer si64 !0;
+            test.return res0_op2v1_res0 !1
+        } !2
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+
+    let printed_with_opt_attr = "builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.attr_op2_labeled name : \"Hello World\" value : <42: si64> :builtin.integer si64;
+            test.return res0
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed_with_opt_attr.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::top_level_parser()
+        .parse(state_stream)
+        .expect("AttrOp parser failed with optional attribute");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <()->()> 
+        {
+          ^entry_block2v1():
+            res0_op5v1_res0 = test.attr_op2_labeled name : "Hello World" value : <42: si64>:builtin.integer si64 !0;
+            test.return res0_op5v1_res0 !1
+        } !2
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+}
+
+#[format_op(
+    "attr($attr, `pliron::builtin::attributes::StringAttr`, label($name), delimiters(`<`, `>`)) ` ` \
+    opt_attr($opt_attr, `pliron::builtin::attributes::IntegerAttr`, label($value), delimiters(`<<`, `>>`)) `:` type($0)"
+)]
+#[def_op("test.attr_op2_labeled_delimited")]
+struct AttrOp2Labeleddelimited {}
+impl_verify_succ!(AttrOp2Labeleddelimited);
+
+#[test]
+fn attr_op2_labeled_delimited() {
+    let ctx = &mut setup_context_dialects();
+    AttrOp2Labeleddelimited::register(ctx, AttrOp2Labeleddelimited::parser_fn);
+
+    let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.attr_op2_labeled_delimited <name: \"Hello World\"> :builtin.integer si64;
+            test.return res0
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::top_level_parser()
+        .parse(state_stream)
+        .expect("AttrOp parser failed");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <()->()> 
+        {
+          ^entry_block1v1():
+            res0_op2v1_res0 = test.attr_op2_labeled_delimited <name : "Hello World"> :builtin.integer si64 !0;
+            test.return res0_op2v1_res0 !1
+        } !2
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+
+    let printed_with_opt_attr = "builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.attr_op2_labeled_delimited <name : \"Hello World\"> <<value : <42: si64>>> :builtin.integer si64;
+            test.return res0
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed_with_opt_attr.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::top_level_parser()
+        .parse(state_stream)
+        .expect("AttrOp parser failed with optional attribute");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <()->()> 
+        {
+          ^entry_block2v1():
+            res0_op5v1_res0 = test.attr_op2_labeled_delimited <name : "Hello World"> <<value : <42: si64>>>:builtin.integer si64 !0;
+            test.return res0_op5v1_res0 !1
+        } !2
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+}
+
+#[format_op(
+    "attr($attr, `pliron::builtin::attributes::StringAttr`, delimiters(`<`, `>`)) ` ` \
+    opt_attr($opt_attr, `pliron::builtin::attributes::IntegerAttr`, delimiters(`[[`, `]]`)) `:` type($0)"
+)]
+#[def_op("test.attr_op2_delimited")]
+struct AttrOp2delimited {}
+impl_verify_succ!(AttrOp2delimited);
+
+#[test]
+fn attr_op2_delimited() {
+    let ctx = &mut setup_context_dialects();
+    AttrOp2delimited::register(ctx, AttrOp2delimited::parser_fn);
+
+    let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.attr_op2_delimited <\"Hello World\"> :builtin.integer si64;
+            test.return res0
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::top_level_parser()
+        .parse(state_stream)
+        .expect("AttrOp parser failed");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <()->()> 
+        {
+          ^entry_block1v1():
+            res0_op2v1_res0 = test.attr_op2_delimited <"Hello World"> :builtin.integer si64 !0;
+            test.return res0_op2v1_res0 !1
+        } !2
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 4, column: 13], []
+        !2 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+
+    let printed_with_opt_attr = "builtin.func @testfunc: builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.attr_op2_delimited <\"Hello World\"> [[<42: si64>]] :builtin.integer si64;
+            test.return res0
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed_with_opt_attr.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::top_level_parser()
+        .parse(state_stream)
+        .expect("AttrOp parser failed with optional attribute");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <()->()> 
+        {
+          ^entry_block2v1():
+            res0_op5v1_res0 = test.attr_op2_delimited <"Hello World"> [[<42: si64>]]:builtin.integer si64 !0;
+            test.return res0_op5v1_res0 !1
         } !2
 
         outlined_attributes:

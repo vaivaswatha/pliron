@@ -234,7 +234,7 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 ///   `res1, ... = opid ...`
 /// The format string specifies what comes after the opid.
 ///   1. A named variable `$name` specifies a named attribute of the operation.
-///      This cannot be combined with the "attr_dict" directive.
+///      This cannot be combined with the [attr_dict](#attr_dict) directive.
 ///   2. An unnamed variable `$i` specifies `operands[i]`, except when inside some directives.
 ///      This cannot be combined with the "operands" directive.
 ///   3. The "type" directive specifies that a type must be parsed. It takes one argument,
@@ -243,14 +243,26 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 ///   4. The "region" directive specifies that a region must be parsed. It takes one argument,
 ///      which is an unnamed variable `$i` with `i` specifying `region[i]`. This cannot be
 ///      combined with the "regions" directive.
-///   5. The "attr" directive can be used to specify attribute on an `Op` when the attribute's
-///      rust type is fixed at compile time. It takes two arguments, the first is the attribute name
-///      and the second is the concrete rust type of the attribute. This second argument can be a
-///      named variable `$Name` (with `Name` being in scope) or a literal string denoting the path
-///      to a rust type (e.g. `` `::pliron::builtin::attributes::IntegerAttr` ``).
-///      The advantage over specifying the attribute as a named variable is that the attribute-id
-///      is not a part of the syntax here, allowing it to be more succinct.
-///      This cannot be combined with the "attr_dict" directive.
+///   5. The <a name="attr"></a> "attr" directive can be used to specify attribute on an `Op` when
+///      the attribute's rust type is fixed at compile time. It takes two mandatory and two optional
+///      arguments.
+///
+///      1. The first operand is a named variable `$name` which is used as a key into the
+///         operation's attribute dictionary
+///      2. The second is the concrete rust type of the attribute. This second argument can be a
+///         named variable `$name` (with `name` being in scope) or a literal string denoting the path
+///         to a rust type (e.g. `` `::pliron::builtin::attributes::IntegerAttr` ``).
+///      3. Two additional optional arguments can be specified:
+///         * The "label" directive, with one argument, a named variable `$label`, which
+///           specifies the label to be used while printing / parsing the attribute.
+///         * The "delimiter" directive, which takes two literal arguments,
+///           specifying the opening and closing delimiters to be used while printing / parsing.
+///
+///      The advantage over specifying an attribute using the [attr](#attr) directive (as against
+///      just using a named variable) is that the attribute-id is not a part of the syntax
+///      here (because the type is statically known, allowing us to be able to parse it),
+///      thus allowing it to be more succinct. This cannot be combined with the [attr_dict](#attr_dict)
+///      directive.
 ///   6. The "succ" directive specifies an operation's successor. It takes one argument,
 ///      which is an unnamed variable `$i` with `i` specifying `successor[i]`.
 ///   7. The "operands" directive specifies all the operands of an operation. It takes one argument
@@ -261,16 +273,21 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 ///        3. ``Char(`c`)``: takes a single character argument that will be used as separator.
 ///        4. ``CharSpace(`c`)``: takes a single character argument that will be followed by a space.
 ///   8. The "successors" directive specifies all the successors of an operation. It takes one argument
-///      which is a directive specifying the separator between successors. The separator directive is same
-///      as that for "operands" above. This cannot be combined with the "succ" directive.
+///      which is a directive specifying the separator between successors. The separator directive is
+///      same as that for "operands" above. This cannot be combined with the "succ" directive.
 ///   9. The "regions" directive specifies all the regions of an operation. It takes one argument
 ///      which is a directive specifying the separator between regions. The separator directive is same
 ///      as that for "operands" above. This cannot be combined with the "region" directive.
-///  10. The "attr_dict" directive specifies an [AttributeDict](../pliron/attribute/struct.AttributeDict.html).
-///      It cannot be combined with either the "attr" directive or a named variable (`$name`).
+///  10. The <a name="attr_dict"></a> "attr_dict" directive specifies an
+///      [AttributeDict](../pliron/attribute/struct.AttributeDict.html).
+///      It cannot be combined with any of [attr](#attr), [opt_attr](#opt_attr) directives or
+///      a named variable (`$name`).
 ///  11. The "types" directive specifies all the result types of an operation. It takes one argument
-///      which is a directive specifying the separator between result types. The separator directive is same
-///      as that for "operands" above. This cannot be combined with the "type" directive.
+///      which is a directive specifying the separator between result types. The separator directive is
+///      same as that for "operands" above. This cannot be combined with the "type" directive.
+///  12. The <a name="opt_attr"></a> "opt_attr" directive specifies an optional attribute on an `Op`.
+///      It takes two or more arguments, which are same as those of the [attr](#attr) directive.
+///      This cannot be combined with the [attr_dict](#attr_dict) directive.
 ///
 /// Examples:
 /// 1. Derive for a struct, with no format string (default format):
@@ -292,6 +309,8 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 /// #[derive_op_interface_impl(OneOpdInterface, OneResultInterface)]
 /// struct OneResultOneOperandOp;
 /// impl_verify_succ!(OneResultOneOperandOp);
+/// ```
+/// More examples can be seen in the tests for this macro in `pliron-derive/tests/format_op.rs`.
 #[proc_macro_attribute]
 pub fn format_op(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_format::derive(args, input, DeriveIRObject::Op))
