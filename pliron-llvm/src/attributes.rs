@@ -218,6 +218,18 @@ pub enum LinkageAttr {
 }
 impl_verify_succ!(LinkageAttr);
 
+#[def_attribute("llvm.insert_extract_value_indices")]
+#[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+pub struct InsertExtractValueIndicesAttr(pub Vec<u32>);
+impl_verify_succ!(InsertExtractValueIndicesAttr);
+
+#[def_attribute("llvm.align")]
+#[format_attribute("$0")]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+pub struct AlignmentAttr(pub u32);
+impl_verify_succ!(AlignmentAttr);
+
 pub fn register(ctx: &mut Context) {
     IntegerOverflowFlagsAttr::register_attr_in_dialect(ctx, IntegerOverflowFlagsAttr::parser_fn);
     ICmpPredicateAttr::register_attr_in_dialect(ctx, ICmpPredicateAttr::parser_fn);
@@ -230,13 +242,8 @@ pub fn register(ctx: &mut Context) {
     );
     FastmathFlagsAttr::register_attr_in_dialect(ctx, FastmathFlagsAttr::parser_fn);
     LinkageAttr::register_attr_in_dialect(ctx, LinkageAttr::parser_fn);
+    AlignmentAttr::register_attr_in_dialect(ctx, AlignmentAttr::parser_fn);
 }
-
-#[def_attribute("llvm.insert_extract_value_indices")]
-#[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
-#[derive(PartialEq, Eq, Clone, Debug, Hash)]
-pub struct InsertExtractValueIndicesAttr(pub Vec<u32>);
-impl_verify_succ!(InsertExtractValueIndicesAttr);
 
 #[cfg(test)]
 mod tests {

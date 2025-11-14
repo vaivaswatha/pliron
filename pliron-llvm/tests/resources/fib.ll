@@ -8,13 +8,13 @@ declare i64 @declared_function(i32)
 ; Function Attrs: noinline nounwind optnone uwtable
 define dso_local i32 @fib$1(i32 noundef %0) #0 {
   %2 = alloca i32, align 4
-  %3 = alloca i32, align 4
+  %3 = alloca i32, align 8
   %4 = alloca i32, align 4
   %5 = alloca i32, align 4
   %6 = alloca i32, align 4
   %7 = alloca i32, align 4
-  store i32 %0, ptr %3, align 4
-  %8 = load i32, ptr %3, align 4
+  store i32 %0, ptr %3, align 8
+  %8 = load i32, ptr %3, align 8
   %9 = icmp sle i32 %8, 1
   br i1 %9, label %10, label %11
 

@@ -59,11 +59,14 @@ use crate::{
         llvm_double_type_in_context, llvm_float_type_in_context, llvm_function_type,
         llvm_get_named_function, llvm_get_param, llvm_get_undef, llvm_int_type_in_context,
         llvm_is_a, llvm_lookup_intrinsic_id, llvm_pointer_type_in_context,
-        llvm_position_builder_at_end, llvm_set_fast_math_flags, llvm_set_initializer,
-        llvm_set_linkage, llvm_set_nneg, llvm_struct_create_named, llvm_struct_set_body,
-        llvm_struct_type_in_context, llvm_void_type_in_context,
+        llvm_position_builder_at_end, llvm_set_alignment, llvm_set_fast_math_flags,
+        llvm_set_initializer, llvm_set_linkage, llvm_set_nneg, llvm_struct_create_named,
+        llvm_struct_set_body, llvm_struct_type_in_context, llvm_void_type_in_context,
     },
-    op_interfaces::{FastMathFlags, IsDeclaration, LlvmSymbolName, NNegFlag, PointerTypeResult},
+    op_interfaces::{
+        AlignableOpInterface, FastMathFlags, IsDeclaration, LlvmSymbolName, NNegFlag,
+        PointerTypeResult,
+    },
     ops::{
         AShrOp, AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallIntrinsicOp, CallOp,
         CondBrOp, ConstantOp, ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp, FPExtOp, FPToSIOp,
@@ -484,6 +487,9 @@ impl ToLLVMValue for AllocaOp {
             size,
             &self.get_result(ctx).unique_name(ctx),
         );
+        if let Some(alignment) = self.alignment(ctx) {
+            llvm_set_alignment(alloca_op, alignment);
+        }
         Ok(alloca_op)
     }
 }
@@ -658,6 +664,9 @@ impl ToLLVMValue for LoadOp {
             ptr,
             &self.get_result(ctx).unique_name(ctx),
         );
+        if let Some(alignment) = self.alignment(ctx) {
+            llvm_set_alignment(load_op, alignment);
+        }
         Ok(load_op)
     }
 }
@@ -673,6 +682,9 @@ impl ToLLVMValue for StoreOp {
         let value = convert_value_operand(cctx, ctx, &self.value_opd(ctx))?;
         let ptr = convert_value_operand(cctx, ctx, &self.address_opd(ctx))?;
         let store_op = llvm_build_store(&cctx.builder, value, ptr);
+        if let Some(alignment) = self.alignment(ctx) {
+            llvm_set_alignment(store_op, alignment);
+        }
         Ok(store_op)
     }
 }
@@ -1737,6 +1749,9 @@ pub fn convert_module(
             if let Some(linkage) = global_op.get_attr_llvm_global_linkage(ctx) {
                 let llvm_linkage: LLVMLinkage = convert_linkage(linkage.clone());
                 llvm_set_linkage(global_llvm, llvm_linkage);
+            }
+            if let Some(alignment) = global_op.alignment(ctx) {
+                llvm_set_alignment(global_llvm, alignment);
             }
         }
     }

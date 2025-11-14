@@ -49,14 +49,14 @@ use pliron::{
 
 use crate::{
     attributes::{
-        CaseValuesAttr, FCmpPredicateAttr, FastmathFlagsAttr, InsertExtractValueIndicesAttr,
-        LinkageAttr,
+        AlignmentAttr, CaseValuesAttr, FCmpPredicateAttr, FastmathFlagsAttr,
+        InsertExtractValueIndicesAttr, LinkageAttr,
     },
     llvm_sys::core::llvm_lookup_intrinsic_id,
     op_interfaces::{
-        BinArithOp, CastOpInterface, CastOpWithNNegInterface, FastMathFlags, FloatBinArithOp,
-        FloatBinArithOpWithFastMathFlags, IntBinArithOp, IntBinArithOpWithOverflowFlag,
-        IsDeclaration, LlvmSymbolName, NNegFlag, PointerTypeResult,
+        AlignableOpInterface, BinArithOp, CastOpInterface, CastOpWithNNegInterface, FastMathFlags,
+        FloatBinArithOp, FloatBinArithOpWithFastMathFlags, IntBinArithOp,
+        IntBinArithOpWithOverflowFlag, IsDeclaration, LlvmSymbolName, NNegFlag, PointerTypeResult,
     },
     ops::{
         func_op_attr_names::ATTR_KEY_LLVM_FUNC_TYPE,
@@ -370,8 +370,12 @@ pub enum AllocaOpVerifyErr {
 /// |-----|-------|
 /// | `res` | [PointerType] |
 #[def_op("llvm.alloca")]
-#[format_op("`[` attr($alloca_element_type, $TypeAttr) ` x ` $0 `]` ` : ` type($0)")]
-#[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
+#[format_op(
+    "`[` attr($alloca_element_type, $TypeAttr) ` x ` $0 `]` ` ` \
+    opt_attr($llvm_alignment, $AlignmentAttr, label($align), delimiters(`[`, `]`)) \
+    ` : ` type($0)"
+)]
+#[derive_op_interface_impl(OneResultInterface, OneOpdInterface, AlignableOpInterface)]
 #[derive_attr_get_set(alloca_element_type : TypeAttr)]
 pub struct AllocaOp;
 impl Verify for AllocaOp {
@@ -1226,8 +1230,10 @@ pub enum LoadOpVerifyErr {
 /// |-----|-------|
 /// | `res` | sized LLVM type |
 #[def_op("llvm.load")]
-#[format_op("$0 ` : ` type($0)")]
-#[derive_op_interface_impl(OneResultInterface, OneOpdInterface)]
+#[format_op(
+    "$0 ` ` opt_attr($llvm_alignment, $AlignmentAttr, label($align), delimiters(`[`, `]`)) ` : ` type($0)"
+)]
+#[derive_op_interface_impl(OneResultInterface, OneOpdInterface, AlignableOpInterface)]
 pub struct LoadOp;
 impl LoadOp {
     /// Create a new [LoadOp]
@@ -1271,8 +1277,10 @@ pub enum StoreOpVerifyErr {
 /// | `addr` | [PointerType] |
 /// | `value` | Sized type |
 #[def_op("llvm.store")]
-#[format_op("`*` $1 ` <- ` $0")]
-#[derive_op_interface_impl(ZeroResultInterface)]
+#[format_op(
+    "`*` $1 ` <- ` $0 ` ` opt_attr($llvm_alignment, $AlignmentAttr, label($align), delimiters(`[`, `]`))"
+)]
+#[derive_op_interface_impl(ZeroResultInterface, AlignableOpInterface)]
 pub struct StoreOp;
 impl StoreOp {
     /// Create a new [StoreOp]
@@ -1725,7 +1733,8 @@ pub enum GlobalOpVerifyErr {
     ZeroResultInterface,
     SymbolOpInterface,
     SingleBlockRegionInterface,
-    LlvmSymbolName
+    LlvmSymbolName,
+    AlignableOpInterface
 )]
 #[derive_attr_get_set(llvm_global_type : TypeAttr, global_initializer, llvm_global_linkage : LinkageAttr)]
 pub struct GlobalOp;

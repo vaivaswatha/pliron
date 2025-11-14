@@ -33,30 +33,30 @@ use llvm_sys::{
         LLVMCreateMemoryBufferWithContentsOfFile, LLVMDeleteFunction, LLVMDisposeMemoryBuffer,
         LLVMDisposeMessage, LLVMDisposeModule, LLVMDoubleTypeInContext, LLVMDumpModule,
         LLVMDumpType, LLVMDumpValue, LLVMFloatTypeInContext, LLVMFunctionType,
-        LLVMGetAggregateElement, LLVMGetAllocatedType, LLVMGetArrayLength2, LLVMGetBasicBlockName,
-        LLVMGetBasicBlockParent, LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType,
-        LLVMGetCalledValue, LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFCmpPredicate,
-        LLVMGetFastMathFlags, LLVMGetFirstBasicBlock, LLVMGetFirstFunction, LLVMGetFirstGlobal,
-        LLVMGetFirstInstruction, LLVMGetFirstParam, LLVMGetGEPSourceElementType,
-        LLVMGetICmpPredicate, LLVMGetIncomingBlock, LLVMGetIncomingValue, LLVMGetIndices,
-        LLVMGetInitializer, LLVMGetInsertBlock, LLVMGetInstructionOpcode, LLVMGetInstructionParent,
-        LLVMGetIntTypeWidth, LLVMGetIntrinsicDeclaration, LLVMGetLastFunction, LLVMGetLastGlobal,
-        LLVMGetLinkage, LLVMGetModuleIdentifier, LLVMGetNNeg, LLVMGetNSW, LLVMGetNUW,
-        LLVMGetNamedFunction, LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextGlobal,
-        LLVMGetNextInstruction, LLVMGetNextParam, LLVMGetNumArgOperands, LLVMGetNumIndices,
-        LLVMGetNumOperands, LLVMGetOperand, LLVMGetParam, LLVMGetParamTypes,
-        LLVMGetPreviousBasicBlock, LLVMGetPreviousFunction, LLVMGetPreviousGlobal,
-        LLVMGetPreviousInstruction, LLVMGetPreviousParam, LLVMGetReturnType,
-        LLVMGetStructElementTypes, LLVMGetStructName, LLVMGetTypeKind, LLVMGetUndef,
-        LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType, LLVMIntTypeInContext,
-        LLVMIntrinsicIsOverloaded, LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser,
-        LLVMIsDeclaration, LLVMIsFunctionVarArg, LLVMIsOpaqueStruct, LLVMLookupIntrinsicID,
-        LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext, LLVMPositionBuilderAtEnd,
-        LLVMPositionBuilderBefore, LLVMPrintModuleToFile, LLVMPrintModuleToString,
-        LLVMPrintTypeToString, LLVMPrintValueToString, LLVMSetFastMathFlags, LLVMSetInitializer,
-        LLVMSetLinkage, LLVMSetNNeg, LLVMStructCreateNamed, LLVMStructSetBody,
-        LLVMStructTypeInContext, LLVMTypeIsSized, LLVMTypeOf, LLVMValueAsBasicBlock,
-        LLVMValueIsBasicBlock, LLVMVoidTypeInContext,
+        LLVMGetAggregateElement, LLVMGetAlignment, LLVMGetAllocatedType, LLVMGetArrayLength2,
+        LLVMGetBasicBlockName, LLVMGetBasicBlockParent, LLVMGetBasicBlockTerminator,
+        LLVMGetCalledFunctionType, LLVMGetCalledValue, LLVMGetConstOpcode, LLVMGetElementType,
+        LLVMGetFCmpPredicate, LLVMGetFastMathFlags, LLVMGetFirstBasicBlock, LLVMGetFirstFunction,
+        LLVMGetFirstGlobal, LLVMGetFirstInstruction, LLVMGetFirstParam,
+        LLVMGetGEPSourceElementType, LLVMGetICmpPredicate, LLVMGetIncomingBlock,
+        LLVMGetIncomingValue, LLVMGetIndices, LLVMGetInitializer, LLVMGetInsertBlock,
+        LLVMGetInstructionOpcode, LLVMGetInstructionParent, LLVMGetIntTypeWidth,
+        LLVMGetIntrinsicDeclaration, LLVMGetLastFunction, LLVMGetLastGlobal, LLVMGetLinkage,
+        LLVMGetModuleIdentifier, LLVMGetNNeg, LLVMGetNSW, LLVMGetNUW, LLVMGetNamedFunction,
+        LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextGlobal, LLVMGetNextInstruction,
+        LLVMGetNextParam, LLVMGetNumArgOperands, LLVMGetNumIndices, LLVMGetNumOperands,
+        LLVMGetOperand, LLVMGetParam, LLVMGetParamTypes, LLVMGetPreviousBasicBlock,
+        LLVMGetPreviousFunction, LLVMGetPreviousGlobal, LLVMGetPreviousInstruction,
+        LLVMGetPreviousParam, LLVMGetReturnType, LLVMGetStructElementTypes, LLVMGetStructName,
+        LLVMGetTypeKind, LLVMGetUndef, LLVMGetValueKind, LLVMGetValueName2, LLVMGlobalGetValueType,
+        LLVMIntTypeInContext, LLVMIntrinsicIsOverloaded, LLVMIsAFunction, LLVMIsATerminatorInst,
+        LLVMIsAUser, LLVMIsDeclaration, LLVMIsFunctionVarArg, LLVMIsOpaqueStruct,
+        LLVMLookupIntrinsicID, LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext,
+        LLVMPositionBuilderAtEnd, LLVMPositionBuilderBefore, LLVMPrintModuleToFile,
+        LLVMPrintModuleToString, LLVMPrintTypeToString, LLVMPrintValueToString, LLVMSetAlignment,
+        LLVMSetFastMathFlags, LLVMSetInitializer, LLVMSetLinkage, LLVMSetNNeg,
+        LLVMStructCreateNamed, LLVMStructSetBody, LLVMStructTypeInContext, LLVMTypeIsSized,
+        LLVMTypeOf, LLVMValueAsBasicBlock, LLVMValueIsBasicBlock, LLVMVoidTypeInContext,
     },
     ir_reader::LLVMParseIRInContext,
     prelude::{
@@ -319,7 +319,8 @@ pub mod llvm_is_a {
         LLVMIsAConstantFP, LLVMIsAConstantInt, LLVMIsAExtractValueInst, LLVMIsAFCmpInst,
         LLVMIsAFPToUIInst, LLVMIsAGetElementPtrInst, LLVMIsAGlobalValue, LLVMIsAGlobalVariable,
         LLVMIsAICmpInst, LLVMIsAInsertValueInst, LLVMIsAInstruction, LLVMIsAInvokeInst,
-        LLVMIsAPHINode, LLVMIsASwitchInst, LLVMIsAUIToFPInst, LLVMIsAZExtInst,
+        LLVMIsALoadInst, LLVMIsAPHINode, LLVMIsAStoreInst, LLVMIsASwitchInst, LLVMIsAUIToFPInst,
+        LLVMIsAZExtInst,
     };
 
     use super::*;
@@ -437,6 +438,16 @@ pub mod llvm_is_a {
     /// LLVMIsAExtractValueInst
     pub fn extract_value_inst(val: LLVMValue) -> bool {
         unsafe { !LLVMIsAExtractValueInst(val.into()).is_null() }
+    }
+
+    /// LLVMIsALoadInst
+    pub fn load_inst(val: LLVMValue) -> bool {
+        unsafe { !LLVMIsALoadInst(val.into()).is_null() }
+    }
+
+    /// LLVMIsAStoreInst
+    pub fn store_inst(val: LLVMValue) -> bool {
+        unsafe { !LLVMIsAStoreInst(val.into()).is_null() }
     }
 }
 
@@ -861,6 +872,28 @@ pub fn llvm_get_nneg(val: LLVMValue) -> bool {
 pub fn llvm_set_nneg(val: LLVMValue, nneg: bool) {
     assert!(llvm_is_a::zext_inst(val) || llvm_is_a::uitofp_inst(val));
     unsafe { LLVMSetNNeg(val.into(), nneg.into()) }
+}
+
+/// LLVMGetAlignment
+pub fn llvm_get_alignment(val: LLVMValue) -> u32 {
+    assert!(
+        llvm_is_a::alloca_inst(val)
+            || llvm_is_a::global_variable(val)
+            || llvm_is_a::load_inst(val)
+            || llvm_is_a::store_inst(val)
+    );
+    unsafe { LLVMGetAlignment(val.into()) }
+}
+
+/// LLVMSetAlignment
+pub fn llvm_set_alignment(val: LLVMValue, align: u32) {
+    assert!(
+        llvm_is_a::alloca_inst(val)
+            || llvm_is_a::global_variable(val)
+            || llvm_is_a::load_inst(val)
+            || llvm_is_a::store_inst(val)
+    );
+    unsafe { LLVMSetAlignment(val.into(), align) }
 }
 
 /// LLVMCountParams

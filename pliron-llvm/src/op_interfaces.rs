@@ -27,7 +27,7 @@ use pliron::{
     verify_err,
 };
 
-use crate::attributes::FastmathFlagsAttr;
+use crate::attributes::{AlignmentAttr, FastmathFlagsAttr};
 
 use super::{attributes::IntegerOverflowFlagsAttr, types::PointerType};
 
@@ -430,6 +430,46 @@ pub trait LlvmSymbolName: SymbolOpInterface {
             ATTR_KEY_LLVM_SYMBOL_NAME.clone(),
             pliron::builtin::attributes::StringAttr::new(name),
         );
+    }
+
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+}
+
+dict_key!(
+    /// Attribute key for alignment.
+    ATTR_KEY_LLVM_ALIGNMENT,
+    "llvm_alignment"
+);
+
+/// Ops that can have an alignment set.
+#[op_interface]
+pub trait AlignableOpInterface {
+    /// Get the alignment of this [Op], if set.
+    fn alignment(&self, ctx: &Context) -> Option<u32>
+    where
+        Self: Sized,
+    {
+        self.get_operation()
+            .deref(ctx)
+            .attributes
+            .get::<AlignmentAttr>(&ATTR_KEY_LLVM_ALIGNMENT)
+            .map(|attr| attr.0)
+    }
+
+    /// Set the alignment of this [Op].
+    fn set_alignment(&self, ctx: &Context, alignment: u32)
+    where
+        Self: Sized,
+    {
+        self.get_operation()
+            .deref_mut(ctx)
+            .attributes
+            .set(ATTR_KEY_LLVM_ALIGNMENT.clone(), AlignmentAttr(alignment));
     }
 
     fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>

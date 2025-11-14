@@ -43,22 +43,23 @@ use crate::{
         LLVMBasicBlock, LLVMModule, LLVMType, LLVMValue, basic_block_iter, function_iter,
         global_iter, incoming_iter, instruction_iter, llvm_can_value_use_fast_math_flags,
         llvm_const_int_get_zext_value, llvm_const_real_get_double, llvm_count_struct_element_types,
-        llvm_get_aggregate_element, llvm_get_allocated_type, llvm_get_array_length2,
-        llvm_get_basic_block_name, llvm_get_basic_block_terminator, llvm_get_called_function_type,
-        llvm_get_called_value, llvm_get_const_opcode, llvm_get_element_type,
-        llvm_get_fast_math_flags, llvm_get_fcmp_predicate, llvm_get_gep_source_element_type,
-        llvm_get_icmp_predicate, llvm_get_indices, llvm_get_initializer,
-        llvm_get_instruction_opcode, llvm_get_instruction_parent, llvm_get_int_type_width,
-        llvm_get_linkage, llvm_get_module_identifier, llvm_get_nneg, llvm_get_nsw,
-        llvm_get_num_arg_operands, llvm_get_num_operands, llvm_get_nuw, llvm_get_operand,
-        llvm_get_param_types, llvm_get_return_type, llvm_get_struct_element_types,
-        llvm_get_struct_name, llvm_get_type_kind, llvm_get_value_kind, llvm_get_value_name,
-        llvm_global_get_value_type, llvm_is_a, llvm_is_declaration, llvm_is_function_type_var_arg,
-        llvm_is_opaque_struct, llvm_lookup_intrinsic_id, llvm_print_value_to_string, llvm_type_of,
+        llvm_get_aggregate_element, llvm_get_alignment, llvm_get_allocated_type,
+        llvm_get_array_length2, llvm_get_basic_block_name, llvm_get_basic_block_terminator,
+        llvm_get_called_function_type, llvm_get_called_value, llvm_get_const_opcode,
+        llvm_get_element_type, llvm_get_fast_math_flags, llvm_get_fcmp_predicate,
+        llvm_get_gep_source_element_type, llvm_get_icmp_predicate, llvm_get_indices,
+        llvm_get_initializer, llvm_get_instruction_opcode, llvm_get_instruction_parent,
+        llvm_get_int_type_width, llvm_get_linkage, llvm_get_module_identifier, llvm_get_nneg,
+        llvm_get_nsw, llvm_get_num_arg_operands, llvm_get_num_operands, llvm_get_nuw,
+        llvm_get_operand, llvm_get_param_types, llvm_get_return_type,
+        llvm_get_struct_element_types, llvm_get_struct_name, llvm_get_type_kind,
+        llvm_get_value_kind, llvm_get_value_name, llvm_global_get_value_type, llvm_is_a,
+        llvm_is_declaration, llvm_is_function_type_var_arg, llvm_is_opaque_struct,
+        llvm_lookup_intrinsic_id, llvm_print_value_to_string, llvm_type_of,
         llvm_value_as_basic_block, llvm_value_is_basic_block, param_iter,
     },
     op_interfaces::{
-        BinArithOp, CastOpInterface, CastOpWithNNegInterface, FastMathFlags,
+        AlignableOpInterface, BinArithOp, CastOpInterface, CastOpWithNNegInterface, FastMathFlags,
         FloatBinArithOpWithFastMathFlags, IntBinArithOpWithOverflowFlag, LlvmSymbolName,
     },
     ops::{
@@ -807,7 +808,12 @@ fn convert_instruction(
         LLVMOpcode::LLVMAlloca => {
             let elem_type = convert_type(ctx, cctx, llvm_get_allocated_type(inst))?;
             let size = get_operand(opds, 0)?;
-            Ok(AllocaOp::new(ctx, elem_type, size).get_operation())
+            let op = AllocaOp::new(ctx, elem_type, size);
+            let alignment = llvm_get_alignment(inst);
+            if alignment != 0 {
+                op.set_alignment(ctx, alignment);
+            }
+            Ok(op.get_operation())
         }
         LLVMOpcode::LLVMAnd => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
@@ -1018,7 +1024,12 @@ fn convert_instruction(
         LLVMOpcode::LLVMLandingPad => todo!(),
         LLVMOpcode::LLVMLoad => {
             let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
-            Ok(LoadOp::new(ctx, get_operand(opds, 0)?, res_ty).get_operation())
+            let load_op = LoadOp::new(ctx, get_operand(opds, 0)?, res_ty);
+            let alignment = llvm_get_alignment(inst);
+            if alignment != 0 {
+                load_op.set_alignment(ctx, alignment);
+            }
+            Ok(load_op.get_operation())
         }
         LLVMOpcode::LLVMLShr => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
@@ -1094,7 +1105,12 @@ fn convert_instruction(
         }
         LLVMOpcode::LLVMStore => {
             let (value_opd, ptr_opd) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
-            Ok(StoreOp::new(ctx, value_opd, ptr_opd).get_operation())
+            let store_op = StoreOp::new(ctx, value_opd, ptr_opd);
+            let alignment = llvm_get_alignment(inst);
+            if alignment != 0 {
+                store_op.set_alignment(ctx, alignment);
+            }
+            Ok(store_op.get_operation())
         }
         LLVMOpcode::LLVMSub => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
@@ -1292,6 +1308,11 @@ fn convert_global(
 
     let linkage = convert_linkage(llvm_get_linkage(global));
     op.set_attr_llvm_global_linkage(ctx, linkage);
+
+    let alignment = llvm_get_alignment(global);
+    if alignment != 0 {
+        op.set_alignment(ctx, alignment);
+    }
 
     if let Some(init) = llvm_get_initializer(global) {
         assert!(!llvm_is_declaration(global));
