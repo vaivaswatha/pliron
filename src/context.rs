@@ -80,9 +80,7 @@ impl Context {
     /// An IR is considered empty if it has no operations, basic blocks, or regions.
     /// This does not check for types, dialects, ops, or aux_data stored in the context.
     pub fn is_ir_empty(&self) -> bool {
-        self.operations.is_empty()
-            && self.basic_blocks.is_empty()
-            && self.regions.is_empty()
+        self.operations.is_empty() && self.basic_blocks.is_empty() && self.regions.is_empty()
     }
 }
 

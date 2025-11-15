@@ -542,7 +542,7 @@ mod tests {
 
         let int64_0_ptr: AttrObj = IntegerAttr::new(i64_ty, APInt::from_i64(0, bw(64))).into();
         let int64_1_ptr: AttrObj = IntegerAttr::new(i64_ty, APInt::from_i64(15, bw(64))).into();
-        assert!(int64_0_ptr.is::<IntegerAttr>() && &int64_0_ptr != &int64_1_ptr);
+        assert!(int64_0_ptr.is::<IntegerAttr>() && int64_0_ptr.ne(&int64_1_ptr));
         let int64_0_ptr2: AttrObj = IntegerAttr::new(i64_ty, APInt::from_i64(0, bw(64))).into();
         assert!(int64_0_ptr == int64_0_ptr2);
         assert_eq!(
@@ -585,7 +585,7 @@ mod tests {
 
         let str_0_ptr: AttrObj = StringAttr::new("hello".to_string()).into();
         let str_1_ptr: AttrObj = StringAttr::new("world".to_string()).into();
-        assert!(str_0_ptr.is::<StringAttr>() && &str_0_ptr != &str_1_ptr);
+        assert!(str_0_ptr.is::<StringAttr>() && str_0_ptr.ne(&str_1_ptr));
         let str_0_ptr2: AttrObj = StringAttr::new("hello".to_string()).into();
         assert!(str_0_ptr == str_0_ptr2);
         assert_eq!(str_0_ptr.disp(&ctx).to_string(), "builtin.string \"hello\"");
@@ -652,7 +652,7 @@ mod tests {
             (hello_id.clone(), hello_attr.clone()),
         ])
         .into();
-        assert!(&dict1 != &dict2);
+        assert!(dict1.ne(&dict2));
         assert!(dict1 == dict1_rev);
 
         let dict1_attr = dict1.as_mut().downcast_mut::<DictAttr>().unwrap();
@@ -669,7 +669,7 @@ mod tests {
 
         dict1_attr.remove(&hello_id);
         dict2_attr.remove(&hello_id);
-        assert!(&dict1 == &dict2);
+        assert!(dict1.eq(&dict2));
     }
 
     #[test]
@@ -731,34 +731,33 @@ mod tests {
         builtin::register(&mut ctx);
 
         // Single precision float
-        let single_attr: AttrObj = FPSingleAttr::from(3.14).into();
+        let single_attr: AttrObj = FPSingleAttr::from(std::f32::consts::PI).into();
         let single_attr2: AttrObj = FPSingleAttr::from(2.71).into();
 
         assert!(single_attr.is::<FPSingleAttr>());
         assert_ne!(&single_attr, &single_attr2);
 
         let single_attr = *single_attr.downcast::<FPSingleAttr>().unwrap();
-        assert_eq!(f32::from(single_attr.clone()), 3.14);
+        assert_eq!(f32::from(single_attr.clone()), std::f32::consts::PI);
 
         let single_attr2 = *single_attr2.downcast::<FPSingleAttr>().unwrap();
         // Perform addition
         let sum: f32 = f32::from(single_attr.clone()) + f32::from(single_attr2);
-        assert!((sum - 5.85).abs() < 1e-6);
+        assert!((sum - 5.8515927).abs() < 1e-6);
 
         // Double precision float
-        let double_attr: AttrObj = FPDoubleAttr::from(6.28).into();
+        let double_attr: AttrObj = FPDoubleAttr::from(std::f64::consts::TAU).into();
         let double_attr2: AttrObj = FPDoubleAttr::from(1.414).into();
 
         assert!(double_attr.is::<FPDoubleAttr>());
         assert_ne!(&double_attr, &double_attr2);
 
         let double_attr = *double_attr.downcast::<FPDoubleAttr>().unwrap();
-        assert_eq!(f64::from(double_attr.clone()), 6.28);
+        assert_eq!(f64::from(double_attr.clone()), std::f64::consts::TAU);
 
         let double_attr2 = *double_attr2.downcast::<FPDoubleAttr>().unwrap();
         // Perform multiplication
         let product: f64 = f64::from(double_attr) * f64::from(double_attr2);
-        dbg!(product);
-        assert!((product - 8.87992).abs() < 1e-6);
+        assert!((product - 8.884424024).abs() < 1e-6);
     }
 }

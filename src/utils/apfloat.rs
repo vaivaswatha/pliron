@@ -917,12 +917,12 @@ mod tests {
             -0.0f32,
             1.0f32,
             -1.0f32,
-            std::f32::MIN,
-            std::f32::MAX,
-            std::f32::EPSILON,
-            std::f32::INFINITY,
-            std::f32::NEG_INFINITY,
-            std::f32::NAN,
+            f32::MIN,
+            f32::MAX,
+            f32::EPSILON,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            f32::NAN,
         ];
 
         for &val in &cases {
@@ -943,12 +943,12 @@ mod tests {
             -0.0f64,
             1.0f64,
             -1.0f64,
-            std::f64::MIN,
-            std::f64::MAX,
-            std::f64::EPSILON,
-            std::f64::INFINITY,
-            std::f64::NEG_INFINITY,
-            std::f64::NAN,
+            f64::MIN,
+            f64::MAX,
+            f64::EPSILON,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
         ];
 
         for &val in &cases {

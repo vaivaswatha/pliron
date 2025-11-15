@@ -5,7 +5,7 @@ use cargo_manifest::Manifest;
 use expect_test::expect;
 use tempfile::tempdir;
 
-const CLANG_BINARY: LazyLock<PathBuf> = LazyLock::new(|| {
+static CLANG_BINARY: LazyLock<PathBuf> = LazyLock::new(|| {
     // Read Cargo.toml from pliron-llvm to get the llvm-sys version.
     let manifest = Manifest::from_path(env!("CARGO_MANIFEST_DIR").to_string() + "/../Cargo.toml")
         .expect("Could not read pliron-llvm Cargo.toml");

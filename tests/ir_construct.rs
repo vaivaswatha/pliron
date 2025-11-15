@@ -539,10 +539,10 @@ fn test_walker_find_op() {
 
     // A function to breaks the walk when a [ConstantOp] is found.
     fn finder(ctx: &Context, _: &mut (), node: IRNode) -> interruptible::WalkResult<ConstantOp> {
-        if let IRNode::Operation(op) = node {
-            if let Some(const_op) = Operation::get_op(op, ctx).downcast_ref::<ConstantOp>() {
-                return walk_break(*const_op);
-            }
+        if let IRNode::Operation(op) = node
+            && let Some(const_op) = Operation::get_op(op, ctx).downcast_ref::<ConstantOp>()
+        {
+            return walk_break(*const_op);
         }
         walk_advance()
     }
