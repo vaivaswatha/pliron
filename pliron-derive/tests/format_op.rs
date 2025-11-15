@@ -1140,7 +1140,5 @@ fn multiple_regions4_op() {
     assert!(res.verify(ctx).is_ok());
 
     Operation::erase(res, ctx);
-    assert!(ctx.operations.is_empty());
-    assert!(ctx.regions.is_empty());
-    assert!(ctx.basic_blocks.is_empty());
+    assert!(ctx.is_ir_empty());
 }

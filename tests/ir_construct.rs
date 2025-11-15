@@ -39,7 +39,7 @@ fn construct_and_erase() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     let module_op = const_ret_in_mod(ctx)?.0.get_operation();
     Operation::erase(module_op, ctx);
-    assert!(ctx.operations.is_empty() && ctx.basic_blocks.is_empty() && ctx.regions.is_empty());
+    assert!(ctx.is_ir_empty());
     Ok(())
 }
 
@@ -478,9 +478,7 @@ fn test_preorder_forward_walk() {
     .assert_eq(&ops);
 
     Operation::erase(module_op, ctx);
-    assert!(ctx.operations.is_empty());
-    assert!(ctx.regions.is_empty());
-    assert!(ctx.basic_blocks.is_empty());
+    assert!(ctx.is_ir_empty());
 }
 
 #[test]

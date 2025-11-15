@@ -49,15 +49,15 @@ pub type Arena<T> = SlotMap<ArenaIndex, RefCell<T>>;
 /// A context stores all IR data of this compilation session.
 pub struct Context {
     /// Allocation pool for [Operation]s.
-    pub operations: Arena<Operation>,
+    pub(crate) operations: Arena<Operation>,
     /// Allocation pool for [BasicBlock]s.
-    pub basic_blocks: Arena<BasicBlock>,
+    pub(crate) basic_blocks: Arena<BasicBlock>,
     /// Allocation pool for [Region]s.
-    pub regions: Arena<Region>,
+    pub(crate) regions: Arena<Region>,
     /// Registered [Dialect]s.
-    pub dialects: FxHashMap<DialectName, Dialect>,
+    pub(crate) dialects: FxHashMap<DialectName, Dialect>,
     /// Registered [Op](crate::op::Op)s.
-    pub ops: FxHashMap<OpId, OpCreator>,
+    pub(crate) ops: FxHashMap<OpId, OpCreator>,
     /// Storage for uniqued [TypeObj]s.
     pub(crate) type_store: UniqueStore<TypeObj>,
     /// Storage for other uniqued objects.
@@ -74,6 +74,15 @@ pub struct Context {
 impl Context {
     pub fn new() -> Context {
         Self::default()
+    }
+
+    /// Is the IR in this context empty?
+    /// An IR is considered empty if it has no operations, basic blocks, or regions.
+    /// This does not check for types, dialects, ops, or aux_data stored in the context.
+    pub fn is_ir_empty(&self) -> bool {
+        self.operations.is_empty()
+            && self.basic_blocks.is_empty()
+            && self.regions.is_empty()
     }
 }
 
