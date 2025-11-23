@@ -45,23 +45,25 @@ use crate::{
         instruction_iter, llvm_add_case, llvm_add_function, llvm_add_global, llvm_add_incoming,
         llvm_append_basic_block_in_context, llvm_array_type2, llvm_build_add, llvm_build_and,
         llvm_build_array_alloca, llvm_build_ashr, llvm_build_bitcast, llvm_build_br,
-        llvm_build_call2, llvm_build_cond_br, llvm_build_extract_value, llvm_build_fadd,
-        llvm_build_fcmp, llvm_build_fdiv, llvm_build_fmul, llvm_build_fpext, llvm_build_fptosi,
-        llvm_build_fptoui, llvm_build_fptrunc, llvm_build_frem, llvm_build_fsub, llvm_build_gep2,
-        llvm_build_icmp, llvm_build_insert_value, llvm_build_int_to_ptr, llvm_build_load2,
-        llvm_build_lshr, llvm_build_mul, llvm_build_or, llvm_build_phi, llvm_build_ptr_to_int,
-        llvm_build_ret, llvm_build_ret_void, llvm_build_sdiv, llvm_build_select, llvm_build_sext,
-        llvm_build_shl, llvm_build_sitofp, llvm_build_srem, llvm_build_store, llvm_build_sub,
-        llvm_build_switch, llvm_build_trunc, llvm_build_udiv, llvm_build_uitofp,
+        llvm_build_call2, llvm_build_cond_br, llvm_build_extract_element, llvm_build_extract_value,
+        llvm_build_fadd, llvm_build_fcmp, llvm_build_fdiv, llvm_build_fmul, llvm_build_fpext,
+        llvm_build_fptosi, llvm_build_fptoui, llvm_build_fptrunc, llvm_build_frem, llvm_build_fsub,
+        llvm_build_gep2, llvm_build_icmp, llvm_build_insert_element, llvm_build_insert_value,
+        llvm_build_int_to_ptr, llvm_build_load2, llvm_build_lshr, llvm_build_mul, llvm_build_or,
+        llvm_build_phi, llvm_build_ptr_to_int, llvm_build_ret, llvm_build_ret_void,
+        llvm_build_sdiv, llvm_build_select, llvm_build_sext, llvm_build_shl,
+        llvm_build_shuffle_vector, llvm_build_sitofp, llvm_build_srem, llvm_build_store,
+        llvm_build_sub, llvm_build_switch, llvm_build_trunc, llvm_build_udiv, llvm_build_uitofp,
         llvm_build_unreachable, llvm_build_urem, llvm_build_va_arg, llvm_build_xor,
         llvm_build_zext, llvm_can_value_use_fast_math_flags, llvm_clear_insertion_position,
-        llvm_const_int, llvm_const_null, llvm_const_real, llvm_delete_function,
+        llvm_const_int, llvm_const_null, llvm_const_real, llvm_const_vector, llvm_delete_function,
         llvm_double_type_in_context, llvm_float_type_in_context, llvm_function_type,
         llvm_get_named_function, llvm_get_param, llvm_get_undef, llvm_int_type_in_context,
         llvm_is_a, llvm_lookup_intrinsic_id, llvm_pointer_type_in_context,
-        llvm_position_builder_at_end, llvm_set_alignment, llvm_set_fast_math_flags,
-        llvm_set_initializer, llvm_set_linkage, llvm_set_nneg, llvm_struct_create_named,
-        llvm_struct_set_body, llvm_struct_type_in_context, llvm_void_type_in_context,
+        llvm_position_builder_at_end, llvm_scalable_vector_type, llvm_set_alignment,
+        llvm_set_fast_math_flags, llvm_set_initializer, llvm_set_linkage, llvm_set_nneg,
+        llvm_struct_create_named, llvm_struct_set_body, llvm_struct_type_in_context,
+        llvm_vector_type, llvm_void_type_in_context,
     },
     op_interfaces::{
         AlignableOpInterface, FastMathFlags, IsDeclaration, LlvmSymbolName, NNegFlag,
@@ -69,13 +71,14 @@ use crate::{
     },
     ops::{
         AShrOp, AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallIntrinsicOp, CallOp,
-        CondBrOp, ConstantOp, ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp, FPExtOp, FPToSIOp,
-        FPToUIOp, FPTruncOp, FRemOp, FSubOp, FuncOp, GetElementPtrOp, GlobalOp, ICmpOp,
-        InsertValueOp, IntToPtrOp, LShrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp,
-        SExtOp, SIToFPOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp, SwitchOp, TruncOp, UDivOp,
-        UIToFPOp, URemOp, UndefOp, UnreachableOp, VAArgOp, XorOp, ZExtOp, ZeroOp,
+        CondBrOp, ConstantOp, ExtractElementOp, ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp,
+        FPExtOp, FPToSIOp, FPToUIOp, FPTruncOp, FRemOp, FSubOp, FuncOp, GetElementPtrOp, GlobalOp,
+        ICmpOp, InsertElementOp, InsertValueOp, IntToPtrOp, LShrOp, LoadOp, MulOp, OrOp,
+        PtrToIntOp, ReturnOp, SDivOp, SExtOp, SIToFPOp, SRemOp, SelectOp, ShlOp, ShuffleVectorOp,
+        StoreOp, SubOp, SwitchOp, TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp, UnreachableOp,
+        VAArgOp, XorOp, ZExtOp, ZeroOp,
     },
-    types::{ArrayType, FuncType, PointerType, StructType, VoidType},
+    types::{ArrayType, FuncType, PointerType, StructType, VectorType, VoidType},
 };
 
 /// Mapping from pliron entities to LLVM entities.
@@ -361,6 +364,24 @@ impl ToLLVMType for StructType {
             } else {
                 Ok(llvm_struct_type_in_context(llvm_ctx, &field_types, false))
             }
+        }
+    }
+}
+
+#[type_interface_impl]
+impl ToLLVMType for VectorType {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMType> {
+        let elem_ty = convert_type(ctx, llvm_ctx, cctx, self.elem_type())?;
+        let num_elems = self.num_elements();
+        if self.is_scalable() {
+            Ok(llvm_scalable_vector_type(elem_ty, num_elems))
+        } else {
+            Ok(llvm_vector_type(elem_ty, num_elems))
         }
     }
 }
@@ -1079,6 +1100,82 @@ impl ToLLVMValue for ExtractValueOp {
 }
 
 #[op_interface_impl]
+impl ToLLVMValue for InsertElementOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        _llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let base = convert_value_operand(cctx, ctx, &self.vector_operand(ctx))?;
+        let value = convert_value_operand(cctx, ctx, &self.element_operand(ctx))?;
+        let index = convert_value_operand(cctx, ctx, &self.index_operand(ctx))?;
+        let insert_op = llvm_build_insert_element(
+            &cctx.builder,
+            base,
+            value,
+            index,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        Ok(insert_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for ExtractElementOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        _llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let base = convert_value_operand(cctx, ctx, &self.vector_operand(ctx))?;
+        let index = convert_value_operand(cctx, ctx, &self.index_operand(ctx))?;
+        let extract_op = llvm_build_extract_element(
+            &cctx.builder,
+            base,
+            index,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        Ok(extract_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMValue for ShuffleVectorOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let mask = &self
+            .get_attr_llvm_shuffle_vector_mask(ctx)
+            .expect("ShuffleVectorOp missing mask attribute")
+            .0;
+        let op = self.get_operation().deref(ctx);
+        let vec1 = convert_value_operand(cctx, ctx, &op.get_operand(0))?;
+        let vec2 = convert_value_operand(cctx, ctx, &op.get_operand(1))?;
+        let int_ty = llvm_int_type_in_context(llvm_ctx, 32);
+
+        let mask = mask
+            .iter()
+            .map(|&i| llvm_const_int(int_ty, i as u64, true))
+            .collect::<Vec<LLVMValue>>();
+        let mask = llvm_const_vector(&mask);
+
+        let shuffle_op = llvm_build_shuffle_vector(
+            &cctx.builder,
+            vec1,
+            vec2,
+            mask,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        Ok(shuffle_op)
+    }
+}
+
+#[op_interface_impl]
 impl ToLLVMValue for SelectOp {
     fn convert(
         &self,
@@ -1621,6 +1718,35 @@ impl ToLLVMConstValue for InsertValueOp {
             base,
             value,
             indices[0],
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        if !llvm_is_a::constant(insert_op) {
+            return input_err!(op.loc(), ToLLVMErr::CannotEvaluateToConst);
+        }
+        Ok(insert_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMConstValue for InsertElementOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let base = convert_to_llvm_const(ctx, cctx, llvm_ctx, op.get_operand(0))?;
+        let value = convert_to_llvm_const(ctx, cctx, llvm_ctx, op.get_operand(1))?;
+        let index = self.index_operand(ctx);
+        let index = convert_to_llvm_const(ctx, cctx, llvm_ctx, index)?;
+
+        // LLVM's builder tries to fold this, so we rely on that.
+        let insert_op = llvm_build_insert_element(
+            &cctx.scratch_builder,
+            base,
+            value,
+            index,
             &self.get_result(ctx).unique_name(ctx),
         );
         if !llvm_is_a::constant(insert_op) {

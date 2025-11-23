@@ -230,6 +230,12 @@ impl_verify_succ!(InsertExtractValueIndicesAttr);
 pub struct AlignmentAttr(pub u32);
 impl_verify_succ!(AlignmentAttr);
 
+#[def_attribute("llvm.shuffle_vector_mask")]
+#[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+pub struct ShuffleVectorMaskAttr(pub Vec<i32>);
+impl_verify_succ!(ShuffleVectorMaskAttr);
+
 pub fn register(ctx: &mut Context) {
     IntegerOverflowFlagsAttr::register_attr_in_dialect(ctx, IntegerOverflowFlagsAttr::parser_fn);
     ICmpPredicateAttr::register_attr_in_dialect(ctx, ICmpPredicateAttr::parser_fn);
@@ -243,6 +249,7 @@ pub fn register(ctx: &mut Context) {
     FastmathFlagsAttr::register_attr_in_dialect(ctx, FastmathFlagsAttr::parser_fn);
     LinkageAttr::register_attr_in_dialect(ctx, LinkageAttr::parser_fn);
     AlignmentAttr::register_attr_in_dialect(ctx, AlignmentAttr::parser_fn);
+    ShuffleVectorMaskAttr::register_attr_in_dialect(ctx, ShuffleVectorMaskAttr::parser_fn);
 }
 
 #[cfg(test)]

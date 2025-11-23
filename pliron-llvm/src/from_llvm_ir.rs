@@ -49,13 +49,13 @@ use crate::{
         llvm_get_element_type, llvm_get_fast_math_flags, llvm_get_fcmp_predicate,
         llvm_get_gep_source_element_type, llvm_get_icmp_predicate, llvm_get_indices,
         llvm_get_initializer, llvm_get_instruction_opcode, llvm_get_instruction_parent,
-        llvm_get_int_type_width, llvm_get_linkage, llvm_get_module_identifier, llvm_get_nneg,
-        llvm_get_nsw, llvm_get_num_arg_operands, llvm_get_num_operands, llvm_get_nuw,
-        llvm_get_operand, llvm_get_param_types, llvm_get_return_type,
-        llvm_get_struct_element_types, llvm_get_struct_name, llvm_get_type_kind,
-        llvm_get_value_kind, llvm_get_value_name, llvm_global_get_value_type, llvm_is_a,
-        llvm_is_declaration, llvm_is_function_type_var_arg, llvm_is_opaque_struct,
-        llvm_lookup_intrinsic_id, llvm_print_value_to_string, llvm_type_of,
+        llvm_get_int_type_width, llvm_get_linkage, llvm_get_mask_value, llvm_get_module_identifier,
+        llvm_get_nneg, llvm_get_nsw, llvm_get_num_arg_operands, llvm_get_num_mask_elements,
+        llvm_get_num_operands, llvm_get_nuw, llvm_get_operand, llvm_get_param_types,
+        llvm_get_return_type, llvm_get_struct_element_types, llvm_get_struct_name,
+        llvm_get_type_kind, llvm_get_value_kind, llvm_get_value_name, llvm_get_vector_size,
+        llvm_global_get_value_type, llvm_is_a, llvm_is_declaration, llvm_is_function_type_var_arg,
+        llvm_is_opaque_struct, llvm_lookup_intrinsic_id, llvm_print_value_to_string, llvm_type_of,
         llvm_value_as_basic_block, llvm_value_is_basic_block, param_iter,
     },
     op_interfaces::{
@@ -64,13 +64,17 @@ use crate::{
     },
     ops::{
         AShrOp, AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallIntrinsicOp, CallOp,
-        CondBrOp, ConstantOp, ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp, FNegOp, FPExtOp,
-        FPToSIOp, FPToUIOp, FPTruncOp, FRemOp, FSubOp, FuncOp, GepIndex, GetElementPtrOp, GlobalOp,
-        ICmpOp, InsertValueOp, IntToPtrOp, LShrOp, LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp,
-        SDivOp, SExtOp, SIToFPOp, SRemOp, SelectOp, ShlOp, StoreOp, SubOp, SwitchCase, SwitchOp,
-        TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp, UnreachableOp, VAArgOp, XorOp, ZExtOp, ZeroOp,
+        CondBrOp, ConstantOp, ExtractElementOp, ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp,
+        FNegOp, FPExtOp, FPToSIOp, FPToUIOp, FPTruncOp, FRemOp, FSubOp, FuncOp, GepIndex,
+        GetElementPtrOp, GlobalOp, ICmpOp, InsertElementOp, InsertValueOp, IntToPtrOp, LShrOp,
+        LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SIToFPOp, SRemOp, SelectOp,
+        ShlOp, ShuffleVectorOp, StoreOp, SubOp, SwitchCase, SwitchOp, TruncOp, UDivOp, UIToFPOp,
+        URemOp, UndefOp, UnreachableOp, VAArgOp, XorOp, ZExtOp, ZeroOp,
     },
-    types::{ArrayType, FuncType, PointerType, StructErr, StructType, VoidType},
+    types::{
+        ArrayType, FuncType, PointerType, StructErr, StructType, VectorType, VectorTypeKind,
+        VoidType,
+    },
 };
 
 /// Given a floating point type and an f64 value, get an equivalent attribute.
@@ -150,15 +154,24 @@ fn convert_type(
         LLVMTypeKind::LLVMVoidTypeKind => Ok(VoidType::get(ctx).into()),
         LLVMTypeKind::LLVMFloatTypeKind => Ok(FP32Type::get(ctx).into()),
         LLVMTypeKind::LLVMDoubleTypeKind => Ok(FP64Type::get(ctx).into()),
+        LLVMTypeKind::LLVMVectorTypeKind | LLVMTypeKind::LLVMScalableVectorTypeKind => {
+            let element_ty = llvm_get_element_type(ty);
+            let elem_ty = convert_type(ctx, cctx, element_ty)?;
+            let num_elements = llvm_get_vector_size(ty);
+            let kind = if matches!(kind, LLVMTypeKind::LLVMScalableVectorTypeKind) {
+                VectorTypeKind::Scalable
+            } else {
+                VectorTypeKind::Fixed
+            };
+            Ok(VectorType::get(ctx, elem_ty, num_elements, kind).into())
+        }
         LLVMTypeKind::LLVMHalfTypeKind => todo!(),
-        LLVMTypeKind::LLVMVectorTypeKind => todo!(),
         LLVMTypeKind::LLVMX86_FP80TypeKind => todo!(),
         LLVMTypeKind::LLVMFP128TypeKind => todo!(),
         LLVMTypeKind::LLVMPPC_FP128TypeKind => todo!(),
         LLVMTypeKind::LLVMLabelTypeKind => todo!(),
         LLVMTypeKind::LLVMMetadataTypeKind => todo!(),
         LLVMTypeKind::LLVMTokenTypeKind => todo!(),
-        LLVMTypeKind::LLVMScalableVectorTypeKind => todo!(),
         LLVMTypeKind::LLVMBFloatTypeKind => todo!(),
         LLVMTypeKind::LLVMX86_AMXTypeKind => todo!(),
         LLVMTypeKind::LLVMTargetExtTypeKind => todo!(),
@@ -619,7 +632,47 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             BasicBlock::insert_op_before_terminator(entry_block, zero_op.get_operation(), ctx);
             cctx.value_map.insert(val, zero_op.get_result(ctx));
         }
-        LLVMValueKind::LLVMConstantVectorValueKind => todo!(),
+        LLVMValueKind::LLVMConstantVectorValueKind
+        | LLVMValueKind::LLVMConstantDataVectorValueKind => {
+            let num_elements = llvm_get_vector_size(ll_ty);
+            let mut element_vals = vec![];
+            for i in 0..num_elements {
+                let element_val = llvm_get_aggregate_element(val, i)
+                    .expect("Constant vector must have element at index");
+                process_constant(ctx, cctx, element_val)?;
+                let Some(m_val) = cctx.value_map.get(&element_val) else {
+                    panic!("We just processed this constant, it must be in the map");
+                };
+                element_vals.push(*m_val);
+            }
+            // Starting with an Undef value, we insert elements, for each element.
+            let undef_op = UndefOp::new(ctx, ty);
+            let ty_int32 = TypePtr::<IntegerType>::from_ptr(
+                IntegerType::get(ctx, 32, Signedness::Signless).into(),
+                ctx,
+            )?;
+            BasicBlock::insert_op_before_terminator(entry_block, undef_op.get_operation(), ctx);
+            let const_vector = element_vals.iter().enumerate().try_fold(
+                undef_op.get_operation(),
+                |acc, (elem_idx, elem_val)| -> Result<_> {
+                    let acc_val = acc.deref(ctx).get_result(0);
+                    // The index needs to be a [Value], so we create a ConstantOp for it.
+                    let idx_attr = IntegerAttr::new(
+                        ty_int32,
+                        APInt::from_u64(elem_idx.try_into().unwrap(), NonZero::new(32).unwrap()),
+                    );
+                    let idx_const_op = ConstantOp::new(ctx, Box::new(idx_attr)).get_operation();
+                    idx_const_op.insert_after(ctx, acc);
+                    let idx_val = idx_const_op.deref(ctx).get_result(0);
+                    let insert_op =
+                        InsertElementOp::new(ctx, acc_val, *elem_val, idx_val).get_operation();
+                    insert_op.insert_after(ctx, idx_const_op);
+                    Ok(insert_op)
+                },
+            )?;
+            cctx.value_map
+                .insert(val, const_vector.deref(ctx).get_result(0));
+        }
         LLVMValueKind::LLVMArgumentValueKind => todo!(),
         LLVMValueKind::LLVMBasicBlockValueKind => todo!(),
         LLVMValueKind::LLVMMemoryUseValueKind => todo!(),
@@ -628,7 +681,6 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
         LLVMValueKind::LLVMGlobalAliasValueKind => todo!(),
         LLVMValueKind::LLVMGlobalIFuncValueKind => todo!(),
         LLVMValueKind::LLVMBlockAddressValueKind => todo!(),
-        LLVMValueKind::LLVMConstantDataVectorValueKind => todo!(),
         LLVMValueKind::LLVMConstantTokenNoneValueKind => todo!(),
         LLVMValueKind::LLVMMetadataAsValueValueKind => todo!(),
         LLVMValueKind::LLVMInlineAsmValueKind => todo!(),
@@ -876,7 +928,6 @@ fn convert_instruction(
         LLVMOpcode::LLVMCatchSwitch => todo!(),
         LLVMOpcode::LLVMCleanupPad => todo!(),
         LLVMOpcode::LLVMCleanupRet => todo!(),
-        LLVMOpcode::LLVMExtractElement => todo!(),
         LLVMOpcode::LLVMFNeg => {
             let arg = get_operand(opds, 0)?;
             Ok(
@@ -1004,7 +1055,26 @@ fn convert_instruction(
             )
         }
         LLVMOpcode::LLVMIndirectBr => todo!(),
-        LLVMOpcode::LLVMInsertElement => todo!(),
+        LLVMOpcode::LLVMInsertElement => {
+            let vector = get_operand(opds, 0)?;
+            let element = get_operand(opds, 1)?;
+            let index = get_operand(opds, 2)?;
+            Ok(InsertElementOp::new(ctx, vector, element, index).get_operation())
+        }
+        LLVMOpcode::LLVMExtractElement => {
+            let vector = get_operand(opds, 0)?;
+            let index = get_operand(opds, 1)?;
+            Ok(ExtractElementOp::new(ctx, vector, index).get_operation())
+        }
+        LLVMOpcode::LLVMShuffleVector => {
+            let vec1 = get_operand(opds, 0)?;
+            let vec2 = get_operand(opds, 1)?;
+            let num_mask_elems = llvm_get_num_mask_elements(inst);
+            let mask = (0..num_mask_elems)
+                .map(|i| llvm_get_mask_value(inst, i))
+                .collect();
+            Ok(ShuffleVectorOp::new(ctx, vec1, vec2, mask).get_operation())
+        }
         LLVMOpcode::LLVMInsertValue => {
             let (aggr, val) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             let indices = llvm_get_indices(inst);
@@ -1098,7 +1168,6 @@ fn convert_instruction(
                     .get_operation(),
             )
         }
-        LLVMOpcode::LLVMShuffleVector => todo!(),
         LLVMOpcode::LLVMSRem => {
             let (lhs, rhs) = (get_operand(opds, 0)?, get_operand(opds, 1)?);
             Ok(SRemOp::new(ctx, lhs, rhs).get_operation())

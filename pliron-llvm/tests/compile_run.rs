@@ -275,3 +275,10 @@ fn test_indirect_call() {
     init_env_logger();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("indirect_call.ll").to_str().unwrap(), 84);
 }
+
+/// Test vector operations by compiling vector_ops.ll via pliron
+#[test]
+fn test_vector_ops() {
+    init_env_logger();
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("vector_ops.ll").to_str().unwrap(), 0);
+}

@@ -2,7 +2,7 @@
 
 use combine::{Parser, between, optional, token};
 use pliron::builtin::type_interfaces::FunctionTypeInterface;
-use pliron::derive::{def_type, format_type, type_interface_impl};
+use pliron::derive::{def_type, format, format_type, type_interface_impl};
 use pliron::{
     common_traits::Verify,
     context::{Context, Ptr},
@@ -415,12 +415,72 @@ impl FunctionTypeInterface for FuncType {
 
 impl_verify_succ!(FuncType);
 
+/// Kind of vector type: fixed or scalable.
+/// See LLVM language reference for semantic details.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[format]
+pub enum VectorTypeKind {
+    Fixed,
+    Scalable,
+}
+
+#[def_type("llvm.vector")]
+#[format_type("`<` $kind ` x ` $num_elems ` x ` $elem_ty `>`")]
+#[derive(Hash, PartialEq, Eq, Debug)]
+pub struct VectorType {
+    elem_ty: Ptr<TypeObj>,
+    num_elems: u32,
+    kind: VectorTypeKind,
+}
+
+impl VectorType {
+    /// Get or create a new vector type.
+    pub fn get(
+        ctx: &mut Context,
+        elem_ty: Ptr<TypeObj>,
+        num_elems: u32,
+        kind: VectorTypeKind,
+    ) -> TypePtr<Self> {
+        Type::register_instance(
+            VectorType {
+                elem_ty,
+                num_elems,
+                kind,
+            },
+            ctx,
+        )
+    }
+
+    /// Get the element type.
+    pub fn elem_type(&self) -> Ptr<TypeObj> {
+        self.elem_ty
+    }
+
+    /// Get the number of elements.
+    pub fn num_elements(&self) -> u32 {
+        self.num_elems
+    }
+
+    /// Is this a scalable vector type?
+    pub fn is_scalable(&self) -> bool {
+        self.kind == VectorTypeKind::Scalable
+    }
+
+    /// Get the scalable/fixed kind of this vector type.
+    pub fn kind(&self) -> VectorTypeKind {
+        self.kind
+    }
+}
+
+impl_verify_succ!(VectorType);
+
 pub fn register(ctx: &mut Context) {
     VoidType::register_type_in_dialect(ctx, VoidType::parser_fn);
     ArrayType::register_type_in_dialect(ctx, ArrayType::parser_fn);
     StructType::register_type_in_dialect(ctx, StructType::parser_fn);
     PointerType::register_type_in_dialect(ctx, PointerType::parser_fn);
     FuncType::register_type_in_dialect(ctx, FuncType::parser_fn);
+    VectorType::register_type_in_dialect(ctx, VectorType::parser_fn);
 }
 
 #[cfg(test)]

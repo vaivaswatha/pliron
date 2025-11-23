@@ -27,7 +27,10 @@ use pliron::{
     verify_err,
 };
 
-use crate::attributes::{AlignmentAttr, FastmathFlagsAttr};
+use crate::{
+    attributes::{AlignmentAttr, FastmathFlagsAttr},
+    types::VectorType,
+};
 
 use super::{attributes::IntegerOverflowFlagsAttr, types::PointerType};
 
@@ -80,10 +83,15 @@ pub trait IntBinArithOp: BinArithOp {
     where
         Self: Sized,
     {
-        let ty = op_cast::<dyn SameOperandsAndResultType>(op)
+        let mut ty = op_cast::<dyn SameOperandsAndResultType>(op)
             .expect("Op must impl SameOperandsAndResultType")
-            .get_type(ctx)
-            .deref(ctx);
+            .get_type(ctx);
+
+        if let Some(vec_ty) = ty.deref(ctx).downcast_ref::<VectorType>() {
+            ty = vec_ty.elem_type();
+        }
+
+        let ty = ty.deref(ctx);
         let Some(int_ty) = ty.downcast_ref::<IntegerType>() else {
             return verify_err!(op.loc(ctx), IntBinArithOpErr);
         };
@@ -176,10 +184,15 @@ pub trait FloatBinArithOp: BinArithOp {
     where
         Self: Sized,
     {
-        let ty = op_cast::<dyn SameOperandsAndResultType>(op)
+        let mut ty = op_cast::<dyn SameOperandsAndResultType>(op)
             .expect("Op must impl SameOperandsAndResultType")
-            .get_type(ctx)
-            .deref(ctx);
+            .get_type(ctx);
+
+        if let Some(vec_ty) = ty.deref(ctx).downcast_ref::<VectorType>() {
+            ty = vec_ty.elem_type();
+        }
+
+        let ty = ty.deref(ctx);
         if type_cast::<dyn FloatTypeInterface>(&**ty).is_none() {
             return verify_err!(op.loc(ctx), FloatBinArithOpErr);
         }

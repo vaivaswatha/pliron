@@ -1,6 +1,6 @@
 //! [Op]s defined in the LLVM dialect
 
-use std::vec;
+use std::{sync::LazyLock, vec};
 
 use pliron::{
     arg_err_noloc,
@@ -50,9 +50,9 @@ use pliron::{
 use crate::{
     attributes::{
         AlignmentAttr, CaseValuesAttr, FCmpPredicateAttr, FastmathFlagsAttr,
-        InsertExtractValueIndicesAttr, LinkageAttr,
+        InsertExtractValueIndicesAttr, LinkageAttr, ShuffleVectorMaskAttr,
     },
-    llvm_sys::core::llvm_lookup_intrinsic_id,
+    llvm_sys::core::{llvm_get_undef_mask_elem, llvm_lookup_intrinsic_id},
     op_interfaces::{
         AlignableOpInterface, BinArithOp, CastOpInterface, CastOpWithNNegInterface, FastMathFlags,
         FloatBinArithOp, FloatBinArithOpWithFastMathFlags, IntBinArithOp,
@@ -62,7 +62,7 @@ use crate::{
         func_op_attr_names::ATTR_KEY_LLVM_FUNC_TYPE,
         global_op_attr_names::{ATTR_KEY_GLOBAL_INITIALIZER, ATTR_KEY_LLVM_GLOBAL_TYPE},
     },
-    types::{ArrayType, FuncType, StructType},
+    types::{ArrayType, FuncType, StructType, VectorType},
 };
 
 use combine::{
@@ -2608,6 +2608,284 @@ pub enum InsertExtractValueErr {
     ValueTypeErr,
 }
 
+/// Equivalent to LLVM's InsertElement opcode.
+///
+//// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `vector` | LLVM vector type |
+/// | `element` | LLVM type |
+/// | `index` | u32 |
+///
+/// /// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | LLVM vector type |
+#[def_op("llvm.insert_element")]
+#[derive_op_interface_impl(OneResultInterface)]
+#[format_op("$0 `, ` $1 `, ` $2 ` : ` type($0)")]
+pub struct InsertElementOp;
+impl Verify for InsertElementOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        use pliron::r#type::Typed;
+
+        let loc = self.loc(ctx);
+        let op = &*self.op.deref(ctx);
+        let vector_ty = op.get_operand(0).get_type(ctx);
+        let element_ty = op.get_operand(1).get_type(ctx);
+        let index_ty = op.get_operand(2).get_type(ctx);
+
+        let vector_ty = vector_ty.deref(ctx);
+        let vector_ty = vector_ty.downcast_ref::<VectorType>();
+        if vector_ty.is_none_or(|ty| ty.elem_type() != element_ty) {
+            return verify_err!(loc, InsertExtractElementOpVerifyErr::ElementTypeErr);
+        }
+
+        let index_ty = index_ty.deref(ctx);
+        let index_ty = index_ty.downcast_ref::<IntegerType>();
+        if index_ty.is_none_or(|ty| ty.get_width() != 32 || !ty.is_signless()) {
+            return verify_err!(loc, InsertExtractElementOpVerifyErr::IndexTypeErr);
+        }
+
+        Ok(())
+    }
+}
+
+impl InsertElementOp {
+    /// Create a new [InsertElementOp].
+    pub fn new(ctx: &mut Context, vector: Value, element: Value, index: Value) -> Self {
+        use pliron::r#type::Typed;
+
+        let result_type = vector.get_type(ctx);
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![result_type],
+            vec![vector, element, index],
+            vec![],
+            0,
+        );
+        InsertElementOp { op }
+    }
+
+    /// Get the vector type of the InsertElementOp.
+    pub fn vector_type(&self, ctx: &Context) -> TypePtr<VectorType> {
+        let ty = self.get_operation().deref(ctx).get_type(0);
+        TypePtr::<VectorType>::from_ptr(ty, ctx)
+            .expect("InsertElementOp result type is not a VectorType")
+    }
+
+    /// Get the vector operand of the InsertElementOp.
+    pub fn vector_operand(&self, ctx: &Context) -> Value {
+        self.get_operation().deref(ctx).get_operand(0)
+    }
+
+    /// Get the element operand of the InsertElementOp.
+    pub fn element_operand(&self, ctx: &Context) -> Value {
+        self.get_operation().deref(ctx).get_operand(1)
+    }
+
+    /// Get the index operand of the InsertElementOp.
+    pub fn index_operand(&self, ctx: &Context) -> Value {
+        self.get_operation().deref(ctx).get_operand(2)
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum InsertExtractElementOpVerifyErr {
+    #[error("Element type must match vector element type")]
+    ElementTypeErr,
+    #[error("Index type must be signless 32-bit integer")]
+    IndexTypeErr,
+}
+
+/// ExtractElementOp
+/// Equivalent to LLVM's ExtractElement opcode.
+/// /// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `vector` | LLVM vector type |
+/// | `index` | u32 |
+/// /// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | LLVM type |
+#[def_op("llvm.extract_element")]
+#[derive_op_interface_impl(OneResultInterface)]
+#[format_op("$0 `, ` $1 ` : ` type($0)")]
+pub struct ExtractElementOp;
+
+impl Verify for ExtractElementOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        use pliron::r#type::Typed;
+        let loc = self.loc(ctx);
+        let op = &*self.op.deref(ctx);
+        let vector_ty = op.get_operand(0).get_type(ctx);
+        let index_ty = op.get_operand(1).get_type(ctx);
+        let vector_ty = vector_ty.deref(ctx);
+        let vector_ty = vector_ty.downcast_ref::<VectorType>();
+        if vector_ty.is_none_or(|ty| ty.elem_type() != op.get_type(0)) {
+            return verify_err!(loc, InsertExtractElementOpVerifyErr::ElementTypeErr);
+        }
+        let index_ty = index_ty.deref(ctx);
+        let index_ty = index_ty.downcast_ref::<IntegerType>();
+        if index_ty.is_none_or(|ty| ty.get_width() != 32 || !ty.is_signless()) {
+            return verify_err!(loc, InsertExtractElementOpVerifyErr::IndexTypeErr);
+        }
+        Ok(())
+    }
+}
+
+impl ExtractElementOp {
+    /// Create a new [ExtractElementOp].
+    pub fn new(ctx: &mut Context, vector: Value, index: Value) -> Self {
+        use pliron::r#type::Typed;
+
+        let result_type = vector
+            .get_type(ctx)
+            .deref(ctx)
+            .downcast_ref::<VectorType>()
+            .expect("ExtractElementOp vector operand must be a vector type")
+            .elem_type();
+
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![result_type],
+            vec![vector, index],
+            vec![],
+            0,
+        );
+        ExtractElementOp { op }
+    }
+
+    /// Get the vector type of the ExtractElementOp.
+    pub fn vector_type(&self, ctx: &Context) -> TypePtr<VectorType> {
+        use pliron::r#type::Typed;
+        let ty = self.vector_operand(ctx).get_type(ctx);
+        TypePtr::<VectorType>::from_ptr(ty, ctx)
+            .expect("ExtractElementOp vector operand type is not a VectorType")
+    }
+
+    /// Get the vector operand of the ExtractElementOp.
+    pub fn vector_operand(&self, ctx: &Context) -> Value {
+        self.get_operation().deref(ctx).get_operand(0)
+    }
+
+    /// Get the index operand of the ExtractElementOp.
+    pub fn index_operand(&self, ctx: &Context) -> Value {
+        self.get_operation().deref(ctx).get_operand(1)
+    }
+}
+
+/// ShuffleVectorOp
+/// Equivalent to LLVM's ShuffleVector opcode.
+///
+/// ### Operands
+/// | operand | description |
+/// |-----|-------|
+/// | `vector1` | LLVM vector type |
+/// | `vector2` | LLVM vector type |
+/// | `mask` | LLVM vector type |
+///
+/// ### Result(s):
+/// | result | description |
+/// |-----|-------|
+/// | `res` | LLVM vector type |
+#[def_op("llvm.shuffle_vector")]
+#[derive_op_interface_impl(OneResultInterface)]
+#[derive_attr_get_set(llvm_shuffle_vector_mask : ShuffleVectorMaskAttr)]
+#[format_op(
+    "$0 `, ` $1 `, ` attr($llvm_shuffle_vector_mask, $ShuffleVectorMaskAttr) ` : ` type($0)"
+)]
+pub struct ShuffleVectorOp;
+impl Verify for ShuffleVectorOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        use pliron::r#type::Typed;
+
+        let loc = self.loc(ctx);
+        let op = &*self.op.deref(ctx);
+        let vector1_ty = op.get_operand(0).get_type(ctx);
+        let vector2_ty = op.get_operand(1).get_type(ctx);
+
+        let vector1_ty = vector1_ty.deref(ctx);
+        let vector1_ty = vector1_ty.downcast_ref::<VectorType>();
+        let vector2_ty = vector2_ty.deref(ctx);
+        let vector2_ty = vector2_ty.downcast_ref::<VectorType>();
+
+        let (Some(v1_ty), Some(v2_ty)) = (vector1_ty, vector2_ty) else {
+            return verify_err!(loc, ShuffleVectorOpVerifyErr::OperandsTypeErr);
+        };
+
+        if v1_ty != v2_ty {
+            return verify_err!(loc, ShuffleVectorOpVerifyErr::OperandsTypeErr);
+        }
+
+        let res_ty = op.get_type(0).deref(ctx);
+        let res_ty = res_ty.downcast_ref::<VectorType>();
+        let Some(res_ty) = res_ty else {
+            return verify_err!(loc, ShuffleVectorOpVerifyErr::ResultTypeErr);
+        };
+
+        if res_ty.elem_type() != v1_ty.elem_type()
+            || res_ty.num_elements() as usize
+                != self.get_attr_llvm_shuffle_vector_mask(ctx).unwrap().0.len()
+        {
+            return verify_err!(loc, ShuffleVectorOpVerifyErr::ResultTypeErr);
+        }
+
+        Ok(())
+    }
+}
+
+/// The undef mask element used in ShuffleVectorOp masks.
+pub static SHUFFLE_VECTOR_UNDEF_MASK_ELEM: LazyLock<i32> = LazyLock::new(llvm_get_undef_mask_elem);
+
+impl ShuffleVectorOp {
+    /// Create a new [ShuffleVectorOp].
+    pub fn new(ctx: &mut Context, vector1: Value, vector2: Value, mask: Vec<i32>) -> Self {
+        use pliron::r#type::Typed;
+
+        let (elem_ty, kind) = {
+            let vector1_ty = vector1.get_type(ctx).deref(ctx);
+            let opd_vec_ty = vector1_ty
+                .downcast_ref::<VectorType>()
+                .expect("ShuffleVectorOp vector1 operand must be a vector type");
+            (opd_vec_ty.elem_type(), opd_vec_ty.kind())
+        };
+
+        let result_type = VectorType::get(
+            ctx,
+            elem_ty,
+            mask.len()
+                .try_into()
+                .expect("ShuffleVectorOp mask length too large"),
+            kind,
+        );
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![result_type.into()],
+            vec![vector1, vector2],
+            vec![],
+            0,
+        );
+
+        let mask_attr = ShuffleVectorMaskAttr(mask);
+        let op = ShuffleVectorOp { op };
+        op.set_attr_llvm_shuffle_vector_mask(ctx, mask_attr);
+        op
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum ShuffleVectorOpVerifyErr {
+    #[error("Both operands must be equivalent vector types")]
+    OperandsTypeErr,
+    #[error("Result type must be a vector type with correct element type and size")]
+    ResultTypeErr,
+}
+
 /// Equivalent to LLVM's Select opcode.
 ///
 /// ### Operands
@@ -3316,6 +3594,9 @@ pub fn register(ctx: &mut Context) {
     UIToFPOp::register(ctx, UIToFPOp::parser_fn);
     InsertValueOp::register(ctx, InsertValueOp::parser_fn);
     ExtractValueOp::register(ctx, ExtractValueOp::parser_fn);
+    InsertElementOp::register(ctx, InsertElementOp::parser_fn);
+    ExtractElementOp::register(ctx, ExtractElementOp::parser_fn);
+    ShuffleVectorOp::register(ctx, ShuffleVectorOp::parser_fn);
     SelectOp::register(ctx, SelectOp::parser_fn);
     UndefOp::register(ctx, UndefOp::parser_fn);
     ReturnOp::register(ctx, ReturnOp::parser_fn);
