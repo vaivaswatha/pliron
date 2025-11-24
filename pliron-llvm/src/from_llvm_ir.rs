@@ -65,11 +65,11 @@ use crate::{
     ops::{
         AShrOp, AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, BrOp, CallIntrinsicOp, CallOp,
         CondBrOp, ConstantOp, ExtractElementOp, ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp,
-        FNegOp, FPExtOp, FPToSIOp, FPToUIOp, FPTruncOp, FRemOp, FSubOp, FuncOp, GepIndex,
+        FNegOp, FPExtOp, FPToSIOp, FPToUIOp, FPTruncOp, FRemOp, FSubOp, FreezeOp, FuncOp, GepIndex,
         GetElementPtrOp, GlobalOp, ICmpOp, InsertElementOp, InsertValueOp, IntToPtrOp, LShrOp,
-        LoadOp, MulOp, OrOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SIToFPOp, SRemOp, SelectOp,
-        ShlOp, ShuffleVectorOp, StoreOp, SubOp, SwitchCase, SwitchOp, TruncOp, UDivOp, UIToFPOp,
-        URemOp, UndefOp, UnreachableOp, VAArgOp, XorOp, ZExtOp, ZeroOp,
+        LoadOp, MulOp, OrOp, PoisonOp, PtrToIntOp, ReturnOp, SDivOp, SExtOp, SIToFPOp, SRemOp,
+        SelectOp, ShlOp, ShuffleVectorOp, StoreOp, SubOp, SwitchCase, SwitchOp, TruncOp, UDivOp,
+        UIToFPOp, URemOp, UndefOp, UnreachableOp, VAArgOp, XorOp, ZExtOp, ZeroOp,
     },
     types::{
         ArrayType, FuncType, PointerType, StructErr, StructType, VectorType, VectorTypeKind,
@@ -399,6 +399,12 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             BasicBlock::insert_op_before_terminator(entry_block, undef_op.get_operation(), ctx);
             cctx.value_map.insert(val, undef_op.get_result(ctx));
         }
+        LLVMValueKind::LLVMPoisonValueKind => {
+            let poison_op = PoisonOp::new(ctx, ty);
+            // Insert at the end of the entry block.
+            BasicBlock::insert_op_before_terminator(entry_block, poison_op.get_operation(), ctx);
+            cctx.value_map.insert(val, poison_op.get_result(ctx));
+        }
         LLVMValueKind::LLVMConstantPointerNullValueKind => {
             let null_op = ZeroOp::new(ctx, ty);
             BasicBlock::insert_op_before_terminator(entry_block, null_op.get_operation(), ctx);
@@ -685,7 +691,6 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
         LLVMValueKind::LLVMMetadataAsValueValueKind => todo!(),
         LLVMValueKind::LLVMInlineAsmValueKind => todo!(),
         LLVMValueKind::LLVMInstructionValueKind => todo!(),
-        LLVMValueKind::LLVMPoisonValueKind => todo!(),
         LLVMValueKind::LLVMConstantTargetNoneValueKind => todo!(),
         LLVMValueKind::LLVMConstantPtrAuthValueKind => todo!(),
     }
@@ -1029,7 +1034,10 @@ fn convert_instruction(
             Ok(UIToFPOp::new_with_nneg(ctx, arg, res_ty, nneg).get_operation())
         }
         LLVMOpcode::LLVMFence => todo!(),
-        LLVMOpcode::LLVMFreeze => todo!(),
+        LLVMOpcode::LLVMFreeze => {
+            let arg = get_operand(opds, 0)?;
+            Ok(FreezeOp::new(ctx, arg).get_operation())
+        }
         LLVMOpcode::LLVMGetElementPtr => {
             let mut opds = opds.iter();
             let base = opds

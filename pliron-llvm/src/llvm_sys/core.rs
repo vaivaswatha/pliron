@@ -21,19 +21,20 @@ use llvm_sys::{
         LLVMBuildCall2, LLVMBuildCondBr, LLVMBuildExtractElement, LLVMBuildExtractValue,
         LLVMBuildFAdd, LLVMBuildFCmp, LLVMBuildFDiv, LLVMBuildFMul, LLVMBuildFPExt,
         LLVMBuildFPToSI, LLVMBuildFPToUI, LLVMBuildFPTrunc, LLVMBuildFRem, LLVMBuildFSub,
-        LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildInsertElement, LLVMBuildInsertValue,
-        LLVMBuildIntToPtr, LLVMBuildLShr, LLVMBuildLoad2, LLVMBuildMul, LLVMBuildOr, LLVMBuildPhi,
-        LLVMBuildPtrToInt, LLVMBuildRet, LLVMBuildRetVoid, LLVMBuildSDiv, LLVMBuildSExt,
-        LLVMBuildSIToFP, LLVMBuildSRem, LLVMBuildSelect, LLVMBuildShl, LLVMBuildShuffleVector,
-        LLVMBuildStore, LLVMBuildSub, LLVMBuildSwitch, LLVMBuildTrunc, LLVMBuildUDiv,
-        LLVMBuildUIToFP, LLVMBuildURem, LLVMBuildUnreachable, LLVMBuildVAArg, LLVMBuildXor,
-        LLVMBuildZExt, LLVMCanValueUseFastMathFlags, LLVMClearInsertionPosition, LLVMConstInt,
-        LLVMConstIntGetZExtValue, LLVMConstNull, LLVMConstReal, LLVMConstRealGetDouble,
-        LLVMConstVector, LLVMContextCreate, LLVMContextDispose, LLVMCountIncoming,
-        LLVMCountParamTypes, LLVMCountParams, LLVMCountStructElementTypes,
-        LLVMCreateBuilderInContext, LLVMCreateMemoryBufferWithContentsOfFile, LLVMDeleteFunction,
-        LLVMDisposeMemoryBuffer, LLVMDisposeMessage, LLVMDisposeModule, LLVMDoubleTypeInContext,
-        LLVMDumpModule, LLVMDumpType, LLVMDumpValue, LLVMFloatTypeInContext, LLVMFunctionType,
+        LLVMBuildFreeze, LLVMBuildGEP2, LLVMBuildICmp, LLVMBuildInsertElement,
+        LLVMBuildInsertValue, LLVMBuildIntToPtr, LLVMBuildLShr, LLVMBuildLoad2, LLVMBuildMul,
+        LLVMBuildOr, LLVMBuildPhi, LLVMBuildPtrToInt, LLVMBuildRet, LLVMBuildRetVoid,
+        LLVMBuildSDiv, LLVMBuildSExt, LLVMBuildSIToFP, LLVMBuildSRem, LLVMBuildSelect,
+        LLVMBuildShl, LLVMBuildShuffleVector, LLVMBuildStore, LLVMBuildSub, LLVMBuildSwitch,
+        LLVMBuildTrunc, LLVMBuildUDiv, LLVMBuildUIToFP, LLVMBuildURem, LLVMBuildUnreachable,
+        LLVMBuildVAArg, LLVMBuildXor, LLVMBuildZExt, LLVMCanValueUseFastMathFlags,
+        LLVMClearInsertionPosition, LLVMConstInt, LLVMConstIntGetZExtValue, LLVMConstNull,
+        LLVMConstReal, LLVMConstRealGetDouble, LLVMConstVector, LLVMContextCreate,
+        LLVMContextDispose, LLVMCountIncoming, LLVMCountParamTypes, LLVMCountParams,
+        LLVMCountStructElementTypes, LLVMCreateBuilderInContext,
+        LLVMCreateMemoryBufferWithContentsOfFile, LLVMDeleteFunction, LLVMDisposeMemoryBuffer,
+        LLVMDisposeMessage, LLVMDisposeModule, LLVMDoubleTypeInContext, LLVMDumpModule,
+        LLVMDumpType, LLVMDumpValue, LLVMFloatTypeInContext, LLVMFunctionType,
         LLVMGetAggregateElement, LLVMGetAlignment, LLVMGetAllocatedType, LLVMGetArrayLength2,
         LLVMGetBasicBlockName, LLVMGetBasicBlockParent, LLVMGetBasicBlockTerminator,
         LLVMGetCalledFunctionType, LLVMGetCalledValue, LLVMGetConstOpcode, LLVMGetElementType,
@@ -47,7 +48,7 @@ use llvm_sys::{
         LLVMGetNamedFunction, LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextGlobal,
         LLVMGetNextInstruction, LLVMGetNextParam, LLVMGetNumArgOperands, LLVMGetNumIndices,
         LLVMGetNumMaskElements, LLVMGetNumOperands, LLVMGetOperand, LLVMGetParam,
-        LLVMGetParamTypes, LLVMGetPreviousBasicBlock, LLVMGetPreviousFunction,
+        LLVMGetParamTypes, LLVMGetPoison, LLVMGetPreviousBasicBlock, LLVMGetPreviousFunction,
         LLVMGetPreviousGlobal, LLVMGetPreviousInstruction, LLVMGetPreviousParam, LLVMGetReturnType,
         LLVMGetStructElementTypes, LLVMGetStructName, LLVMGetTypeKind, LLVMGetUndef,
         LLVMGetUndefMaskElem, LLVMGetValueKind, LLVMGetValueName2, LLVMGetVectorSize,
@@ -2279,6 +2280,12 @@ pub fn llvm_build_va_arg(
     }
 }
 
+/// LLVMBuildFreeze
+pub fn llvm_build_freeze(builder: &LLVMBuilder, val: LLVMValue, name: &str) -> LLVMValue {
+    assert!(llvm_get_insert_block(builder).is_some());
+    unsafe { LLVMBuildFreeze(builder.inner_ref(), val.into(), to_c_str(name).as_ptr()).into() }
+}
+
 /// LLVMConstInt
 pub fn llvm_const_int(int_ty: LLVMType, val: u64, sign_extend: bool) -> LLVMValue {
     assert!(llvm_get_type_kind(int_ty) == LLVMTypeKind::LLVMIntegerTypeKind);
@@ -2288,6 +2295,11 @@ pub fn llvm_const_int(int_ty: LLVMType, val: u64, sign_extend: bool) -> LLVMValu
 /// LLVMGetUndef
 pub fn llvm_get_undef(ty: LLVMType) -> LLVMValue {
     unsafe { LLVMGetUndef(ty.into()).into() }
+}
+
+/// LLVMGetPoison
+pub fn llvm_get_poison(ty: LLVMType) -> LLVMValue {
+    unsafe { LLVMGetPoison(ty.into()).into() }
 }
 
 /// LLVMAddFunction

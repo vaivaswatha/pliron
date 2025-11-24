@@ -272,12 +272,14 @@ new_int_bin_op!(
 
 #[derive(Error, Debug)]
 pub enum ICmpOpVerifyErr {
-    #[error("Result must be 1-bit integer (bool)")]
+    #[error("Result must be (possibly vector of) 1-bit integer (bool)")]
     ResultNotBool,
-    #[error("Operand must be integer or pointer types")]
+    #[error("Operand must be (possibly vector of) integer or pointer types")]
     IncorrectOperandsType,
     #[error("Missing or incorrect predicate attribute")]
     PredAttrErr,
+    #[error("Vector operand and result types must have the same number of elements")]
+    MismatchedVectorNumElements,
 }
 
 /// Equivalent to LLVM's ICmp opcode.
@@ -301,11 +303,25 @@ pub struct ICmpOp;
 impl ICmpOp {
     /// Create a new [ICmpOp]
     pub fn new(ctx: &mut Context, pred: ICmpPredicateAttr, lhs: Value, rhs: Value) -> Self {
+        use pliron::r#type::Typed;
+
+        // Determine the result type.
         let bool_ty = IntegerType::get(ctx, 1, Signedness::Signless);
+        let opd_type = lhs.get_type(ctx);
+        let vec_details = opd_type
+            .deref(ctx)
+            .downcast_ref::<VectorType>()
+            .map(|vec_ty| (vec_ty.num_elements(), vec_ty.kind()));
+        let res_ty = if let Some((num_elements, kind)) = vec_details {
+            VectorType::get(ctx, bool_ty.into(), num_elements, kind).into()
+        } else {
+            bool_ty.into()
+        };
+
         let op = Operation::new(
             ctx,
             Self::get_opid_static(),
-            vec![bool_ty.into()],
+            vec![res_ty],
             vec![lhs, rhs],
             vec![],
             0,
@@ -331,17 +347,31 @@ impl Verify for ICmpOp {
             verify_err!(loc.clone(), ICmpOpVerifyErr::PredAttrErr)?
         }
 
-        let res_ty: TypePtr<IntegerType> =
-            TypePtr::from_ptr(self.result_type(ctx), ctx).map_err(|mut err| {
-                err.set_loc(loc.clone());
-                err
-            })?;
-
-        if res_ty.deref(ctx).get_width() != 1 {
+        let mut res_ty = self.result_type(ctx);
+        let mut vec_num_elements = None;
+        if let Some(vec_ty) = res_ty.deref(ctx).downcast_ref::<VectorType>() {
+            res_ty = vec_ty.elem_type();
+            vec_num_elements = Some(vec_ty.num_elements());
+        }
+        let res_ty = res_ty.deref(ctx);
+        let Some(res_ty) = res_ty.downcast_ref::<IntegerType>() else {
+            return verify_err!(loc, ICmpOpVerifyErr::ResultNotBool);
+        };
+        if res_ty.get_width() != 1 {
             return verify_err!(loc, ICmpOpVerifyErr::ResultNotBool);
         }
 
-        let opd_ty = self.operand_type(ctx).deref(ctx);
+        let mut opd_ty = self.operand_type(ctx);
+        if let Some(vec_ty) = opd_ty.deref(ctx).downcast_ref::<VectorType>() {
+            opd_ty = vec_ty.elem_type();
+            // Ensure that the number of elements matches the result type's number of elements.
+            if vec_num_elements.is_none_or(|num_elements| vec_ty.num_elements() != num_elements) {
+                return verify_err!(loc, ICmpOpVerifyErr::MismatchedVectorNumElements);
+            }
+        } else if vec_num_elements.is_some() {
+            return verify_err!(loc, ICmpOpVerifyErr::MismatchedVectorNumElements);
+        }
+        let opd_ty = opd_ty.deref(ctx);
         if !(opd_ty.is::<IntegerType>() || opd_ty.is::<PointerType>()) {
             return verify_err!(loc, ICmpOpVerifyErr::IncorrectOperandsType);
         }
@@ -1332,12 +1362,13 @@ impl Verify for StoreOp {
 }
 
 /// Equivalent to LLVM's Store opcode.
+///
 /// ### Operands
 /// | operand | description |
 /// |-----|-------|
 /// | `callee_operands` | Optional function pointer followed by any number of parameters |
 ///
-////// ### Result(s):
+/// ### Result(s):
 ///
 /// | result | description |
 /// |-----|-------|
@@ -1605,8 +1636,7 @@ impl Verify for CallOp {
 /// Undefined value of a type.
 /// See MLIR's [llvm.mlir.undef](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmlirundef-llvmundefop).
 ///
-/// Results:
-///
+/// ### Results:
 /// | result | description |
 /// |-----|-------|
 /// | `result` | any type |
@@ -1631,10 +1661,73 @@ impl UndefOp {
     }
 }
 
+/// Poison value of a type.
+/// See MLIR's [llvm.mlir.poison](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmlirpoison-llvmpoisonop).
+///
+/// ### Results:
+/// | result | description |
+/// |-----|-------|
+/// | `result` | any type |
+#[def_op("llvm.poison")]
+#[derive_op_interface_impl(OneResultInterface)]
+#[format_op("`: ` type($0)")]
+pub struct PoisonOp;
+impl_verify_succ!(PoisonOp);
+
+impl PoisonOp {
+    /// Create a new [PoisonOp].
+    pub fn new(ctx: &mut Context, result_ty: Ptr<TypeObj>) -> Self {
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![result_ty],
+            vec![],
+            vec![],
+            0,
+        );
+        PoisonOp { op }
+    }
+}
+
+/// Freeze value of a type.
+/// See MLIR's [llvm.mlir.freeze](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmfreeze-llvmfreezeop).
+///
+/// ### Results:
+/// | result | description |
+/// |-----|-------|
+/// | `result` | any type |
+///
+/// ### Operands:
+/// | operand | description |
+/// |-----|-------|
+/// | `value` | any type |
+#[def_op("llvm.freeze")]
+#[derive_op_interface_impl(OneOpdInterface, OneResultInterface)]
+#[format_op("$0 ` : ` type($0)")]
+pub struct FreezeOp;
+impl_verify_succ!(FreezeOp);
+
+impl FreezeOp {
+    /// Create a new [FreezeOp].
+    pub fn new(ctx: &mut Context, value: Value) -> Self {
+        use pliron::r#type::Typed;
+        let result_ty = value.get_type(ctx);
+        let op = Operation::new(
+            ctx,
+            Self::get_opid_static(),
+            vec![result_ty],
+            vec![value],
+            vec![],
+            0,
+        );
+        FreezeOp { op }
+    }
+}
+
 /// Numeric (integer or floating point) constant.
 /// See MLIR's [llvm.mlir.constant](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmmlirconstant-llvmconstantop).
 ///
-/// Results:
+/// ### Results:
 ///
 /// | result | description |
 /// |-----|-------|
@@ -2057,8 +2150,16 @@ fn integer_cast_verify(op: &Operation, ctx: &Context, cmp: ICmpPredicateAttr) ->
     use pliron::r#type::Typed;
 
     let loc = op.loc();
-    let res_ty = op.get_type(0).deref(ctx);
-    let opd_ty = op.get_operand(0).get_type(ctx).deref(ctx);
+    let mut res_ty = op.get_type(0).deref(ctx);
+    let mut opd_ty = op.get_operand(0).get_type(ctx).deref(ctx);
+
+    if let Some(vec_res_ty) = res_ty.downcast_ref::<VectorType>() {
+        res_ty = vec_res_ty.elem_type().deref(ctx);
+    }
+    if let Some(vec_opd_ty) = opd_ty.downcast_ref::<VectorType>() {
+        opd_ty = vec_opd_ty.elem_type().deref(ctx);
+    }
+
     let Some(res_ty) = res_ty.downcast_ref::<IntegerType>() else {
         return verify_err!(loc, IntCastVerifyErr::ResultTypeErr);
     };
@@ -2641,9 +2742,7 @@ impl Verify for InsertElementOp {
             return verify_err!(loc, InsertExtractElementOpVerifyErr::ElementTypeErr);
         }
 
-        let index_ty = index_ty.deref(ctx);
-        let index_ty = index_ty.downcast_ref::<IntegerType>();
-        if index_ty.is_none_or(|ty| ty.get_width() != 32 || !ty.is_signless()) {
+        if !index_ty.deref(ctx).is::<IntegerType>() {
             return verify_err!(loc, InsertExtractElementOpVerifyErr::IndexTypeErr);
         }
 
@@ -2695,7 +2794,7 @@ impl InsertElementOp {
 pub enum InsertExtractElementOpVerifyErr {
     #[error("Element type must match vector element type")]
     ElementTypeErr,
-    #[error("Index type must be signless 32-bit integer")]
+    #[error("Index type must be signless integer")]
     IndexTypeErr,
 }
 
@@ -2727,9 +2826,7 @@ impl Verify for ExtractElementOp {
         if vector_ty.is_none_or(|ty| ty.elem_type() != op.get_type(0)) {
             return verify_err!(loc, InsertExtractElementOpVerifyErr::ElementTypeErr);
         }
-        let index_ty = index_ty.deref(ctx);
-        let index_ty = index_ty.downcast_ref::<IntegerType>();
-        if index_ty.is_none_or(|ty| ty.get_width() != 32 || !ty.is_signless()) {
+        if !index_ty.deref(ctx).is::<IntegerType>() {
             return verify_err!(loc, InsertExtractElementOpVerifyErr::IndexTypeErr);
         }
         Ok(())
@@ -2936,7 +3033,18 @@ impl Verify for SelectOp {
             return verify_err!(loc, SelectOpVerifyErr::ResultTypeErr);
         }
 
-        let cond_ty = cond_ty.deref(ctx);
+        let mut cond_ty = cond_ty.deref(ctx);
+        if let Some(vec_ty) = cond_ty.downcast_ref::<VectorType>() {
+            if let Some(opd_vec_ty) = ty.deref(ctx).downcast_ref::<VectorType>()
+                && vec_ty.num_elements() == opd_vec_ty.num_elements()
+            {
+                // We're good, both the condition and operand are vectors of the same length
+            } else {
+                return verify_err!(loc, SelectOpVerifyErr::ConditionTypeErr);
+            }
+            cond_ty = vec_ty.elem_type().deref(ctx);
+        }
+
         let cond_ty = cond_ty.downcast_ref::<IntegerType>();
         if cond_ty.is_none_or(|ty| ty.get_width() != 1) {
             return verify_err!(loc, SelectOpVerifyErr::ConditionTypeErr);
@@ -2949,7 +3057,7 @@ impl Verify for SelectOp {
 pub enum SelectOpVerifyErr {
     #[error("Result must be the same as the true and false destination types")]
     ResultTypeErr,
-    #[error("Condition must be an i1")]
+    #[error("Condition must be an i1 or a vector of i1 equal in length to the operand vectors")]
     ConditionTypeErr,
 }
 
@@ -3599,6 +3707,8 @@ pub fn register(ctx: &mut Context) {
     ShuffleVectorOp::register(ctx, ShuffleVectorOp::parser_fn);
     SelectOp::register(ctx, SelectOp::parser_fn);
     UndefOp::register(ctx, UndefOp::parser_fn);
+    PoisonOp::register(ctx, PoisonOp::parser_fn);
+    FreezeOp::register(ctx, FreezeOp::parser_fn);
     ReturnOp::register(ctx, ReturnOp::parser_fn);
     UnreachableOp::register(ctx, UnreachableOp::parser_fn);
     CallIntrinsicOp::register(ctx, CallIntrinsicOp::parser_fn);
