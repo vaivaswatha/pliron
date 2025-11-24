@@ -648,6 +648,13 @@ impl ToLLVMValue for SwitchOp {
         );
 
         // Link the arguments we pass to the block with the PHIs there.
+        link_succ_operands_with_phis(
+            ctx,
+            cctx,
+            op.get_container().expect("Unlinked operation"),
+            default_succ,
+            self.default_dest_operands(ctx),
+        )?;
         for case in self.cases(ctx) {
             let succ_llvm = convert_block_operand(cctx, ctx, case.dest)?;
             link_succ_operands_with_phis(
@@ -1798,6 +1805,84 @@ impl ToLLVMConstValue for InsertElementOp {
     }
 }
 
+#[op_interface_impl]
+impl ToLLVMConstValue for TruncOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let arg = convert_to_llvm_const(ctx, cctx, llvm_ctx, op.get_operand(0))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
+
+        // LLVM's builder tries to fold this, so we rely on that.
+        let trunc_op = llvm_build_trunc(
+            &cctx.scratch_builder,
+            arg,
+            ty,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        if !llvm_is_a::constant(trunc_op) {
+            return input_err!(op.loc(), ToLLVMErr::CannotEvaluateToConst);
+        }
+        Ok(trunc_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMConstValue for SubOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let lhs = convert_to_llvm_const(ctx, cctx, llvm_ctx, op.get_operand(0))?;
+        let rhs = convert_to_llvm_const(ctx, cctx, llvm_ctx, op.get_operand(1))?;
+
+        // LLVM's builder tries to fold this, so we rely on that.
+        let sub_op = llvm_build_sub(
+            &cctx.scratch_builder,
+            lhs,
+            rhs,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        if !llvm_is_a::constant(sub_op) {
+            return input_err!(op.loc(), ToLLVMErr::CannotEvaluateToConst);
+        }
+        Ok(sub_op)
+    }
+}
+
+#[op_interface_impl]
+impl ToLLVMConstValue for PtrToIntOp {
+    fn convert(
+        &self,
+        ctx: &Context,
+        llvm_ctx: &LLVMContext,
+        cctx: &mut ConversionContext,
+    ) -> Result<LLVMValue> {
+        let op = self.get_operation().deref(ctx);
+        let arg = convert_to_llvm_const(ctx, cctx, llvm_ctx, op.get_operand(0))?;
+        let ty = convert_type(ctx, llvm_ctx, cctx, self.result_type(ctx))?;
+
+        // LLVM's builder tries to fold this, so we rely on that.
+        let ptoi_op = llvm_build_ptr_to_int(
+            &cctx.scratch_builder,
+            arg,
+            ty,
+            &self.get_result(ctx).unique_name(ctx),
+        );
+        if !llvm_is_a::constant(ptoi_op) {
+            return input_err!(op.loc(), ToLLVMErr::CannotEvaluateToConst);
+        }
+        Ok(ptoi_op)
+    }
+}
+
 fn convert_to_llvm_const(
     ctx: &Context,
     cctx: &mut ConversionContext,
@@ -1810,6 +1895,7 @@ fn convert_to_llvm_const(
             if let Some(const_trans) = op_cast::<dyn ToLLVMConstValue>(&*op) {
                 const_trans.convert(ctx, llvm_ctx, cctx)
             } else {
+                println!("No const conversion for op: {}", op.get_opid());
                 input_err!(value.loc(ctx), ToLLVMErr::CannotEvaluateToConst)
             }
         }

@@ -1006,6 +1006,11 @@ impl SwitchOp {
     pub fn default_dest(&self, ctx: &Context) -> Ptr<BasicBlock> {
         self.get_operation().deref(ctx).get_successor(0)
     }
+
+    /// Get the operands to pass to the default destination.
+    pub fn default_dest_operands(&self, ctx: &Context) -> Vec<Value> {
+        self.successor_operands(ctx, 0)
+    }
 }
 
 #[op_interface_impl]

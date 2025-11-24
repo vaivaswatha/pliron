@@ -563,6 +563,20 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                     );
                     cctx.value_map.insert(val, cast_op.get_result(ctx));
                 }
+                LLVMOpcode::LLVMTrunc => {
+                    let opd = llvm_get_operand(val, 0);
+                    process_constant(ctx, cctx, opd)?;
+                    let Some(m_val) = cctx.value_map.get(&opd).cloned() else {
+                        panic!("We just processed this constant, it must be in the map");
+                    };
+                    let trunc_op = TruncOp::new(ctx, m_val, ty);
+                    BasicBlock::insert_op_before_terminator(
+                        entry_block,
+                        trunc_op.get_operation(),
+                        ctx,
+                    );
+                    cctx.value_map.insert(val, trunc_op.get_result(ctx));
+                }
                 LLVMOpcode::LLVMGetElementPtr => {
                     let base = llvm_get_operand(val, 0);
                     process_constant(ctx, cctx, base)?;
@@ -616,7 +630,9 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                     BasicBlock::insert_op_before_terminator(entry_block, op, ctx);
                     cctx.value_map.insert(val, res_val);
                 }
-                _ => todo!(),
+                _ => {
+                    todo!("Unsupported constant expression opcode: {:?}", opcode)
+                }
             }
         }
         LLVMValueKind::LLVMGlobalVariableValueKind => {
