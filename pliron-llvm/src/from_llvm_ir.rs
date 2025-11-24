@@ -239,13 +239,16 @@ pub fn convert_linkage(linkage: LLVMLinkage) -> LinkageAttr {
 /// Mapping from LLVM entities to pliron entities.
 #[derive(Default)]
 struct ConversionContext {
-    // A map from LLVM's Values to pliron's Values.
+    /// A map from LLVM's Values to pliron's Values.
     value_map: FxHashMap<LLVMValue, Value>,
-    // A map from LLVM's basic blocks to plirons'.
+    /// A map from LLVM's basic blocks to plirons'.
     block_map: FxHashMap<LLVMBasicBlock, Ptr<BasicBlock>>,
-    // Entry block of the region we're processing.
+    /// Entry block of the region we're processing.
     entry_block: Option<Ptr<BasicBlock>>,
-    // Identifier legaliser
+    /// Insertion point for constants in the entry block,
+    /// managed by [process_constant].
+    constants_insertion_pt: Option<Ptr<Operation>>,
+    /// Identifier legaliser
     id_legaliser: identifier::Legaliser,
 }
 
@@ -254,6 +257,7 @@ impl ConversionContext {
     /// Identifier::Legaliser remains unmodified.
     fn reset_for_region(&mut self, entry_block: Ptr<BasicBlock>) {
         self.entry_block = Some(entry_block);
+        self.constants_insertion_pt = None;
         self.value_map.clear();
         self.block_map.clear();
     }
@@ -391,23 +395,34 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
     }
     let ll_ty = llvm_type_of(val);
     let ty = convert_type(ctx, cctx, ll_ty)?;
-    let entry_block = cctx.entry_block.unwrap();
+
+    // Insert a new constant instruction in the entry block.
+    fn insert_const_inst(ctx: &mut Context, cctx: &mut ConversionContext, op: Ptr<Operation>) {
+        if let Some(insert_pt) = cctx.constants_insertion_pt {
+            // Insert after the previous constant.
+            op.insert_after(ctx, insert_pt);
+        } else {
+            // Insert at the start of the entry block.
+            op.insert_at_front(cctx.entry_block.unwrap(), ctx);
+        }
+        // Update the insertion point.
+        cctx.constants_insertion_pt = Some(op);
+    }
+
     match llvm_get_value_kind(val) {
         LLVMValueKind::LLVMUndefValueValueKind => {
             let undef_op = UndefOp::new(ctx, ty);
-            // Insert at the end of the entry block.
-            BasicBlock::insert_op_before_terminator(entry_block, undef_op.get_operation(), ctx);
+            insert_const_inst(ctx, cctx, undef_op.get_operation());
             cctx.value_map.insert(val, undef_op.get_result(ctx));
         }
         LLVMValueKind::LLVMPoisonValueKind => {
             let poison_op = PoisonOp::new(ctx, ty);
-            // Insert at the end of the entry block.
-            BasicBlock::insert_op_before_terminator(entry_block, poison_op.get_operation(), ctx);
+            insert_const_inst(ctx, cctx, poison_op.get_operation());
             cctx.value_map.insert(val, poison_op.get_result(ctx));
         }
         LLVMValueKind::LLVMConstantPointerNullValueKind => {
             let null_op = ZeroOp::new(ctx, ty);
-            BasicBlock::insert_op_before_terminator(entry_block, null_op.get_operation(), ctx);
+            insert_const_inst(ctx, cctx, null_op.get_operation());
             cctx.value_map.insert(val, null_op.get_result(ctx));
         }
         LLVMValueKind::LLVMConstantIntValueKind => {
@@ -421,8 +436,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             let val_attr =
                 IntegerAttr::new(int_ty, APInt::from_u64(u64, NonZero::new(width).unwrap()));
             let const_op = ConstantOp::new(ctx, Box::new(val_attr));
-            // Insert at the end of the entry block.
-            BasicBlock::insert_op_before_terminator(entry_block, const_op.get_operation(), ctx);
+            insert_const_inst(ctx, cctx, const_op.get_operation());
             cctx.value_map.insert(val, const_op.get_result(ctx));
         }
         LLVMValueKind::LLVMConstantFPValueKind => {
@@ -436,7 +450,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                 float_ty_attr.value_from_f64(fp64)
             };
             let const_op = ConstantOp::new(ctx, val_attr);
-            BasicBlock::insert_op_before_terminator(entry_block, const_op.get_operation(), ctx);
+            insert_const_inst(ctx, cctx, const_op.get_operation());
             cctx.value_map.insert(val, const_op.get_result(ctx));
         }
         LLVMValueKind::LLVMConstantArrayValueKind
@@ -465,7 +479,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             }
             // Starting with an Undef value, we insert elements, for each field.
             let undef_op = UndefOp::new(ctx, ty);
-            BasicBlock::insert_op_before_terminator(entry_block, undef_op.get_operation(), ctx);
+            insert_const_inst(ctx, cctx, undef_op.get_operation());
             let (ctx, const_array) = field_vals.iter().enumerate().try_fold(
                 (ctx, undef_op.get_operation()),
                 |(ctx, acc), (field_idx, field_val)| -> Result<_> {
@@ -477,7 +491,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                         vec![field_idx.try_into().unwrap()],
                     )
                     .get_operation();
-                    insert_op.insert_after(ctx, acc);
+                    insert_const_inst(ctx, cctx, insert_op);
                     Ok((ctx, insert_op))
                 },
             )?;
@@ -498,7 +512,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             }
             // Starting with an Undef value, we insert elements, for each field.
             let undef_op = UndefOp::new(ctx, ty);
-            BasicBlock::insert_op_before_terminator(entry_block, undef_op.get_operation(), ctx);
+            insert_const_inst(ctx, cctx, undef_op.get_operation());
             let (ctx, const_struct) = field_vals.iter().enumerate().try_fold(
                 (ctx, undef_op.get_operation()),
                 |(ctx, acc), (field_idx, field_val)| -> Result<_> {
@@ -510,7 +524,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                         vec![field_idx.try_into().unwrap()],
                     )
                     .get_operation();
-                    insert_op.insert_after(ctx, acc);
+                    insert_const_inst(ctx, cctx, insert_op);
                     Ok((ctx, insert_op))
                 },
             )?;
@@ -528,11 +542,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                         panic!("We just processed this constant, it must be in the map");
                     };
                     let cast_op = BitcastOp::new(ctx, *m_val, ty);
-                    BasicBlock::insert_op_before_terminator(
-                        entry_block,
-                        cast_op.get_operation(),
-                        ctx,
-                    );
+                    insert_const_inst(ctx, cctx, cast_op.get_operation());
                     cctx.value_map.insert(val, cast_op.get_result(ctx));
                 }
                 LLVMOpcode::LLVMIntToPtr => {
@@ -542,11 +552,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                         panic!("We just processed this constant, it must be in the map");
                     };
                     let cast_op = IntToPtrOp::new(ctx, *m_val, ty);
-                    BasicBlock::insert_op_before_terminator(
-                        entry_block,
-                        cast_op.get_operation(),
-                        ctx,
-                    );
+                    insert_const_inst(ctx, cctx, cast_op.get_operation());
                     cctx.value_map.insert(val, cast_op.get_result(ctx));
                 }
                 LLVMOpcode::LLVMPtrToInt => {
@@ -556,11 +562,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                         panic!("We just processed this constant, it must be in the map");
                     };
                     let cast_op = PtrToIntOp::new(ctx, *m_val, ty);
-                    BasicBlock::insert_op_before_terminator(
-                        entry_block,
-                        cast_op.get_operation(),
-                        ctx,
-                    );
+                    insert_const_inst(ctx, cctx, cast_op.get_operation());
                     cctx.value_map.insert(val, cast_op.get_result(ctx));
                 }
                 LLVMOpcode::LLVMTrunc => {
@@ -570,11 +572,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                         panic!("We just processed this constant, it must be in the map");
                     };
                     let trunc_op = TruncOp::new(ctx, m_val, ty);
-                    BasicBlock::insert_op_before_terminator(
-                        entry_block,
-                        trunc_op.get_operation(),
-                        ctx,
-                    );
+                    insert_const_inst(ctx, cctx, trunc_op.get_operation());
                     cctx.value_map.insert(val, trunc_op.get_result(ctx));
                 }
                 LLVMOpcode::LLVMGetElementPtr => {
@@ -599,11 +597,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                     let src_elm_type =
                         convert_type(ctx, cctx, llvm_get_gep_source_element_type(val))?;
                     let gep_op = GetElementPtrOp::new(ctx, m_base, indices, src_elm_type)?;
-                    BasicBlock::insert_op_before_terminator(
-                        entry_block,
-                        gep_op.get_operation(),
-                        ctx,
-                    );
+                    insert_const_inst(ctx, cctx, gep_op.get_operation());
                     cctx.value_map.insert(val, gep_op.get_result(ctx));
                 }
                 LLVMOpcode::LLVMAdd | LLVMOpcode::LLVMSub => {
@@ -627,7 +621,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                         op.set_integer_overflow_flag(ctx, flags);
                         (op.get_operation(), op.get_result(ctx))
                     };
-                    BasicBlock::insert_op_before_terminator(entry_block, op, ctx);
+                    insert_const_inst(ctx, cctx, op);
                     cctx.value_map.insert(val, res_val);
                 }
                 _ => {
@@ -639,19 +633,19 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             let global_name = llvm_get_value_name(val).unwrap_or_default();
             let global_name = cctx.id_legaliser.legalise(&global_name);
             let global_op = AddressOfOp::new(ctx, global_name);
-            BasicBlock::insert_op_before_terminator(entry_block, global_op.get_operation(), ctx);
+            insert_const_inst(ctx, cctx, global_op.get_operation());
             cctx.value_map.insert(val, global_op.get_result(ctx));
         }
         LLVMValueKind::LLVMFunctionValueKind => {
             let fn_name = llvm_get_value_name(val).unwrap_or_default();
             let fn_name = cctx.id_legaliser.legalise(&fn_name);
             let func_op = AddressOfOp::new(ctx, fn_name);
-            BasicBlock::insert_op_before_terminator(entry_block, func_op.get_operation(), ctx);
+            insert_const_inst(ctx, cctx, func_op.get_operation());
             cctx.value_map.insert(val, func_op.get_result(ctx));
         }
         LLVMValueKind::LLVMConstantAggregateZeroValueKind => {
             let zero_op = ZeroOp::new(ctx, ty);
-            BasicBlock::insert_op_before_terminator(entry_block, zero_op.get_operation(), ctx);
+            insert_const_inst(ctx, cctx, zero_op.get_operation());
             cctx.value_map.insert(val, zero_op.get_result(ctx));
         }
         LLVMValueKind::LLVMConstantVectorValueKind
@@ -673,7 +667,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                 IntegerType::get(ctx, 32, Signedness::Signless).into(),
                 ctx,
             )?;
-            BasicBlock::insert_op_before_terminator(entry_block, undef_op.get_operation(), ctx);
+            insert_const_inst(ctx, cctx, undef_op.get_operation());
             let const_vector = element_vals.iter().enumerate().try_fold(
                 undef_op.get_operation(),
                 |acc, (elem_idx, elem_val)| -> Result<_> {
@@ -684,11 +678,11 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                         APInt::from_u64(elem_idx.try_into().unwrap(), NonZero::new(32).unwrap()),
                     );
                     let idx_const_op = ConstantOp::new(ctx, Box::new(idx_attr)).get_operation();
-                    idx_const_op.insert_after(ctx, acc);
+                    insert_const_inst(ctx, cctx, idx_const_op);
                     let idx_val = idx_const_op.deref(ctx).get_result(0);
                     let insert_op =
                         InsertElementOp::new(ctx, acc_val, *elem_val, idx_val).get_operation();
-                    insert_op.insert_after(ctx, idx_const_op);
+                    insert_const_inst(ctx, cctx, insert_op);
                     Ok(insert_op)
                 },
             )?;

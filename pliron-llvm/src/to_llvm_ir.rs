@@ -57,14 +57,14 @@ use crate::{
         llvm_build_trunc, llvm_build_udiv, llvm_build_uitofp, llvm_build_unreachable,
         llvm_build_urem, llvm_build_va_arg, llvm_build_xor, llvm_build_zext,
         llvm_can_value_use_fast_math_flags, llvm_clear_insertion_position, llvm_const_int,
-        llvm_const_null, llvm_const_real, llvm_const_vector, llvm_delete_function,
-        llvm_double_type_in_context, llvm_float_type_in_context, llvm_function_type,
-        llvm_get_named_function, llvm_get_param, llvm_get_poison, llvm_get_undef,
-        llvm_int_type_in_context, llvm_is_a, llvm_lookup_intrinsic_id,
-        llvm_pointer_type_in_context, llvm_position_builder_at_end, llvm_scalable_vector_type,
-        llvm_set_alignment, llvm_set_fast_math_flags, llvm_set_initializer, llvm_set_linkage,
-        llvm_set_nneg, llvm_struct_create_named, llvm_struct_set_body, llvm_struct_type_in_context,
-        llvm_vector_type, llvm_void_type_in_context,
+        llvm_const_null, llvm_const_real, llvm_const_vector, llvm_double_type_in_context,
+        llvm_float_type_in_context, llvm_function_type, llvm_get_named_function, llvm_get_param,
+        llvm_get_poison, llvm_get_undef, llvm_int_type_in_context, llvm_is_a,
+        llvm_lookup_intrinsic_id, llvm_pointer_type_in_context, llvm_position_builder_at_end,
+        llvm_scalable_vector_type, llvm_set_alignment, llvm_set_fast_math_flags,
+        llvm_set_initializer, llvm_set_linkage, llvm_set_nneg, llvm_struct_create_named,
+        llvm_struct_set_body, llvm_struct_type_in_context, llvm_vector_type,
+        llvm_void_type_in_context,
     },
     op_interfaces::{
         AlignableOpInterface, FastMathFlags, IsDeclaration, LlvmSymbolName, NNegFlag,
@@ -1947,17 +1947,16 @@ pub fn convert_module(
     let cctx = &mut ConversionContext::new(llvm_ctx, &llvm_module);
 
     // Setup the scratch builder for evaluating constants.
-    let scratch_function = {
-        let scratch_function = llvm_add_function(
-            &llvm_module,
-            "scratch",
-            llvm_function_type(llvm_void_type_in_context(llvm_ctx), &[], false),
-        );
-        let scratch_function_entry =
-            llvm_append_basic_block_in_context(llvm_ctx, scratch_function, "entry");
-        llvm_position_builder_at_end(&cctx.scratch_builder, scratch_function_entry);
-        scratch_function
-    };
+    // `scratch_module` is freed at the end of this function, when it exits the scope.
+    let scratch_module = LLVMModule::new("__pliron_scratch_module", llvm_ctx);
+    let scratch_function = llvm_add_function(
+        &scratch_module,
+        "scratch",
+        llvm_function_type(llvm_void_type_in_context(llvm_ctx), &[], false),
+    );
+    let scratch_function_entry =
+        llvm_append_basic_block_in_context(llvm_ctx, scratch_function, "entry");
+    llvm_position_builder_at_end(&cctx.scratch_builder, scratch_function_entry);
 
     // Create new functions and map them.
     for op in module.get_body(ctx, 0).deref(ctx).iter(ctx) {
@@ -2009,9 +2008,6 @@ pub fn convert_module(
             }
         }
     }
-
-    // Delete the scratch function
-    llvm_delete_function(scratch_function);
 
     Ok(llvm_module)
 }

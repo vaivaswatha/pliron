@@ -54,7 +54,7 @@ fn c_clang_ir_pliron_ir_exe(input_c_file: &str) -> Output {
         String::from_utf8(compile_c.stderr).unwrap()
     );
 
-    // llvm-opt -o $tmp/input.pliron.ll -S $tmp/input.ll
+    // llvm-opt -o $tmp/input.pliron.ll -S -i $tmp/input.ll
     let mut cmd = cargo_bin_cmd!("llvm-opt");
     let compile_pliron = cmd
         .current_dir(&*RESOURCES_DIR)
