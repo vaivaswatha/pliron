@@ -64,6 +64,7 @@ use llvm_sys::{
         LLVMTypeOf, LLVMValueAsBasicBlock, LLVMValueIsBasicBlock, LLVMVectorType,
         LLVMVoidTypeInContext,
     },
+    error::{LLVMDisposeErrorMessage, LLVMErrorRef, LLVMGetErrorMessage},
     ir_reader::LLVMParseIRInContext,
     prelude::{
         LLVMBasicBlockRef, LLVMBuilderRef, LLVMContextRef, LLVMMemoryBufferRef, LLVMModuleRef,
@@ -2703,3 +2704,17 @@ mod llvm_memory_buffer {
 }
 
 pub use llvm_memory_buffer::LLVMMemoryBuffer;
+
+/// Process [LLVMErrorRef] into Result<(), String>.
+pub(super) fn handle_err(err: LLVMErrorRef) -> Result<(), String> {
+    if err.is_null() {
+        Ok(())
+    } else {
+        unsafe {
+            let err_msg_ptr = LLVMGetErrorMessage(err);
+            let err_msg = cstr_to_string(err_msg_ptr).unwrap();
+            LLVMDisposeErrorMessage(err_msg_ptr);
+            Err(err_msg)
+        }
+    }
+}

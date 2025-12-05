@@ -25,7 +25,7 @@
 //! This inherent "unsafety" exists in `inkwell` too, even though Inkwell binds
 //! values returned by LLVM to a context, which isn't sufficient. For example,
 //! use-after-free / undefined behavior:
-//! ```ignore
+//! ```unknown
 //! let instruction = builder.build_int_add(...);
 //! instruction.erase_from_basic_block();
 //! instruction.get_opcode(); // use-after-free / undefined behavior!
@@ -36,6 +36,7 @@
 
 pub mod core;
 pub mod execution_engine;
+pub mod lljit;
 pub mod target;
 
 use llvm_sys::prelude::LLVMBool;
