@@ -1,4 +1,4 @@
-//! Safe(er) wrappers around llvm_sys::execution_engine
+//! Safe(r) wrappers around llvm_sys::execution_engine
 
 use std::mem::{MaybeUninit, forget};
 
@@ -14,7 +14,6 @@ use llvm_sys::{
         LLVMLinkInInterpreter, LLVMLinkInMCJIT, LLVMMCJITCompilerOptions, LLVMRunFunction,
         LLVMRunFunctionAsMain, LLVMRunStaticConstructors, LLVMRunStaticDestructors,
     },
-    target::{LLVM_InitializeNativeAsmPrinter, LLVM_InitializeNativeTarget},
 };
 
 use crate::llvm_sys::{
@@ -120,11 +119,12 @@ impl ExecutionEngine {
     /// use pliron_llvm::llvm_sys::{
     ///     core::{LLVMMemoryBuffer, LLVMContext, LLVMModule},
     ///     execution_engine::{ExecutionEngine, EngineKind, MCJITCompilerOptions},
+    ///     target::initialize_native,
     /// };
     /// fn main() -> Result<(), String> {
     ///     let llvm_ctx = LLVMContext::default();
     ///     ExecutionEngine::link_in_mcjit();
-    ///     ExecutionEngine::initialize_native_target()?;
+    ///     initialize_native()?;
     ///
     ///     let llvm_ir = r#"
     ///         define i32 @main() {
@@ -229,11 +229,12 @@ impl ExecutionEngine {
     /// use pliron_llvm::llvm_sys::{
     ///     core::{LLVMMemoryBuffer, LLVMContext, LLVMModule, llvm_get_named_function},
     ///     execution_engine::{ExecutionEngine, EngineKind, CodeGenOptLevel},
+    ///     target::initialize_native,
     /// };
     /// fn main() -> Result<(), String> {
     ///     let llvm_ctx = LLVMContext::default();
     ///     ExecutionEngine::link_in_mcjit();
-    ///     ExecutionEngine::initialize_native_target()?;
+    ///     initialize_native()?;
     ///
     ///     let llvm_ir = r#"
     ///         declare i32 @external_function()
@@ -281,11 +282,12 @@ impl ExecutionEngine {
     /// use pliron_llvm::llvm_sys::{
     ///     core::{LLVMMemoryBuffer, LLVMContext, LLVMModule, llvm_int_type_in_context},
     ///     execution_engine::{ExecutionEngine, EngineKind, GenericValue},
+    ///     target::initialize_native,
     /// };
     /// fn main() -> Result<(), String> {
     ///     let llvm_ctx = LLVMContext::default();
     ///     ExecutionEngine::link_in_interpreter();
-    ///     ExecutionEngine::initialize_native_target()?;
+    ///     initialize_native()?;
     ///
     ///     let llvm_ir = r#"
     ///         define i32 @add(i32 %a, i32 %b) {
@@ -332,11 +334,12 @@ impl ExecutionEngine {
     /// use pliron_llvm::llvm_sys::{
     ///     core::{LLVMMemoryBuffer, LLVMContext, LLVMModule},
     ///     execution_engine::{ExecutionEngine, EngineKind},
+    ///     target::initialize_native,
     /// };
     /// fn main() -> Result<(), String> {
     ///     let llvm_ctx = LLVMContext::default();
     ///     ExecutionEngine::link_in_interpreter();
-    ///     ExecutionEngine::initialize_native_target()?;
+    ///     initialize_native()?;
     ///
     ///     let llvm_ir = r#"
     ///         define i32 @main() {
@@ -380,19 +383,6 @@ impl ExecutionEngine {
         unsafe {
             LLVMLinkInMCJIT();
         }
-    }
-
-    /// Initialize native target.
-    pub fn initialize_native_target() -> Result<(), String> {
-        unsafe {
-            if LLVM_InitializeNativeTarget() != 0 {
-                return Err("Failed to initialize native target".to_string());
-            }
-            if LLVM_InitializeNativeAsmPrinter() != 0 {
-                return Err("Failed to initialize native ASM printer".to_string());
-            }
-        }
-        Ok(())
     }
 }
 

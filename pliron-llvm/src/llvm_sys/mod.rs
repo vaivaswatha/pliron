@@ -1,4 +1,4 @@
-//! Safe(er) wrappers around [llvm_sys].
+//! Safe(r) wrappers around [llvm_sys].
 //!
 //! The wrappers provide (some) safety by asserting that the concrete C++
 //! types of arguments match the expected C++ type. This minimizes
@@ -36,6 +36,7 @@
 
 pub mod core;
 pub mod execution_engine;
+pub mod target;
 
 use llvm_sys::prelude::LLVMBool;
 use std::{

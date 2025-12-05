@@ -1,4 +1,4 @@
-//! Safe(er) wrappers around llvm_sys::core.
+//! Safe(r) wrappers around llvm_sys::core.
 
 use std::{
     fmt::{self, Display, Formatter},
