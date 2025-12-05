@@ -1,23 +1,41 @@
-//! Safe wrappers around the llvm_sys crate.
-//! The wrappers provide safety by asserting that the concrete C++
-//! types of arguments match the expected C++ type.
-//! For example,
+//! Safe(er) wrappers around [llvm_sys].
+//!
+//! The wrappers provide (some) safety by asserting that the concrete C++
+//! types of arguments match the expected C++ type. This minimizes
+//! undefined behavior / invalid memory accesses. For example:
 //! 1. `core::llvm_add_incoming(phi_node: LLVMValueRef, ...)`
 //!    checks that `phi_node` is indeed a C++ `PHINode`.
 //! 2. `core::llvm_count_param_types(ty: LLVMTypeRef)`
 //!    checks that `ty` is a function type.
 //!
-//! This ensures that there are no undefined behavior / invalid memory accesses.
 //! We do not check for invalid IR that is caught by the verifier.
 //! As a general guideline, ensure that the C-Types (which are C++ base classes)
-//! match the C++ derived class expected by the callee, via assertions.
-//! (such as the PHINode: LLVMValueRef) example above.
+//! match the C++ derived class expected by the callee, via assertions;
+//! such as the PHINode: LLVMValueRef example above.
 //! Type-checking the LLVM-IR itself is left to the verifier, with exceptions.
 //! Exceptions include constraints on `LLVMTypeRef`, for example `ArrayType`'s
 //! element must satisfy `llvm_is_valid_array_element_type`. This isn't verified
 //! by the verifier.
+//!
+//! Note that these wrappers do not provide full memory safety.
+//! Values returned by LLVM are not lifetime-managed / bound.
+//! So you can easily create use-after-free scenarios by deleting / erasing
+//! a value / basic-block etc and then using it later.
+//!
+//! This inherent "unsafety" exists in `inkwell` too, even though Inkwell binds
+//! values returned by LLVM to a context, which isn't sufficient. For example,
+//! use-after-free / undefined behavior:
+//! ```ignore
+//! let instruction = builder.build_int_add(...);
+//! instruction.erase_from_basic_block();
+//! instruction.get_opcode(); // use-after-free / undefined behavior!
+//! ```
+//! As another example, `BasicBlock::delete` is marked `unsafe`, but it isn't
+//! the `delete` that is unsafe, but a subsequent use of the deleted block,
+//! (which need not be marked `unsafe`) that is unsafe: an illusion of safety.
 
 pub mod core;
+pub mod execution_engine;
 
 use llvm_sys::prelude::LLVMBool;
 use std::{

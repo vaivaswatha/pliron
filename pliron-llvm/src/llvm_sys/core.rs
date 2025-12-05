@@ -1,6 +1,7 @@
-//! Safe wrappers around llvm_sys::core.
+//! Safe(er) wrappers around llvm_sys::core.
 
 use std::{
+    fmt::{self, Display, Formatter},
     mem::{MaybeUninit, forget},
     ptr,
 };
@@ -32,35 +33,36 @@ use llvm_sys::{
         LLVMConstReal, LLVMConstRealGetDouble, LLVMConstVector, LLVMContextCreate,
         LLVMContextDispose, LLVMCountIncoming, LLVMCountParamTypes, LLVMCountParams,
         LLVMCountStructElementTypes, LLVMCreateBuilderInContext,
-        LLVMCreateMemoryBufferWithContentsOfFile, LLVMDeleteFunction, LLVMDisposeMemoryBuffer,
-        LLVMDisposeMessage, LLVMDisposeModule, LLVMDoubleTypeInContext, LLVMDumpModule,
-        LLVMDumpType, LLVMDumpValue, LLVMFloatTypeInContext, LLVMFunctionType,
-        LLVMGetAggregateElement, LLVMGetAlignment, LLVMGetAllocatedType, LLVMGetArrayLength2,
-        LLVMGetBasicBlockName, LLVMGetBasicBlockParent, LLVMGetBasicBlockTerminator,
-        LLVMGetCalledFunctionType, LLVMGetCalledValue, LLVMGetConstOpcode, LLVMGetElementType,
-        LLVMGetFCmpPredicate, LLVMGetFastMathFlags, LLVMGetFirstBasicBlock, LLVMGetFirstFunction,
-        LLVMGetFirstGlobal, LLVMGetFirstInstruction, LLVMGetFirstParam,
-        LLVMGetGEPSourceElementType, LLVMGetICmpPredicate, LLVMGetIncomingBlock,
+        LLVMCreateMemoryBufferWithContentsOfFile, LLVMCreateMemoryBufferWithMemoryRangeCopy,
+        LLVMDeleteFunction, LLVMDisposeMemoryBuffer, LLVMDisposeMessage, LLVMDisposeModule,
+        LLVMDoubleTypeInContext, LLVMDumpModule, LLVMDumpType, LLVMDumpValue,
+        LLVMFloatTypeInContext, LLVMFunctionType, LLVMGetAggregateElement, LLVMGetAlignment,
+        LLVMGetAllocatedType, LLVMGetArrayLength2, LLVMGetBasicBlockName, LLVMGetBasicBlockParent,
+        LLVMGetBasicBlockTerminator, LLVMGetCalledFunctionType, LLVMGetCalledValue,
+        LLVMGetConstOpcode, LLVMGetElementType, LLVMGetFCmpPredicate, LLVMGetFastMathFlags,
+        LLVMGetFirstBasicBlock, LLVMGetFirstFunction, LLVMGetFirstGlobal, LLVMGetFirstInstruction,
+        LLVMGetFirstParam, LLVMGetGEPSourceElementType, LLVMGetICmpPredicate, LLVMGetIncomingBlock,
         LLVMGetIncomingValue, LLVMGetIndices, LLVMGetInitializer, LLVMGetInsertBlock,
         LLVMGetInstructionOpcode, LLVMGetInstructionParent, LLVMGetIntTypeWidth,
         LLVMGetIntrinsicDeclaration, LLVMGetLastFunction, LLVMGetLastGlobal, LLVMGetLinkage,
         LLVMGetMaskValue, LLVMGetModuleIdentifier, LLVMGetNNeg, LLVMGetNSW, LLVMGetNUW,
-        LLVMGetNamedFunction, LLVMGetNextBasicBlock, LLVMGetNextFunction, LLVMGetNextGlobal,
-        LLVMGetNextInstruction, LLVMGetNextParam, LLVMGetNumArgOperands, LLVMGetNumIndices,
-        LLVMGetNumMaskElements, LLVMGetNumOperands, LLVMGetOperand, LLVMGetParam,
-        LLVMGetParamTypes, LLVMGetPoison, LLVMGetPreviousBasicBlock, LLVMGetPreviousFunction,
-        LLVMGetPreviousGlobal, LLVMGetPreviousInstruction, LLVMGetPreviousParam, LLVMGetReturnType,
-        LLVMGetStructElementTypes, LLVMGetStructName, LLVMGetTypeKind, LLVMGetUndef,
-        LLVMGetUndefMaskElem, LLVMGetValueKind, LLVMGetValueName2, LLVMGetVectorSize,
-        LLVMGlobalGetValueType, LLVMIntTypeInContext, LLVMIntrinsicIsOverloaded, LLVMIsAFunction,
-        LLVMIsATerminatorInst, LLVMIsAUser, LLVMIsDeclaration, LLVMIsFunctionVarArg,
-        LLVMIsOpaqueStruct, LLVMLookupIntrinsicID, LLVMModuleCreateWithNameInContext,
-        LLVMPointerTypeInContext, LLVMPositionBuilderAtEnd, LLVMPositionBuilderBefore,
-        LLVMPrintModuleToFile, LLVMPrintModuleToString, LLVMPrintTypeToString,
-        LLVMPrintValueToString, LLVMScalableVectorType, LLVMSetAlignment, LLVMSetFastMathFlags,
-        LLVMSetInitializer, LLVMSetLinkage, LLVMSetNNeg, LLVMStructCreateNamed, LLVMStructSetBody,
-        LLVMStructTypeInContext, LLVMTypeIsSized, LLVMTypeOf, LLVMValueAsBasicBlock,
-        LLVMValueIsBasicBlock, LLVMVectorType, LLVMVoidTypeInContext,
+        LLVMGetNamedFunction, LLVMGetNamedGlobal, LLVMGetNextBasicBlock, LLVMGetNextFunction,
+        LLVMGetNextGlobal, LLVMGetNextInstruction, LLVMGetNextParam, LLVMGetNumArgOperands,
+        LLVMGetNumIndices, LLVMGetNumMaskElements, LLVMGetNumOperands, LLVMGetOperand,
+        LLVMGetParam, LLVMGetParamTypes, LLVMGetPoison, LLVMGetPreviousBasicBlock,
+        LLVMGetPreviousFunction, LLVMGetPreviousGlobal, LLVMGetPreviousInstruction,
+        LLVMGetPreviousParam, LLVMGetReturnType, LLVMGetStructElementTypes, LLVMGetStructName,
+        LLVMGetTypeKind, LLVMGetUndef, LLVMGetUndefMaskElem, LLVMGetValueKind, LLVMGetValueName2,
+        LLVMGetVectorSize, LLVMGlobalGetValueType, LLVMIntTypeInContext, LLVMIntrinsicIsOverloaded,
+        LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser, LLVMIsDeclaration,
+        LLVMIsFunctionVarArg, LLVMIsOpaqueStruct, LLVMLookupIntrinsicID,
+        LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext, LLVMPositionBuilderAtEnd,
+        LLVMPositionBuilderBefore, LLVMPrintModuleToFile, LLVMPrintModuleToString,
+        LLVMPrintTypeToString, LLVMPrintValueToString, LLVMScalableVectorType, LLVMSetAlignment,
+        LLVMSetFastMathFlags, LLVMSetInitializer, LLVMSetLinkage, LLVMSetNNeg,
+        LLVMStructCreateNamed, LLVMStructSetBody, LLVMStructTypeInContext, LLVMTypeIsSized,
+        LLVMTypeOf, LLVMValueAsBasicBlock, LLVMValueIsBasicBlock, LLVMVectorType,
+        LLVMVoidTypeInContext,
     },
     ir_reader::LLVMParseIRInContext,
     prelude::{
@@ -89,6 +91,16 @@ impl From<LLVMValue> for LLVMValueRef {
     }
 }
 
+impl Display for LLVMValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if let Some(s) = llvm_print_value_to_string(*self) {
+            write!(f, "{}", s)
+        } else {
+            write!(f, "<Error printing LLVMValue at {:p}>", self.0)
+        }
+    }
+}
+
 /// Opaque wrapper around LLVMTypeRef to hide the raw pointer
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LLVMType(LLVMTypeRef);
@@ -102,6 +114,16 @@ impl From<LLVMTypeRef> for LLVMType {
 impl From<LLVMType> for LLVMTypeRef {
     fn from(ty: LLVMType) -> Self {
         ty.0
+    }
+}
+
+impl Display for LLVMType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if let Some(s) = llvm_print_type_to_string(*self) {
+            write!(f, "{}", s)
+        } else {
+            write!(f, "<Error printing LLVMType at {:p}>", self.0)
+        }
     }
 }
 
@@ -125,7 +147,7 @@ mod llvm_context {
     }
 
     impl LLVMContext {
-        pub(crate) fn inner_ref(&self) -> LLVMContextRef {
+        pub(super) fn inner_ref(&self) -> LLVMContextRef {
             self.0
         }
     }
@@ -145,6 +167,16 @@ impl From<LLVMBasicBlockRef> for LLVMBasicBlock {
 impl From<LLVMBasicBlock> for LLVMBasicBlockRef {
     fn from(ty: LLVMBasicBlock) -> Self {
         ty.0
+    }
+}
+
+impl Display for LLVMBasicBlock {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if let Some(s) = llvm_print_value_to_string(LLVMValue(self.0 as LLVMValueRef)) {
+            write!(f, "{}", s)
+        } else {
+            write!(f, "<Error printing LLVMBasicBlock at {:p}>", self.0)
+        }
     }
 }
 
@@ -486,6 +518,12 @@ pub fn llvm_global_get_value_type(val: LLVMValue) -> LLVMType {
 pub fn llvm_get_global_parent(val: LLVMValue) -> Option<LLVMModule> {
     assert!(llvm_is_a::global_value(val));
     unimplemented!("Returning LLVMModule, which owns the underlying LLVMModuleRef is not safe");
+}
+
+/// LLVMGetNamedGlobal
+pub fn llvm_get_named_global(module: &LLVMModule, name: &str) -> Option<LLVMValue> {
+    let gv_ref = unsafe { LLVMGetNamedGlobal(module.inner_ref(), to_c_str(name).as_ptr()) };
+    (!gv_ref.is_null()).then_some(gv_ref.into())
 }
 
 /// LLVMIsDeclaration
@@ -2587,13 +2625,23 @@ mod llvm_module {
         }
 
         ///  Get internal reference
-        pub(super) fn inner_ref(&self) -> LLVMModuleRef {
+        pub(in crate::llvm_sys) fn inner_ref(&self) -> LLVMModuleRef {
             self.0
         }
     }
 }
 
 pub use llvm_module::LLVMModule;
+
+impl Display for LLVMModule {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if let Some(module_str) = llvm_print_module_to_string(self) {
+            write!(f, "{}", module_str)
+        } else {
+            write!(f, "<Error printing LLVMModule at {:p}>", self.inner_ref())
+        }
+    }
+}
 
 // We wrap LLVMMemoryBuffer in a module to limit its visibility for constructing
 mod llvm_memory_buffer {
@@ -2626,6 +2674,17 @@ mod llvm_memory_buffer {
             }
 
             Ok(LLVMMemoryBuffer(memory_buffer_ref))
+        }
+
+        /// Create [LLVMMemoryBuffer] from [str].
+        pub fn from_str(contents: &str, buffer_name: &str) -> LLVMMemoryBuffer {
+            unsafe {
+                LLVMMemoryBuffer(LLVMCreateMemoryBufferWithMemoryRangeCopy(
+                    contents.as_ptr() as *const _,
+                    contents.len(),
+                    to_c_str(buffer_name).as_ptr(),
+                ))
+            }
         }
     }
 
