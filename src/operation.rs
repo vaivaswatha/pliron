@@ -21,7 +21,7 @@ use crate::{
     },
     linked_list::{LinkedList, private},
     location::{Located, Location},
-    op::{self, OpId, OpObj},
+    op::{OpId, OpObj, OperationWrapper},
     parsable::{self, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     region::Region,
@@ -114,10 +114,10 @@ impl BlockLinks {
 
 /// Basic unit of execution. May or may not be in a [BasicBlock].
 pub struct Operation {
-    /// OpId of self.
-    pub(crate) opid: OpId,
     /// A [Ptr] to self.
     pub(crate) self_ptr: Ptr<Operation>,
+    /// For quick creation of an [OpObj] from [Self].
+    pub(crate) wrap_operation: OperationWrapper,
     /// [Results](OpResult) defined by self.
     pub(crate) results: Vec<OpResult>,
     /// [Operand]s used by self.
@@ -170,15 +170,15 @@ impl Operation {
     /// Create a new, unlinked (i.e., not in a basic block) operation.
     pub fn new(
         ctx: &mut Context,
-        opid: OpId,
+        wrap_operation: OperationWrapper,
         result_types: Vec<Ptr<TypeObj>>,
         operands: Vec<Value>,
         successors: Vec<Ptr<BasicBlock>>,
         num_regions: usize,
     ) -> Ptr<Operation> {
         let f = |self_ptr: Ptr<Operation>| Operation {
-            opid,
             self_ptr,
+            wrap_operation,
             results: vec![],
             operands: vec![],
             successors: vec![],
@@ -357,7 +357,12 @@ impl Operation {
 
     /// Create an [OpObj] corresponding to self.
     pub fn get_op(ptr: Ptr<Self>, ctx: &Context) -> OpObj {
-        op::from_operation(ctx, ptr)
+        (ptr.deref(ctx).wrap_operation)(ptr)
+    }
+
+    /// Get the [OpId] this Operation.
+    pub fn get_opid(ptr: Ptr<Self>, ctx: &Context) -> OpId {
+        Self::get_op(ptr, ctx).get_opid()
     }
 
     /// Get a [Ptr] to the `reg_idx`th region.
@@ -391,11 +396,6 @@ impl Operation {
     /// Get an iterator on the regions.
     pub fn regions(&self) -> impl Iterator<Item = Ptr<Region>> + Clone + '_ {
         self.regions.iter().cloned()
-    }
-
-    /// Get the OpId of the Op of this Operation.
-    pub fn get_opid(&self) -> OpId {
-        self.opid.clone()
     }
 
     /// Drop all uses that this operation holds.

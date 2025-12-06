@@ -1015,7 +1015,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             output.extend(quote! {
                 let #regions_temp_parent_op = Operation::new(
                     state_stream.state.ctx,
-                    Self::get_opid_static(),
+                    Self::wrap_operation,
                     vec![],
                     vec![],
                     vec![],
@@ -1178,7 +1178,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
         output.extend(quote! {
             let op = ::pliron::operation::Operation::new(
                 state_stream.state.ctx,
-                Self::get_opid_static(),
+                Self::wrap_operation,
                 #results_var,
                 #operands,
                 #successors,
@@ -1267,8 +1267,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
         if d.name == "canonical" {
             state.is_canonical = true;
             Ok(quote! {
-                ::pliron::op::canonical_syntax_parser(
-                    <Self as ::pliron::op::Op>::get_opid_static(),
+                ::pliron::op::canonical_syntax_parser::<Self>(
                     arg,
                 )
                 .parse_stream(state_stream)

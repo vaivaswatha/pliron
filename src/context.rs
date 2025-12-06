@@ -5,7 +5,6 @@ use crate::{
     common_traits::Verify,
     dialect::{Dialect, DialectName},
     identifier::Identifier,
-    op::{OpCreator, OpId},
     operation::Operation,
     printable::{self, Printable},
     region::Region,
@@ -56,8 +55,6 @@ pub struct Context {
     pub(crate) regions: Arena<Region>,
     /// Registered [Dialect]s.
     pub(crate) dialects: FxHashMap<DialectName, Dialect>,
-    /// Registered [Op](crate::op::Op)s.
-    pub(crate) ops: FxHashMap<OpId, OpCreator>,
     /// Storage for uniqued [TypeObj]s.
     pub(crate) type_store: UniqueStore<TypeObj>,
     /// Storage for other uniqued objects.
@@ -91,7 +88,6 @@ impl Default for Context {
             basic_blocks: Arena::default(),
             regions: Arena::default(),
             dialects: FxHashMap::default(),
-            ops: FxHashMap::default(),
             type_store: UniqueStore::default(),
             uniqued_any_store: UniqueStore::default(),
             aux_data: SlotMap::with_key(),

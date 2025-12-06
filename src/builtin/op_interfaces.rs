@@ -309,12 +309,13 @@ pub trait SingleBlockRegionInterface {
     where
         Self: Sized,
     {
-        let self_op = op.get_operation().deref(ctx);
+        let opr = op.get_operation();
+        let self_op = opr.deref(ctx);
         for region in &self_op.regions {
             if region.deref(ctx).iter(ctx).count() != 1 {
                 return verify_err!(
                     self_op.loc(),
-                    SingleBlockRegionVerifyErr(self_op.get_opid().to_string())
+                    SingleBlockRegionVerifyErr(Operation::get_opid(opr, ctx).to_string())
                 );
             }
         }
@@ -502,9 +503,13 @@ pub trait OneResultInterface {
     where
         Self: Sized,
     {
-        let op = &*op.get_operation().deref(ctx);
+        let opr = op.get_operation();
+        let op = &*opr.deref(ctx);
         if op.get_num_results() != 1 {
-            return verify_err!(op.loc(), OneResultVerifyErr(op.get_opid().to_string()));
+            return verify_err!(
+                op.loc(),
+                OneResultVerifyErr(Operation::get_opid(opr, ctx).to_string())
+            );
         }
         Ok(())
     }
@@ -521,9 +526,13 @@ pub trait ZeroResultInterface {
     where
         Self: Sized,
     {
-        let op = &*op.get_operation().deref(ctx);
+        let opr = op.get_operation();
+        let op = &*opr.deref(ctx);
         if op.get_num_results() != 0 {
-            return verify_err!(op.loc(), ZeroResultVerifyErr(op.get_opid().to_string()));
+            return verify_err!(
+                op.loc(),
+                ZeroResultVerifyErr(Operation::get_opid(opr, ctx).to_string())
+            );
         }
         Ok(())
     }
@@ -540,9 +549,13 @@ pub trait ZeroOpdInterface {
     where
         Self: Sized,
     {
-        let op = &*op.get_operation().deref(ctx);
+        let opr = op.get_operation();
+        let op = &*opr.deref(ctx);
         if op.get_num_operands() != 0 {
-            return verify_err!(op.loc(), ZeroOpdVerifyErr(op.get_opid().to_string()));
+            return verify_err!(
+                op.loc(),
+                ZeroOpdVerifyErr(Operation::get_opid(opr, ctx).to_string())
+            );
         }
         Ok(())
     }
@@ -569,9 +582,13 @@ pub trait OneOpdInterface {
     where
         Self: Sized,
     {
-        let op = &*op.get_operation().deref(ctx);
+        let opr = op.get_operation();
+        let op = &*opr.deref(ctx);
         if op.get_num_operands() != 1 {
-            return verify_err!(op.loc(), OneOpdVerifyErr(op.get_opid().to_string()));
+            return verify_err!(
+                op.loc(),
+                OneOpdVerifyErr(Operation::get_opid(opr, ctx).to_string())
+            );
         }
         Ok(())
     }

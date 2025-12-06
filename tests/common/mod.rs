@@ -36,7 +36,7 @@ use pliron_derive::format_op;
 pub struct ReturnOp;
 impl ReturnOp {
     pub fn new(ctx: &mut Context, value: Value) -> Self {
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![value], vec![], 0);
+        let op = Operation::new(ctx, Self::wrap_operation, vec![], vec![value], vec![], 0);
         ReturnOp { op }
     }
 }
@@ -58,7 +58,7 @@ impl ConstantOp {
         let int_attr = IntegerAttr::new(i64_ty, APInt::from_u64(value, bw(64)));
         let op = Operation::new(
             ctx,
-            Self::get_opid_static(),
+            Self::wrap_operation,
             vec![i64_ty.into()],
             vec![],
             vec![],

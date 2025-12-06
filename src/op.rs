@@ -153,7 +153,7 @@ impl Display for OpId {
     }
 }
 
-pub(crate) type OpCreator = fn(Ptr<Operation>) -> OpObj;
+pub(crate) type OperationWrapper = fn(Ptr<Operation>) -> OpObj;
 
 /// A wrapper around [Operation] for Op(code) specific work.
 /// All per-instance data must be in the underyling Operation,
@@ -184,17 +184,11 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
     {
         let opid = Self::get_opid_static();
         let dialect = opid.dialect.clone();
-        match ctx.ops.entry(opid) {
-            std::collections::hash_map::Entry::Occupied(_) => (),
-            std::collections::hash_map::Entry::Vacant(v) => {
-                v.insert(Self::wrap_operation);
-                let dialect = ctx
-                    .dialects
-                    .get_mut(&dialect)
-                    .unwrap_or_else(|| panic!("Unregistered dialect {dialect}"));
-                dialect.add_op(Self::get_opid_static(), op_parser);
-            }
-        }
+        let dialect = ctx
+            .dialects
+            .get_mut(&dialect)
+            .unwrap_or_else(|| panic!("Unregistered dialect {dialect}"));
+        dialect.add_op(Self::get_opid_static(), op_parser);
     }
 
     /// Get Op's location
@@ -204,14 +198,6 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
 }
 impl_downcast!(Op);
 dyn_clone::clone_trait_object!(Op);
-
-/// Create [OpObj] from [`Ptr<Operation>`](Operation)
-pub(crate) fn from_operation(ctx: &Context, op: Ptr<Operation>) -> OpObj {
-    let opid = op.deref(ctx).get_opid();
-    (ctx.ops
-        .get(&opid)
-        .unwrap_or_else(|| panic!("Unregistered Op {}", opid.disp(ctx))))(op)
-}
 
 /// [Op] objects are boxed and stored in the IR.
 pub type OpObj = Box<dyn Op>;
@@ -341,6 +327,7 @@ pub fn canonical_syntax_print(
     f: &mut fmt::Formatter<'_>,
 ) -> fmt::Result {
     let sep = printable::ListSeparator::CharSpace(',');
+    let opid = op.get_opid();
     let op = op.get_operation().deref(ctx);
     let operands = iter_with_sep(op.operands(), sep);
     let successors = iter_with_sep(
@@ -362,7 +349,7 @@ pub fn canonical_syntax_print(
     write!(
         f,
         "{} ({}) [{}] {}: {}",
-        op.get_opid().disp(ctx),
+        opid.disp(ctx),
         operands.disp(ctx),
         successors.disp(ctx),
         op.attributes.clone_skip_outlined().disp(ctx),
@@ -385,8 +372,7 @@ pub enum CanonicalSyntaxParseError {
 
 /// Parse an [Op] in canonical syntax.
 /// See [canonical_syntax_print] for the syntax.
-pub fn canonical_syntax_parse<'a>(
-    opid: OpId,
+pub fn canonical_syntax_parse<'a, T: Op>(
     state_stream: &mut StateStream<'a>,
     results: Vec<(Identifier, Location)>,
 ) -> ParseResult<'a, OpObj> {
@@ -398,7 +384,6 @@ pub fn canonical_syntax_parse<'a>(
         .and((location(), FunctionType::parser(())))
         .then(
             move |(((operands, successors), attr_dict), (fty_loc, fty))| {
-                let opid = opid.clone();
                 let results = results.clone();
                 let fty_loc = fty_loc.clone();
                 combine::parser(move |parsable_state: &mut StateStream<'a>| {
@@ -426,7 +411,7 @@ pub fn canonical_syntax_parse<'a>(
                     }
                     let opr = Operation::new(
                         ctx,
-                        opid.clone(),
+                        T::wrap_operation,
                         results_types,
                         operands.clone(),
                         successors.clone(),
@@ -443,18 +428,17 @@ pub fn canonical_syntax_parse<'a>(
     zero_or_more_parser(Region::parser(op))
         .parse_stream(state_stream)
         .into_result()?;
-    let op = from_operation(state_stream.state.ctx, op);
+    let op = Operation::get_op(op, state_stream.state.ctx);
     Ok(op).into_parse_result()
 }
 
 /// Parser for an [Op] in canonical syntax.
 /// See [canonical_syntax_print] for the syntax.
-pub fn canonical_syntax_parser<'a>(
-    opid: OpId,
+pub fn canonical_syntax_parser<'a, T: Op>(
     results: Vec<(Identifier, Location)>,
 ) -> Box<dyn Parser<StateStream<'a>, Output = OpObj, PartialState = ()> + 'a> {
     combine::parser(move |parsable_state: &mut StateStream<'a>| {
-        canonical_syntax_parse(opid.clone(), parsable_state, results.clone())
+        canonical_syntax_parse::<T>(parsable_state, results.clone())
     })
     .boxed()
 }

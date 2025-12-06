@@ -89,7 +89,7 @@ impl Parsable for ModuleOp {
         }
         let op = Operation::new(
             state_stream.state.ctx,
-            Self::get_opid_static(),
+            Self::wrap_operation,
             vec![],
             vec![],
             vec![],
@@ -115,7 +115,7 @@ impl ModuleOp {
     /// The underlying [Operation] is not linked to a [BasicBlock].
     /// The returned module has a single [crate::region::Region] with a single (BasicBlock)[crate::basic_block::BasicBlock].
     pub fn new(ctx: &mut Context, name: Identifier) -> ModuleOp {
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
+        let op = Operation::new(ctx, Self::wrap_operation, vec![], vec![], vec![], 1);
         let opop = ModuleOp { op };
         opop.set_symbol_name(ctx, name);
 
@@ -146,7 +146,7 @@ impl FuncOp {
     /// The returned function has a single region with an empty `entry` block.
     pub fn new(ctx: &mut Context, name: Identifier, ty: TypePtr<FunctionType>) -> Self {
         let ty_attr = TypeAttr::new(ty.into());
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![], vec![], vec![], 1);
+        let op = Operation::new(ctx, Self::wrap_operation, vec![], vec![], vec![], 1);
 
         // Create an empty entry block.
         let arg_types = ty.deref(ctx).arg_types().clone();
@@ -221,7 +221,7 @@ impl Parsable for FuncOp {
 
         let op = Operation::new(
             state_stream.state.ctx,
-            Self::get_opid_static(),
+            Self::wrap_operation,
             vec![],
             vec![],
             vec![],
@@ -326,7 +326,7 @@ impl ForwardRefOp {
     /// Create a new [ForwardRefOp].
     pub fn new(ctx: &mut Context) -> Self {
         let ty = UnitType::get(ctx).into();
-        let op = Operation::new(ctx, Self::get_opid_static(), vec![ty], vec![], vec![], 0);
+        let op = Operation::new(ctx, Self::wrap_operation, vec![ty], vec![], vec![], 0);
         ForwardRefOp { op }
     }
 }

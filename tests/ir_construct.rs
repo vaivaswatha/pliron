@@ -149,7 +149,7 @@ fn test_replace_within_same_def_site() {
 
     let dual_def_op = Operation::new(
         ctx,
-        DualDefOp::get_opid_static(),
+        DualDefOp::wrap_operation,
         vec![u64_ty, u64_ty],
         vec![],
         vec![],

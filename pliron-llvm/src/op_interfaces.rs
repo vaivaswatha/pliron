@@ -48,7 +48,7 @@ pub trait BinArithOp: SameOperandsAndResultType + OneResultInterface {
     {
         let op = Operation::new(
             ctx,
-            Self::get_opid_static(),
+            Self::wrap_operation,
             vec![lhs.get_type(ctx)],
             vec![lhs, rhs],
             vec![],
@@ -362,7 +362,7 @@ pub trait CastOpInterface: OneResultInterface + OneOpdInterface {
     {
         let op = Operation::new(
             ctx,
-            Self::get_opid_static(),
+            Self::wrap_operation,
             vec![res_type],
             vec![operand],
             vec![],
