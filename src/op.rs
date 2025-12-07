@@ -472,9 +472,24 @@ pub struct OpBox {
 
 impl OpBox {
     pub fn new<T: Op>(op: T) -> Self {
+        /// Static assertion to ensure that concrete [Op]s
+        /// always are the same as our [OpData] struct.
+        struct StaticAsserter<S>(S);
+        impl<S> StaticAsserter<S> {
+            const ASSERTTION: () = {
+                // Ensure that OpData and T have the same size.
+                assert!(
+                    std::mem::size_of::<OpData>() == std::mem::size_of::<S>(),
+                    "OpBox can only box Op objects"
+                );
+            };
+        }
+        let _: () = StaticAsserter::<T>::ASSERTTION;
+
         let dyn_ref: &dyn Op = &op;
         let (_, vtable_ptr) =
             unsafe { std::mem::transmute::<&dyn Op, (*const T, *const ())>(dyn_ref) };
+
         OpBox {
             data: OpData {
                 op: op.get_operation(),
