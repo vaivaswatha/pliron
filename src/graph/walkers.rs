@@ -148,21 +148,31 @@ pub mod interruptible {
                     }
                 }
 
-                let range: Box<dyn Iterator<Item = usize>> = match config.regions_in_op.1 {
-                    Direction::Forward => Box::new(0..root.deref(ctx).num_regions()),
-                    Direction::Reverse => Box::new((0..root.deref(ctx).num_regions()).rev()),
-                };
-
-                for reg_idx in range {
-                    let region = {
-                        let root_ref = &*root.deref(ctx);
-                        assert!(
-                            reg_idx < root_ref.num_regions(),
-                            "Region deleted during walk"
-                        );
-                        root_ref.get_region(reg_idx)
-                    };
-                    walk_region(ctx, state, config, region, callback)?;
+                let num_regions = root.deref(ctx).num_regions();
+                match config.regions_in_op.1 {
+                    Direction::Forward => {
+                        for reg_idx in 0..num_regions {
+                            let region = {
+                                let root_ref = &*root.deref(ctx);
+                                assert!(
+                                    reg_idx < root_ref.num_regions(),
+                                    "Region deleted during walk"
+                                );
+                                root_ref.get_region(reg_idx)
+                            };
+                            walk_region(ctx, state, config, region, callback)?;
+                        }
+                    }
+                    Direction::Reverse => {
+                        for i in (0..num_regions).rev() {
+                            let region = {
+                                let root_ref = &*root.deref(ctx);
+                                assert!(i < root_ref.num_regions(), "Region deleted during walk");
+                                root_ref.get_region(i)
+                            };
+                            walk_region(ctx, state, config, region, callback)?;
+                        }
+                    }
                 }
 
                 if let Order::PostOrder = config.regions_in_op.0 {
@@ -187,16 +197,20 @@ pub mod interruptible {
                     }
                 }
 
-                let mut cur_block_opt = match config.blocks_in_region.1 {
-                    Direction::Forward => root.deref(ctx).get_head(),
-                    Direction::Reverse => root.deref(ctx).get_tail(),
-                };
-
-                while let Some(cur_block) = cur_block_opt {
-                    walk_block(ctx, state, config, cur_block, callback)?;
-                    cur_block_opt = match config.blocks_in_region.1 {
-                        Direction::Forward => cur_block.deref(ctx).get_next(),
-                        Direction::Reverse => cur_block.deref(ctx).get_prev(),
+                match config.blocks_in_region.1 {
+                    Direction::Forward => {
+                        let mut cur_block_opt = root.deref(ctx).get_head();
+                        while let Some(cur_block) = cur_block_opt {
+                            walk_block(ctx, state, config, cur_block, callback)?;
+                            cur_block_opt = cur_block.deref(ctx).get_next();
+                        }
+                    }
+                    Direction::Reverse => {
+                        let mut cur_block_opt = root.deref(ctx).get_tail();
+                        while let Some(cur_block) = cur_block_opt {
+                            walk_block(ctx, state, config, cur_block, callback)?;
+                            cur_block_opt = cur_block.deref(ctx).get_prev();
+                        }
                     }
                 }
 
@@ -222,16 +236,20 @@ pub mod interruptible {
                     }
                 }
 
-                let mut cur_op_opt = match config.ops_in_block.1 {
-                    Direction::Forward => root.deref(ctx).get_head(),
-                    Direction::Reverse => root.deref(ctx).get_tail(),
-                };
-
-                while let Some(cur_op) = cur_op_opt {
-                    walk_op(ctx, state, config, cur_op, callback)?;
-                    cur_op_opt = match config.ops_in_block.1 {
-                        Direction::Forward => cur_op.deref(ctx).get_next(),
-                        Direction::Reverse => cur_op.deref(ctx).get_prev(),
+                match config.ops_in_block.1 {
+                    Direction::Forward => {
+                        let mut cur_op_opt = root.deref(ctx).get_head();
+                        while let Some(cur_op) = cur_op_opt {
+                            walk_op(ctx, state, config, cur_op, callback)?;
+                            cur_op_opt = cur_op.deref(ctx).get_next();
+                        }
+                    }
+                    Direction::Reverse => {
+                        let mut cur_op_opt = root.deref(ctx).get_tail();
+                        while let Some(cur_op) = cur_op_opt {
+                            walk_op(ctx, state, config, cur_op, callback)?;
+                            cur_op_opt = cur_op.deref(ctx).get_prev();
+                        }
                     }
                 }
 
