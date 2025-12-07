@@ -400,7 +400,9 @@ impl NameTracker {
     ///   then a new independent SSA name scope is created.
     /// - A new independent block label scope is always created.
     pub(crate) fn enter_region(&mut self, ctx: &Context, parent_op: Ptr<Operation>) -> Result<()> {
-        if op_impls::<dyn IsolatedFromAboveInterface>(&*Operation::get_op_dyn(parent_op, ctx)) {
+        if op_impls::<dyn IsolatedFromAboveInterface>(
+            Operation::get_op_dyn(parent_op, ctx).as_ref(),
+        ) {
             self.ssa_name_scope.push(FxHashMap::default());
         } else if self.ssa_name_scope.is_empty() {
             input_err!(
@@ -421,7 +423,9 @@ impl NameTracker {
         parent_op: Ptr<Operation>,
         loc: Location,
     ) -> Result<()> {
-        if op_impls::<dyn IsolatedFromAboveInterface>(&*Operation::get_op_dyn(parent_op, ctx)) {
+        if op_impls::<dyn IsolatedFromAboveInterface>(
+            Operation::get_op_dyn(parent_op, ctx).as_ref(),
+        ) {
             // Check if there are any [ForwardRefOp].
             let ssa_scope = self
                 .ssa_name_scope

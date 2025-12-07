@@ -1571,14 +1571,15 @@ fn convert_block(
         .iter(ctx)
         .map(|op| (Operation::get_op_dyn(op, ctx), op.deref(ctx).loc()))
     {
-        let Some(op_conv) = op_cast::<dyn ToLLVMValue>(&*op) else {
+        let op = op.as_ref();
+        let Some(op_conv) = op_cast::<dyn ToLLVMValue>(op) else {
             return input_err!(
                 loc,
                 ToLLVMErr::MissingOpConversion(op.get_opid().to_string())
             );
         };
         let op_iw = op_conv.convert(ctx, llvm_ctx, cctx)?;
-        let op_ref = &*op.get_operation().deref(ctx);
+        let op_ref = op.get_operation().deref(ctx);
         // LLVM instructions have at most one result.
         if op_ref.get_num_results() == 1 {
             cctx.value_map.insert(op_ref.get_result(0), op_iw);
@@ -1892,10 +1893,9 @@ fn convert_to_llvm_const(
     match value {
         Value::OpResult { op, res_idx: _ } => {
             let op = Operation::get_op_dyn(op, ctx);
-            if let Some(const_trans) = op_cast::<dyn ToLLVMConstValue>(&*op) {
+            if let Some(const_trans) = op_cast::<dyn ToLLVMConstValue>(op.as_ref()) {
                 const_trans.convert(ctx, llvm_ctx, cctx)
             } else {
-                println!("No const conversion for op: {}", op.get_opid());
                 input_err!(value.loc(ctx), ToLLVMErr::CannotEvaluateToConst)
             }
         }

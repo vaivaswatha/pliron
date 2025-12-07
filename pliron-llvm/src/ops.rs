@@ -34,7 +34,7 @@ use pliron::{
     },
     linked_list::ContainsLinkedList,
     location::{Located, Location},
-    op::{Op, OpObj},
+    op::{Op, OpBox, OpObj},
     operation::Operation,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable, indented_nl},
@@ -723,8 +723,7 @@ impl Parsable for CondBrOp {
                         );
 
                         process_parsed_ssa_defs(parsable_state, &results, op.get_operation())?;
-                        let op: OpObj = Box::new(op);
-                        Ok(op).into_parse_result()
+                        Ok(OpBox::new(op)).into_parse_result()
                     })
                 },
             )
@@ -921,8 +920,7 @@ impl Parsable for SwitchOp {
                         );
 
                         process_parsed_ssa_defs(parsable_state, &results, op.get_operation())?;
-                        let op: OpObj = Box::new(op);
-                        Ok(op).into_parse_result()
+                        Ok(OpBox::new(op)).into_parse_result()
                     })
                 },
             )
@@ -1593,7 +1591,7 @@ impl Parsable for CallOp {
                         op.set_attr_llvm_call_fastmath_flags(ctx, *fmf);
                     }
                     process_parsed_ssa_defs(parsable_state, &results, op.get_operation())?;
-                    Ok(Box::new(op) as Box<dyn Op>).into_parse_result()
+                    Ok(OpBox::new(op)).into_parse_result()
                 })
             });
 
@@ -2032,7 +2030,7 @@ impl Parsable for GlobalOp {
             }
         }
 
-        Ok(Box::new(op) as OpObj).into_parse_result()
+        Ok(OpBox::new(op)).into_parse_result()
     }
 }
 
@@ -3395,7 +3393,7 @@ impl Parsable for CallIntrinsicOp {
             op.set_attr_llvm_intrinsic_fastmath_flags(ctx, fmf);
         }
         process_parsed_ssa_defs(state_stream, &results, op.get_operation())?;
-        Ok(Box::new(op) as OpObj).into_parse_result()
+        Ok(OpBox::new(op)).into_parse_result()
     }
 }
 
@@ -3645,10 +3643,10 @@ impl Parsable for FuncOp {
                 let ctx = &mut state_stream.state.ctx;
                 op.deref_mut(ctx).attributes = attrs;
                 let ty_attr = TypeAttr::new(fty);
-                let opop = Box::new(FuncOp { op });
+                let opop = FuncOp { op };
                 opop.set_symbol_name(ctx, fname);
                 opop.set_attr_llvm_func_type(ctx, ty_attr);
-                opop
+                OpBox::new(opop)
             })
             .into()
     }

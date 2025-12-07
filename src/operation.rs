@@ -356,7 +356,7 @@ impl Operation {
     }
 
     /// Create an [OpObj] corresponding to self.
-    /// Allocates a new boxed object. Consider using [get_op](Self::get_op) instead.
+    /// [get_op](Self::get_op) is more efficient if the concrete type is known.
     pub fn get_op_dyn(ptr: Ptr<Self>, ctx: &Context) -> OpObj {
         (ptr.deref(ctx).concrete_op.0)(ptr)
     }
@@ -364,7 +364,7 @@ impl Operation {
     /// Creates the concrete [Op] corresponding to self.
     pub fn get_op<T: Op>(ptr: Ptr<Self>, ctx: &Context) -> Option<T> {
         (ptr.deref(ctx).concrete_op.1 == T::get_concrete_op_info().1)
-            .then_some(T::wrap_operation_op(ptr))
+            .then_some(T::from_operation(ptr))
     }
 
     /// Get the [OpId] this Operation. Builds an intermediate [OpObj].
