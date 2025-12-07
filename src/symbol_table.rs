@@ -53,7 +53,9 @@ impl SymbolTable {
         let mut symbol_table = FxHashMap::<Identifier, Box<dyn SymbolOpInterface>>::default();
         let table_ops_block = symbol_table_op.get_body(ctx, 0);
         for op in table_ops_block.deref(ctx).iter(ctx) {
-            if let Some(sym_op) = op_cast::<dyn SymbolOpInterface>(&*Operation::get_op(op, ctx)) {
+            if let Some(sym_op) =
+                op_cast::<dyn SymbolOpInterface>(Operation::get_op_dyn(op, ctx).as_ref())
+            {
                 let sym = sym_op.get_symbol_name(ctx);
                 if let Some(prev_op) =
                     symbol_table.insert(sym.clone(), dyn_clone::clone_box(sym_op))
@@ -197,8 +199,8 @@ pub fn walk_symbol_table<State>(
         node: IRNode,
     ) -> WalkResult<()> {
         if let IRNode::Operation(opr) = node {
-            let op = Operation::get_op(opr, ctx);
-            if op_cast::<dyn SymbolTableInterface>(&*op).is_some() {
+            let op = Operation::get_op_dyn(opr, ctx);
+            if op_cast::<dyn SymbolTableInterface>(op.as_ref()).is_some() {
                 return walk_skip();
             }
             (state.callback)(ctx, state.state, opr)
@@ -232,7 +234,7 @@ pub fn nearest_symbol_table(
     let mut op = from;
     loop {
         if let Some(symbol_table) =
-            op_cast::<dyn SymbolTableInterface>(&*Operation::get_op(op, ctx))
+            op_cast::<dyn SymbolTableInterface>(Operation::get_op_dyn(op, ctx).as_ref())
         {
             return Some(dyn_clone::clone_box(symbol_table));
         }

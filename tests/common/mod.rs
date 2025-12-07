@@ -1,5 +1,6 @@
 use awint::bw;
 use pliron::derive::{def_op, derive_op_interface_impl};
+use pliron::op::OpBox;
 use pliron::utils::apint::APInt;
 use pliron::{
     attribute::AttrObj,
@@ -36,7 +37,14 @@ use pliron_derive::format_op;
 pub struct ReturnOp;
 impl ReturnOp {
     pub fn new(ctx: &mut Context, value: Value) -> Self {
-        let op = Operation::new(ctx, Self::wrap_operation, vec![], vec![value], vec![], 0);
+        let op = Operation::new(
+            ctx,
+            Self::get_concrete_op_info(),
+            vec![],
+            vec![value],
+            vec![],
+            0,
+        );
         ReturnOp { op }
     }
 }
@@ -58,7 +66,7 @@ impl ConstantOp {
         let int_attr = IntegerAttr::new(i64_ty, APInt::from_u64(value, bw(64)));
         let op = Operation::new(
             ctx,
-            Self::wrap_operation,
+            Self::get_concrete_op_info(),
             vec![i64_ty.into()],
             vec![],
             vec![],
@@ -123,10 +131,10 @@ impl Parsable for ConstantOp {
             )?,
         };
         let int_val: u64 = Into::<APInt>::into(*int_attr).to_u64();
-        let op = Box::new(Self::new(state_stream.state.ctx, int_val));
+        let op = Self::new(state_stream.state.ctx, int_val);
         process_parsed_ssa_defs(state_stream, &results, op.get_operation())?;
 
-        Ok(op as OpObj).into_parse_result()
+        Ok(OpBox::new(op)).into_parse_result()
     }
 }
 

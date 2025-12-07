@@ -165,7 +165,7 @@ mod tests {
             ZeroOp {
                 op: Operation::new(
                     ctx,
-                    Self::wrap_operation,
+                    Self::get_concrete_op_info(),
                     vec![i64_ty.into()],
                     vec![],
                     vec![],

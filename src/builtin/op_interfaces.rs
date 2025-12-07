@@ -396,7 +396,8 @@ pub trait SymbolTableInterface: SingleBlockRegionInterface + OneRegionInterface 
     /// Lookup a symbol in this symbol table op. Linear search.
     fn lookup(&self, ctx: &Context, sym: &Identifier) -> Option<Ptr<Operation>> {
         for op in self.get_body(ctx, 0).deref(ctx).iter(ctx) {
-            if let Some(sym_op) = op_cast::<dyn SymbolOpInterface>(&*Operation::get_op(op, ctx))
+            if let Some(sym_op) =
+                op_cast::<dyn SymbolOpInterface>(Operation::get_op_dyn(op, ctx).as_ref())
                 && &sym_op.get_symbol_name(ctx) == sym
             {
                 return Some(op);
@@ -415,7 +416,9 @@ pub trait SymbolTableInterface: SingleBlockRegionInterface + OneRegionInterface 
         let mut seen = FxHashMap::<Identifier, Location>::default();
         let table_ops_block = op.get_body(ctx, 0);
         for op in table_ops_block.deref(ctx).iter(ctx) {
-            if let Some(sym_op) = op_cast::<dyn SymbolOpInterface>(&*Operation::get_op(op, ctx)) {
+            if let Some(sym_op) =
+                op_cast::<dyn SymbolOpInterface>(Operation::get_op_dyn(op, ctx).as_ref())
+            {
                 let sym = sym_op.get_symbol_name(ctx);
                 match seen.entry(sym.clone()) {
                     hash_map::Entry::Occupied(prev_loc) => {
@@ -441,7 +444,7 @@ pub trait SymbolTableInterface: SingleBlockRegionInterface + OneRegionInterface 
         // Verify Ops inside that implement [SymbolUserOpInterface].
         fn callback(ctx: &Context, state: &mut State, op: Ptr<Operation>) -> WalkResult<()> {
             if let Some(sym_user_op) =
-                op_cast::<dyn SymbolUserOpInterface>(&*Operation::get_op(op, ctx))
+                op_cast::<dyn SymbolUserOpInterface>(Operation::get_op_dyn(op, ctx).as_ref())
                 && let Err(err) =
                     sym_user_op.verify_symbol_uses(ctx, &mut state.symbol_table_collection)
             {

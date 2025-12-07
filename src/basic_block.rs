@@ -231,8 +231,8 @@ impl BasicBlock {
     /// Get the block terminator, if one exists.
     pub fn get_terminator(&self, ctx: &Context) -> Option<Ptr<Operation>> {
         let last_opr = self.get_tail()?;
-        let last_op = Operation::get_op(last_opr, ctx);
-        op_impls::<dyn IsTerminatorInterface>(&*last_op).then_some(last_opr)
+        let last_op = Operation::get_op_dyn(last_opr, ctx);
+        op_impls::<dyn IsTerminatorInterface>(last_op.as_ref()).then_some(last_opr)
     }
 
     /// Drop all uses that this block holds.
@@ -349,8 +349,9 @@ impl Verify for BasicBlock {
         let parent_op = self.get_parent_op(ctx).ok_or_else(|| {
             verify_error!(self.loc(), BasicBlockVerifyErr::NoParent(label.clone()))
         })?;
-        let parent_op = Operation::get_op(parent_op, ctx);
-        if !op_impls::<dyn NoTerminatorInterface>(&*parent_op) && self.get_terminator(ctx).is_none()
+        let parent_op = Operation::get_op_dyn(parent_op, ctx);
+        if !op_impls::<dyn NoTerminatorInterface>(parent_op.as_ref())
+            && self.get_terminator(ctx).is_none()
         {
             let loc = self.loc();
             verify_err!(loc, BasicBlockVerifyErr::MissingTerminator(label))?;
