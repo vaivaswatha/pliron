@@ -417,7 +417,7 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
         if d.name == "canonical" {
             state.is_canonical = true;
             Ok(
-                quote! { ::pliron::op::canonical_syntax_print(::pliron::op::OpBox::new(*self), ctx, state, fmt)?; },
+                quote! { ::pliron::op::canonical_syntax_print(::pliron::op::OpObj::new(*self), ctx, state, fmt)?; },
             )
         } else if d.name == "type" {
             let err = Err(syn::Error::new_spanned(

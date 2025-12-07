@@ -1,6 +1,5 @@
 use awint::bw;
 use pliron::derive::{def_op, derive_op_interface_impl};
-use pliron::op::OpBox;
 use pliron::utils::apint::APInt;
 use pliron::{
     attribute::AttrObj,
@@ -134,7 +133,7 @@ impl Parsable for ConstantOp {
         let op = Self::new(state_stream.state.ctx, int_val);
         process_parsed_ssa_defs(state_stream, &results, op.get_operation())?;
 
-        Ok(OpBox::new(op)).into_parse_result()
+        Ok(OpObj::new(op)).into_parse_result()
     }
 }
 

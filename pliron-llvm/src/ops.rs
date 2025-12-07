@@ -34,7 +34,7 @@ use pliron::{
     },
     linked_list::ContainsLinkedList,
     location::{Located, Location},
-    op::{Op, OpBox, OpObj},
+    op::{Op, OpObj},
     operation::Operation,
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable, indented_nl},
@@ -723,7 +723,7 @@ impl Parsable for CondBrOp {
                         );
 
                         process_parsed_ssa_defs(parsable_state, &results, op.get_operation())?;
-                        Ok(OpBox::new(op)).into_parse_result()
+                        Ok(OpObj::new(op)).into_parse_result()
                     })
                 },
             )
@@ -920,7 +920,7 @@ impl Parsable for SwitchOp {
                         );
 
                         process_parsed_ssa_defs(parsable_state, &results, op.get_operation())?;
-                        Ok(OpBox::new(op)).into_parse_result()
+                        Ok(OpObj::new(op)).into_parse_result()
                     })
                 },
             )
@@ -1591,7 +1591,7 @@ impl Parsable for CallOp {
                         op.set_attr_llvm_call_fastmath_flags(ctx, *fmf);
                     }
                     process_parsed_ssa_defs(parsable_state, &results, op.get_operation())?;
-                    Ok(OpBox::new(op)).into_parse_result()
+                    Ok(OpObj::new(op)).into_parse_result()
                 })
             });
 
@@ -2030,7 +2030,7 @@ impl Parsable for GlobalOp {
             }
         }
 
-        Ok(OpBox::new(op)).into_parse_result()
+        Ok(OpObj::new(op)).into_parse_result()
     }
 }
 
@@ -3393,7 +3393,7 @@ impl Parsable for CallIntrinsicOp {
             op.set_attr_llvm_intrinsic_fastmath_flags(ctx, fmf);
         }
         process_parsed_ssa_defs(state_stream, &results, op.get_operation())?;
-        Ok(OpBox::new(op)).into_parse_result()
+        Ok(OpObj::new(op)).into_parse_result()
     }
 }
 
@@ -3646,7 +3646,7 @@ impl Parsable for FuncOp {
                 let opop = FuncOp { op };
                 opop.set_symbol_name(ctx, fname);
                 opop.set_attr_llvm_func_type(ctx, ty_attr);
-                OpBox::new(opop)
+                OpObj::new(opop)
             })
             .into()
     }
