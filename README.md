@@ -2,8 +2,7 @@
 
 [![Status](https://github.com/vaivaswatha/pliron/actions/workflows/ci.yml/badge.svg)](https://github.com/vaivaswatha/pliron/actions/workflows/ci.yml)
 
-`pliron` is an extensible compiler IR framework, inspired by [MLIR](https://mlir.llvm.org/docs/LangRef/)
-and written in safe Rust.
+`pliron` is an extensible compiler IR framework in Rust, inspired by [MLIR](https://mlir.llvm.org/docs/LangRef/).
 
 ### Build and Test
 * Install the [rust toolchain](https://www.rust-lang.org/tools/install).
