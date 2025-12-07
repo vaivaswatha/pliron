@@ -1015,7 +1015,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             output.extend(quote! {
                 let #regions_temp_parent_op = Operation::new(
                     state_stream.state.ctx,
-                    Self::wrap_operation,
+                    Self::get_concrete_op_info(),
                     vec![],
                     vec![],
                     vec![],
@@ -1178,7 +1178,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
         output.extend(quote! {
             let op = ::pliron::operation::Operation::new(
                 state_stream.state.ctx,
-                Self::wrap_operation,
+                Self::get_concrete_op_info(),
                 #results_var,
                 #operands,
                 #successors,
@@ -1201,7 +1201,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
         }
 
         output.extend(quote! {
-            let final_ret_value = Operation::get_op(op, state_stream.state.ctx);
+            let final_ret_value = Operation::get_op_dyn(op, state_stream.state.ctx);
         });
 
         output.extend(attribute_sets);

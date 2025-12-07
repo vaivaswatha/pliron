@@ -149,7 +149,7 @@ fn test_replace_within_same_def_site() {
 
     let dual_def_op = Operation::new(
         ctx,
-        DualDefOp::wrap_operation,
+        DualDefOp::get_concrete_op_info(),
         vec![u64_ty, u64_ty],
         vec![],
         vec![],
@@ -540,9 +540,9 @@ fn test_walker_find_op() {
     // A function to breaks the walk when a [ConstantOp] is found.
     fn finder(ctx: &Context, _: &mut (), node: IRNode) -> interruptible::WalkResult<ConstantOp> {
         if let IRNode::Operation(op) = node
-            && let Some(const_op) = Operation::get_op(op, ctx).downcast_ref::<ConstantOp>()
+            && let Some(const_op) = Operation::get_op::<ConstantOp>(op, ctx)
         {
-            return walk_break(*const_op);
+            return walk_break(const_op);
         }
         walk_advance()
     }

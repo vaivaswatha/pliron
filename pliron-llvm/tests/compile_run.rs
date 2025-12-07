@@ -126,10 +126,7 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         }
     }
 
-    let parsed_module_op = Operation::get_op(parsed_res, ctx);
-    let parsed_module_op = *parsed_module_op
-        .downcast::<ModuleOp>()
-        .ok()
+    let parsed_module_op = Operation::get_op::<ModuleOp>(parsed_res, ctx)
         .expect("Parsed operation must be a ModuleOp");
 
     // Execute it and try.

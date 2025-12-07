@@ -368,14 +368,12 @@ fn get_const_op_as_int(ctx: &Context, val: Value) -> Option<IntegerAttr> {
     let Value::OpResult { op, res_idx: _ } = val else {
         return None;
     };
-    Operation::get_op(op, ctx)
-        .downcast_ref::<ConstantOp>()
-        .and_then(|const_op| {
-            const_op
-                .get_value(ctx)
-                .downcast_ref::<IntegerAttr>()
-                .cloned()
-        })
+    Operation::get_op::<ConstantOp>(op, ctx).and_then(|const_op| {
+        const_op
+            .get_value(ctx)
+            .downcast_ref::<IntegerAttr>()
+            .cloned()
+    })
 }
 
 /// If a value is a ConstantOp with a 32-bit integer type, return the value.

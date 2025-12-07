@@ -77,7 +77,7 @@ impl Parsable for ZeroResultOp {
 
 impl ZeroResultOp {
     fn new(ctx: &mut Context) -> ZeroResultOp {
-        let op = Operation::new(ctx, Self::wrap_operation, vec![], vec![], vec![], 1);
+        let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
         Self { op }
     }
 }
@@ -149,7 +149,7 @@ struct VerifyIntrOp {}
 impl_verify_succ!(VerifyIntrOp);
 impl VerifyIntrOp {
     fn new(ctx: &mut Context) -> VerifyIntrOp {
-        let op = Operation::new(ctx, Self::wrap_operation, vec![], vec![], vec![], 1);
+        let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
         Self { op }
     }
 }
@@ -357,7 +357,7 @@ struct NoInbuiltVerifyOp {}
 impl_verify_succ!(NoInbuiltVerifyOp);
 impl NoInbuiltVerifyOp {
     fn new(ctx: &mut Context) -> NoInbuiltVerifyOp {
-        let op = Operation::new(ctx, Self::wrap_operation, vec![], vec![], vec![], 1);
+        let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
         Self { op }
     }
 }
@@ -387,7 +387,7 @@ struct NoInbuiltVerifyOp2 {}
 impl_verify_succ!(NoInbuiltVerifyOp2);
 impl NoInbuiltVerifyOp2 {
     fn new(ctx: &mut Context) -> NoInbuiltVerifyOp2 {
-        let op = Operation::new(ctx, Self::wrap_operation, vec![], vec![], vec![], 1);
+        let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
         Self { op }
     }
 }
@@ -592,7 +592,7 @@ impl_verify_succ!(CanonicalOp);
 
 impl CanonicalOp {
     pub fn new(ctx: &mut Context) -> CanonicalOp {
-        let op = Operation::new(ctx, Self::wrap_operation, vec![], vec![], vec![], 0);
+        let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 0);
         Self { op }
     }
 }

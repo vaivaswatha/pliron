@@ -1569,7 +1569,7 @@ fn convert_block(
     for (op, loc) in block
         .deref(ctx)
         .iter(ctx)
-        .map(|op| (Operation::get_op(op, ctx), op.deref(ctx).loc()))
+        .map(|op| (Operation::get_op_dyn(op, ctx), op.deref(ctx).loc()))
     {
         let Some(op_conv) = op_cast::<dyn ToLLVMValue>(&*op) else {
             return input_err!(
@@ -1891,7 +1891,7 @@ fn convert_to_llvm_const(
 ) -> Result<LLVMValue> {
     match value {
         Value::OpResult { op, res_idx: _ } => {
-            let op = Operation::get_op(op, ctx);
+            let op = Operation::get_op_dyn(op, ctx);
             if let Some(const_trans) = op_cast::<dyn ToLLVMConstValue>(&*op) {
                 const_trans.convert(ctx, llvm_ctx, cctx)
             } else {
@@ -1909,15 +1909,16 @@ fn convert_global_initializer(
     ctx: &Context,
     llvm_ctx: &LLVMContext,
     cctx: &mut ConversionContext,
-    global_op: &GlobalOp,
+    global_op: GlobalOp,
 ) -> Result<Option<LLVMValue>> {
     if let Some(_initializer) = global_op.get_initializer_value(ctx) {
         todo!()
     }
 
     if let Some(init_block) = global_op.get_initializer_block(ctx) {
-        let ret = Operation::get_op(init_block.deref(ctx).get_terminator(ctx).unwrap(), ctx);
-        let ret = *ret.downcast::<ReturnOp>().map_err(|_| {
+        let ret =
+            Operation::get_op::<ReturnOp>(init_block.deref(ctx).get_terminator(ctx).unwrap(), ctx);
+        let ret = ret.ok_or_else(|| {
             input_error!(
                 global_op.loc(ctx),
                 ToLLVMErr::GlobalOpInitializerRegionBadReturn
@@ -1960,7 +1961,7 @@ pub fn convert_module(
 
     // Create new functions and map them.
     for op in module.get_body(ctx, 0).deref(ctx).iter(ctx) {
-        if let Some(func_op) = Operation::get_op(op, ctx).downcast_ref::<FuncOp>() {
+        if let Some(func_op) = Operation::get_op::<FuncOp>(op, ctx) {
             let func_ty = func_op.get_type(ctx).deref(ctx);
             let func_ty_to_llvm =
                 type_cast::<dyn ToLLVMType>(&*func_ty).ok_or(input_error_noloc!(
@@ -1972,7 +1973,7 @@ pub fn convert_module(
             let func_llvm = llvm_add_function(&llvm_module, &llvm_name, fn_ty_llvm);
             cctx.function_map.insert(name, func_llvm);
         }
-        if let Some(global_op) = Operation::get_op(op, ctx).downcast_ref::<GlobalOp>() {
+        if let Some(global_op) = Operation::get_op::<GlobalOp>(op, ctx) {
             let global_ty = global_op.get_type(ctx);
             let global_ty_llvm = convert_type(ctx, llvm_ctx, cctx, global_ty)?;
             let global_name = global_op.get_symbol_name(ctx);
@@ -1985,12 +1986,12 @@ pub fn convert_module(
     }
 
     for op in module.get_body(ctx, 0).deref(ctx).iter(ctx) {
-        if let Some(func_op) = Operation::get_op(op, ctx).downcast_ref::<FuncOp>()
+        if let Some(func_op) = Operation::get_op::<FuncOp>(op, ctx)
             && !func_op.is_declaration(ctx)
         {
-            convert_function(ctx, llvm_ctx, cctx, *func_op)?;
+            convert_function(ctx, llvm_ctx, cctx, func_op)?;
         }
-        if let Some(global_op) = Operation::get_op(op, ctx).downcast_ref::<GlobalOp>() {
+        if let Some(global_op) = Operation::get_op::<GlobalOp>(op, ctx) {
             let global_name = global_op.get_symbol_name(ctx);
             let global_llvm = cctx.globals_map[&global_name];
             if !global_op.is_declaration(ctx)

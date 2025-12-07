@@ -21,7 +21,7 @@ use crate::{
     },
     linked_list::{LinkedList, private},
     location::{Located, Location},
-    op::{OpId, OpObj, OperationWrapper},
+    op::{ConcreteOpInfo, Op, OpId, OpObj},
     parsable::{self, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     region::Region,
@@ -116,8 +116,8 @@ impl BlockLinks {
 pub struct Operation {
     /// A [Ptr] to self.
     pub(crate) self_ptr: Ptr<Operation>,
-    /// For quick creation of an [OpObj] from [Self].
-    pub(crate) wrap_operation: OperationWrapper,
+    /// For quick creation of an [OpObj] or concrete [Op] from [Self].
+    pub(crate) concrete_op: ConcreteOpInfo,
     /// [Results](OpResult) defined by self.
     pub(crate) results: Vec<OpResult>,
     /// [Operand]s used by self.
@@ -170,7 +170,7 @@ impl Operation {
     /// Create a new, unlinked (i.e., not in a basic block) operation.
     pub fn new(
         ctx: &mut Context,
-        wrap_operation: OperationWrapper,
+        concrete_op: ConcreteOpInfo,
         result_types: Vec<Ptr<TypeObj>>,
         operands: Vec<Value>,
         successors: Vec<Ptr<BasicBlock>>,
@@ -178,7 +178,7 @@ impl Operation {
     ) -> Ptr<Operation> {
         let f = |self_ptr: Ptr<Operation>| Operation {
             self_ptr,
-            wrap_operation,
+            concrete_op,
             results: vec![],
             operands: vec![],
             successors: vec![],
@@ -356,13 +356,20 @@ impl Operation {
     }
 
     /// Create an [OpObj] corresponding to self.
-    pub fn get_op(ptr: Ptr<Self>, ctx: &Context) -> OpObj {
-        (ptr.deref(ctx).wrap_operation)(ptr)
+    /// Allocates a new boxed object. Consider using [get_op](Self::get_op) instead.
+    pub fn get_op_dyn(ptr: Ptr<Self>, ctx: &Context) -> OpObj {
+        (ptr.deref(ctx).concrete_op.0)(ptr)
     }
 
-    /// Get the [OpId] this Operation.
+    /// Creates the concrete [Op] corresponding to self.
+    pub fn get_op<T: Op>(ptr: Ptr<Self>, ctx: &Context) -> Option<T> {
+        (ptr.deref(ctx).concrete_op.1 == T::get_concrete_op_info().1)
+            .then_some(T::wrap_operation_op(ptr))
+    }
+
+    /// Get the [OpId] this Operation. Builds an intermediate [OpObj].
     pub fn get_opid(ptr: Ptr<Self>, ctx: &Context) -> OpId {
-        Self::get_op(ptr, ctx).get_opid()
+        Self::get_op_dyn(ptr, ctx).get_opid()
     }
 
     /// Get a [Ptr] to the `reg_idx`th region.
@@ -610,7 +617,7 @@ impl Verify for Operation {
             .iter()
             .try_for_each(|region| region.verify(ctx))?;
         self.results.iter().try_for_each(|res| res.verify(ctx))?;
-        let op = &*Self::get_op(self.self_ptr, ctx);
+        let op = &*Self::get_op_dyn(self.self_ptr, ctx);
         op.verify_interfaces(ctx)?;
         op.verify(ctx)
     }
@@ -623,7 +630,7 @@ impl Printable for Operation {
         state: &printable::State,
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        Self::get_op(self.self_ptr, ctx).fmt(ctx, state, f)?;
+        Self::get_op_dyn(self.self_ptr, ctx).fmt(ctx, state, f)?;
         outlined::preprint_outline(ctx, self.self_ptr, state.share(), f)?;
 
         if self.get_parent_op(ctx).is_none() {

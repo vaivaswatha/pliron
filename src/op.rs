@@ -153,7 +153,7 @@ impl Display for OpId {
     }
 }
 
-pub(crate) type OperationWrapper = fn(Ptr<Operation>) -> OpObj;
+pub(crate) type ConcreteOpInfo = (fn(Ptr<Operation>) -> OpObj, std::any::TypeId);
 
 /// A wrapper around [Operation] for Op(code) specific work.
 /// All per-instance data must be in the underyling Operation,
@@ -163,12 +163,32 @@ pub(crate) type OperationWrapper = fn(Ptr<Operation>) -> OpObj;
 pub trait Op: Downcast + Verify + Printable + DynClone {
     /// Get the underlying IR Operation
     fn get_operation(&self) -> Ptr<Operation>;
-    /// Create a new Op object, by wrapping around an operation.
-    fn wrap_operation(op: Ptr<Operation>) -> OpObj
+
+    /// Create a new [OpObj], by boxing a heap allocated [Op].
+    /// Consider using [wrap_operation_op](Op::wrap_operation_op) to avoid heap allocation.
+    ///
+    /// **WARNING**: Does not check that the operation is of the correct OpId.
+    fn wrap_operation_dyn(op: Ptr<Operation>) -> OpObj
     where
         Self: Sized;
+
+    /// Create an [Op] from an [Operation].
+    ///
+    /// **WARNING**: Does not check that the operation is of the correct OpId.
+    fn wrap_operation_op(op: Ptr<Operation>) -> Self
+    where
+        Self: Sized;
+
+    /// Get details about the concrete Op type.
+    fn get_concrete_op_info() -> ConcreteOpInfo
+    where
+        Self: Sized,
+    {
+        (Self::wrap_operation_dyn, std::any::TypeId::of::<Self>())
+    }
     /// Get this Op's OpId
     fn get_opid(&self) -> OpId;
+
     /// Get this Op's OpId, without self reference.
     fn get_opid_static() -> OpId
     where
@@ -411,7 +431,7 @@ pub fn canonical_syntax_parse<'a, T: Op>(
                     }
                     let opr = Operation::new(
                         ctx,
-                        T::wrap_operation,
+                        T::get_concrete_op_info(),
                         results_types,
                         operands.clone(),
                         successors.clone(),
@@ -428,7 +448,7 @@ pub fn canonical_syntax_parse<'a, T: Op>(
     zero_or_more_parser(Region::parser(op))
         .parse_stream(state_stream)
         .into_result()?;
-    let op = Operation::get_op(op, state_stream.state.ctx);
+    let op = T::wrap_operation_dyn(op);
     Ok(op).into_parse_result()
 }
 
