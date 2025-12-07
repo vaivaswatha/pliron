@@ -416,7 +416,9 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
     ) -> Result<TokenStream> {
         if d.name == "canonical" {
             state.is_canonical = true;
-            Ok(quote! { ::pliron::op::canonical_syntax_print(Box::new(*self), ctx, state, fmt)?; })
+            Ok(
+                quote! { ::pliron::op::canonical_syntax_print(::pliron::op::OpBox::new(*self), ctx, state, fmt)?; },
+            )
         } else if d.name == "type" {
             let err = Err(syn::Error::new_spanned(
                     input.ident.clone(),

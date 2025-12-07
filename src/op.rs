@@ -163,8 +163,14 @@ pub(crate) type OperationWrapper = fn(Ptr<Operation>) -> OpObj;
 pub trait Op: Downcast + Verify + Printable + DynClone {
     /// Get the underlying IR Operation
     fn get_operation(&self) -> Ptr<Operation>;
-    /// Create a new Op object, by wrapping around an operation.
+    /// Create a new [OpObj], by wrapping around an operation.
+    /// Does not assert that the operation is of the correct OpId.
     fn wrap_operation(op: Ptr<Operation>) -> OpObj
+    where
+        Self: Sized;
+    /// Create a concrete [Op] from an [Operation].
+    /// Does not assert that the operation is of the correct OpId.
+    fn from_operation(op: Ptr<Operation>) -> Self
     where
         Self: Sized;
     /// Get this Op's OpId
@@ -200,11 +206,13 @@ impl_downcast!(Op);
 dyn_clone::clone_trait_object!(Op);
 
 /// [Op] objects are boxed and stored in the IR.
-pub type OpObj = Box<dyn Op>;
+pub type OpObj = OpBox;
 
 impl PartialEq for OpObj {
     fn eq(&self, other: &Self) -> bool {
-        self.get_operation().eq(&other.get_operation())
+        self.as_ref()
+            .get_operation()
+            .eq(&other.as_ref().get_operation())
     }
 }
 
@@ -213,17 +221,11 @@ pub fn verify_op(op: &dyn Op, ctx: &Context) -> Result<()> {
     op.get_operation().verify(ctx)
 }
 
-impl Verify for OpObj {
-    fn verify(&self, ctx: &Context) -> Result<()> {
-        verify_op(self.as_ref(), ctx)
-    }
-}
-
 impl Eq for OpObj {}
 
 impl Hash for OpObj {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.get_operation().hash(state)
+        self.as_ref().get_operation().hash(state)
     }
 }
 
@@ -327,8 +329,8 @@ pub fn canonical_syntax_print(
     f: &mut fmt::Formatter<'_>,
 ) -> fmt::Result {
     let sep = printable::ListSeparator::CharSpace(',');
-    let opid = op.get_opid();
-    let op = op.get_operation().deref(ctx);
+    let opid = op.as_ref().get_opid();
+    let op = op.as_ref().get_operation().deref(ctx);
     let operands = iter_with_sep(op.operands(), sep);
     let successors = iter_with_sep(
         op.successors()
@@ -441,6 +443,57 @@ pub fn canonical_syntax_parser<'a, T: Op>(
         canonical_syntax_parse::<T>(parsable_state, results.clone())
     })
     .boxed()
+}
+
+/// This must always be the same as any concrete [Op] object.
+struct OpData {
+    #[allow(unused)]
+    op: Ptr<Operation>,
+}
+
+/// A stack allocated alternative to [Box] for [Op] objects.
+pub struct OpBox {
+    data: OpData,
+    vtable_ptr: *const (),
+}
+
+impl OpBox {
+    pub fn new<T: Op>(op: T) -> Self {
+        let dyn_ref: &dyn Op = &op;
+        let (_, vtable_ptr) =
+            unsafe { std::mem::transmute::<&dyn Op, (*const T, *const ())>(dyn_ref) };
+        OpBox {
+            data: OpData {
+                op: op.get_operation(),
+            },
+            vtable_ptr,
+        }
+    }
+
+    pub fn into_op<T: Op>(self) -> Option<T> {
+        self.as_ref()
+            .as_any()
+            .downcast_ref::<T>()
+            .map(|op| T::from_operation(op.get_operation()))
+    }
+}
+
+impl AsRef<dyn Op> for OpBox {
+    fn as_ref(&self) -> &dyn Op {
+        unsafe {
+            let dyn_ref: &dyn Op =
+                std::mem::transmute::<(&OpData, *const ()), &dyn Op>((&self.data, self.vtable_ptr));
+            dyn_ref
+        }
+    }
+}
+
+impl Deref for OpBox {
+    type Target = dyn Op;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
 }
 
 #[cfg(test)]

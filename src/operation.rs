@@ -610,7 +610,7 @@ impl Verify for Operation {
             .iter()
             .try_for_each(|region| region.verify(ctx))?;
         self.results.iter().try_for_each(|res| res.verify(ctx))?;
-        let op = &*Self::get_op(self.self_ptr, ctx);
+        let op = Self::get_op(self.self_ptr, ctx);
         op.verify_interfaces(ctx)?;
         op.verify(ctx)
     }

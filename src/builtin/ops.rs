@@ -21,7 +21,7 @@ use crate::{
     },
     linked_list::ContainsLinkedList,
     location::{Located, Location},
-    op::{Op, OpObj},
+    op::{Op, OpBox, OpObj},
     operation::Operation,
     parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable, indented_nl},
@@ -100,9 +100,9 @@ impl Parsable for ModuleOp {
         parser
             .parse_stream(state_stream)
             .map(|(name, _region)| -> OpObj {
-                let op = Box::new(ModuleOp { op });
+                let op = ModuleOp { op };
                 op.set_symbol_name(state_stream.state.ctx, name);
-                op
+                OpBox::new(op)
             })
             .into()
     }
@@ -242,10 +242,10 @@ impl Parsable for FuncOp {
                 let ctx = &mut state_stream.state.ctx;
                 op.deref_mut(ctx).attributes = attributes.unwrap_or_default();
                 let ty_attr = TypeAttr::new(fty);
-                let opop = Box::new(FuncOp { op });
+                let opop = FuncOp { op };
                 opop.set_symbol_name(ctx, fname);
                 opop.set_attr_func_type(ctx, ty_attr);
-                opop
+                OpBox::new(opop)
             })
             .into()
     }

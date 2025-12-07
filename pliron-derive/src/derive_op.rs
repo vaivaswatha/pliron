@@ -109,7 +109,11 @@ impl ToTokens for ImplOp {
                 }
 
                 fn wrap_operation(op: ::pliron::context::Ptr<::pliron::operation::Operation>) -> ::pliron::op::OpObj {
-                    Box::new(#name { op })
+                    ::pliron::op::OpBox::new(Self::from_operation(op))
+                }
+
+                fn from_operation(op: ::pliron::context::Ptr<::pliron::operation::Operation>) -> Self {
+                    #name { op }
                 }
 
                 fn get_opid(&self) -> ::pliron::op::OpId {
@@ -347,7 +351,12 @@ mod tests {
                 fn wrap_operation(
                     op: ::pliron::context::Ptr<::pliron::operation::Operation>,
                 ) -> ::pliron::op::OpObj {
-                    Box::new(TestOp { op })
+                    ::pliron::op::OpBox::new(Self::from_operation(op))
+                }
+                fn from_operation(
+                    op: ::pliron::context::Ptr<::pliron::operation::Operation>,
+                ) -> Self {
+                    TestOp { op }
                 }
                 fn get_opid(&self) -> ::pliron::op::OpId {
                     Self::get_opid_static()
