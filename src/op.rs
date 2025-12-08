@@ -459,18 +459,21 @@ pub fn canonical_syntax_parser<'a, T: Op>(
 }
 
 /// This must always be the same as any concrete [Op] object.
+#[derive(Clone)]
 struct OpData {
     #[allow(unused)]
     op: Ptr<Operation>,
 }
 
 /// A stack allocated alternative to [Box] for [Op] objects.
+#[derive(Clone)]
 pub struct OpBox {
     data: OpData,
     vtable_ptr: *const (),
 }
 
 impl OpBox {
+    /// Create a new [OpBox] from a concrete [Op] object.
     pub fn new<T: Op>(op: T) -> Self {
         /// Static assertion to ensure that concrete [Op]s
         /// always are the same as our [OpData] struct.
@@ -498,9 +501,18 @@ impl OpBox {
         }
     }
 
-    pub fn into_op<T: Op>(self) -> Option<T> {
+    /// Get a reference to the underlying [Op] object.
+    pub fn op_ref(&self) -> &dyn Op {
+        unsafe {
+            let dyn_ref: &dyn Op =
+                std::mem::transmute::<(&OpData, *const ()), &dyn Op>((&self.data, self.vtable_ptr));
+            dyn_ref
+        }
+    }
+
+    /// Downcast this [OpBox] to a concrete [Op] type.
+    pub fn downcast<T: Op>(self) -> Option<T> {
         self.as_ref()
-            .as_any()
             .downcast_ref::<T>()
             .map(|op| T::from_operation(op.get_operation()))
     }
@@ -508,11 +520,7 @@ impl OpBox {
 
 impl AsRef<dyn Op> for OpBox {
     fn as_ref(&self) -> &dyn Op {
-        unsafe {
-            let dyn_ref: &dyn Op =
-                std::mem::transmute::<(&OpData, *const ()), &dyn Op>((&self.data, self.vtable_ptr));
-            dyn_ref
-        }
+        self.op_ref()
     }
 }
 
