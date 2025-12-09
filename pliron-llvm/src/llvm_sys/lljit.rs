@@ -6,32 +6,43 @@
 //! use pliron_llvm::llvm_sys::core::{LLVMContext, LLVMModule, LLVMMemoryBuffer};
 //! use pliron_llvm::llvm_sys::lljit::LLVMLLJIT;
 //! fn main() -> Result<(), String> {
-//!     initialize_native()?;
+//!    initialize_native()?;
+//!    let context = LLVMContext::default();
 //!
-//!     let context = LLVMContext::default();
-//!     let ir = r#"
-//!         define i32 @add(i32 %a, i32 %b) {
-//!             %sum = add i32 %a, %b
-//!             ret i32 %sum
-//!         }"#;
-//!     let ir_mb = LLVMMemoryBuffer::from_str(ir, "test_buffer");
-//!     let module = LLVMModule::from_ir_in_memory_buffer(&context, ir_mb)?;
+//!    fn my_rust_adder(a: i32, b: i32) -> i32 {
+//!        a + b
+//!    }
 //!
-//!     let jit = LLVMLLJIT::new_with_default_builder()?;
-//!     jit.add_module(module)?;
-//!     let symbol_addr = jit.lookup_symbol("add")?;
-//!     assert!(symbol_addr != 0);
+//!    let ir = r#"
+//!      declare i32 @my_rust_adder(i32, i32)
+//!      define i32 @add(i32 %a, i32 %b) {
+//!          %sum = call i32 @my_rust_adder(i32 %a, i32 %b)
+//!          ret i32 %sum
+//!      }"#;
+//!    let ir_mb = LLVMMemoryBuffer::from_str(ir, "test_buffer");
+//!    let module = LLVMModule::from_ir_in_memory_buffer(&context, ir_mb)?;
 //!
-//!     let adder = unsafe { std::mem::transmute::<u64, fn(i32, i32) -> i32>(symbol_addr) };
-//!     assert_eq!(adder(2, 3), 5);
-//!     Ok(())
+//!    let jit = LLVMLLJIT::new_with_default_builder()?;
+//!    jit.add_module(module)?;
+//!    // Add the Rust function as a symbol mapping
+//!    let rust_adder_addr = my_rust_adder as u64;
+//!    jit.add_symbol_mapping("my_rust_adder", rust_adder_addr)?;
+//!
+//!    // Get symbol address for 'add' in the LLVM module
+//!    let symbol_addr = jit.lookup_symbol("add")?;
+//!    assert!(symbol_addr != 0);
+//!
+//!    let adder = unsafe { std::mem::transmute::<u64, fn(i32, i32) -> i32>(symbol_addr) };
+//!    assert_eq!(adder(2, 3), 5);
+//!    Ok(())
 //! }
 //! ```
 
 use std::{mem::MaybeUninit, ptr};
 
 use llvm_sys::orc2::{
-    LLVMOrcCreateNewThreadSafeContext, LLVMOrcCreateNewThreadSafeModule,
+    LLVMJITEvaluatedSymbol, LLVMJITSymbolFlags, LLVMJITSymbolGenericFlags, LLVMOrcAbsoluteSymbols,
+    LLVMOrcCSymbolMapPair, LLVMOrcCreateNewThreadSafeContext, LLVMOrcCreateNewThreadSafeModule,
     LLVMOrcDisposeThreadSafeContext, LLVMOrcDisposeThreadSafeModule, lljit,
 };
 
@@ -88,6 +99,32 @@ impl LLVMLLJIT {
             let triple_ptr = lljit::LLVMOrcLLJITGetTripleString(self.0);
             cstr_to_string(triple_ptr).unwrap()
         }
+    }
+
+    /// Add a symbol mapping to the JIT's main DyLib
+    pub fn add_symbol_mapping(&self, name: &str, addr: u64) -> Result<(), String> {
+        let symbol_pool_ref =
+            unsafe { lljit::LLVMOrcLLJITMangleAndIntern(self.0, to_c_str(name).as_ptr()) };
+
+        let jit_evaluated_symbol = LLVMJITEvaluatedSymbol {
+            Address: addr,
+            Flags: LLVMJITSymbolFlags {
+                GenericFlags: LLVMJITSymbolGenericFlags::LLVMJITSymbolGenericFlagsNone as u8,
+                TargetFlags: 0,
+            },
+        };
+
+        let mut symbol_pair = LLVMOrcCSymbolMapPair {
+            Name: symbol_pool_ref,
+            Sym: jit_evaluated_symbol,
+        };
+
+        let materialization_unit = unsafe { LLVMOrcAbsoluteSymbols(&mut symbol_pair as *mut _, 1) };
+        let main_dylib = unsafe { lljit::LLVMOrcLLJITGetMainJITDylib(self.0) };
+
+        let res =
+            unsafe { llvm_sys::orc2::LLVMOrcJITDylibDefine(main_dylib, materialization_unit) };
+        handle_err(res)
     }
 }
 
