@@ -4,7 +4,7 @@
 //!```
 //! use pliron_llvm::llvm_sys::target::initialize_native;
 //! use pliron_llvm::llvm_sys::core::{LLVMContext, LLVMModule, LLVMMemoryBuffer};
-//! use pliron_llvm::llvm_sys::lljit::LLVMLLJIT;
+//! use pliron_llvm::llvm_sys::lljit::{LLVMLLJIT, JITSymbolGenericFlags};
 //! fn main() -> Result<(), String> {
 //!    initialize_native()?;
 //!    let context = LLVMContext::default();
@@ -26,7 +26,10 @@
 //!    jit.add_module(module)?;
 //!    // Add the Rust function as a symbol mapping
 //!    let rust_adder_addr = my_rust_adder as u64;
-//!    jit.add_symbol_mapping("my_rust_adder", rust_adder_addr)?;
+//!    jit.add_symbol_mapping
+//!     ("my_rust_adder", rust_adder_addr,
+//!       JITSymbolGenericFlags::JITSymbolGenericFlagsCallable
+//!         | JITSymbolGenericFlags::JITSymbolGenericFlagsExported)?;
 //!
 //!    // Get symbol address for 'add' in the LLVM module
 //!    let symbol_addr = jit.lookup_symbol("add")?;
@@ -38,6 +41,7 @@
 //! }
 //! ```
 
+use bitflags::bitflags;
 use std::{mem::MaybeUninit, ptr};
 
 use llvm_sys::orc2::{
@@ -50,6 +54,65 @@ use crate::llvm_sys::{
     core::{LLVMModule, handle_err},
     cstr_to_string, to_c_str,
 };
+
+bitflags! {
+     #[derive(PartialEq, Eq, Clone, Debug, Hash, Copy)]
+    pub struct JITSymbolGenericFlags: u8 {
+        const JITSymbolGenericFlagsNone = 0;
+        const JITSymbolGenericFlagsExported = 1;
+        const JITSymbolGenericFlagsWeak = 2;
+        const JITSymbolGenericFlagsCallable = 4;
+        const JITSymbolGenericFlagsMaterializationSideEffectsOnly = 8;
+    }
+}
+
+impl From<LLVMJITSymbolGenericFlags> for JITSymbolGenericFlags {
+    fn from(value: LLVMJITSymbolGenericFlags) -> Self {
+        let mut flags = JITSymbolGenericFlags::empty();
+        if (value as u8) & (LLVMJITSymbolGenericFlags::LLVMJITSymbolGenericFlagsExported as u8) != 0
+        {
+            flags |= JITSymbolGenericFlags::JITSymbolGenericFlagsExported;
+        }
+        if (value as u8) & (LLVMJITSymbolGenericFlags::LLVMJITSymbolGenericFlagsWeak as u8) != 0 {
+            flags |= JITSymbolGenericFlags::JITSymbolGenericFlagsWeak;
+        }
+        if (value as u8) & (LLVMJITSymbolGenericFlags::LLVMJITSymbolGenericFlagsCallable as u8) != 0
+        {
+            flags |= JITSymbolGenericFlags::JITSymbolGenericFlagsCallable;
+        }
+        if (value as u8)
+            & (LLVMJITSymbolGenericFlags::LLVMJITSymbolGenericFlagsMaterializationSideEffectsOnly
+                as u8)
+            != 0
+        {
+            flags |= JITSymbolGenericFlags::JITSymbolGenericFlagsMaterializationSideEffectsOnly;
+        }
+        flags
+    }
+}
+
+impl From<JITSymbolGenericFlags> for u8 {
+    fn from(value: JITSymbolGenericFlags) -> Self {
+        let mut flags = LLVMJITSymbolGenericFlags::LLVMJITSymbolGenericFlagsNone as u8;
+        if value.contains(JITSymbolGenericFlags::JITSymbolGenericFlagsExported) {
+            flags |= LLVMJITSymbolGenericFlags::LLVMJITSymbolGenericFlagsExported as u8;
+        }
+        if value.contains(JITSymbolGenericFlags::JITSymbolGenericFlagsWeak) {
+            flags |= LLVMJITSymbolGenericFlags::LLVMJITSymbolGenericFlagsWeak as u8;
+        }
+        if value.contains(JITSymbolGenericFlags::JITSymbolGenericFlagsCallable) {
+            flags |= LLVMJITSymbolGenericFlags::LLVMJITSymbolGenericFlagsCallable as u8;
+        }
+        if value
+            .contains(JITSymbolGenericFlags::JITSymbolGenericFlagsMaterializationSideEffectsOnly)
+        {
+            flags |=
+                LLVMJITSymbolGenericFlags::LLVMJITSymbolGenericFlagsMaterializationSideEffectsOnly
+                    as u8;
+        }
+        flags
+    }
+}
 
 pub struct LLVMLLJIT(lljit::LLVMOrcLLJITRef);
 
@@ -102,14 +165,19 @@ impl LLVMLLJIT {
     }
 
     /// Add a symbol mapping to the JIT's main DyLib
-    pub fn add_symbol_mapping(&self, name: &str, addr: u64) -> Result<(), String> {
+    pub fn add_symbol_mapping(
+        &self,
+        name: &str,
+        addr: u64,
+        flags: JITSymbolGenericFlags,
+    ) -> Result<(), String> {
         let symbol_pool_ref =
             unsafe { lljit::LLVMOrcLLJITMangleAndIntern(self.0, to_c_str(name).as_ptr()) };
 
         let jit_evaluated_symbol = LLVMJITEvaluatedSymbol {
             Address: addr,
             Flags: LLVMJITSymbolFlags {
-                GenericFlags: LLVMJITSymbolGenericFlags::LLVMJITSymbolGenericFlagsNone as u8,
+                GenericFlags: flags.into(),
                 TargetFlags: 0,
             },
         };
