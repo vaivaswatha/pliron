@@ -97,13 +97,13 @@ impl Named for OpResult {
 
 /// Links an [Operation] with other operations and the container [BasicBlock]
 #[derive(Default)]
-pub struct BlockLinks {
+struct BlockLinks {
     /// Parent block of this operation.
-    pub parent_block: Option<Ptr<BasicBlock>>,
+    parent_block: Option<Ptr<BasicBlock>>,
     /// The next operation in the basic block's list of operations.
-    pub next_op: Option<Ptr<Operation>>,
+    next_op: Option<Ptr<Operation>>,
     /// The previous operation in the basic block's list of operations.
-    pub prev_op: Option<Ptr<Operation>>,
+    prev_op: Option<Ptr<Operation>>,
 }
 
 impl BlockLinks {
@@ -115,18 +115,18 @@ impl BlockLinks {
 /// Basic unit of execution. May or may not be in a [BasicBlock].
 pub struct Operation {
     /// A [Ptr] to self.
-    pub(crate) self_ptr: Ptr<Operation>,
+    self_ptr: Ptr<Operation>,
     /// For quick creation of an [OpObj] or concrete [Op] from [Self].
-    pub(crate) concrete_op: ConcreteOpInfo,
+    concrete_op: ConcreteOpInfo,
     /// [Results](OpResult) defined by self.
-    pub(crate) results: Vec<OpResult>,
+    results: Vec<OpResult>,
     /// [Operand]s used by self.
-    pub(crate) operands: Vec<Operand<Value>>,
+    operands: Vec<Operand<Value>>,
     /// Control-flow-graph successors.
-    pub(crate) successors: Vec<Operand<Ptr<BasicBlock>>>,
+    successors: Vec<Operand<Ptr<BasicBlock>>>,
     /// Links to the parent [BasicBlock] and
     /// previous and next [Operation]s in the block.
-    pub(crate) block_links: BlockLinks,
+    block_links: BlockLinks,
     /// A dictionary of attributes.
     pub attributes: AttributeDict,
     /// Regions contained inside this operation.
@@ -179,12 +179,12 @@ impl Operation {
         let f = |self_ptr: Ptr<Operation>| Operation {
             self_ptr,
             concrete_op,
-            results: vec![],
-            operands: vec![],
-            successors: vec![],
+            results: Vec::with_capacity(result_types.len()),
+            operands: Vec::with_capacity(operands.len()),
+            successors: Vec::with_capacity(successors.len()),
             block_links: BlockLinks::new(),
             attributes: AttributeDict::default(),
-            regions: vec![],
+            regions: Vec::with_capacity(num_regions),
             loc: Location::Unknown,
         };
 

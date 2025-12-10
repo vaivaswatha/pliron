@@ -248,7 +248,7 @@ pub trait OneRegionInterface {
         Self: Sized,
     {
         let self_op = op.get_operation().deref(ctx);
-        if self_op.regions.len() != 1 {
+        if self_op.num_regions() != 1 {
             return verify_err!(self_op.loc(), OneRegionVerifyErr(op.get_opid().to_string()));
         }
         Ok(())
@@ -267,7 +267,7 @@ pub trait AtMostOneRegionInterface {
         Self: Sized,
     {
         let self_op = op.get_operation().deref(ctx);
-        if self_op.regions.len() > 1 {
+        if self_op.num_regions() > 1 {
             return verify_err!(
                 self_op.loc(),
                 AtMostOneRegionVerifyErr(op.get_opid().to_string())
@@ -311,7 +311,7 @@ pub trait SingleBlockRegionInterface {
     {
         let opr = op.get_operation();
         let self_op = opr.deref(ctx);
-        for region in &self_op.regions {
+        for region in self_op.regions() {
             if region.deref(ctx).iter(ctx).count() != 1 {
                 return verify_err!(
                     self_op.loc(),

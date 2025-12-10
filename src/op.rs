@@ -354,7 +354,7 @@ pub fn canonical_syntax_print(
         iter_with_sep(op.operands().map(|opd| opd.get_type(ctx)), sep),
         iter_with_sep(op.results().map(|res| res.get_type(ctx)), sep),
     );
-    let regions = iter_with_sep(op.regions.iter(), printable::ListSeparator::Newline);
+    let regions = iter_with_sep(op.regions(), printable::ListSeparator::Newline);
 
     if op.get_num_results() != 0 {
         let results = iter_with_sep(op.results(), sep);
@@ -371,7 +371,7 @@ pub fn canonical_syntax_print(
         op_type.disp(ctx),
     )?;
 
-    if !op.regions.is_empty() {
+    if op.num_regions() > 0 {
         regions.fmt(ctx, state, f)?;
     }
     Ok(())
