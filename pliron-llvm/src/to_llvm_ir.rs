@@ -96,6 +96,8 @@ pub struct ConversionContext<'a> {
     globals_map: FxHashMap<Identifier, LLVMValue>,
     // A map from pliron StructTypes to LLVM StructTypes.
     structs_map: FxHashMap<Identifier, LLVMType>,
+    // Type cache to avoid redundant conversions.
+    type_cache: FxHashMap<Ptr<TypeObj>, LLVMType>,
     // The active LLVM builder.
     builder: LLVMBuilder,
     // Scratch builder in a scratch function for attempting to evaluate constants.
@@ -111,6 +113,7 @@ impl<'a> ConversionContext<'a> {
             function_map: FxHashMap::default(),
             globals_map: FxHashMap::default(),
             structs_map: FxHashMap::default(),
+            type_cache: FxHashMap::default(),
             builder: LLVMBuilder::new(llvm_ctx),
             scratch_builder: LLVMBuilder::new(llvm_ctx),
         }
@@ -418,9 +421,15 @@ pub fn convert_type(
     cctx: &mut ConversionContext,
     ty: Ptr<TypeObj>,
 ) -> Result<LLVMType> {
-    if let Some(converter) = type_cast::<dyn ToLLVMType>(&**ty.deref(ctx)) {
-        return converter.convert(ctx, llvm_ctx, cctx);
+    if let Some(cached) = cctx.type_cache.get(&ty) {
+        return Ok(*cached);
     }
+    if let Some(converter) = type_cast::<dyn ToLLVMType>(&**ty.deref(ctx)) {
+        let llvm_ty = converter.convert(ctx, llvm_ctx, cctx)?;
+        cctx.type_cache.insert(ty, llvm_ty);
+        return Ok(llvm_ty);
+    }
+
     input_err_noloc!(ToLLVMErr::MissingTypeConversion(
         ty.deref(ctx).get_type_id().to_string()
     ))

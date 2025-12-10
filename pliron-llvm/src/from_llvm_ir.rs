@@ -109,8 +109,11 @@ fn convert_type(
     cctx: &mut ConversionContext,
     ty: LLVMType,
 ) -> Result<Ptr<TypeObj>> {
+    if let Some(cached) = cctx.type_cache.get(&ty) {
+        return Ok(*cached);
+    }
     let kind = llvm_get_type_kind(ty);
-    match kind {
+    let converted_ty: Result<Ptr<TypeObj>> = match kind {
         LLVMTypeKind::LLVMArrayTypeKind => {
             let (element_ty, len) = (llvm_get_element_type(ty), llvm_get_array_length2(ty));
             let elem = convert_type(ctx, cctx, element_ty)?;
@@ -175,7 +178,11 @@ fn convert_type(
         LLVMTypeKind::LLVMBFloatTypeKind => todo!(),
         LLVMTypeKind::LLVMX86_AMXTypeKind => todo!(),
         LLVMTypeKind::LLVMTargetExtTypeKind => todo!(),
-    }
+    };
+
+    let converted_ty = converted_ty?;
+    cctx.type_cache.insert(ty, converted_ty);
+    Ok(converted_ty)
 }
 
 pub fn convert_ipredicate(ipred: LLVMIntPredicate) -> ICmpPredicateAttr {
@@ -243,6 +250,8 @@ struct ConversionContext {
     value_map: FxHashMap<LLVMValue, Value>,
     /// A map from LLVM's basic blocks to plirons'.
     block_map: FxHashMap<LLVMBasicBlock, Ptr<BasicBlock>>,
+    /// Cache already converted types.
+    type_cache: FxHashMap<LLVMType, Ptr<TypeObj>>,
     /// Entry block of the region we're processing.
     entry_block: Option<Ptr<BasicBlock>>,
     /// Insertion point for constants in the entry block,
