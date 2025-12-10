@@ -1575,23 +1575,21 @@ fn convert_block(
     let block_llvm = cctx.block_map[&block];
     llvm_position_builder_at_end(&cctx.builder, block_llvm);
 
-    for (op, loc) in block
-        .deref(ctx)
-        .iter(ctx)
-        .map(|op| (Operation::get_op_dyn(op, ctx), op.deref(ctx).loc()))
-    {
+    for opr in block.deref(ctx).iter(ctx) {
+        let op = Operation::get_op_dyn(opr, ctx);
         let op = op.as_ref();
         let Some(op_conv) = op_cast::<dyn ToLLVMValue>(op) else {
+            let loc = op.loc(ctx);
             return input_err!(
                 loc,
                 ToLLVMErr::MissingOpConversion(op.get_opid().to_string())
             );
         };
-        let op_iw = op_conv.convert(ctx, llvm_ctx, cctx)?;
-        let op_ref = op.get_operation().deref(ctx);
+        let op_llvm = op_conv.convert(ctx, llvm_ctx, cctx)?;
+        let opr_ref = opr.deref(ctx);
         // LLVM instructions have at most one result.
-        if op_ref.get_num_results() == 1 {
-            cctx.value_map.insert(op_ref.get_result(0), op_iw);
+        if opr_ref.get_num_results() == 1 {
+            cctx.value_map.insert(opr_ref.get_result(0), op_llvm);
         }
     }
 
