@@ -45,9 +45,8 @@ pub fn any_to_trait<T: ?Sized + 'static>(r: &dyn Any) -> Option<&T> {
     TRAIT_CASTERS_MAP
         .get(&(r.type_id(), TypeId::of::<T>()))
         .and_then(|caster| {
-            if let Some(caster) = (**caster)
-                .as_any()
-                .downcast_ref::<for<'a> fn(&'a (dyn Any + 'static)) -> Option<&'a T>>()
+            if let Some(caster) =
+                (**caster).downcast_ref::<for<'a> fn(&'a (dyn Any + 'static)) -> Option<&'a T>>()
             {
                 return caster(r);
             }
@@ -62,21 +61,20 @@ impl<T: Any + DynClone + Downcast> ClonableAny for T {}
 #[doc(hidden)]
 #[distributed_slice]
 /// A distributed slice of (type_id of the object, type_id of the trait to cast to, cast function)
-pub static TRAIT_CASTERS: [LazyLock<((TypeId, TypeId), Box<dyn ClonableAny + Sync + Send>)>];
+pub static TRAIT_CASTERS: [LazyLock<((TypeId, TypeId), &'static (dyn Any + Sync + Send))>] = [..];
 
 #[doc(hidden)]
 /// A map of all the trait casters, indexed by the type_id of the object
 /// and the type_id of the trait to cast to. The map's values are
 /// the cast function pointers. This is used to avoid having to search
 /// through the distributed slice every time we want to cast an object.
-static TRAIT_CASTERS_MAP: LazyLock<
-    FxHashMap<(TypeId, TypeId), Box<dyn ClonableAny + Sync + Send>>,
-> = LazyLock::new(|| {
-    TRAIT_CASTERS
-        .iter()
-        .map(|lazy_tuple| (**lazy_tuple).clone())
-        .collect()
-});
+static TRAIT_CASTERS_MAP: LazyLock<FxHashMap<(TypeId, TypeId), &'static (dyn Any + Sync + Send)>> =
+    LazyLock::new(|| {
+        TRAIT_CASTERS
+            .iter()
+            .map(|lazy_tuple| **lazy_tuple)
+            .collect()
+    });
 
 /// Specify that a type may be casted to a `dyn Trait` object. Use [any_to_trait] for the actual cast.
 /// Example:
@@ -106,20 +104,19 @@ macro_rules! type_to_trait {
             #[linkme::distributed_slice($crate::utils::trait_cast::TRAIT_CASTERS)]
             static CAST_TO_TRAIT: std::sync::LazyLock<(
                 (std::any::TypeId, std::any::TypeId),
-                Box<dyn $crate::utils::trait_cast::ClonableAny + Sync + Send>,
+                &'static (dyn std::any::Any + Sync + Send),
             )> = std::sync::LazyLock::new(|| {
                 (
                     (
                         std::any::TypeId::of::<$ty_name>(),
                         std::any::TypeId::of::<dyn $to_trait_name>(),
                     ),
-                    Box::new(
-                        cast_to_trait
-                            as for<'a> fn(
-                                &'a (dyn std::any::Any + 'static),
-                            )
-                                -> Option<&'a (dyn $to_trait_name + 'static)>,
-                    ),
+                    &(cast_to_trait
+                        as for<'a> fn(
+                            &'a (dyn std::any::Any + 'static),
+                        )
+                            -> Option<&'a (dyn $to_trait_name + 'static)>)
+                        as &'static (dyn std::any::Any + Sync + Send),
                 )
             });
             fn cast_to_trait<'a>(
