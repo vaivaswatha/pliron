@@ -45,12 +45,9 @@ pub fn any_to_trait<T: ?Sized + 'static>(r: &dyn Any) -> Option<&T> {
     TRAIT_CASTERS_MAP
         .get(&(r.type_id(), TypeId::of::<T>()))
         .and_then(|caster| {
-            if let Some(caster) =
-                (**caster).downcast_ref::<for<'a> fn(&'a (dyn Any + 'static)) -> Option<&'a T>>()
-            {
-                return caster(r);
-            }
-            None
+            (**caster)
+                .downcast_ref::<for<'a> fn(&'a (dyn Any + 'static)) -> Option<&'a T>>()
+                .and_then(|caster| caster(r))
         })
 }
 

@@ -15,9 +15,7 @@ use pliron::location::Located;
 use pliron::parsable::{IntoParseResult, Parsable};
 use pliron::printable::Printable;
 use pliron::result::Result;
-use pliron::{
-    impl_printable_for_display, impl_verify_succ, input_err, input_error, verify_err_noloc,
-};
+use pliron::{impl_printable_for_display, impl_verify_succ, input_error, verify_err_noloc};
 
 use crate::llvm_sys::core::FastmathFlags;
 
