@@ -10,8 +10,6 @@ use std::{
     sync::LazyLock,
 };
 
-use downcast_rs::Downcast;
-use dyn_clone::DynClone;
 use linkme::distributed_slice;
 use rustc_hash::FxHashMap;
 
@@ -50,10 +48,6 @@ pub fn any_to_trait<T: ?Sized + 'static>(r: &dyn Any) -> Option<&T> {
                 .and_then(|caster| caster(r))
         })
 }
-
-pub trait ClonableAny: Any + DynClone + Downcast {}
-dyn_clone::clone_trait_object!(ClonableAny);
-impl<T: Any + DynClone + Downcast> ClonableAny for T {}
 
 #[doc(hidden)]
 #[distributed_slice]
