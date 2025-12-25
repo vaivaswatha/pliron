@@ -224,7 +224,7 @@ impl FP64Type {
 
     /// Get or create a new fp64 type.
     pub fn get(ctx: &Context) -> TypePtr<Self> {
-        Type::get_instance(Self {}, ctx).expect("FP64Type singleton not instantiated")
+        Type::get_instance(Self, ctx).expect("FP64Type singleton not instantiated")
     }
 }
 

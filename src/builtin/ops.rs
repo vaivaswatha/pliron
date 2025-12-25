@@ -120,7 +120,7 @@ impl ModuleOp {
         opop.set_symbol_name(ctx, name);
 
         // Create an empty block.
-        let region = op.deref_mut(ctx).get_region(0);
+        let region = opop.get_region(ctx);
         let block = BasicBlock::new(ctx, None, vec![]);
         block.insert_at_front(region, ctx);
 

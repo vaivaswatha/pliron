@@ -234,6 +234,7 @@ impl_verify_succ!(AlignmentAttr);
 pub struct ShuffleVectorMaskAttr(pub Vec<i32>);
 impl_verify_succ!(ShuffleVectorMaskAttr);
 
+/// Register LLVM attributes into the dialect.
 pub fn register(ctx: &mut Context) {
     IntegerOverflowFlagsAttr::register_attr_in_dialect(ctx, IntegerOverflowFlagsAttr::parser_fn);
     ICmpPredicateAttr::register_attr_in_dialect(ctx, ICmpPredicateAttr::parser_fn);

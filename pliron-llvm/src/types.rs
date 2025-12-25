@@ -301,13 +301,15 @@ impl Eq for StructType {}
 pub struct PointerType;
 
 impl PointerType {
-    /// Get or create a new pointer type.
-    pub fn get(ctx: &mut Context) -> TypePtr<Self> {
-        Type::register_instance(PointerType, ctx)
+    /// Register type in dialect and instantiate the singleton instance.
+    pub fn register_and_instantiate(ctx: &mut Context) {
+        Self::register_type_in_dialect(ctx, Self::parser_fn);
+        Type::register_instance(PointerType, ctx);
     }
-    /// Get, if it already exists, a pointer type.
-    pub fn get_existing(ctx: &Context) -> Option<TypePtr<Self>> {
-        Type::get_instance(PointerType, ctx)
+
+    /// Get the singleton instance of pointer type.
+    pub fn get(ctx: &Context) -> TypePtr<Self> {
+        Type::get_instance(PointerType, ctx).expect("PointerType singleton not instantiated")
     }
 }
 
@@ -351,9 +353,15 @@ impl_verify_succ!(ArrayType);
 pub struct VoidType;
 
 impl VoidType {
-    /// Get or create a new void type.
-    pub fn get(ctx: &mut Context) -> TypePtr<Self> {
-        Type::register_instance(Self {}, ctx)
+    /// Register type in dialect and instantiate the singleton instance.
+    pub fn register_and_instantiate(ctx: &mut Context) {
+        Self::register_type_in_dialect(ctx, Self::parser_fn);
+        Type::register_instance(Self, ctx);
+    }
+
+    /// Get the singleton instance of void type.
+    pub fn get(ctx: &Context) -> TypePtr<Self> {
+        Type::get_instance(Self, ctx).expect("VoidType singleton not instantiated")
     }
 }
 
@@ -474,11 +482,12 @@ impl VectorType {
 
 impl_verify_succ!(VectorType);
 
+/// Register LLVM types into the dialect.
 pub fn register(ctx: &mut Context) {
-    VoidType::register_type_in_dialect(ctx, VoidType::parser_fn);
+    VoidType::register_and_instantiate(ctx);
     ArrayType::register_type_in_dialect(ctx, ArrayType::parser_fn);
     StructType::register_type_in_dialect(ctx, StructType::parser_fn);
-    PointerType::register_type_in_dialect(ctx, PointerType::parser_fn);
+    PointerType::register_and_instantiate(ctx);
     FuncType::register_type_in_dialect(ctx, FuncType::parser_fn);
     VectorType::register_type_in_dialect(ctx, VectorType::parser_fn);
 }
@@ -751,7 +760,7 @@ mod tests {
 
         let res = type_parser().and(eof()).parse(state_stream).unwrap().0.0;
 
-        let void_ty = VoidType::get(&mut ctx);
+        let void_ty = VoidType::get(&ctx);
         assert!(res == FuncType::get(&mut ctx, void_ty.to_ptr(), vec![si32.into()], false).into());
         assert_eq!(input, &res.disp(&ctx).to_string());
     }
