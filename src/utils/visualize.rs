@@ -136,7 +136,7 @@ trait Graphviz {
     ) -> core::fmt::Result {
         write!(f, "strict digraph pliron_graph {{\n rankdir=LR;\n")?;
         self.create_graph(ctx, &mut GraphState::new(), f)?;
-        write!(f, "}}\n")?;
+        writeln!(f, "}}")?;
         Ok(())
     }
     fn create_graph(
@@ -155,9 +155,9 @@ impl Graphviz for Ptr<Operation> {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         let oper_count = graph_state.get_operation_count(*self);
-        write!(
+        writeln!(
             f,
-            "operation_{} [style=filled, label=\"{}\",shape=rectangle, fillcolor=\"#7ef97eff\"];\n",
+            "operation_{} [style=filled, label=\"{}\",shape=rectangle, fillcolor=\"#7ef97eff\"];",
             oper_count,
             operation_print(ctx, Operation::get_op_dyn(*self, ctx)),
         )?;
@@ -171,7 +171,7 @@ impl Graphviz for Ptr<Operation> {
                 .deref(ctx)
                 .unique_name(ctx)
                 .into();
-            write!(f, "operation_{}->{};\n", oper_count, entry_block_identifier)?;
+            writeln!(f, "operation_{}->{};", oper_count, entry_block_identifier)?;
         }
         Ok(())
     }
@@ -190,23 +190,23 @@ impl Graphviz for Ptr<BasicBlock> {
             "subgraph cluster_{} {{ \n style=invis;\n rank=same;\n",
             block_identifier
         )?;
-        write!(
+        writeln!(
             f,
-            "{} [style =filled, shape=ellipse, fillcolor=\"#bb30b6ff\"];\n",
+            "{} [style =filled, shape=ellipse, fillcolor=\"#bb30b6ff\"];",
             block_identifier
         )?;
         write!(f, "{}", block_identifier)?;
         for oper in self.deref(ctx).iter(ctx) {
             write!(f, "->operation_{}", graph_state.get_operation_count(oper),).unwrap();
         }
-        write!(f, "[weight=100,style=invis];\n")?;
+        writeln!(f, "[weight=100,style=invis];")?;
         for oper in self.deref(ctx).iter(ctx) {
             oper.create_graph(ctx, graph_state, f)?;
         }
-        write!(f, "}}\n")?;
+        writeln!(f, "}}")?;
         for succ in self.deref(ctx).succs(ctx) {
             let succ_identifier: String = succ.deref(ctx).unique_name(ctx).into();
-            write!(f, "{}->{};\n", block_identifier, succ_identifier)?;
+            writeln!(f, "{}->{};", block_identifier, succ_identifier)?;
         }
         Ok(())
     }
@@ -234,7 +234,7 @@ impl Graphviz for Ptr<Region> {
         for block in self.deref(ctx).iter(ctx) {
             block.create_graph(ctx, graph_state, f)?;
         }
-        write!(f, "}}\n")?;
+        writeln!(f, "}}")?;
         Ok(())
     }
 }
