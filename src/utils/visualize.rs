@@ -9,23 +9,23 @@ use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-pub struct Visualizer<'a> {
+pub struct Visualiser<'a> {
     graph_component: &'a dyn Graphviz,
     ctx: &'a Context,
 }
 
-impl Display for Visualizer<'_> {
+impl Display for Visualiser<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.graph_component.wrapping_entry_point(self.ctx, f)
     }
 }
 
-impl Visualizer<'_> {
+impl Visualiser<'_> {
     pub fn visualise_operation<'a>(
         ctx: &'a Context,
         operation: &'a Ptr<Operation>,
-    ) -> Visualizer<'a> {
-        Visualizer {
+    ) -> Visualiser<'a> {
+        Visualiser {
             graph_component: operation,
             ctx,
         }
@@ -34,15 +34,15 @@ impl Visualizer<'_> {
     pub fn visualise_basic_block<'a>(
         ctx: &'a Context,
         block: &'a Ptr<BasicBlock>,
-    ) -> Visualizer<'a> {
-        Visualizer {
+    ) -> Visualiser<'a> {
+        Visualiser {
             graph_component: block,
             ctx,
         }
     }
 
-    pub fn visualise_region<'a>(ctx: &'a Context, region: &'a Ptr<Region>) -> Visualizer<'a> {
-        Visualizer {
+    pub fn visualise_region<'a>(ctx: &'a Context, region: &'a Ptr<Region>) -> Visualiser<'a> {
+        Visualiser {
             graph_component: region,
             ctx,
         }
@@ -155,12 +155,24 @@ impl Graphviz for Ptr<Operation> {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         let oper_count = graph_state.get_operation_count(*self);
-        writeln!(
-            f,
-            "operation_{} [style=filled, label=\"{}\",shape=rectangle, fillcolor=\"#7ef97eff\"];",
-            oper_count,
-            operation_print(ctx, Operation::get_op_dyn(*self, ctx)),
-        )?;
+        let operation_identifier =
+            if let Some(parent_block_identifier) = self.deref(ctx).get_parent_block() {
+                format!(
+                    "{}:operation_{}",
+                    parent_block_identifier.deref(ctx).unique_name(ctx),
+                    oper_count
+                )
+            } else {
+                write!(
+                    f,
+                    " operation_{} [
+                    shape=record,
+                    style=filled, fillcolor=lightgreen, label=\"{}\"];",
+                    oper_count,
+                    operation_print(ctx, Operation::get_op_dyn(*self, ctx))
+                )?;
+                format!("operation_{}", oper_count)
+            };
 
         for region in self.deref(ctx).regions() {
             region.create_graph(ctx, graph_state, f)?;
@@ -171,7 +183,11 @@ impl Graphviz for Ptr<Operation> {
                 .deref(ctx)
                 .unique_name(ctx)
                 .into();
-            writeln!(f, "operation_{}->{};", oper_count, entry_block_identifier)?;
+            writeln!(
+                f,
+                "{}->{}:header;",
+                operation_identifier, entry_block_identifier
+            )?;
         }
         Ok(())
     }
@@ -187,26 +203,34 @@ impl Graphviz for Ptr<BasicBlock> {
         let block_identifier: String = self.deref(ctx).unique_name(ctx).into();
         write!(
             f,
-            "subgraph cluster_{} {{ \n style=invis;\n rank=same;\n",
+            "{} [
+            shape=record,
+            style=filled, fillcolor=lightgreen, label=\"",
             block_identifier
         )?;
-        writeln!(
-            f,
-            "{} [style =filled, shape=ellipse, fillcolor=\"#bb30b6ff\"];",
-            block_identifier
-        )?;
-        write!(f, "{}", block_identifier)?;
+        write!(f, "<header>{}:", block_identifier)?;
         for oper in self.deref(ctx).iter(ctx) {
-            write!(f, "->operation_{}", graph_state.get_operation_count(oper),).unwrap();
+            let op_count = graph_state.get_operation_count(oper);
+            write!(
+                f,
+                " | <operation_{}> {}",
+                op_count,
+                operation_print(ctx, Operation::get_op_dyn(oper, ctx))
+            )?;
         }
-        writeln!(f, "[weight=100,style=invis];")?;
+        writeln!(f, "\"];")?;
         for oper in self.deref(ctx).iter(ctx) {
             oper.create_graph(ctx, graph_state, f)?;
         }
-        writeln!(f, "}}")?;
         for succ in self.deref(ctx).succs(ctx) {
             let succ_identifier: String = succ.deref(ctx).unique_name(ctx).into();
-            writeln!(f, "{}->{};", block_identifier, succ_identifier)?;
+            writeln!(
+                f,
+                "{}:operation_{}->{}:header;",
+                block_identifier,
+                graph_state.get_operation_count(self.deref(ctx).get_terminator(ctx).unwrap()),
+                succ_identifier
+            )?;
         }
         Ok(())
     }
