@@ -23,6 +23,7 @@ use pliron::{
     derive::{type_interface, type_interface_impl},
     identifier::{self, Identifier},
     input_err_noloc, input_error_noloc,
+    ir_inserter::IRInserter,
     linked_list::ContainsLinkedList,
     op::Op,
     operation::Operation,
@@ -252,21 +253,18 @@ struct ConversionContext {
     block_map: FxHashMap<LLVMBasicBlock, Ptr<BasicBlock>>,
     /// Cache already converted types.
     type_cache: FxHashMap<LLVMType, Ptr<TypeObj>>,
-    /// Entry block of the region we're processing.
-    entry_block: Option<Ptr<BasicBlock>>,
-    /// Insertion point for constants in the entry block,
-    /// managed by [process_constant].
-    constants_insertion_pt: Option<Ptr<Operation>>,
+    /// Insertion point for constants in the entry block.
+    constants_inserter: Option<IRInserter>,
     /// Identifier legaliser
     id_legaliser: identifier::Legaliser,
 }
 
 impl ConversionContext {
-    /// Reset the value and block maps and set the entry block.
+    /// Reset the value and block maps and initialize
+    /// constants inserter to the start of the entry block.
     /// Identifier::Legaliser remains unmodified.
     fn reset_for_region(&mut self, entry_block: Ptr<BasicBlock>) {
-        self.entry_block = Some(entry_block);
-        self.constants_insertion_pt = None;
+        self.constants_inserter = Some(IRInserter::new_at_block_start(entry_block));
         self.value_map.clear();
         self.block_map.clear();
     }
@@ -405,15 +403,10 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
 
     // Insert a new constant instruction in the entry block.
     fn insert_const_inst(ctx: &mut Context, cctx: &mut ConversionContext, op: Ptr<Operation>) {
-        if let Some(insert_pt) = cctx.constants_insertion_pt {
-            // Insert after the previous constant.
-            op.insert_after(ctx, insert_pt);
-        } else {
-            // Insert at the start of the entry block.
-            op.insert_at_front(cctx.entry_block.unwrap(), ctx);
-        }
-        // Update the insertion point.
-        cctx.constants_insertion_pt = Some(op);
+        cctx.constants_inserter
+            .as_mut()
+            .unwrap()
+            .append_operation(ctx, op);
     }
 
     match llvm_get_value_kind(val) {
