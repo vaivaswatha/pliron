@@ -23,7 +23,7 @@ use pliron::{
     derive::{type_interface, type_interface_impl},
     identifier::{self, Identifier},
     input_err_noloc, input_error_noloc,
-    ir_inserter::IRInserter,
+    inserter::OpInserter,
     linked_list::ContainsLinkedList,
     op::Op,
     operation::Operation,
@@ -254,7 +254,7 @@ struct ConversionContext {
     /// Cache already converted types.
     type_cache: FxHashMap<LLVMType, Ptr<TypeObj>>,
     /// Insertion point for constants in the entry block.
-    constants_inserter: Option<IRInserter>,
+    constants_inserter: Option<OpInserter>,
     /// Identifier legaliser
     id_legaliser: identifier::Legaliser,
 }
@@ -264,7 +264,7 @@ impl ConversionContext {
     /// constants inserter to the start of the entry block.
     /// Identifier::Legaliser remains unmodified.
     fn reset_for_region(&mut self, entry_block: Ptr<BasicBlock>) {
-        self.constants_inserter = Some(IRInserter::new_at_block_start(entry_block));
+        self.constants_inserter = Some(OpInserter::new_at_block_start(entry_block));
         self.value_map.clear();
         self.block_map.clear();
     }
@@ -1281,6 +1281,7 @@ fn convert_block(
     block: LLVMBasicBlock,
     m_block: Ptr<BasicBlock>,
 ) -> Result<()> {
+    let inserter = OpInserter::new_at_block_end(m_block);
     for inst in instruction_iter(block) {
         if llvm_get_instruction_opcode(inst) == LLVMOpcode::LLVMPHI {
             let ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
@@ -1289,7 +1290,7 @@ fn convert_block(
                 .insert(inst, m_block.deref(ctx).get_argument(arg_idx));
         } else {
             let m_inst = convert_instruction(ctx, cctx, inst)?;
-            m_inst.insert_at_back(m_block, ctx);
+            inserter.insert_operation(ctx, m_inst);
             let m_inst_result = m_inst.deref(ctx).results().next();
             // LLVM instructions have at most one result.
             if let Some(result) = m_inst_result {
