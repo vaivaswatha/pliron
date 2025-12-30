@@ -139,4 +139,20 @@ impl OpInserter {
     pub fn get_insertion_point(&self) -> OpInsertionPoint {
         self.insertion_point
     }
+
+    /// Get the current insertion block.
+    pub fn get_insertion_block(&self, ctx: &Context) -> Ptr<BasicBlock> {
+        match self.insertion_point {
+            OpInsertionPoint::AtBlockStart(block) => block,
+            OpInsertionPoint::AtBlockEnd(block) => block,
+            OpInsertionPoint::AfterOperation(op) => op
+                .deref(ctx)
+                .get_parent_block()
+                .expect("Insertion point Operation must have parent block"),
+            OpInsertionPoint::BeforeOperation(op) => op
+                .deref(ctx)
+                .get_parent_block()
+                .expect("Insertion point Operation must have parent block"),
+        }
+    }
 }

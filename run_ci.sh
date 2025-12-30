@@ -9,9 +9,9 @@
 set -x
 set -e
 
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
 RUSTFLAGS="-D warnings" cargo build --workspace
 cargo test --workspace
 cargo test --release --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --check
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace
