@@ -23,6 +23,7 @@ use pliron::{
     derive::{type_interface, type_interface_impl},
     identifier::{self, Identifier},
     input_err_noloc, input_error_noloc,
+    inserter::OpInserter,
     linked_list::ContainsLinkedList,
     op::Op,
     operation::Operation,
@@ -252,21 +253,18 @@ struct ConversionContext {
     block_map: FxHashMap<LLVMBasicBlock, Ptr<BasicBlock>>,
     /// Cache already converted types.
     type_cache: FxHashMap<LLVMType, Ptr<TypeObj>>,
-    /// Entry block of the region we're processing.
-    entry_block: Option<Ptr<BasicBlock>>,
-    /// Insertion point for constants in the entry block,
-    /// managed by [process_constant].
-    constants_insertion_pt: Option<Ptr<Operation>>,
+    /// Insertion point for constants in the entry block.
+    constants_inserter: Option<OpInserter>,
     /// Identifier legaliser
     id_legaliser: identifier::Legaliser,
 }
 
 impl ConversionContext {
-    /// Reset the value and block maps and set the entry block.
+    /// Reset the value and block maps and initialize
+    /// constants inserter to the start of the entry block.
     /// Identifier::Legaliser remains unmodified.
     fn reset_for_region(&mut self, entry_block: Ptr<BasicBlock>) {
-        self.entry_block = Some(entry_block);
-        self.constants_insertion_pt = None;
+        self.constants_inserter = Some(OpInserter::new_at_block_start(entry_block));
         self.value_map.clear();
         self.block_map.clear();
     }
@@ -405,15 +403,10 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
 
     // Insert a new constant instruction in the entry block.
     fn insert_const_inst(ctx: &mut Context, cctx: &mut ConversionContext, op: Ptr<Operation>) {
-        if let Some(insert_pt) = cctx.constants_insertion_pt {
-            // Insert after the previous constant.
-            op.insert_after(ctx, insert_pt);
-        } else {
-            // Insert at the start of the entry block.
-            op.insert_at_front(cctx.entry_block.unwrap(), ctx);
-        }
-        // Update the insertion point.
-        cctx.constants_insertion_pt = Some(op);
+        cctx.constants_inserter
+            .as_mut()
+            .unwrap()
+            .append_operation(ctx, op);
     }
 
     match llvm_get_value_kind(val) {
@@ -1288,6 +1281,7 @@ fn convert_block(
     block: LLVMBasicBlock,
     m_block: Ptr<BasicBlock>,
 ) -> Result<()> {
+    let inserter = OpInserter::new_at_block_end(m_block);
     for inst in instruction_iter(block) {
         if llvm_get_instruction_opcode(inst) == LLVMOpcode::LLVMPHI {
             let ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
@@ -1296,7 +1290,7 @@ fn convert_block(
                 .insert(inst, m_block.deref(ctx).get_argument(arg_idx));
         } else {
             let m_inst = convert_instruction(ctx, cctx, inst)?;
-            m_inst.insert_at_back(m_block, ctx);
+            inserter.insert_operation(ctx, m_inst);
             let m_inst_result = m_inst.deref(ctx).results().next();
             // LLVM instructions have at most one result.
             if let Some(result) = m_inst_result {

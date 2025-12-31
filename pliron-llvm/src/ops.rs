@@ -87,7 +87,7 @@ use super::{
 /// | `arg` | any type |
 #[def_op("llvm.return")]
 #[format_op("operands(CharSpace(`,`))")]
-#[derive_op_interface_impl(IsTerminatorInterface)]
+#[derive_op_interface_impl(IsTerminatorInterface, ZeroResultInterface)]
 pub struct ReturnOp;
 impl ReturnOp {
     /// Create a new [ReturnOp]
