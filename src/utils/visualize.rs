@@ -175,7 +175,6 @@ impl Graphviz for Ptr<Operation> {
             };
 
         for region in self.deref(ctx).regions() {
-            region.create_graph(ctx, graph_state, f)?;
             let entry_block_identifier: String = region
                 .deref(ctx)
                 .get_head()
@@ -188,6 +187,9 @@ impl Graphviz for Ptr<Operation> {
                 "{}->{}:header;",
                 operation_identifier, entry_block_identifier
             )?;
+        }
+        for region in self.deref(ctx).regions() {
+            region.create_graph(ctx, graph_state, f)?;
         }
         Ok(())
     }
@@ -219,9 +221,6 @@ impl Graphviz for Ptr<BasicBlock> {
             )?;
         }
         writeln!(f, "\"];")?;
-        for oper in self.deref(ctx).iter(ctx) {
-            oper.create_graph(ctx, graph_state, f)?;
-        }
         for succ in self.deref(ctx).succs(ctx) {
             let succ_identifier: String = succ.deref(ctx).unique_name(ctx).into();
             writeln!(
@@ -231,6 +230,20 @@ impl Graphviz for Ptr<BasicBlock> {
                 graph_state.get_operation_count(self.deref(ctx).get_terminator(ctx).unwrap()),
                 succ_identifier
             )?;
+        }
+        if *self
+            == self
+                .deref(ctx)
+                .get_parent_region()
+                .unwrap()
+                .deref(ctx)
+                .get_tail()
+                .unwrap()
+        {
+            writeln!(f, "}}")?;
+        }
+        for oper in self.deref(ctx).iter(ctx) {
+            oper.create_graph(ctx, graph_state, f)?;
         }
         Ok(())
     }
@@ -258,7 +271,6 @@ impl Graphviz for Ptr<Region> {
         for block in self.deref(ctx).iter(ctx) {
             block.create_graph(ctx, graph_state, f)?;
         }
-        writeln!(f, "}}")?;
         Ok(())
     }
 }
