@@ -162,6 +162,22 @@ pub trait OperandSegmentInterface {
         self_op.operands().skip(start).take(len).collect()
     }
 
+    /// Get the length of the `idx`th segment.
+    fn segment_size(&self, ctx: &Context, idx: usize) -> u32 {
+        let self_op = self.get_operation().deref(ctx);
+        let sizes_attr = self_op
+            .attributes
+            .get::<OperandSegmentSizesAttr>(&ATTR_KEY_OPERAND_SEGMENT_SIZES)
+            .unwrap();
+        let sizes = &sizes_attr.0;
+
+        if idx >= sizes.len() {
+            return 0;
+        }
+
+        sizes[idx]
+    }
+
     /// Set the `operand_segment_sizes` attribute for this operation.
     fn set_operand_segment_sizes(&self, ctx: &Context, sizes: OperandSegmentSizesAttr) {
         let mut self_op = self.get_operation().deref_mut(ctx);
