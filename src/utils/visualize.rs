@@ -1,3 +1,8 @@
+use crate::graph::walkers;
+use crate::graph::walkers::IRNode;
+use crate::graph::walkers::WALKCONFIG_PREORDER_FORWARD;
+use crate::graph::walkers::interruptible::{WalkResult, walk_advance};
+use crate::utils::visualize::walkers::interruptible::walk_break;
 use pliron::context::Ptr;
 use pliron::{
     basic_block::BasicBlock, common_traits::Named, context::Context,
@@ -10,40 +15,38 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 
 pub struct Visualiser<'a> {
-    graph_component: &'a dyn Graphviz,
+    graph_component: IRNode,
     ctx: &'a Context,
 }
 
 impl Display for Visualiser<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.graph_component.wrapping_entry_point(self.ctx, f)
+        match &self.graph_component {
+            IRNode::Operation(op) => wrapping_entry_point_operation(self.ctx, *op, f),
+            IRNode::BasicBlock(block) => wrapping_entry_point_block(self.ctx, *block, f),
+            IRNode::Region(region) => wrapping_entry_point_region(self.ctx, *region, f),
+        }
     }
 }
 
 impl Visualiser<'_> {
-    pub fn visualise_operation<'a>(
-        ctx: &'a Context,
-        operation: &'a Ptr<Operation>,
-    ) -> Visualiser<'a> {
+    pub fn visualise_operation<'a>(ctx: &'a Context, op: Ptr<Operation>) -> Visualiser<'a> {
         Visualiser {
-            graph_component: operation,
+            graph_component: IRNode::Operation(op),
             ctx,
         }
     }
 
-    pub fn visualise_basic_block<'a>(
-        ctx: &'a Context,
-        block: &'a Ptr<BasicBlock>,
-    ) -> Visualiser<'a> {
+    pub fn visualise_basic_block<'a>(ctx: &'a Context, block: Ptr<BasicBlock>) -> Visualiser<'a> {
         Visualiser {
-            graph_component: block,
+            graph_component: IRNode::BasicBlock(block),
             ctx,
         }
     }
 
-    pub fn visualise_region<'a>(ctx: &'a Context, region: &'a Ptr<Region>) -> Visualiser<'a> {
+    pub fn visualise_region<'a>(ctx: &'a Context, region: Ptr<Region>) -> Visualiser<'a> {
         Visualiser {
-            graph_component: region,
+            graph_component: IRNode::Region(region),
             ctx,
         }
     }
@@ -73,16 +76,18 @@ impl<T> Counter<T> {
 }
 
 // State of graphviz generation to ensure uniqueness of nodes
-struct GraphState {
+struct GraphState<'a, 'b> {
     op_nodes: FxHashMap<Ptr<Operation>, (u32, Counter<Region>)>,
     op_counter: Counter<Operation>,
+    f: &'a mut std::fmt::Formatter<'b>,
 }
 
-impl GraphState {
-    fn new() -> GraphState {
+impl<'a, 'b> GraphState<'a, 'b> {
+    fn new(f: &'a mut std::fmt::Formatter<'b>) -> GraphState<'a, 'b> {
         GraphState {
             op_nodes: FxHashMap::default(),
             op_counter: Counter::new(),
+            f,
         }
     }
 
@@ -128,149 +133,173 @@ fn operation_print(ctx: &Context, op: OpObj) -> String {
         successors.disp(ctx),
     )
 }
-trait Graphviz {
-    fn wrapping_entry_point(
-        &self,
-        ctx: &Context,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "strict digraph pliron_graph {{\n rankdir=LR;\n")?;
-        self.create_graph(ctx, &mut GraphState::new(), f)?;
-        writeln!(f, "}}")?;
-        Ok(())
-    }
-    fn create_graph(
-        &self,
-        ctx: &Context,
-        graph_state: &mut GraphState,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result;
+
+fn wrapping_entry_point_operation(
+    ctx: &Context,
+    op: Ptr<Operation>,
+    f: &mut std::fmt::Formatter<'_>,
+) -> core::fmt::Result {
+    write!(f, "strict digraph pliron_graph {{\n rankdir=LR;\n")?;
+    let graph_state = &mut GraphState::new(f);
+    let _ = walkers::interruptible::immutable::walk_op(
+        ctx,
+        graph_state,
+        &WALKCONFIG_PREORDER_FORWARD,
+        op,
+        graphviz_callback,
+    );
+    writeln!(f, "}}")?;
+    Ok(())
 }
 
-impl Graphviz for Ptr<Operation> {
-    fn create_graph(
-        &self,
-        ctx: &Context,
-        graph_state: &mut GraphState,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        let oper_count = graph_state.get_operation_count(*self);
-        let operation_identifier =
-            if let Some(parent_block_identifier) = self.deref(ctx).get_parent_block() {
-                format!(
-                    "{}:operation_{}",
-                    parent_block_identifier.deref(ctx).unique_name(ctx),
-                    oper_count
-                )
-            } else {
-                write!(
-                    f,
-                    " operation_{} [
+fn wrapping_entry_point_region(
+    ctx: &Context,
+    region: Ptr<Region>,
+    f: &mut std::fmt::Formatter<'_>,
+) -> core::fmt::Result {
+    write!(f, "strict digraph pliron_graph {{\n rankdir=LR;\n")?;
+    let _ =walkers::interruptible::immutable::walk_region(
+        ctx,
+        &mut GraphState::new(f),
+        &WALKCONFIG_PREORDER_FORWARD,
+        region,
+        graphviz_callback,
+    );
+    writeln!(f, "}}")?;
+    Ok(())
+}
+
+fn wrapping_entry_point_block(
+    ctx: &Context,
+    block: Ptr<BasicBlock>,
+    f: &mut std::fmt::Formatter<'_>,
+) -> core::fmt::Result {
+    write!(f, "strict digraph pliron_graph {{\n rankdir=LR;\n")?;
+    let _= walkers::interruptible::immutable::walk_block(
+        ctx,
+        &mut GraphState::new(f),
+        &WALKCONFIG_PREORDER_FORWARD,
+        block,
+        graphviz_callback,
+    );
+    writeln!(f, "}}")?;
+    Ok(())
+}
+
+fn graphviz_callback(
+    ctx: &Context,
+    graph_state: &mut GraphState,
+    node: IRNode,
+) -> WalkResult<Result<(), std::fmt::Error>> {
+    match node {
+        IRNode::Operation(op) => {
+            let oper_count = graph_state.get_operation_count(op);
+            let operation_identifier =
+                if let Some(parent_block_identifier) = op.deref(ctx).get_parent_block() {
+                    format!(
+                        "{}:operation_{}",
+                        parent_block_identifier.deref(ctx).unique_name(ctx),
+                        oper_count
+                    )
+                } else {
+                    if let Err(e) = write!(
+                        graph_state.f,
+                        " operation_{} [
                     shape=record,
                     style=filled, fillcolor=lightgreen, label=\"{}\"];",
-                    oper_count,
-                    operation_print(ctx, Operation::get_op_dyn(*self, ctx))
-                )?;
-                format!("operation_{}", oper_count)
-            };
+                        oper_count,
+                        operation_print(ctx, Operation::get_op_dyn(op, ctx))
+                    ) {
+                        return walk_break(Err(e));
+                    }
+                    format!("operation_{}", oper_count)
+                };
 
-        for region in self.deref(ctx).regions() {
-            let entry_block_identifier: String = region
-                .deref(ctx)
-                .get_head()
-                .unwrap()
-                .deref(ctx)
-                .unique_name(ctx)
-                .into();
-            writeln!(
-                f,
-                "{}->{}:header;",
-                operation_identifier, entry_block_identifier
-            )?;
+            for region in op.deref(ctx).regions() {
+                let entry_block_identifier: String = region
+                    .deref(ctx)
+                    .get_head()
+                    .unwrap()
+                    .deref(ctx)
+                    .unique_name(ctx)
+                    .into();
+                if let Err(e) = writeln!(
+                    graph_state.f,
+                    "{}->{}:header;",
+                    operation_identifier, entry_block_identifier
+                ) {
+                    return walk_break(Err(e));
+                }
+            }
         }
-        for region in self.deref(ctx).regions() {
-            region.create_graph(ctx, graph_state, f)?;
-        }
-        Ok(())
-    }
-}
-
-impl Graphviz for Ptr<BasicBlock> {
-    fn create_graph(
-        &self,
-        ctx: &Context,
-        graph_state: &mut GraphState,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        let block_identifier: String = self.deref(ctx).unique_name(ctx).into();
-        write!(
-            f,
-            "{} [
+        IRNode::BasicBlock(block) => {
+            let block_identifier: String = block.deref(ctx).unique_name(ctx).into();
+            if let Err(e) = write!(
+                graph_state.f,
+                "{} [
             shape=record,
             style=filled, fillcolor=lightgreen, label=\"",
-            block_identifier
-        )?;
-        write!(f, "<header>{}:", block_identifier)?;
-        for oper in self.deref(ctx).iter(ctx) {
-            let op_count = graph_state.get_operation_count(oper);
-            write!(
-                f,
-                " | <operation_{}> {}",
-                op_count,
-                operation_print(ctx, Operation::get_op_dyn(oper, ctx))
-            )?;
+                block_identifier
+            ) {
+                return walk_break(Err(e));
+            }
+            if let Err(e) = write!(graph_state.f, "<header>{}:", block_identifier) {
+                return walk_break(Err(e));
+            }
+            for oper in block.deref(ctx).iter(ctx) {
+                let op_count = graph_state.get_operation_count(oper);
+                if let Err(e) = write!(
+                    graph_state.f,
+                    " | <operation_{}> {}",
+                    op_count,
+                    operation_print(ctx, Operation::get_op_dyn(oper, ctx))
+                ) {
+                    return walk_break(Err(e));
+                }
+            }
+            if let Err(e) = writeln!(graph_state.f, "\"];") {
+                return walk_break(Err(e));
+            }
+            for succ in block.deref(ctx).succs(ctx) {
+                let succ_identifier: String = succ.deref(ctx).unique_name(ctx).into();
+                let term_op_count =
+                    graph_state.get_operation_count(block.deref(ctx).get_terminator(ctx).unwrap());
+                if let Err(e) = writeln!(
+                    graph_state.f,
+                    "{}:operation_{}->{}:header;",
+                    block_identifier, term_op_count, succ_identifier
+                ) {
+                    return walk_break(Err(e));
+                }
+            }
+            if block
+                == block
+                    .deref(ctx)
+                    .get_parent_region()
+                    .unwrap()
+                    .deref(ctx)
+                    .get_tail()
+                    .unwrap()
+                && let Err(e) = writeln!(graph_state.f, "}}") {
+                    return walk_break(Err(e));
+                }
         }
-        writeln!(f, "\"];")?;
-        for succ in self.deref(ctx).succs(ctx) {
-            let succ_identifier: String = succ.deref(ctx).unique_name(ctx).into();
-            writeln!(
-                f,
-                "{}:operation_{}->{}:header;",
-                block_identifier,
-                graph_state.get_operation_count(self.deref(ctx).get_terminator(ctx).unwrap()),
-                succ_identifier
-            )?;
+        IRNode::Region(region) => {
+            let oper_count = graph_state.get_operation_count(region.deref(ctx).get_parent_op());
+            let region_idx = graph_state
+                .get_region_index(region.deref(ctx).get_parent_op())
+                .unwrap();
+            let op_id = Operation::get_op_dyn(region.deref(ctx).get_parent_op(), ctx).get_opid();
+            let parent_op_label = op_id.name.deref();
+            if let Err(e) = write!(
+                graph_state.f,
+                "subgraph cluster_region_{0}_{1}{{ \n style=dotted;\n label=\"parent op : {2}, region idx - {1}\";\n",
+                oper_count, region_idx, parent_op_label,
+            ) {
+                return walk_break(Err(e));
+            }
         }
-        if *self
-            == self
-                .deref(ctx)
-                .get_parent_region()
-                .unwrap()
-                .deref(ctx)
-                .get_tail()
-                .unwrap()
-        {
-            writeln!(f, "}}")?;
-        }
-        for oper in self.deref(ctx).iter(ctx) {
-            oper.create_graph(ctx, graph_state, f)?;
-        }
-        Ok(())
     }
-}
 
-impl Graphviz for Ptr<Region> {
-    fn create_graph(
-        &self,
-        ctx: &Context,
-        graph_state: &mut GraphState,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(
-            f,
-            "subgraph cluster_region_{0}_{1}{{ \n style=dotted;\n label=\"parent op : {2}, region idx - {1}\";\n",
-            graph_state.get_operation_count(self.deref(ctx).get_parent_op()),
-            graph_state
-                .get_region_index(self.deref(ctx).get_parent_op())
-                .unwrap(),
-            Operation::get_op_dyn(self.deref(ctx).get_parent_op(), ctx)
-                .get_opid()
-                .name
-                .deref(),
-        )?;
-        for block in self.deref(ctx).iter(ctx) {
-            block.create_graph(ctx, graph_state, f)?;
-        }
-        Ok(())
-    }
+    walk_advance()
 }
