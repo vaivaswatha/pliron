@@ -1,6 +1,7 @@
 use common::{ConstantOp, ReturnOp};
 use expect_test::{Expect, expect};
 use pliron::builtin::attributes::StringAttr;
+use pliron::context::Ptr;
 use pliron::derive::def_op;
 use pliron::dict_key;
 use pliron::{
@@ -479,6 +480,78 @@ fn test_preorder_forward_walk() {
 
     Operation::erase(module_op, ctx);
     assert!(ctx.is_ir_empty());
+}
+
+#[test]
+fn walker_print() {
+    let ctx = &mut setup_context_dialects();
+    let module_op = const_ret_in_mod(ctx).unwrap().0.get_operation();
+
+    fn print_op(
+        ctx: &Context,
+        root: Ptr<Operation>,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        struct State<'a, 'b> {
+            f: &'a mut std::fmt::Formatter<'b>,
+        }
+        let mut state = State { f };
+        match walkers::interruptible::immutable::walk_op(
+            ctx,
+            &mut state,
+            &WALKCONFIG_PREORDER_FORWARD,
+            root,
+            |ctx, state, node| {
+                if let IRNode::Operation(op) = node {
+                    match writeln!(state.f, "{}", op.disp(ctx)) {
+                        Ok(_) => return walk_advance(),
+                        Err(e) => return walk_break(e),
+                    }
+                }
+                walk_advance()
+            },
+        ) {
+            interruptible::WalkResult::Continue(_) => Ok(()),
+            interruptible::WalkResult::Break(e) => Err(e),
+        }
+    }
+
+    struct OpPrinter {
+        root: Ptr<Operation>,
+    }
+    impl Printable for OpPrinter {
+        fn fmt(
+            &self,
+            ctx: &Context,
+            _state: &pliron::printable::State,
+            f: &mut std::fmt::Formatter<'_>,
+        ) -> std::fmt::Result {
+            print_op(ctx, self.root, f)
+        }
+    }
+    let op_printer = OpPrinter { root: module_op };
+    let printed = format!("{}", op_printer.disp(ctx));
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block1v1():
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+            {
+              ^entry_block2v1():
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                test.return c0_op3v1_res0
+            }
+        }
+        builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+        {
+          ^entry_block2v1():
+            c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+            test.return c0_op3v1_res0
+        }
+        c0_op3v1_res0 = test.constant builtin.integer <0: si64>
+        test.return c0_op3v1_res0
+    "#]]
+    .assert_eq(&printed);
 }
 
 #[test]
