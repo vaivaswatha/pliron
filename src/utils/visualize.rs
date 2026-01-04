@@ -230,7 +230,7 @@ fn graphviz_callback(
                     .into();
                 if let Err(e) = writeln!(
                     graph_state.f,
-                    "{}->{};",
+                    "{}->{}[style = dotted];",
                     operation_identifier, entry_block_identifier
                 ) {
                     return walk_break(Err(e));
@@ -248,7 +248,7 @@ fn graphviz_callback(
             ) {
                 return walk_break(Err(e));
             }
-            if let Err(e) = write!(graph_state.f, "{}\\n", block_identifier) {
+            if let Err(e) = write!(graph_state.f, "{} : \\n", block_identifier) {
                 return walk_break(Err(e));
             }
             for oper in block.deref(ctx).iter(ctx) {
@@ -296,7 +296,7 @@ fn graphviz_callback(
             let parent_op_label = op_id.name.deref();
             if let Err(e) = write!(
                 graph_state.f,
-                "subgraph cluster_region_{0}_{1}{{ \n style=dotted;\n label=\"parent op : {2}, region idx - {1}\";\n",
+                "subgraph cluster_region_{0}_{1}{{ \n style=dotted;\n label=\"parent op : {2}, region idx : {1}\";\n",
                 oper_count, region_idx, parent_op_label,
             ) {
                 return walk_break(Err(e));
