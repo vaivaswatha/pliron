@@ -13,40 +13,42 @@ use rustc_hash::FxHashMap;
 use std::fmt::Display;
 use std::ops::Deref;
 
-pub struct Visualizer<'a> {
-    graph_component: IRNode,
-    ctx: &'a Context,
-}
+pub mod visualize_graphviz {
+    use super::*;
 
-impl Display for Visualizer<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match &self.graph_component {
-            IRNode::Operation(op) => operation_entry_point(self.ctx, *op, f),
-            IRNode::BasicBlock(block) => block_entry_point(self.ctx, *block, f),
-            IRNode::Region(region) => region_entry_point(self.ctx, *region, f),
-        }
-    }
-}
-
-impl Visualizer<'_> {
-    pub fn visualize_operation<'a>(ctx: &'a Context, op: Ptr<Operation>) -> Visualizer<'a> {
+    pub fn visualize_operation(ctx: &Context, op: Ptr<Operation>) -> impl Display + '_ {
         Visualizer {
             graph_component: IRNode::Operation(op),
             ctx,
         }
     }
 
-    pub fn visualize_basic_block<'a>(ctx: &'a Context, block: Ptr<BasicBlock>) -> Visualizer<'a> {
+    pub fn visualize_basic_block(ctx: &Context, block: Ptr<BasicBlock>) -> impl Display + '_ {
         Visualizer {
             graph_component: IRNode::BasicBlock(block),
             ctx,
         }
     }
 
-    pub fn visualize_region<'a>(ctx: &'a Context, region: Ptr<Region>) -> Visualizer<'a> {
+    pub fn visualize_region(ctx: &Context, region: Ptr<Region>) -> impl Display + '_ {
         Visualizer {
             graph_component: IRNode::Region(region),
             ctx,
+        }
+    }
+
+    struct Visualizer<'a> {
+        graph_component: IRNode,
+        ctx: &'a Context,
+    }
+
+    impl std::fmt::Display for Visualizer<'_> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match &self.graph_component {
+                IRNode::Operation(op) => operation_entry_point(self.ctx, *op, f),
+                IRNode::BasicBlock(block) => block_entry_point(self.ctx, *block, f),
+                IRNode::Region(region) => region_entry_point(self.ctx, *region, f),
+            }
         }
     }
 }
@@ -67,9 +69,9 @@ impl<'a, 'b> GraphState<'a, 'b> {
         }
     }
 
-    // Retrieve count for a given [Ptr<Operation>] if found
-    // else increment and return
-    fn get_operation_count(&mut self, ptr: Ptr<Operation>) -> u32 {
+    // Retrieve index for a given [Ptr<Operation>]
+    //else increment the internal counter and return a new index
+    fn get_operation_index(&mut self, ptr: Ptr<Operation>) -> u32 {
         self.op_nodes
             .entry(ptr)
             .or_insert_with(|| {
@@ -116,7 +118,7 @@ fn operation_print(ctx: &Context, op: OpObj, f: &mut std::fmt::Formatter<'_>) ->
 
     write!(f, "{} ({})", opid.disp(ctx), operands.disp(ctx))?;
 
-    if op.successors().next().is_some() {
+    if op.get_num_successors() > 0 {
         let successors = iter_with_sep(
             op.successors()
                 .map(|succ| format!("^{}", succ.unique_name(ctx))),
@@ -187,7 +189,7 @@ fn graphviz_callback(
 ) -> WalkResult<std::fmt::Error> {
     match node {
         IRNode::Operation(op) => {
-            let oper_count = graph_state.get_operation_count(op);
+            let oper_index = graph_state.get_operation_index(op);
             let operation_identifier =
                 if let Some(parent_block_identifier) = op.deref(ctx).get_parent_block() {
                     format!("{}", parent_block_identifier.deref(ctx).unique_name(ctx))
@@ -197,13 +199,13 @@ fn graphviz_callback(
                         " operation_{} [
                     shape=record,
                     style=filled, fillcolor=lightgreen, label=\"",
-                        oper_count
+                        oper_index
                     )
                     .to_walk_result()?;
                     operation_print(ctx, Operation::get_op_dyn(op, ctx), graph_state.f)
                         .to_walk_result()?;
                     writeln!(graph_state.f, "\"];").to_walk_result()?;
-                    format!("operation_{}", oper_count)
+                    format!("operation_{}", oper_index)
                 };
 
             for region in op.deref(ctx).regions() {
@@ -257,16 +259,17 @@ fn graphviz_callback(
             }
         }
         IRNode::Region(region) => {
-            let oper_count = graph_state.get_operation_count(region.deref(ctx).get_parent_op());
+            let parent_op = region.deref(ctx).get_parent_op();
+            let oper_index = graph_state.get_operation_index(parent_op);
             let region_idx = graph_state
                 .get_region_index(region.deref(ctx).get_parent_op())
                 .unwrap();
-            let op_id = Operation::get_op_dyn(region.deref(ctx).get_parent_op(), ctx).get_opid();
+            let op_id = Operation::get_op_dyn(parent_op, ctx).get_opid();
             let parent_op_label = op_id.name.deref();
             write!(
                 graph_state.f,
                 "subgraph cluster_region_{0}_{1}{{ \n style=dotted;\n label=\"parent op : {2}, region idx : {1}\";\n",
-                oper_count, region_idx, parent_op_label,
+                oper_index, region_idx, parent_op_label,
             ).to_walk_result()?;
         }
     }
