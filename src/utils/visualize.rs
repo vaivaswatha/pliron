@@ -14,12 +14,12 @@ use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-pub struct Visualiser<'a> {
+pub struct Visualizer<'a> {
     graph_component: IRNode,
     ctx: &'a Context,
 }
 
-impl Display for Visualiser<'_> {
+impl Display for Visualizer<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self.graph_component {
             IRNode::Operation(op) => wrapping_entry_point_operation(self.ctx, *op, f),
@@ -29,23 +29,23 @@ impl Display for Visualiser<'_> {
     }
 }
 
-impl Visualiser<'_> {
-    pub fn visualise_operation<'a>(ctx: &'a Context, op: Ptr<Operation>) -> Visualiser<'a> {
-        Visualiser {
+impl Visualizer<'_> {
+    pub fn visualize_operation<'a>(ctx: &'a Context, op: Ptr<Operation>) -> Visualizer<'a> {
+        Visualizer {
             graph_component: IRNode::Operation(op),
             ctx,
         }
     }
 
-    pub fn visualise_basic_block<'a>(ctx: &'a Context, block: Ptr<BasicBlock>) -> Visualiser<'a> {
-        Visualiser {
+    pub fn visualize_basic_block<'a>(ctx: &'a Context, block: Ptr<BasicBlock>) -> Visualizer<'a> {
+        Visualizer {
             graph_component: IRNode::BasicBlock(block),
             ctx,
         }
     }
 
-    pub fn visualise_region<'a>(ctx: &'a Context, region: Ptr<Region>) -> Visualiser<'a> {
-        Visualiser {
+    pub fn visualize_region<'a>(ctx: &'a Context, region: Ptr<Region>) -> Visualizer<'a> {
+        Visualizer {
             graph_component: IRNode::Region(region),
             ctx,
         }
@@ -121,17 +121,26 @@ fn operation_print(ctx: &Context, op: OpObj) -> String {
     let opid = op.as_ref().get_opid();
     let op = op.as_ref().get_operation().deref(ctx);
     let operands = iter_with_sep(op.operands(), sep);
-    let successors = iter_with_sep(
-        op.successors()
-            .map(|succ| "^".to_string() + &succ.unique_name(ctx)),
-        sep,
-    );
-    format!(
-        "{} ({}) [{}]",
-        opid.disp(ctx),
-        operands.disp(ctx),
-        successors.disp(ctx),
-    )
+
+    let mut op_details = String::new();
+
+    if op.get_num_results() != 0 {
+        let results = iter_with_sep(op.results(), sep);
+        op_details.push_str(&format!("{} = ", results.disp(ctx)));
+    }
+
+    op_details.push_str(&format!("{} ({})", opid.disp(ctx), operands.disp(ctx),));
+
+    if op.successors().next().is_some() {
+        let successors = iter_with_sep(
+            op.successors()
+                .map(|succ| format!("^{}", succ.unique_name(ctx))),
+            sep,
+        );
+        op_details.push_str(&format!(" [{}]", successors.disp(ctx)));
+    }
+
+    op_details
 }
 
 fn wrapping_entry_point_operation(
@@ -139,7 +148,7 @@ fn wrapping_entry_point_operation(
     op: Ptr<Operation>,
     f: &mut std::fmt::Formatter<'_>,
 ) -> core::fmt::Result {
-    write!(f, "strict digraph pliron_graph {{\n rankdir=LR;\n")?;
+    write!(f, "strict digraph pliron_graph {{\n rankdir=TB;\n")?;
     let graph_state = &mut GraphState::new(f);
     let _ = walkers::interruptible::immutable::walk_op(
         ctx,
@@ -157,8 +166,8 @@ fn wrapping_entry_point_region(
     region: Ptr<Region>,
     f: &mut std::fmt::Formatter<'_>,
 ) -> core::fmt::Result {
-    write!(f, "strict digraph pliron_graph {{\n rankdir=LR;\n")?;
-    let _ =walkers::interruptible::immutable::walk_region(
+    write!(f, "strict digraph pliron_graph {{\n rankdir=TB;\n")?;
+    let _ = walkers::interruptible::immutable::walk_region(
         ctx,
         &mut GraphState::new(f),
         &WALKCONFIG_PREORDER_FORWARD,
@@ -174,8 +183,8 @@ fn wrapping_entry_point_block(
     block: Ptr<BasicBlock>,
     f: &mut std::fmt::Formatter<'_>,
 ) -> core::fmt::Result {
-    write!(f, "strict digraph pliron_graph {{\n rankdir=LR;\n")?;
-    let _= walkers::interruptible::immutable::walk_block(
+    write!(f, "strict digraph pliron_graph {{\n rankdir=TB;\n")?;
+    let _ = walkers::interruptible::immutable::walk_block(
         ctx,
         &mut GraphState::new(f),
         &WALKCONFIG_PREORDER_FORWARD,
@@ -196,11 +205,7 @@ fn graphviz_callback(
             let oper_count = graph_state.get_operation_count(op);
             let operation_identifier =
                 if let Some(parent_block_identifier) = op.deref(ctx).get_parent_block() {
-                    format!(
-                        "{}:operation_{}",
-                        parent_block_identifier.deref(ctx).unique_name(ctx),
-                        oper_count
-                    )
+                    format!("{}", parent_block_identifier.deref(ctx).unique_name(ctx),)
                 } else {
                     if let Err(e) = write!(
                         graph_state.f,
@@ -225,7 +230,7 @@ fn graphviz_callback(
                     .into();
                 if let Err(e) = writeln!(
                     graph_state.f,
-                    "{}->{}:header;",
+                    "{}->{};",
                     operation_identifier, entry_block_identifier
                 ) {
                     return walk_break(Err(e));
@@ -243,15 +248,14 @@ fn graphviz_callback(
             ) {
                 return walk_break(Err(e));
             }
-            if let Err(e) = write!(graph_state.f, "<header>{}:", block_identifier) {
+            if let Err(e) = write!(graph_state.f, "{}\\n", block_identifier) {
                 return walk_break(Err(e));
             }
             for oper in block.deref(ctx).iter(ctx) {
-                let op_count = graph_state.get_operation_count(oper);
+                //let op_count = graph_state.get_operation_count(oper);
                 if let Err(e) = write!(
                     graph_state.f,
-                    " | <operation_{}> {}",
-                    op_count,
+                    "  {}\\n",
                     operation_print(ctx, Operation::get_op_dyn(oper, ctx))
                 ) {
                     return walk_break(Err(e));
@@ -262,13 +266,11 @@ fn graphviz_callback(
             }
             for succ in block.deref(ctx).succs(ctx) {
                 let succ_identifier: String = succ.deref(ctx).unique_name(ctx).into();
-                let term_op_count =
-                    graph_state.get_operation_count(block.deref(ctx).get_terminator(ctx).unwrap());
-                if let Err(e) = writeln!(
-                    graph_state.f,
-                    "{}:operation_{}->{}:header;",
-                    block_identifier, term_op_count, succ_identifier
-                ) {
+                //let term_op_count =
+                //    graph_state.get_operation_count(block.deref(ctx).get_terminator(ctx).unwrap());
+                if let Err(e) =
+                    writeln!(graph_state.f, "{}->{};", block_identifier, succ_identifier)
+                {
                     return walk_break(Err(e));
                 }
             }
@@ -280,9 +282,10 @@ fn graphviz_callback(
                     .deref(ctx)
                     .get_tail()
                     .unwrap()
-                && let Err(e) = writeln!(graph_state.f, "}}") {
-                    return walk_break(Err(e));
-                }
+                && let Err(e) = writeln!(graph_state.f, "}}")
+            {
+                return walk_break(Err(e));
+            }
         }
         IRNode::Region(region) => {
             let oper_count = graph_state.get_operation_count(region.deref(ctx).get_parent_op());
