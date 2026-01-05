@@ -111,6 +111,19 @@ impl ToWalkResult for std::fmt::Result {
     }
 }
 
+trait ToResult {
+    fn to_result(self) -> Result<(), core::fmt::Error>;
+}
+
+impl ToResult for WalkResult<std::fmt::Error> {
+    fn to_result(self) -> Result<(), core::fmt::Error> {
+        match self {
+            WalkResult::Continue(_) => Ok(()),
+            WalkResult::Break(e) => Err(e),
+        }
+    }
+}
+
 /// Print basic [Operation] information, since calling [Printable::disp]
 /// will print the whole nested structure, which we don't want here.
 fn operation_print(ctx: &Context, op: OpObj, f: &mut std::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -145,13 +158,14 @@ fn operation_entry_point(
 ) -> core::fmt::Result {
     write!(f, "strict digraph pliron_graph {{\n rankdir=TB;\n")?;
     let graph_state = &mut GraphState::new(f);
-    let _ = walkers::interruptible::immutable::walk_op(
+    walkers::interruptible::immutable::walk_op(
         ctx,
         graph_state,
         &WALKCONFIG_PREORDER_FORWARD,
         op,
         graphviz_callback,
-    );
+    )
+    .to_result()?;
     writeln!(f, "}}")?;
     Ok(())
 }
@@ -162,13 +176,14 @@ fn region_entry_point(
     f: &mut std::fmt::Formatter<'_>,
 ) -> core::fmt::Result {
     write!(f, "strict digraph pliron_graph {{\n rankdir=TB;\n")?;
-    let _ = walkers::interruptible::immutable::walk_region(
+    walkers::interruptible::immutable::walk_region(
         ctx,
         &mut GraphState::new(f),
         &WALKCONFIG_PREORDER_FORWARD,
         region,
         graphviz_callback,
-    );
+    )
+    .to_result()?;
     writeln!(f, "}}")?;
     Ok(())
 }
@@ -179,13 +194,14 @@ fn block_entry_point(
     f: &mut std::fmt::Formatter<'_>,
 ) -> core::fmt::Result {
     write!(f, "strict digraph pliron_graph {{\n rankdir=TB;\n")?;
-    let _ = walkers::interruptible::immutable::walk_block(
+    walkers::interruptible::immutable::walk_block(
         ctx,
         &mut GraphState::new(f),
         &WALKCONFIG_PREORDER_FORWARD,
         block,
         graphviz_callback,
-    );
+    )
+    .to_result()?;
     writeln!(f, "}}")?;
     Ok(())
 }
