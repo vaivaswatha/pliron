@@ -13,42 +13,38 @@ use rustc_hash::FxHashMap;
 use std::fmt::Display;
 use std::ops::Deref;
 
-pub mod visualize_graphviz {
-    use super::*;
-
-    pub fn visualize_operation(ctx: &Context, op: Ptr<Operation>) -> impl Display + '_ {
-        Visualizer {
-            graph_component: IRNode::Operation(op),
-            ctx,
-        }
+pub fn visualize_operation(ctx: &Context, op: Ptr<Operation>) -> impl Display + '_ {
+    Visualizer {
+        graph_component: IRNode::Operation(op),
+        ctx,
     }
+}
 
-    pub fn visualize_basic_block(ctx: &Context, block: Ptr<BasicBlock>) -> impl Display + '_ {
-        Visualizer {
-            graph_component: IRNode::BasicBlock(block),
-            ctx,
-        }
+pub fn visualize_basic_block(ctx: &Context, block: Ptr<BasicBlock>) -> impl Display + '_ {
+    Visualizer {
+        graph_component: IRNode::BasicBlock(block),
+        ctx,
     }
+}
 
-    pub fn visualize_region(ctx: &Context, region: Ptr<Region>) -> impl Display + '_ {
-        Visualizer {
-            graph_component: IRNode::Region(region),
-            ctx,
-        }
+pub fn visualize_region(ctx: &Context, region: Ptr<Region>) -> impl Display + '_ {
+    Visualizer {
+        graph_component: IRNode::Region(region),
+        ctx,
     }
+}
 
-    struct Visualizer<'a> {
-        graph_component: IRNode,
-        ctx: &'a Context,
-    }
+struct Visualizer<'a> {
+    graph_component: IRNode,
+    ctx: &'a Context,
+}
 
-    impl std::fmt::Display for Visualizer<'_> {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match &self.graph_component {
-                IRNode::Operation(op) => operation_entry_point(self.ctx, *op, f),
-                IRNode::BasicBlock(block) => block_entry_point(self.ctx, *block, f),
-                IRNode::Region(region) => region_entry_point(self.ctx, *region, f),
-            }
+impl std::fmt::Display for Visualizer<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.graph_component {
+            IRNode::Operation(op) => operation_entry_point(self.ctx, *op, f),
+            IRNode::BasicBlock(block) => block_entry_point(self.ctx, *block, f),
+            IRNode::Region(region) => region_entry_point(self.ctx, *region, f),
         }
     }
 }
