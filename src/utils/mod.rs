@@ -4,4 +4,3 @@ pub mod apfloat;
 pub mod apint;
 pub mod trait_cast;
 pub mod vec_exns;
-pub mod visualize;

@@ -1,18 +1,24 @@
-use crate::graph::walkers;
-use crate::graph::walkers::IRNode;
-use crate::graph::walkers::WALKCONFIG_PREORDER_FORWARD;
-use crate::graph::walkers::interruptible::{WalkResult, walk_advance};
-use crate::utils::visualize::walkers::interruptible::walk_break;
-use pliron::context::Ptr;
 use pliron::{
-    basic_block::BasicBlock, common_traits::Named, context::Context,
-    irfmt::printers::iter_with_sep, linked_list::ContainsLinkedList, op::OpObj,
-    operation::Operation, printable, printable::Printable, region::Region,
+    basic_block::BasicBlock,
+    common_traits::Named,
+    context::{Context, Ptr},
+    graph::walkers::{
+        self, IRNode, WALKCONFIG_PREORDER_FORWARD,
+        interruptible::{WalkResult, walk_advance, walk_break},
+    },
+    irfmt::printers::iter_with_sep,
+    linked_list::ContainsLinkedList,
+    op::OpObj,
+    operation::Operation,
+    printable,
+    printable::Printable,
+    region::Region,
 };
 use rustc_hash::FxHashMap;
-use std::fmt::Display;
-use std::ops::Deref;
+use std::{fmt::Display, ops::Deref};
 
+/// Visualise an [Operation], as a graphviz DOT graph.
+/// The returned value implements [Display], so it can be printed directly.
 pub fn visualize_operation(ctx: &Context, op: Ptr<Operation>) -> impl Display + '_ {
     Visualizer {
         graph_component: IRNode::Operation(op),
@@ -20,6 +26,8 @@ pub fn visualize_operation(ctx: &Context, op: Ptr<Operation>) -> impl Display + 
     }
 }
 
+/// Visualise a [BasicBlock], as a graphviz DOT graph.
+/// The returned value implements [Display], so it can be printed directly.
 pub fn visualize_basic_block(ctx: &Context, block: Ptr<BasicBlock>) -> impl Display + '_ {
     Visualizer {
         graph_component: IRNode::BasicBlock(block),
@@ -27,6 +35,8 @@ pub fn visualize_basic_block(ctx: &Context, block: Ptr<BasicBlock>) -> impl Disp
     }
 }
 
+/// Visualise a [Region], as a graphviz DOT graph.
+/// The returned value implements [Display], so it can be printed directly.
 pub fn visualize_region(ctx: &Context, region: Ptr<Region>) -> impl Display + '_ {
     Visualizer {
         graph_component: IRNode::Region(region),
@@ -34,6 +44,7 @@ pub fn visualize_region(ctx: &Context, region: Ptr<Region>) -> impl Display + '_
     }
 }
 
+/// Visualizer struct implementing [Display] for graphviz generation
 struct Visualizer<'a> {
     graph_component: IRNode,
     ctx: &'a Context,
@@ -49,7 +60,7 @@ impl std::fmt::Display for Visualizer<'_> {
     }
 }
 
-// State of graphviz generation to ensure uniqueness of nodes
+/// State of graphviz generation to ensure uniqueness of nodes
 struct GraphState<'a, 'b> {
     op_nodes: FxHashMap<Ptr<Operation>, (u32, u32)>,
     op_counter: u32,
@@ -65,8 +76,7 @@ impl<'a, 'b> GraphState<'a, 'b> {
         }
     }
 
-    // Retrieve index for a given [Ptr<Operation>]
-    //else increment the internal counter and return a new index
+    // Retrieve a unique (within [GraphState]) index for a given [Ptr<Operation>].
     fn get_operation_index(&mut self, ptr: Ptr<Operation>) -> u32 {
         self.op_nodes
             .entry(ptr)
@@ -77,7 +87,8 @@ impl<'a, 'b> GraphState<'a, 'b> {
             })
             .0
     }
-    // Return and increment region index for a given [Ptr<Operation>] if found
+
+    // Index for a given [Ptr<Region>] within its parent operation.
     fn get_region_index(&mut self, ptr: Ptr<Operation>) -> Option<u32> {
         self.op_nodes.get_mut(&ptr).map(|(_, region_idx)| {
             let current_idx = *region_idx;
@@ -100,7 +111,8 @@ impl ToWalkResult for std::fmt::Result {
     }
 }
 
-// Print basic [Operation] information
+/// Print basic [Operation] information, since calling [Printable::disp]
+/// will print the whole nested structure, which we don't want here.
 fn operation_print(ctx: &Context, op: OpObj, f: &mut std::fmt::Formatter<'_>) -> core::fmt::Result {
     let sep = printable::ListSeparator::CharSpace(',');
     let opid = op.as_ref().get_opid();
@@ -264,7 +276,7 @@ fn graphviz_callback(
             let parent_op_label = op_id.name.deref();
             write!(
                 graph_state.f,
-                "subgraph cluster_region_{0}_{1}{{ \n style=dotted;\n label=\"parent op : {2}, region idx : {1}\";\n",
+                "subgraph cluster_region_{0}_{1}{{ \n style=dotted;\n label=\"parent_op : {2}, region_idx : {1}\";\n",
                 oper_index, region_idx, parent_op_label,
             ).to_walk_result()?;
         }
