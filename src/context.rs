@@ -273,19 +273,19 @@ pub struct DictKeyId {
 /// we use the [placeholder] macro to verify that all such keys declared using the macro
 /// are unique. The macro adds the keys to this static slice, which is then verified
 /// when a [Context] is created.
-#[cfg(feature = "distributed-slice")]
+#[cfg(not(target_family = "wasm"))]
 #[linkme::distributed_slice]
 pub static DICT_KEY_IDS: [LazyLock<DictKeyId>];
 
-#[cfg(feature = "inventory")]
+#[cfg(target_family = "wasm")]
 inventory::collect!(crate::utils::inventory::LazyLockWrapper<DictKeyId>);
 
-#[cfg(feature = "inventory")]
+#[cfg(target_family = "wasm")]
 fn get_dict_key_ids() -> impl Iterator<Item = &'static LazyLock<DictKeyId>> {
     inventory::iter::<crate::utils::inventory::LazyLockWrapper<DictKeyId>>().map(|llw| llw.0)
 }
 
-#[cfg(feature = "distributed-slice")]
+#[cfg(not(target_family = "wasm"))]
 fn get_dict_key_ids() -> impl Iterator<Item = &'static LazyLock<DictKeyId>> {
     DICT_KEY_ENTRIES.iter()
 }
@@ -341,7 +341,7 @@ macro_rules! dict_key {
         // to ensure that all keys are unique.
         // The static variable is created in a separate anonmyous module.
         const _: () = {
-            #[cfg_attr(feature = "distributed-slice", linkme::distributed_slice(::pliron::context::DICT_KEY_IDS))]
+            #[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice(::pliron::context::DICT_KEY_IDS))]
             pub static $decl: std::sync::LazyLock<::pliron::context::DictKeyId> =
                 std::sync::LazyLock::new(|| ::pliron::context::DictKeyId {
                     id: $name.try_into().unwrap(),
@@ -350,7 +350,7 @@ macro_rules! dict_key {
                     column: column!(),
                 });
 
-            #[cfg(feature = "inventory")]
+            #[cfg(target_family = "wasm")]
             inventory::submit! {
                 ::pliron::utils::inventory::LazyLockWrapper(&$decl)
             }

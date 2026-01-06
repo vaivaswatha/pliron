@@ -2,7 +2,7 @@
 
 pub mod apfloat;
 pub mod apint;
-#[cfg(feature = "inventory")]
+#[cfg(target_family = "wasm")]
 pub mod inventory;
 pub mod trait_cast;
 pub mod vec_exns;

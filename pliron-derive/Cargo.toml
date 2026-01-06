@@ -31,5 +31,5 @@ inventory.workspace = true
 dyn-clone.workspace = true
 
 [features]
-distributed-slice = []
+linkme = []
 inventory = []
