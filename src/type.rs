@@ -644,7 +644,7 @@ pub static TYPE_INTERFACE_VERIFIERS_MAP: LazyLock<
     }
 
     // Assign dep_sort_idx to every interface.
-    for lazy in TYPE_INTERFACE_DEPS.iter() {
+    for lazy in get_type_interface_deps() {
         let (intr, _deps) = &**lazy;
         assign_idx_to_intr(&interface_deps, &mut dep_sort_idx, &mut sort_idx, intr);
     }
