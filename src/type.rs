@@ -49,7 +49,6 @@ use crate::{arg_err_noloc, impl_printable_for_display, input_err};
 
 use combine::{Parser, parser};
 use downcast_rs::{Downcast, impl_downcast};
-use linkme::distributed_slice;
 use rustc_hash::FxHashMap;
 use std::cell::Ref;
 use std::fmt::Debug;
@@ -548,18 +547,47 @@ pub fn type_impls<T: ?Sized + Type>(ty: &dyn Type) -> bool {
 /// Every type interface must have a function named `verify` with this type.
 pub type TypeInterfaceVerifier = fn(&dyn Type, &Context) -> Result<()>;
 
+/// Type alias for type interface verifier information
+type TypeInterfaceVerifierInfo = (TypeId, (std::any::TypeId, TypeInterfaceVerifier));
+
+/// Type alias for type interface dependency information  
+type TypeInterfaceDepsInfo = (std::any::TypeId, Vec<std::any::TypeId>);
+
 #[doc(hidden)]
 /// [Type]s paired with every interface it implements (and the verifier for that interface).
-#[distributed_slice]
-pub static TYPE_INTERFACE_VERIFIERS: [LazyLock<(
-    TypeId,
-    (std::any::TypeId, TypeInterfaceVerifier),
-)>];
+#[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice)]
+pub static TYPE_INTERFACE_VERIFIERS: [LazyLock<TypeInterfaceVerifierInfo>] = [..];
 
 #[doc(hidden)]
 /// All interfaces mapped to their super-interfaces
-#[distributed_slice]
-pub static TYPE_INTERFACE_DEPS: [LazyLock<(std::any::TypeId, Vec<std::any::TypeId>)>];
+#[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice)]
+pub static TYPE_INTERFACE_DEPS: [LazyLock<TypeInterfaceDepsInfo>] = [..];
+
+#[cfg(target_family = "wasm")]
+inventory::collect!(crate::utils::inventory::LazyLockWrapper<TypeInterfaceVerifierInfo>);
+
+#[cfg(target_family = "wasm")]
+inventory::collect!(crate::utils::inventory::LazyLockWrapper<TypeInterfaceDepsInfo>);
+
+#[cfg(target_family = "wasm")]
+fn get_type_interface_verifiers() -> impl Iterator<Item = &'static LazyLock<TypeInterfaceVerifierInfo>> {
+    inventory::iter::<crate::utils::inventory::LazyLockWrapper<TypeInterfaceVerifierInfo>>().map(|llw| llw.0)
+}
+
+#[cfg(not(target_family = "wasm"))]
+fn get_type_interface_verifiers() -> impl Iterator<Item = &'static LazyLock<TypeInterfaceVerifierInfo>> {
+    TYPE_INTERFACE_VERIFIERS.iter()
+}
+
+#[cfg(target_family = "wasm")]
+fn get_type_interface_deps() -> impl Iterator<Item = &'static LazyLock<TypeInterfaceDepsInfo>> {
+    inventory::iter::<crate::utils::inventory::LazyLockWrapper<TypeInterfaceDepsInfo>>().map(|llw| llw.0)
+}
+
+#[cfg(not(target_family = "wasm"))]
+fn get_type_interface_deps() -> impl Iterator<Item = &'static LazyLock<TypeInterfaceDepsInfo>> {
+    TYPE_INTERFACE_DEPS.iter()
+}
 
 #[doc(hidden)]
 /// A map from every [Type] to its ordered (as per interface deps) list of interface verifiers.
@@ -570,7 +598,7 @@ pub static TYPE_INTERFACE_VERIFIERS_MAP: LazyLock<
     use std::any::TypeId;
     // Collect TYPE_INTERFACE_VERIFIERS into a [TypeId] indexed map.
     let mut type_intr_verifiers = FxHashMap::default();
-    for lazy in TYPE_INTERFACE_VERIFIERS {
+    for lazy in get_type_interface_verifiers() {
         let (ty_id, (type_id, verifier)) = (**lazy).clone();
         type_intr_verifiers
             .entry(ty_id)
@@ -581,8 +609,7 @@ pub static TYPE_INTERFACE_VERIFIERS_MAP: LazyLock<
     }
 
     // Collect interface deps into a map.
-    let interface_deps: FxHashMap<_, _> = TYPE_INTERFACE_DEPS
-        .iter()
+    let interface_deps: FxHashMap<_, _> = get_type_interface_deps()
         .map(|lazy| (**lazy).clone())
         .collect();
 
@@ -645,8 +672,7 @@ mod tests {
     /// sub-interface verifier.
     fn check_verifiers_deps() -> Result<()> {
         // Collect interface deps into a map.
-        let interface_deps: FxHashMap<_, _> = TYPE_INTERFACE_DEPS
-            .iter()
+        let interface_deps: FxHashMap<_, _> = get_type_interface_deps()
             .map(|lazy| (**lazy).clone())
             .collect();
 
