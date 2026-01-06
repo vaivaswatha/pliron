@@ -287,7 +287,7 @@ fn get_dict_key_ids() -> impl Iterator<Item = &'static LazyLock<DictKeyId>> {
 
 #[cfg(not(target_family = "wasm"))]
 fn get_dict_key_ids() -> impl Iterator<Item = &'static LazyLock<DictKeyId>> {
-    DICT_KEY_ENTRIES.iter()
+    DICT_KEY_IDS.iter()
 }
 
 #[doc(hidden)]
