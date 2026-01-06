@@ -379,6 +379,7 @@ pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> Tok
 /// ```
 #[proc_macro_attribute]
 pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let id = parse_quote! { ::pliron::op::OpId };
     let supertrait = parse_quote! { ::pliron::op::Op };
     let interface_deps_slice = parse_quote! { ::pliron::op::OP_INTERFACE_DEPS };
 
@@ -386,6 +387,7 @@ pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
         item,
         supertrait,
         interface_deps_slice,
+        id,
         true,
     ))
 }
@@ -516,6 +518,7 @@ pub fn derive_op_interface_impl(attr: TokenStream, item: TokenStream) -> TokenSt
 /// ```
 #[proc_macro_attribute]
 pub fn attr_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let id = parse_quote! { ::pliron::attribute::AttrId };
     let supertrait = parse_quote! { ::pliron::attribute::Attribute };
     let interface_deps_slice = parse_quote! { ::pliron::attribute::ATTR_INTERFACE_DEPS };
 
@@ -523,6 +526,7 @@ pub fn attr_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
         item,
         supertrait,
         interface_deps_slice,
+        id,
         true,
     ))
 }
@@ -629,6 +633,7 @@ pub fn attr_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
 /// ```
 #[proc_macro_attribute]
 pub fn type_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let id = parse_quote! { ::pliron::r#type::TypeId };
     let supertrait = parse_quote! { ::pliron::r#type::Type };
     let interface_deps_slice = parse_quote! { ::pliron::r#type::TYPE_INTERFACE_DEPS };
 
@@ -636,6 +641,7 @@ pub fn type_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
         item,
         supertrait,
         interface_deps_slice,
+        id,
         false,
     ))
 }
