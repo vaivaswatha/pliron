@@ -129,7 +129,7 @@ macro_rules! type_to_trait {
 
             #[cfg(target_family = "wasm")]
             inventory::submit! {
-                $crate::utils::inventory::LazyLockWrapper(&CAST_TO_TRAIT)
+                $crate::utils::inventory::LazyLockWrapper::new(&CAST_TO_TRAIT)
             }
 
             fn cast_to_trait<'a>(

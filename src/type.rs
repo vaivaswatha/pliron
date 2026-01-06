@@ -555,19 +555,21 @@ type TypeInterfaceDepsInfo = (std::any::TypeId, Vec<std::any::TypeId>);
 
 #[doc(hidden)]
 /// [Type]s paired with every interface it implements (and the verifier for that interface).
-#[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice)]
+#[cfg(not(target_family = "wasm"))] 
+#[linkme::distributed_slice]
 pub static TYPE_INTERFACE_VERIFIERS: [LazyLock<TypeInterfaceVerifierInfo>] = [..];
 
 #[doc(hidden)]
 /// All interfaces mapped to their super-interfaces
-#[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice)]
+#[cfg(not(target_family = "wasm"))] 
+#[linkme::distributed_slice]
 pub static TYPE_INTERFACE_DEPS: [LazyLock<TypeInterfaceDepsInfo>] = [..];
 
 #[cfg(target_family = "wasm")]
 inventory::collect!(crate::utils::inventory::LazyLockWrapper<TypeInterfaceVerifierInfo>);
 
 #[cfg(target_family = "wasm")]
-inventory::collect!(crate::utils::inventory::LazyLockWrapper<TypeInterfaceDepsInfo>);
+inventory::collect!(crate::utils::inventory::LazyLockWrapper<TypeInterfaceDepsInfo, TypeId>);
 
 #[cfg(target_family = "wasm")]
 fn get_type_interface_verifiers() -> impl Iterator<Item = &'static LazyLock<TypeInterfaceVerifierInfo>> {
@@ -581,7 +583,7 @@ fn get_type_interface_verifiers() -> impl Iterator<Item = &'static LazyLock<Type
 
 #[cfg(target_family = "wasm")]
 fn get_type_interface_deps() -> impl Iterator<Item = &'static LazyLock<TypeInterfaceDepsInfo>> {
-    inventory::iter::<crate::utils::inventory::LazyLockWrapper<TypeInterfaceDepsInfo>>().map(|llw| llw.0)
+    inventory::iter::<crate::utils::inventory::LazyLockWrapper<TypeInterfaceDepsInfo, TypeId>>().map(|llw| llw.0)
 }
 
 #[cfg(not(target_family = "wasm"))]
