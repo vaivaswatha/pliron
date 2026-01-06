@@ -562,7 +562,7 @@ mod tests {
 
     use crate::verify_err_noloc;
 
-    use super::{ATTR_INTERFACE_DEPS, ATTR_INTERFACE_VERIFIERS_MAP};
+    use super::{ATTR_INTERFACE_VERIFIERS_MAP, get_attr_interface_deps};
 
     #[test]
     /// For every interface that an [Attr] implements, ensure that the interface verifiers

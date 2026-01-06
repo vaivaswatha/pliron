@@ -670,7 +670,7 @@ mod tests {
 
     use crate::verify_err_noloc;
 
-    use super::{TYPE_INTERFACE_DEPS, TYPE_INTERFACE_VERIFIERS_MAP};
+    use super::{TYPE_INTERFACE_VERIFIERS_MAP, get_type_interface_deps};
 
     #[test]
     /// For every interface that a [Type] implements, ensure that the interface verifiers

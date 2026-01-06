@@ -577,7 +577,7 @@ mod tests {
 
     use crate::verify_err_noloc;
 
-    use super::{OP_INTERFACE_DEPS, OP_INTERFACE_VERIFIERS_MAP};
+    use super::{OP_INTERFACE_VERIFIERS_MAP, get_op_interface_deps};
 
     #[test]
     /// For every interface that an [Op] implements, ensure that the interface verifiers
