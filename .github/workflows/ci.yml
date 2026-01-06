@@ -35,6 +35,9 @@ jobs:
     - name: Build
       run: RUSTFLAGS="-D warnings" cargo build --workspace --verbose
 
+    - name: Build Wasm Target
+      run: RUSTFLAGS="-D warnings" cargo build --worlspace --target wasm32-unknown-unknown --verbose
+
     - name: Tests (Debug)
       run: cargo test --workspace --verbose
 
@@ -44,5 +47,3 @@ jobs:
     - name: Documentation
       run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace
 
-    - name: Wasm Check
-      run: cargo build --target wasm32-unknown-unknown
