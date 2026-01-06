@@ -27,4 +27,9 @@ prettyplease.workspace = true
 expect-test.workspace = true
 pliron = { path = "../" }
 linkme.workspace = true
+inventory.workspace = true
 dyn-clone.workspace = true
+
+[features]
+distributed-slice = []
+inventory = []
