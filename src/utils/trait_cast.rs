@@ -10,7 +10,6 @@ use std::{
     sync::LazyLock,
 };
 
-use linkme::distributed_slice;
 use rustc_hash::FxHashMap;
 
 /// Cast a [dyn Any](Any) object to a `dyn Trait` object for any
@@ -49,10 +48,31 @@ pub fn any_to_trait<T: ?Sized + 'static>(r: &dyn Any) -> Option<&T> {
         })
 }
 
+/// Type aliases to simplify types below
+pub type TraitCasterInfo = ((TypeId, TypeId), &'static (dyn Any + Sync + Send));
+pub type TraitCasterLazyLock = LazyLock<TraitCasterInfo>;
+
+#[cfg(feature = "inventory")]
+type TraitCasterWrapper = crate::utils::inventory::LazyLockWrapper<TraitCasterInfo>;
+
 #[doc(hidden)]
-#[distributed_slice]
+#[cfg(feature = "distributed-slice")]
+#[linkme::distributed_slice]
 /// A distributed slice of (type_id of the object, type_id of the trait to cast to, cast function)
-pub static TRAIT_CASTERS: [LazyLock<((TypeId, TypeId), &'static (dyn Any + Sync + Send))>] = [..];
+pub static TRAIT_CASTERS: [TraitCasterLazyLock] = [..];
+
+#[cfg(feature = "inventory")]
+inventory::collect!(TraitCasterWrapper);
+
+#[cfg(feature = "inventory")]
+fn get_trait_casters() -> impl Iterator<Item = &'static TraitCasterLazyLock> {
+    inventory::iter::<TraitCasterWrapper>().map(|tcw| tcw.0)
+}
+
+#[cfg(feature = "distributed-slice")]
+fn get_trait_casters() -> impl Iterator<Item = &'static TraitCasterLazyLock> {
+    TRAIT_CASTERS.iter()
+}
 
 #[doc(hidden)]
 /// A map of all the trait casters, indexed by the type_id of the object
@@ -61,8 +81,7 @@ pub static TRAIT_CASTERS: [LazyLock<((TypeId, TypeId), &'static (dyn Any + Sync 
 /// through the distributed slice every time we want to cast an object.
 static TRAIT_CASTERS_MAP: LazyLock<FxHashMap<(TypeId, TypeId), &'static (dyn Any + Sync + Send)>> =
     LazyLock::new(|| {
-        TRAIT_CASTERS
-            .iter()
+        get_trait_casters()
             .map(|lazy_tuple| **lazy_tuple)
             .collect()
     });
@@ -92,11 +111,8 @@ macro_rules! type_to_trait {
     ($ty_name:ty, $to_trait_name:path) => {
         // The rust way to do an anonymous module.
         const _: () = {
-            #[linkme::distributed_slice($crate::utils::trait_cast::TRAIT_CASTERS)]
-            static CAST_TO_TRAIT: std::sync::LazyLock<(
-                (std::any::TypeId, std::any::TypeId),
-                &'static (dyn std::any::Any + Sync + Send),
-            )> = std::sync::LazyLock::new(|| {
+            #[cfg_attr(feature = "distributed-slice", linkme::distributed_slice($crate::utils::trait_cast::TRAIT_CASTERS))]
+            static CAST_TO_TRAIT: $crate::utils::trait_cast::TraitCasterLazyLock = std::sync::LazyLock::new(|| {
                 (
                     (
                         std::any::TypeId::of::<$ty_name>(),
@@ -110,6 +126,12 @@ macro_rules! type_to_trait {
                         as &'static (dyn std::any::Any + Sync + Send),
                 )
             });
+
+            #[cfg(feature = "inventory")]
+            inventory::submit! {
+                $crate::utils::inventory::LazyLockWrapper(&CAST_TO_TRAIT)
+            }
+
             fn cast_to_trait<'a>(
                 r: &'a (dyn std::any::Any + 'static),
             ) -> Option<&'a (dyn $to_trait_name + 'static)> {
