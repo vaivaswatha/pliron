@@ -15,7 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+
     - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-unknown-unknown
 
     - name: Setup LLVM
       run: |
@@ -40,3 +43,6 @@ jobs:
 
     - name: Documentation
       run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace
+
+    - name: Wasm Check
+      run: cargo build --target wasm32-unknown-unknown
