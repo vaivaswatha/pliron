@@ -80,11 +80,7 @@ fn get_trait_casters() -> impl Iterator<Item = &'static TraitCasterLazyLock> {
 /// the cast function pointers. This is used to avoid having to search
 /// through the distributed slice every time we want to cast an object.
 static TRAIT_CASTERS_MAP: LazyLock<FxHashMap<(TypeId, TypeId), &'static (dyn Any + Sync + Send)>> =
-    LazyLock::new(|| {
-        get_trait_casters()
-            .map(|lazy_tuple| **lazy_tuple)
-            .collect()
-    });
+    LazyLock::new(|| get_trait_casters().map(|lazy_tuple| **lazy_tuple).collect());
 
 /// Specify that a type may be casted to a `dyn Trait` object. Use [any_to_trait] for the actual cast.
 /// Example:
@@ -111,21 +107,25 @@ macro_rules! type_to_trait {
     ($ty_name:ty, $to_trait_name:path) => {
         // The rust way to do an anonymous module.
         const _: () = {
-            #[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice($crate::utils::trait_cast::TRAIT_CASTERS))]
-            static CAST_TO_TRAIT: $crate::utils::trait_cast::TraitCasterLazyLock = std::sync::LazyLock::new(|| {
-                (
+            #[cfg_attr(
+                not(target_family = "wasm"),
+                linkme::distributed_slice($crate::utils::trait_cast::TRAIT_CASTERS)
+            )]
+            static CAST_TO_TRAIT: $crate::utils::trait_cast::TraitCasterLazyLock =
+                std::sync::LazyLock::new(|| {
                     (
-                        std::any::TypeId::of::<$ty_name>(),
-                        std::any::TypeId::of::<dyn $to_trait_name>(),
-                    ),
-                    &(cast_to_trait
-                        as for<'a> fn(
-                            &'a (dyn std::any::Any + 'static),
-                        )
-                            -> Option<&'a (dyn $to_trait_name + 'static)>)
-                        as &'static (dyn std::any::Any + Sync + Send),
-                )
-            });
+                        (
+                            std::any::TypeId::of::<$ty_name>(),
+                            std::any::TypeId::of::<dyn $to_trait_name>(),
+                        ),
+                        &(cast_to_trait
+                            as for<'a> fn(
+                                &'a (dyn std::any::Any + 'static),
+                            )
+                                -> Option<&'a (dyn $to_trait_name + 'static)>)
+                            as &'static (dyn std::any::Any + Sync + Send),
+                    )
+                });
 
             #[cfg(target_family = "wasm")]
             inventory::submit! {

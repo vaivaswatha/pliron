@@ -7,10 +7,7 @@ use std::sync::LazyLock;
 /// items that have one-time dynamic initialization
 /// processes via LazyLock. The U parameter is for
 /// further distinguishing in cases where T is similar.
-pub struct LazyLockWrapper<T: 'static, U = ()>(
-    pub &'static LazyLock<T>,
-    pub PhantomData<U>,
-);
+pub struct LazyLockWrapper<T: 'static, U = ()>(pub &'static LazyLock<T>, pub PhantomData<U>);
 
 impl<T, U> LazyLockWrapper<T, U> {
     pub const fn new(t: &'static LazyLock<T>) -> Self {

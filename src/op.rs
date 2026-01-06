@@ -279,18 +279,22 @@ inventory::collect!(crate::utils::inventory::LazyLockWrapper<OpInterfaceVerifier
 inventory::collect!(crate::utils::inventory::LazyLockWrapper<OpInterfaceDepsInfo, OpId>);
 
 #[cfg(target_family = "wasm")]
-fn get_op_interface_verifiers() -> impl Iterator<Item = &'static LazyLock<OpInterfaceVerifierInfo>> {
-    inventory::iter::<crate::utils::inventory::LazyLockWrapper<OpInterfaceVerifierInfo>>().map(|llw| llw.0)
+fn get_op_interface_verifiers() -> impl Iterator<Item = &'static LazyLock<OpInterfaceVerifierInfo>>
+{
+    inventory::iter::<crate::utils::inventory::LazyLockWrapper<OpInterfaceVerifierInfo>>()
+        .map(|llw| llw.0)
 }
 
 #[cfg(not(target_family = "wasm"))]
-fn get_op_interface_verifiers() -> impl Iterator<Item = &'static LazyLock<OpInterfaceVerifierInfo>> {
+fn get_op_interface_verifiers() -> impl Iterator<Item = &'static LazyLock<OpInterfaceVerifierInfo>>
+{
     OP_INTERFACE_VERIFIERS.iter()
 }
 
 #[cfg(target_family = "wasm")]
 fn get_op_interface_deps() -> impl Iterator<Item = &'static LazyLock<OpInterfaceDepsInfo>> {
-    inventory::iter::<crate::utils::inventory::LazyLockWrapper<OpInterfaceDepsInfo, OpId>>().map(|llw| llw.0)
+    inventory::iter::<crate::utils::inventory::LazyLockWrapper<OpInterfaceDepsInfo, OpId>>()
+        .map(|llw| llw.0)
 }
 
 #[cfg(not(target_family = "wasm"))]
