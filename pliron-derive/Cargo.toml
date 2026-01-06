@@ -29,7 +29,3 @@ pliron = { path = "../" }
 linkme.workspace = true
 inventory.workspace = true
 dyn-clone.workspace = true
-
-[features]
-linkme = []
-inventory = []

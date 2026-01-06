@@ -25,6 +25,8 @@ keywords = ["pliron", "llvm", "mlir", "compiler"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+pliron-derive = { path = "./pliron-derive", version = "0" }
+
 awint.workspace = true
 rustc_apfloat.workspace = true
 slotmap = "1"
@@ -39,11 +41,9 @@ log.workspace = true
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 inventory.workspace = true
-pliron-derive = { path = "./pliron-derive", version = "0", features = ["inventory"] }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 linkme.workspace = true
-pliron-derive = { path = "./pliron-derive", version = "0", features = ["linkme"] }
 
 [dev-dependencies]
 expect-test.workspace = true
