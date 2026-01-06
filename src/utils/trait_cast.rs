@@ -52,24 +52,24 @@ pub fn any_to_trait<T: ?Sized + 'static>(r: &dyn Any) -> Option<&T> {
 pub type TraitCasterInfo = ((TypeId, TypeId), &'static (dyn Any + Sync + Send));
 pub type TraitCasterLazyLock = LazyLock<TraitCasterInfo>;
 
-#[cfg(feature = "inventory")]
+#[cfg(target_family = "wasm")]
 type TraitCasterWrapper = crate::utils::inventory::LazyLockWrapper<TraitCasterInfo>;
 
 #[doc(hidden)]
-#[cfg(feature = "distributed-slice")]
+#[cfg(not(target_family = "wasm"))]
 #[linkme::distributed_slice]
 /// A distributed slice of (type_id of the object, type_id of the trait to cast to, cast function)
 pub static TRAIT_CASTERS: [TraitCasterLazyLock] = [..];
 
-#[cfg(feature = "inventory")]
+#[cfg(target_family = "wasm")]
 inventory::collect!(TraitCasterWrapper);
 
-#[cfg(feature = "inventory")]
+#[cfg(target_family = "wasm")]
 fn get_trait_casters() -> impl Iterator<Item = &'static TraitCasterLazyLock> {
     inventory::iter::<TraitCasterWrapper>().map(|tcw| tcw.0)
 }
 
-#[cfg(feature = "distributed-slice")]
+#[cfg(not(target_family = "wasm"))]
 fn get_trait_casters() -> impl Iterator<Item = &'static TraitCasterLazyLock> {
     TRAIT_CASTERS.iter()
 }
@@ -111,7 +111,7 @@ macro_rules! type_to_trait {
     ($ty_name:ty, $to_trait_name:path) => {
         // The rust way to do an anonymous module.
         const _: () = {
-            #[cfg_attr(feature = "distributed-slice", linkme::distributed_slice($crate::utils::trait_cast::TRAIT_CASTERS))]
+            #[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice($crate::utils::trait_cast::TRAIT_CASTERS))]
             static CAST_TO_TRAIT: $crate::utils::trait_cast::TraitCasterLazyLock = std::sync::LazyLock::new(|| {
                 (
                     (
@@ -127,7 +127,7 @@ macro_rules! type_to_trait {
                 )
             });
 
-            #[cfg(feature = "inventory")]
+            #[cfg(target_family = "wasm")]
             inventory::submit! {
                 $crate::utils::inventory::LazyLockWrapper(&CAST_TO_TRAIT)
             }
