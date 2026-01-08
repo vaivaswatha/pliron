@@ -255,13 +255,14 @@ pub fn op_impls<T: ?Sized + Op>(op: &dyn Op) -> bool {
 pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<()>;
 
 /// Type alias for op interface verifier information
+/// [Op]s paired with every interface it implements (and the verifier for that interface).
 type OpInterfaceVerifierInfo = (OpId, (std::any::TypeId, OpInterfaceVerifier));
 
 /// Type alias for op interface dependency information
+/// All interfaces mapped to their super-interfaces
 type OpInterfaceDepsInfo = (std::any::TypeId, Vec<std::any::TypeId>);
 
 #[doc(hidden)]
-/// [Op]s paired with every interface it implements (and the verifier for that interface).
 #[cfg(not(target_family = "wasm"))]
 pub mod statics {
     use super::*;

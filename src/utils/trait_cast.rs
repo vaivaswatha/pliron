@@ -49,10 +49,10 @@ pub fn any_to_trait<T: ?Sized + 'static>(r: &dyn Any) -> Option<&T> {
 }
 
 /// Type aliases to simplify types below
+/// (type_id of the object, type_id of the trait to cast to, cast function)
 pub type TraitCasterInfo = ((TypeId, TypeId), &'static (dyn Any + Sync + Send));
 
 #[doc(hidden)]
-/// A distributed slice of (type_id of the object, type_id of the trait to cast to, cast function)
 #[cfg(not(target_family = "wasm"))]
 pub mod statics {
     use super::*;

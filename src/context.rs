@@ -270,7 +270,7 @@ pub struct DictKeyId {
 /// `pliron` uses dictionaries indexed by static [Identifier]s in many places,
 /// such as [Context::aux_data_map], and the states of [Printable](crate::printable::State)
 /// and [Parsable](crate::parsable::State). To avoid collisions in these [Identifier]s,
-/// we use the [placeholder] macro to verify that all such keys declared using the macro
+/// we use the [crate::dict_key!] macro to verify that all such keys declared using the macro
 /// are unique. The macro adds the keys to this static slice, which is then verified
 /// when a [Context] is created.
 #[cfg(not(target_family = "wasm"))]
