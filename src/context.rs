@@ -273,7 +273,6 @@ pub struct DictKeyId {
 /// we use the [placeholder] macro to verify that all such keys declared using the macro
 /// are unique. The macro adds the keys to this static slice, which is then verified
 /// when a [Context] is created.
-
 #[cfg(not(target_family = "wasm"))]
 pub mod statics {
     use super::*;

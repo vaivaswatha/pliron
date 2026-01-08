@@ -446,11 +446,11 @@ type AttrInterfaceVerifierInfo = (AttrId, (std::any::TypeId, AttrInterfaceVerifi
 type AttrInterfaceDepsInfo = (std::any::TypeId, Vec<std::any::TypeId>);
 
 #[doc(hidden)]
+/// [Attribute]s paired with every interface it implements (and the verifier for that interface).
 #[cfg(not(target_family = "wasm"))]
 pub mod statics {
     use super::*;
 
-    /// [Attribute]s paired with every interface it implements (and the verifier for that interface).
     #[linkme::distributed_slice]
     pub static ATTR_INTERFACE_VERIFIERS: [LazyLock<AttrInterfaceVerifierInfo>] = [..];
 
@@ -473,7 +473,6 @@ pub mod statics {
     use super::*;
     use crate::utils::inventory::LazyLockWrapper;
 
-    /// [Attribute]s paired with every interface it implements (and the verifier for that interface).
     inventory::collect!(LazyLockWrapper<AttrInterfaceVerifierInfo>);
 
     inventory::collect!(LazyLockWrapper<AttrInterfaceDepsInfo, AttrId>);
