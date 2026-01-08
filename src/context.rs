@@ -273,22 +273,32 @@ pub struct DictKeyId {
 /// we use the [placeholder] macro to verify that all such keys declared using the macro
 /// are unique. The macro adds the keys to this static slice, which is then verified
 /// when a [Context] is created.
-#[cfg(not(target_family = "wasm"))]
-#[linkme::distributed_slice]
-pub static DICT_KEY_IDS: [LazyLock<DictKeyId>];
-
-#[cfg(target_family = "wasm")]
-inventory::collect!(crate::utils::inventory::LazyLockWrapper<DictKeyId>);
-
-#[cfg(target_family = "wasm")]
-fn get_dict_key_ids() -> impl Iterator<Item = &'static LazyLock<DictKeyId>> {
-    inventory::iter::<crate::utils::inventory::LazyLockWrapper<DictKeyId>>().map(|llw| llw.0)
-}
 
 #[cfg(not(target_family = "wasm"))]
-fn get_dict_key_ids() -> impl Iterator<Item = &'static LazyLock<DictKeyId>> {
-    DICT_KEY_IDS.iter()
+pub mod statics {
+    use super::*;
+
+    #[linkme::distributed_slice]
+    pub static DICT_KEY_IDS: [LazyLock<DictKeyId>];
+
+    pub fn get_dict_key_ids() -> impl Iterator<Item = &'static LazyLock<DictKeyId>> {
+        DICT_KEY_IDS.iter()
+    }
 }
+
+#[cfg(target_family = "wasm")]
+pub mod statics {
+    use super::*;
+    use crate::utils::inventory::LazyLockWrapper;
+
+    inventory::collect!(LazyLockWrapper<DictKeyId>);
+
+    pub fn get_dict_key_ids() -> impl Iterator<Item = &'static LazyLock<DictKeyId>> {
+        inventory::iter::<LazyLockWrapper<DictKeyId>>().map(|llw| llw.0)
+    }
+}
+
+pub use statics::*;
 
 #[doc(hidden)]
 pub static DICT_KEYS_VERIFIER: LazyLock<Result<()>> = LazyLock::new(verify_dict_keys);
@@ -341,7 +351,7 @@ macro_rules! dict_key {
         // to ensure that all keys are unique.
         // The static variable is created in a separate anonmyous module.
         const _: () = {
-            #[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice(::pliron::context::DICT_KEY_IDS))]
+            #[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice(::pliron::context::statics::statics::DICT_KEY_IDS))]
             pub static $decl: std::sync::LazyLock<::pliron::context::DictKeyId> =
                 std::sync::LazyLock::new(|| ::pliron::context::DictKeyId {
                     id: $name.try_into().unwrap(),
