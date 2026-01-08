@@ -351,7 +351,7 @@ macro_rules! dict_key {
         // to ensure that all keys are unique.
         // The static variable is created in a separate anonmyous module.
         const _: () = {
-            #[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice(::pliron::context::statics::statics::DICT_KEY_IDS))]
+            #[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice(::pliron::context::DICT_KEY_IDS))]
             pub static $decl: std::sync::LazyLock<::pliron::context::DictKeyId> =
                 std::sync::LazyLock::new(|| ::pliron::context::DictKeyId {
                     id: $name.try_into().unwrap(),
