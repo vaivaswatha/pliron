@@ -50,29 +50,35 @@ pub fn any_to_trait<T: ?Sized + 'static>(r: &dyn Any) -> Option<&T> {
 
 /// Type aliases to simplify types below
 pub type TraitCasterInfo = ((TypeId, TypeId), &'static (dyn Any + Sync + Send));
-pub type TraitCasterLazyLock = LazyLock<TraitCasterInfo>;
-
-#[cfg(target_family = "wasm")]
-type TraitCasterWrapper = crate::utils::inventory::LazyLockWrapper<TraitCasterInfo>;
 
 #[doc(hidden)]
-#[cfg(not(target_family = "wasm"))]
-#[linkme::distributed_slice]
 /// A distributed slice of (type_id of the object, type_id of the trait to cast to, cast function)
-pub static TRAIT_CASTERS: [TraitCasterLazyLock] = [..];
-
-#[cfg(target_family = "wasm")]
-inventory::collect!(TraitCasterWrapper);
-
-#[cfg(target_family = "wasm")]
-fn get_trait_casters() -> impl Iterator<Item = &'static TraitCasterLazyLock> {
-    inventory::iter::<TraitCasterWrapper>().map(|tcw| tcw.0)
-}
 
 #[cfg(not(target_family = "wasm"))]
-fn get_trait_casters() -> impl Iterator<Item = &'static TraitCasterLazyLock> {
-    TRAIT_CASTERS.iter()
+pub mod statics {
+    use super::*;
+
+    #[linkme::distributed_slice]
+    pub static TRAIT_CASTERS: [LazyLock<TraitCasterInfo>] = [..];
+
+    pub fn get_trait_casters() -> impl Iterator<Item = &'static LazyLock<TraitCasterInfo>> {
+        TRAIT_CASTERS.iter()
+    }
 }
+
+#[cfg(target_family = "wasm")]
+pub mod statics {
+    use super::*;
+    use crate::utils::inventory::LazyLockWrapper;
+
+    inventory::collect!(LazyLockWrapper<TraitCasterInfo>);
+
+    pub fn get_trait_casters() -> impl Iterator<Item = &'static LazyLock<TraitCasterInfo>> {
+        inventory::iter::<LazyLockWrapper<TraitCasterInfo>>().map(|tcw| tcw.0)
+    }
+}
+
+pub use statics::*;
 
 #[doc(hidden)]
 /// A map of all the trait casters, indexed by the type_id of the object
@@ -111,7 +117,7 @@ macro_rules! type_to_trait {
                 not(target_family = "wasm"),
                 linkme::distributed_slice($crate::utils::trait_cast::TRAIT_CASTERS)
             )]
-            static CAST_TO_TRAIT: $crate::utils::trait_cast::TraitCasterLazyLock =
+            static CAST_TO_TRAIT: std::sync::LazyLock<$crate::utils::trait_cast::TraitCasterInfo> =
                 std::sync::LazyLock::new(|| {
                     (
                         (
