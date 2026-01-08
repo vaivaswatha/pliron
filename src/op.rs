@@ -273,8 +273,8 @@ pub mod statics {
     #[linkme::distributed_slice]
     pub static OP_INTERFACE_DEPS: [LazyLock<OpInterfaceDepsInfo>] = [..];
 
-    pub fn get_op_interface_verifiers() -> impl Iterator<Item = &'static LazyLock<OpInterfaceVerifierInfo>>
-    {
+    pub fn get_op_interface_verifiers()
+    -> impl Iterator<Item = &'static LazyLock<OpInterfaceVerifierInfo>> {
         OP_INTERFACE_VERIFIERS.iter()
     }
 
@@ -292,15 +292,13 @@ pub mod statics {
 
     inventory::collect!(LazyLockWrapper<OpInterfaceDepsInfo, OpId>);
 
-    pub fn get_op_interface_verifiers() -> impl Iterator<Item = &'static LazyLock<OpInterfaceVerifierInfo>>
-    {
-        inventory::iter::<LazyLockWrapper<OpInterfaceVerifierInfo>>()
-            .map(|llw| llw.0)
+    pub fn get_op_interface_verifiers()
+    -> impl Iterator<Item = &'static LazyLock<OpInterfaceVerifierInfo>> {
+        inventory::iter::<LazyLockWrapper<OpInterfaceVerifierInfo>>().map(|llw| llw.0)
     }
 
     pub fn get_op_interface_deps() -> impl Iterator<Item = &'static LazyLock<OpInterfaceDepsInfo>> {
-        inventory::iter::<LazyLockWrapper<OpInterfaceDepsInfo, OpId>>()
-            .map(|llw| llw.0)
+        inventory::iter::<LazyLockWrapper<OpInterfaceDepsInfo, OpId>>().map(|llw| llw.0)
     }
 }
 

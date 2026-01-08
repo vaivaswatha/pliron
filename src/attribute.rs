@@ -463,7 +463,8 @@ pub mod statics {
         ATTR_INTERFACE_VERIFIERS.iter()
     }
 
-    pub fn get_attr_interface_deps() -> impl Iterator<Item = &'static LazyLock<AttrInterfaceDepsInfo>> {
+    pub fn get_attr_interface_deps()
+    -> impl Iterator<Item = &'static LazyLock<AttrInterfaceDepsInfo>> {
         ATTR_INTERFACE_DEPS.iter()
     }
 }
@@ -479,13 +480,12 @@ pub mod statics {
 
     pub fn get_attr_interface_verifiers()
     -> impl Iterator<Item = &'static LazyLock<AttrInterfaceVerifierInfo>> {
-        inventory::iter::<LazyLockWrapper<AttrInterfaceVerifierInfo>>()
-            .map(|llw| llw.0)
+        inventory::iter::<LazyLockWrapper<AttrInterfaceVerifierInfo>>().map(|llw| llw.0)
     }
 
-    pub fn get_attr_interface_deps() -> impl Iterator<Item = &'static LazyLock<AttrInterfaceDepsInfo>> {
-        inventory::iter::<LazyLockWrapper<AttrInterfaceDepsInfo, AttrId>>()
-            .map(|llw| llw.0)
+    pub fn get_attr_interface_deps()
+    -> impl Iterator<Item = &'static LazyLock<AttrInterfaceDepsInfo>> {
+        inventory::iter::<LazyLockWrapper<AttrInterfaceDepsInfo, AttrId>>().map(|llw| llw.0)
     }
 }
 

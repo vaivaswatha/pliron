@@ -571,7 +571,8 @@ pub mod statics {
         TYPE_INTERFACE_VERIFIERS.iter()
     }
 
-    pub fn get_type_interface_deps() -> impl Iterator<Item = &'static LazyLock<TypeInterfaceDepsInfo>> {
+    pub fn get_type_interface_deps()
+    -> impl Iterator<Item = &'static LazyLock<TypeInterfaceDepsInfo>> {
         TYPE_INTERFACE_DEPS.iter()
     }
 }
@@ -587,13 +588,12 @@ pub mod statics {
 
     pub fn get_type_interface_verifiers()
     -> impl Iterator<Item = &'static LazyLock<TypeInterfaceVerifierInfo>> {
-        inventory::iter::<LazyLockWrapper<TypeInterfaceVerifierInfo>>()
-            .map(|llw| llw.0)
+        inventory::iter::<LazyLockWrapper<TypeInterfaceVerifierInfo>>().map(|llw| llw.0)
     }
 
-    pub fn get_type_interface_deps() -> impl Iterator<Item = &'static LazyLock<TypeInterfaceDepsInfo>> {
-        inventory::iter::<LazyLockWrapper<TypeInterfaceDepsInfo, TypeId>>()
-            .map(|llw| llw.0)
+    pub fn get_type_interface_deps()
+    -> impl Iterator<Item = &'static LazyLock<TypeInterfaceDepsInfo>> {
+        inventory::iter::<LazyLockWrapper<TypeInterfaceDepsInfo, TypeId>>().map(|llw| llw.0)
     }
 }
 
