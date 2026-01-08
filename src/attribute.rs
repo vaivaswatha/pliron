@@ -447,45 +447,49 @@ type AttrInterfaceDepsInfo = (std::any::TypeId, Vec<std::any::TypeId>);
 
 #[doc(hidden)]
 /// [Attribute]s paired with every interface it implements (and the verifier for that interface).
-#[cfg(not(target_family = "wasm"))]
-#[linkme::distributed_slice]
-pub static ATTR_INTERFACE_VERIFIERS: [LazyLock<AttrInterfaceVerifierInfo>] = [..];
-
-#[doc(hidden)]
-/// All interfaces mapped to their super-interfaces
-#[cfg(not(target_family = "wasm"))]
-#[linkme::distributed_slice]
-pub static ATTR_INTERFACE_DEPS: [LazyLock<AttrInterfaceDepsInfo>] = [..];
-
-#[cfg(target_family = "wasm")]
-inventory::collect!(crate::utils::inventory::LazyLockWrapper<AttrInterfaceVerifierInfo>);
-
-#[cfg(target_family = "wasm")]
-inventory::collect!(crate::utils::inventory::LazyLockWrapper<AttrInterfaceDepsInfo, AttrId>);
-
-#[cfg(target_family = "wasm")]
-fn get_attr_interface_verifiers()
--> impl Iterator<Item = &'static LazyLock<AttrInterfaceVerifierInfo>> {
-    inventory::iter::<crate::utils::inventory::LazyLockWrapper<AttrInterfaceVerifierInfo>>()
-        .map(|llw| llw.0)
-}
 
 #[cfg(not(target_family = "wasm"))]
-fn get_attr_interface_verifiers()
--> impl Iterator<Item = &'static LazyLock<AttrInterfaceVerifierInfo>> {
-    ATTR_INTERFACE_VERIFIERS.iter()
+pub mod statics {
+    use super::*;
+
+    #[linkme::distributed_slice]
+    pub static ATTR_INTERFACE_VERIFIERS: [LazyLock<AttrInterfaceVerifierInfo>] = [..];
+
+    #[linkme::distributed_slice]
+    pub static ATTR_INTERFACE_DEPS: [LazyLock<AttrInterfaceDepsInfo>] = [..];
+
+    pub fn get_attr_interface_verifiers()
+    -> impl Iterator<Item = &'static LazyLock<AttrInterfaceVerifierInfo>> {
+        ATTR_INTERFACE_VERIFIERS.iter()
+    }
+
+    pub fn get_attr_interface_deps() -> impl Iterator<Item = &'static LazyLock<AttrInterfaceDepsInfo>> {
+        ATTR_INTERFACE_DEPS.iter()
+    }
 }
 
 #[cfg(target_family = "wasm")]
-fn get_attr_interface_deps() -> impl Iterator<Item = &'static LazyLock<AttrInterfaceDepsInfo>> {
-    inventory::iter::<crate::utils::inventory::LazyLockWrapper<AttrInterfaceDepsInfo, AttrId>>()
-        .map(|llw| llw.0)
+pub mod statics {
+    use super::*;
+    use crate::utils::inventory::LazyLockWrapper;
+
+    inventory::collect!(LazyLockWrapper<AttrInterfaceVerifierInfo>);
+
+    inventory::collect!(LazyLockWrapper<AttrInterfaceDepsInfo, AttrId>);
+
+    pub fn get_attr_interface_verifiers()
+    -> impl Iterator<Item = &'static LazyLock<AttrInterfaceVerifierInfo>> {
+        inventory::iter::<LazyLockWrapper<AttrInterfaceVerifierInfo>>()
+            .map(|llw| llw.0)
+    }
+
+    pub fn get_attr_interface_deps() -> impl Iterator<Item = &'static LazyLock<AttrInterfaceDepsInfo>> {
+        inventory::iter::<LazyLockWrapper<AttrInterfaceDepsInfo, AttrId>>()
+            .map(|llw| llw.0)
+    }
 }
 
-#[cfg(not(target_family = "wasm"))]
-fn get_attr_interface_deps() -> impl Iterator<Item = &'static LazyLock<AttrInterfaceDepsInfo>> {
-    ATTR_INTERFACE_DEPS.iter()
-}
+pub use statics::*;
 
 #[doc(hidden)]
 /// A map from every [Attribute] to its ordered (as per interface deps) list of interface verifiers.
