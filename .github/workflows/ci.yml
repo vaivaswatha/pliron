@@ -20,6 +20,22 @@ jobs:
       with:
         targets: wasm32-unknown-unknown
 
+    - uses: Swatinem/rust-cache@v2
+
+    - name: Install cargo-binstall
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-binstall
+
+    - name: Install wasm-bindgen-cli
+      run: |
+        cargo binstall -y wasm-bindgen-cli --version 0.2.106
+        wasm-bindgen --version
+
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 24
+
     - name: Setup LLVM
       run: |
         wget https://apt.llvm.org/llvm.sh
@@ -44,6 +60,9 @@ jobs:
 
     - name: Tests (Release)
       run: cargo test --release --workspace --verbose
+
+    - name: Tests (Wasm)
+      run: cargo test --target wasm32-unknown-unknown
 
     - name: Documentation
       run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace
