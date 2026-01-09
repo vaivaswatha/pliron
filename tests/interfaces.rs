@@ -44,6 +44,9 @@ use thiserror::Error;
 
 use crate::common::{const_ret_in_mod, setup_context_dialects};
 
+#[cfg(target_family = "wasm")]
+use wasm_bindgen_test::*;
+
 #[def_op("test.zero_result")]
 struct ZeroResultOp {}
 
@@ -155,6 +158,7 @@ impl VerifyIntrOp {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_op_intr_verify_order() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
@@ -699,6 +703,7 @@ impl TestNoInbuiltVerifyInterface for NoInbuiltVerifyOp {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_no_inbuilt_verify() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     NoInbuiltVerifyOp::register(ctx, NoInbuiltVerifyOp::parser_fn);
@@ -733,6 +738,7 @@ impl TestNoInbuiltVerifyInterface for NoInbuiltVerifyOp2 {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_no_inbuilt_verify2() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     NoInbuiltVerifyOp2::register(ctx, NoInbuiltVerifyOp2::parser_fn);
@@ -765,6 +771,7 @@ impl_verify_succ!(OutlineTestAttr);
 impl OutlinedAttr for OutlineTestAttr {}
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_outline_attr() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     OutlineTestAttr::register_attr_in_dialect(ctx, OutlineTestAttr::parser_fn);
@@ -927,6 +934,7 @@ impl CanonicalOp {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_outline_attr_canonical_op() -> Result<()> {
     let ctx = &mut setup_context_dialects();
 

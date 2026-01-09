@@ -32,6 +32,9 @@ use pliron_derive::format_op;
 use crate::common::{const_ret_in_mod, setup_context_dialects};
 use combine::parser::Parser;
 
+#[cfg(target_family = "wasm")]
+use wasm_bindgen_test::*;
+
 mod common;
 
 // Test erasing the entire top module.
@@ -233,6 +236,7 @@ fn print_simple() -> Result<()> {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn parse_simple() -> Result<()> {
     let input = r#"
         builtin.module @bar {
@@ -341,6 +345,7 @@ fn expect_parse_error(input: &str, expected_err: Expect) {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn parse_err_multiple_def() {
     let input_multiple_ssa_defs = r#"
         builtin.module @bar {
@@ -379,6 +384,7 @@ fn parse_err_multiple_def() {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn parse_err_unresolved_def() {
     let input_multiple_defs = r#"
         builtin.module @bar {
@@ -397,6 +403,7 @@ fn parse_err_unresolved_def() {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn parse_err_block_label_colon() {
     let input_label_colon_missing = r#"
         builtin.module @bar {
@@ -419,6 +426,7 @@ fn parse_err_block_label_colon() {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn parse_err_block_args() {
     let input_label_colon_missing = r#"
         builtin.module @bar {

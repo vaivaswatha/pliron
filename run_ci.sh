@@ -15,4 +15,5 @@ RUSTFLAGS="-D warnings" cargo build --workspace
 RUSTFLAGS="-D warnings" cargo build -p pliron -p pliron-derive --target wasm32-unknown-unknown
 cargo test --workspace
 cargo test --release --workspace
+cargo test --target wasm32-unknown-unknown
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace

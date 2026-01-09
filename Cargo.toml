@@ -48,6 +48,9 @@ linkme = "0"
 [dev-dependencies]
 expect-test.workspace = true
 
+[target.'cfg(target_family = "wasm")'.dev-dependencies]
+wasm-bindgen-test.workspace = true
+
 [workspace.dependencies]
 awint = "0"
 bitflags = "2"
@@ -66,3 +69,4 @@ tempfile = "3"
 log = "0"
 env_logger = "0"
 cargo-manifest = "0"
+wasm-bindgen-test = "0.3"
