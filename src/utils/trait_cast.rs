@@ -48,11 +48,17 @@ pub fn any_to_trait<T: ?Sized + 'static>(r: &dyn Any) -> Option<&T> {
         })
 }
 
-/// Type aliases to simplify types below
-/// (type_id of the object, type_id of the trait to cast to, cast function)
-pub type TraitCasterInfo = ((TypeId, TypeId), &'static (dyn Any + Sync + Send));
-
 #[doc(hidden)]
+/// Information to cast from a Rust type to a trait object.
+pub struct TraitCasterInfo {
+    /// The type from which we cast.
+    pub from: TypeId,
+    /// The trait to which we cast.
+    pub to: TypeId,
+    /// The cast function pointer.
+    pub caster: &'static (dyn Any + Sync + Send),
+}
+
 #[cfg(not(target_family = "wasm"))]
 pub mod statics {
     use super::*;
@@ -85,7 +91,11 @@ pub use statics::*;
 /// the cast function pointers. This is used to avoid having to search
 /// through the distributed slice every time we want to cast an object.
 static TRAIT_CASTERS_MAP: LazyLock<FxHashMap<(TypeId, TypeId), &'static (dyn Any + Sync + Send)>> =
-    LazyLock::new(|| get_trait_casters().map(|lazy_tuple| **lazy_tuple).collect());
+    LazyLock::new(|| {
+        get_trait_casters()
+            .map(|lazy| ((lazy.from, lazy.to), lazy.caster))
+            .collect()
+    });
 
 /// Specify that a type may be casted to a `dyn Trait` object. Use [any_to_trait] for the actual cast.
 /// Example:
@@ -117,19 +127,15 @@ macro_rules! type_to_trait {
                 linkme::distributed_slice($crate::utils::trait_cast::TRAIT_CASTERS)
             )]
             static CAST_TO_TRAIT: std::sync::LazyLock<$crate::utils::trait_cast::TraitCasterInfo> =
-                std::sync::LazyLock::new(|| {
-                    (
-                        (
-                            std::any::TypeId::of::<$ty_name>(),
-                            std::any::TypeId::of::<dyn $to_trait_name>(),
-                        ),
-                        &(cast_to_trait
-                            as for<'a> fn(
-                                &'a (dyn std::any::Any + 'static),
-                            )
-                                -> Option<&'a (dyn $to_trait_name + 'static)>)
-                            as &'static (dyn std::any::Any + Sync + Send),
-                    )
+                std::sync::LazyLock::new(|| $crate::utils::trait_cast::TraitCasterInfo {
+                    from: std::any::TypeId::of::<$ty_name>(),
+                    to: std::any::TypeId::of::<dyn $to_trait_name>(),
+                    caster: &(cast_to_trait
+                        as for<'a> fn(
+                            &'a (dyn std::any::Any + 'static),
+                        )
+                            -> Option<&'a (dyn $to_trait_name + 'static)>)
+                        as &'static (dyn std::any::Any + Sync + Send),
                 });
 
             #[cfg(target_family = "wasm")]

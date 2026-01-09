@@ -439,15 +439,14 @@ impl Parsable for AttrId {
 /// Every attribute interface must have a function named `verify` with this type.
 pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 
-/// Type alias for attribute interface verifier information
-/// [Attribute]s paired with every interface it implements (and the verifier for that interface).
+#[doc(hidden)]
+/// An [Attribute] paired with every interface it implements (and the verifier for that interface).
 type AttrInterfaceVerifierInfo = (AttrId, (std::any::TypeId, AttrInterfaceVerifier));
 
-/// Type alias for attribute interface dependency information
-/// All interfaces mapped to their super-interfaces
+#[doc(hidden)]
+/// An interface mapped to its super-interfaces
 type AttrInterfaceDepsInfo = (std::any::TypeId, Vec<std::any::TypeId>);
 
-#[doc(hidden)]
 #[cfg(not(target_family = "wasm"))]
 pub mod statics {
     use super::*;

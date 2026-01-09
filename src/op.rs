@@ -254,15 +254,14 @@ pub fn op_impls<T: ?Sized + Op>(op: &dyn Op) -> bool {
 /// Every op interface must have a function named `verify` with this type.
 pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<()>;
 
-/// Type alias for op interface verifier information
-/// [Op]s paired with every interface it implements (and the verifier for that interface).
+#[doc(hidden)]
+/// An [Op] paired with every interface it implements (and the verifier for that interface).
 type OpInterfaceVerifierInfo = (OpId, (std::any::TypeId, OpInterfaceVerifier));
 
-/// Type alias for op interface dependency information
-/// All interfaces mapped to their super-interfaces
+#[doc(hidden)]
+/// An interface mapped to its super-interfaces
 type OpInterfaceDepsInfo = (std::any::TypeId, Vec<std::any::TypeId>);
 
-#[doc(hidden)]
 #[cfg(not(target_family = "wasm"))]
 pub mod statics {
     use super::*;

@@ -547,15 +547,14 @@ pub fn type_impls<T: ?Sized + Type>(ty: &dyn Type) -> bool {
 /// Every type interface must have a function named `verify` with this type.
 pub type TypeInterfaceVerifier = fn(&dyn Type, &Context) -> Result<()>;
 
-/// Type alias for type interface verifier information
-/// [Type]s paired with every interface it implements (and the verifier for that interface).
+#[doc(hidden)]
+/// A [Type] paired with every interface it implements (and the verifier for that interface).
 type TypeInterfaceVerifierInfo = (TypeId, (std::any::TypeId, TypeInterfaceVerifier));
 
-/// Type alias for type interface dependency information  
-/// All interfaces mapped to their super-interfaces
+#[doc(hidden)]
+/// An interface mapped to its super-interfaces
 type TypeInterfaceDepsInfo = (std::any::TypeId, Vec<std::any::TypeId>);
 
-#[doc(hidden)]
 #[cfg(not(target_family = "wasm"))]
 pub mod statics {
     use super::*;
