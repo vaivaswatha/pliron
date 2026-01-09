@@ -548,11 +548,11 @@ pub fn type_impls<T: ?Sized + Type>(ty: &dyn Type) -> bool {
 pub type TypeInterfaceVerifier = fn(&dyn Type, &Context) -> Result<()>;
 
 #[doc(hidden)]
-/// A [Type] paired with every interface it implements (and the verifier for that interface).
+/// A [Type] paired with an interface it implements (and the verifier for that interface).
 type TypeInterfaceVerifierInfo = (TypeId, (std::any::TypeId, TypeInterfaceVerifier));
 
 #[doc(hidden)]
-/// An interface mapped to its super-interfaces
+/// A [Type] interface mapped to its super-interfaces
 type TypeInterfaceDepsInfo = (std::any::TypeId, Vec<std::any::TypeId>);
 
 #[cfg(not(target_family = "wasm"))]

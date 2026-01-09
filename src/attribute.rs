@@ -440,11 +440,11 @@ impl Parsable for AttrId {
 pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 
 #[doc(hidden)]
-/// An [Attribute] paired with every interface it implements (and the verifier for that interface).
+/// An [Attribute] paired with an interface it implements (and the verifier for that interface).
 type AttrInterfaceVerifierInfo = (AttrId, (std::any::TypeId, AttrInterfaceVerifier));
 
 #[doc(hidden)]
-/// An interface mapped to its super-interfaces
+/// An [Attribute] interface mapped to its super-interfaces
 type AttrInterfaceDepsInfo = (std::any::TypeId, Vec<std::any::TypeId>);
 
 #[cfg(not(target_family = "wasm"))]
