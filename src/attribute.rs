@@ -47,7 +47,6 @@ use std::{
 use combine::{Parser, parser, token};
 use downcast_rs::{Downcast, impl_downcast};
 use dyn_clone::DynClone;
-use linkme::distributed_slice;
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -440,18 +439,57 @@ impl Parsable for AttrId {
 /// Every attribute interface must have a function named `verify` with this type.
 pub type AttrInterfaceVerifier = fn(&dyn Attribute, &Context) -> Result<()>;
 
-#[doc(hidden)]
+/// Type alias for attribute interface verifier information
 /// [Attribute]s paired with every interface it implements (and the verifier for that interface).
-#[distributed_slice]
-pub static ATTR_INTERFACE_VERIFIERS: [LazyLock<(
-    AttrId,
-    (std::any::TypeId, AttrInterfaceVerifier),
-)>];
+type AttrInterfaceVerifierInfo = (AttrId, (std::any::TypeId, AttrInterfaceVerifier));
+
+/// Type alias for attribute interface dependency information
+/// All interfaces mapped to their super-interfaces
+type AttrInterfaceDepsInfo = (std::any::TypeId, Vec<std::any::TypeId>);
 
 #[doc(hidden)]
-/// All interfaces mapped to their super-interfaces
-#[distributed_slice]
-pub static ATTR_INTERFACE_DEPS: [LazyLock<(std::any::TypeId, Vec<std::any::TypeId>)>];
+#[cfg(not(target_family = "wasm"))]
+pub mod statics {
+    use super::*;
+
+    #[linkme::distributed_slice]
+    pub static ATTR_INTERFACE_VERIFIERS: [LazyLock<AttrInterfaceVerifierInfo>] = [..];
+
+    #[linkme::distributed_slice]
+    pub static ATTR_INTERFACE_DEPS: [LazyLock<AttrInterfaceDepsInfo>] = [..];
+
+    pub fn get_attr_interface_verifiers()
+    -> impl Iterator<Item = &'static LazyLock<AttrInterfaceVerifierInfo>> {
+        ATTR_INTERFACE_VERIFIERS.iter()
+    }
+
+    pub fn get_attr_interface_deps()
+    -> impl Iterator<Item = &'static LazyLock<AttrInterfaceDepsInfo>> {
+        ATTR_INTERFACE_DEPS.iter()
+    }
+}
+
+#[cfg(target_family = "wasm")]
+pub mod statics {
+    use super::*;
+    use crate::utils::inventory::LazyLockWrapper;
+
+    inventory::collect!(LazyLockWrapper<AttrInterfaceVerifierInfo>);
+
+    inventory::collect!(LazyLockWrapper<AttrInterfaceDepsInfo, AttrId>);
+
+    pub fn get_attr_interface_verifiers()
+    -> impl Iterator<Item = &'static LazyLock<AttrInterfaceVerifierInfo>> {
+        inventory::iter::<LazyLockWrapper<AttrInterfaceVerifierInfo>>().map(|llw| llw.0)
+    }
+
+    pub fn get_attr_interface_deps()
+    -> impl Iterator<Item = &'static LazyLock<AttrInterfaceDepsInfo>> {
+        inventory::iter::<LazyLockWrapper<AttrInterfaceDepsInfo, AttrId>>().map(|llw| llw.0)
+    }
+}
+
+pub use statics::*;
 
 #[doc(hidden)]
 /// A map from every [Attribute] to its ordered (as per interface deps) list of interface verifiers.
@@ -462,7 +500,7 @@ pub static ATTR_INTERFACE_VERIFIERS_MAP: LazyLock<
     use std::any::TypeId;
     // Collect ATTR_INTERFACE_VERIFIERS into an [AttrId] indexed map.
     let mut attr_intr_verifiers = FxHashMap::default();
-    for lazy in ATTR_INTERFACE_VERIFIERS {
+    for lazy in get_attr_interface_verifiers() {
         let (attr_id, (type_id, verifier)) = (**lazy).clone();
         attr_intr_verifiers
             .entry(attr_id)
@@ -473,8 +511,7 @@ pub static ATTR_INTERFACE_VERIFIERS_MAP: LazyLock<
     }
 
     // Collect interface deps into a map.
-    let interface_deps: FxHashMap<_, _> = ATTR_INTERFACE_DEPS
-        .iter()
+    let interface_deps: FxHashMap<_, _> = get_attr_interface_deps()
         .map(|lazy| (**lazy).clone())
         .collect();
 
@@ -507,7 +544,7 @@ pub static ATTR_INTERFACE_VERIFIERS_MAP: LazyLock<
     }
 
     // Assign dep_sort_idx to every interface.
-    for lazy in ATTR_INTERFACE_DEPS.iter() {
+    for lazy in get_attr_interface_deps() {
         let (intr, _deps) = &**lazy;
         assign_idx_to_intr(&interface_deps, &mut dep_sort_idx, &mut sort_idx, intr);
     }
@@ -529,7 +566,7 @@ mod tests {
 
     use crate::verify_err_noloc;
 
-    use super::{ATTR_INTERFACE_DEPS, ATTR_INTERFACE_VERIFIERS_MAP};
+    use super::{ATTR_INTERFACE_VERIFIERS_MAP, get_attr_interface_deps};
 
     #[test]
     /// For every interface that an [Attr] implements, ensure that the interface verifiers
@@ -537,8 +574,7 @@ mod tests {
     /// sub-interface verifier.
     fn check_verifiers_deps() -> Result<()> {
         // Collect interface deps into a map.
-        let interface_deps: FxHashMap<_, _> = ATTR_INTERFACE_DEPS
-            .iter()
+        let interface_deps: FxHashMap<_, _> = get_attr_interface_deps()
             .map(|lazy| (**lazy).clone())
             .collect();
 

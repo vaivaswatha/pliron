@@ -33,12 +33,17 @@ slotmap = "1"
 downcast-rs = "2"
 rustc-hash.workspace = true
 thiserror.workspace = true
-linkme.workspace = true
 combine.workspace = true
 utf8-chars = "3"
 regex = "1"
 dyn-clone.workspace = true
 log.workspace = true
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+inventory.workspace = true
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+linkme.workspace = true
 
 [dev-dependencies]
 expect-test.workspace = true
@@ -58,6 +63,7 @@ rustc-hash = "2"
 combine = "4"
 thiserror = "2"
 linkme = "0"
+inventory = "0"
 tempfile = "3"
 log = "0"
 env_logger = "0"

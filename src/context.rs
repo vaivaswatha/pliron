@@ -14,7 +14,6 @@ use crate::{
     uniqued_any::UniquedAny,
     verify_err_noloc,
 };
-use linkme::distributed_slice;
 use rustc_hash::FxHashMap;
 use slotmap::{SlotMap, new_key_type};
 use std::{
@@ -271,11 +270,34 @@ pub struct DictKeyId {
 /// `pliron` uses dictionaries indexed by static [Identifier]s in many places,
 /// such as [Context::aux_data_map], and the states of [Printable](crate::printable::State)
 /// and [Parsable](crate::parsable::State). To avoid collisions in these [Identifier]s,
-/// we use the [placeholder] macro to verify that all such keys declared using the macro
+/// we use the [crate::dict_key!] macro to verify that all such keys declared using the macro
 /// are unique. The macro adds the keys to this static slice, which is then verified
 /// when a [Context] is created.
-#[distributed_slice]
-pub static DICT_KEY_IDS: [LazyLock<DictKeyId>];
+#[cfg(not(target_family = "wasm"))]
+pub mod statics {
+    use super::*;
+
+    #[linkme::distributed_slice]
+    pub static DICT_KEY_IDS: [LazyLock<DictKeyId>];
+
+    pub fn get_dict_key_ids() -> impl Iterator<Item = &'static LazyLock<DictKeyId>> {
+        DICT_KEY_IDS.iter()
+    }
+}
+
+#[cfg(target_family = "wasm")]
+pub mod statics {
+    use super::*;
+    use crate::utils::inventory::LazyLockWrapper;
+
+    inventory::collect!(LazyLockWrapper<DictKeyId>);
+
+    pub fn get_dict_key_ids() -> impl Iterator<Item = &'static LazyLock<DictKeyId>> {
+        inventory::iter::<LazyLockWrapper<DictKeyId>>().map(|llw| llw.0)
+    }
+}
+
+pub use statics::*;
 
 #[doc(hidden)]
 pub static DICT_KEYS_VERIFIER: LazyLock<Result<()>> = LazyLock::new(verify_dict_keys);
@@ -286,7 +308,7 @@ pub static DICT_KEYS_VERIFIER: LazyLock<Result<()>> = LazyLock::new(verify_dict_
 /// information of the duplicate keys.
 pub fn verify_dict_keys() -> Result<()> {
     let mut seen: FxHashMap<Identifier, (&'static str, u32, u32)> = FxHashMap::default();
-    for key in DICT_KEY_IDS.iter() {
+    for key in get_dict_key_ids() {
         if let Some((file, line, column)) = seen.get(&key.id) {
             return verify_err_noloc!(
                 "Duplicate dictionary key \"{}\" declared in {}:{}:{} and {}:{}:{}",
@@ -328,7 +350,7 @@ macro_rules! dict_key {
         // to ensure that all keys are unique.
         // The static variable is created in a separate anonmyous module.
         const _: () = {
-            #[linkme::distributed_slice(::pliron::context::DICT_KEY_IDS)]
+            #[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice(::pliron::context::DICT_KEY_IDS))]
             pub static $decl: std::sync::LazyLock<::pliron::context::DictKeyId> =
                 std::sync::LazyLock::new(|| ::pliron::context::DictKeyId {
                     id: $name.try_into().unwrap(),
@@ -336,6 +358,11 @@ macro_rules! dict_key {
                     line: line!(),
                     column: column!(),
                 });
+
+            #[cfg(target_family = "wasm")]
+            inventory::submit! {
+                ::pliron::utils::inventory::LazyLockWrapper::new(&$decl)
+            }
         };
         $(#[$outer])*
         // Create a static variable with the provided name to access the identifier.
