@@ -343,9 +343,11 @@ pub static OP_INTERFACE_VERIFIERS_MAP: LazyLock<
 
         // Assign index to every dependent first. We don't bother to check for cyclic
         // dependences since super interfaces are also super traits in Rust.
-        let deps = interface_deps
-            .get(intr)
-            .expect("Expect every interface to have a (possibly empty) list of dependences");
+        let deps = interface_deps.get(intr).expect(
+            "Every interface must have a (possibly empty) list of dependences.\n\
+             This usually means that an interface has a super-trait that is not registered\
+             as an interface.",
+        );
         for dep in deps {
             assign_idx_to_intr(interface_deps, dep_sort_idx, sort_idx, dep);
         }
