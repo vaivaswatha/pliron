@@ -27,15 +27,21 @@ use rustc_hash::FxHashMap;
 ///
 /// trait Trait1: Downcast {}
 /// trait Trait2 {}
+/// trait Trait3<T> {}
 ///
 /// struct S;
 /// impl Trait1 for S {}
 /// impl Trait2 for S {}
+/// impl Trait3<u32> for S {}
 ///
 /// type_to_trait!(S, Trait2);
+/// type_to_trait!(S, Trait3<u32>);
 ///
 /// let s1: &dyn Trait1 = &S;
 /// any_to_trait::<dyn Trait2>(s1.as_any()).expect("Expected S to implement Trait2");
+/// any_to_trait::<dyn Trait3<u32>>(s1.as_any()).expect("Expected S to implement Trait3<u32>");
+/// assert!(any_to_trait::<dyn Trait3<f32>>(s1.as_any()).is_none(),
+///     "S does not implement Trait3<f32>");
 ///
 /// ```
 pub fn any_to_trait<T: ?Sized + 'static>(r: &dyn Any) -> Option<&T> {
