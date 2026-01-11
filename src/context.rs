@@ -277,7 +277,8 @@ pub struct DictKeyId {
 pub mod statics {
     use super::*;
 
-    #[linkme::distributed_slice]
+    #[::pliron::linkme::distributed_slice]
+    #[linkme(crate = ::pliron::linkme)]
     pub static DICT_KEY_IDS: [LazyLock<DictKeyId>];
 
     pub fn get_dict_key_ids() -> impl Iterator<Item = &'static LazyLock<DictKeyId>> {
@@ -290,10 +291,10 @@ pub mod statics {
     use super::*;
     use crate::utils::inventory::LazyLockWrapper;
 
-    inventory::collect!(LazyLockWrapper<DictKeyId>);
+    ::pliron::inventory::collect!(LazyLockWrapper<DictKeyId>);
 
     pub fn get_dict_key_ids() -> impl Iterator<Item = &'static LazyLock<DictKeyId>> {
-        inventory::iter::<LazyLockWrapper<DictKeyId>>().map(|llw| llw.0)
+        ::pliron::inventory::iter::<LazyLockWrapper<DictKeyId>>().map(|llw| llw.0)
     }
 }
 
@@ -350,7 +351,8 @@ macro_rules! dict_key {
         // to ensure that all keys are unique.
         // The static variable is created in a separate anonmyous module.
         const _: () = {
-            #[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice(::pliron::context::DICT_KEY_IDS))]
+            #[cfg_attr(not(target_family = "wasm"),
+                ::pliron::linkme::distributed_slice(::pliron::context::DICT_KEY_IDS), linkme(crate = ::pliron::linkme))]
             pub static $decl: std::sync::LazyLock<::pliron::context::DictKeyId> =
                 std::sync::LazyLock::new(|| ::pliron::context::DictKeyId {
                     id: $name.try_into().unwrap(),
@@ -360,7 +362,7 @@ macro_rules! dict_key {
                 });
 
             #[cfg(target_family = "wasm")]
-            inventory::submit! {
+            ::pliron::inventory::submit! {
                 ::pliron::utils::inventory::LazyLockWrapper::new(&$decl)
             }
         };

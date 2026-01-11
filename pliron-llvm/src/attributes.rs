@@ -2,8 +2,7 @@
 
 use std::fmt::Display;
 
-use combine::parser::char::spaces;
-use combine::{Parser, choice};
+use pliron::combine::{self, Parser, choice, parser::char::spaces};
 use thiserror::Error;
 
 use pliron::attribute::Attribute;

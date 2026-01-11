@@ -637,7 +637,7 @@ trait ParsableBuilder<State: Default> {
                     arg: Self::Arg,
                 ) -> ::pliron::parsable::ParseResult<'a, Self::Parsed> {
                     use ::pliron::parsable::IntoParseResult;
-                    use ::combine::Parser;
+                    use ::pliron::combine::Parser;
                     use ::pliron::input_err;
                     use ::pliron::location::Located;
                     let cur_loc = state_stream.loc();
@@ -663,7 +663,7 @@ trait ParsableBuilder<State: Default> {
     fn build_lit(_input: &FmtInput, lit: &str, _state: &mut State) -> TokenStream {
         let trimmed_lit = lit.trim();
         quote! {
-            ::pliron::irfmt::parsers::spaced(::combine::parser::char::string(#trimmed_lit))
+            ::pliron::irfmt::parsers::spaced(::pliron::combine::parser::char::string(#trimmed_lit))
             .parse_stream(state_stream)
             .into_result()?;
         }
@@ -887,7 +887,7 @@ trait ParsableBuilder<State: Default> {
             };
             let inner_ty = get_inner_type_option_vec(ty)?;
             Ok(quote! {
-                let #name = ::combine::parser::choice::optional(<#inner_ty>::parser(()))
+                let #name = ::pliron::combine::parser::choice::optional(<#inner_ty>::parser(()))
                     .parse_stream(state_stream).into_result()?.0;
             })
         } else if d.name == "vec" {
@@ -1362,17 +1362,17 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
             };
             let labelled_parser = if let Some(label) = &label_opt {
                 quote! {
-                (::pliron::irfmt::parsers::spaced(::combine::parser::char::string(#label))
-                    .skip(::combine::parser::char::char(':').skip(::combine::parser::char::spaces()))).with(#attr_parser)
+                (::pliron::irfmt::parsers::spaced(::pliron::combine::parser::char::string(#label))
+                    .skip(::pliron::combine::parser::char::char(':').skip(::pliron::combine::parser::char::spaces()))).with(#attr_parser)
                 }
             } else {
                 attr_parser
             };
             let delimited_labelled_parser = if let Some((open, close)) = &delimiters_opt {
                 quote! {
-                    ::combine::parser::sequence::between(
-                        ::pliron::irfmt::parsers::spaced(::combine::parser::char::string(#open)),
-                        ::pliron::irfmt::parsers::spaced(::combine::parser::char::string(#close)),
+                    ::pliron::combine::parser::sequence::between(
+                        ::pliron::irfmt::parsers::spaced(::pliron::combine::parser::char::string(#open)),
+                        ::pliron::irfmt::parsers::spaced(::pliron::combine::parser::char::string(#close)),
                         #labelled_parser
                     )
                 }
@@ -1382,7 +1382,7 @@ impl ParsableBuilder<OpParserState> for DeriveOpParsable {
 
             if d.name == "opt_attr" {
                 Ok(quote! {
-                    let #attr_name_ident = ::combine::parser::choice::optional
+                    let #attr_name_ident = ::pliron::combine::parser::choice::optional
                         (#delimited_labelled_parser).parse_stream(state_stream).into_result()?.0;
                 })
             } else {

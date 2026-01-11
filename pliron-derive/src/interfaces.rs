@@ -45,14 +45,14 @@ pub(crate) fn interface_define(
     // our map, so that we can sort them all later for the verifiers to run.
     let deps_entry = quote! {
         const _: () = {
-            #[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice(#interface_deps_slice))]
+            #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(#interface_deps_slice), linkme(crate = ::pliron::linkme))]
             static INTERFACE_DEP: std::sync::LazyLock<(std::any::TypeId, Vec<std::any::TypeId>)>
                 = std::sync::LazyLock::new(|| {
                     (std::any::TypeId::of::<dyn #intr_name>(), vec![#(std::any::TypeId::of::<dyn #dep_interfaces>(),)*])
              });
 
             #[cfg(target_family = "wasm")]
-            inventory::submit! {
+            ::pliron::inventory::submit! {
                 ::pliron::utils::inventory::LazyLockWrapper::<_, #id>::new(&INTERFACE_DEP)
             }
         };
@@ -62,7 +62,7 @@ pub(crate) fn interface_define(
     output.extend(deps_entry);
     if append_dyn_clone_trait {
         output.extend(quote! {
-            dyn_clone::clone_trait_object!(#intr_name);
+            ::pliron::dyn_clone::clone_trait_object!(#intr_name);
         });
     }
 
@@ -95,7 +95,7 @@ pub(crate) fn interface_impl(
 
     let verifiers_entry = quote! {
         const _: () = {
-            #[cfg_attr(not(target_family = "wasm"), linkme::distributed_slice(#interface_verifiers_slice))]
+            #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(#interface_verifiers_slice), linkme(crate = ::pliron::linkme))]
             static INTERFACE_VERIFIER: std::sync::LazyLock<
                 (#id, (std::any::TypeId, #verifier_type))
             > =
@@ -105,7 +105,7 @@ pub(crate) fn interface_impl(
             );
 
             #[cfg(target_family = "wasm")]
-            inventory::submit! {
+            ::pliron::inventory::submit! {
                 ::pliron::utils::inventory::LazyLockWrapper::new(&INTERFACE_VERIFIER)
             }
         };

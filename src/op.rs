@@ -266,10 +266,10 @@ type OpInterfaceDepsInfo = (std::any::TypeId, Vec<std::any::TypeId>);
 pub mod statics {
     use super::*;
 
-    #[linkme::distributed_slice]
+    #[::pliron::linkme::distributed_slice]
     pub static OP_INTERFACE_VERIFIERS: [LazyLock<OpInterfaceVerifierInfo>] = [..];
 
-    #[linkme::distributed_slice]
+    #[::pliron::linkme::distributed_slice]
     pub static OP_INTERFACE_DEPS: [LazyLock<OpInterfaceDepsInfo>] = [..];
 
     pub fn get_op_interface_verifiers()
@@ -287,17 +287,17 @@ pub mod statics {
     use super::*;
     use crate::utils::inventory::LazyLockWrapper;
 
-    inventory::collect!(LazyLockWrapper<OpInterfaceVerifierInfo>);
+    ::pliron::inventory::collect!(LazyLockWrapper<OpInterfaceVerifierInfo>);
 
-    inventory::collect!(LazyLockWrapper<OpInterfaceDepsInfo, OpId>);
+    ::pliron::inventory::collect!(LazyLockWrapper<OpInterfaceDepsInfo, OpId>);
 
     pub fn get_op_interface_verifiers()
     -> impl Iterator<Item = &'static LazyLock<OpInterfaceVerifierInfo>> {
-        inventory::iter::<LazyLockWrapper<OpInterfaceVerifierInfo>>().map(|llw| llw.0)
+        ::pliron::inventory::iter::<LazyLockWrapper<OpInterfaceVerifierInfo>>().map(|llw| llw.0)
     }
 
     pub fn get_op_interface_deps() -> impl Iterator<Item = &'static LazyLock<OpInterfaceDepsInfo>> {
-        inventory::iter::<LazyLockWrapper<OpInterfaceDepsInfo, OpId>>().map(|llw| llw.0)
+        ::pliron::inventory::iter::<LazyLockWrapper<OpInterfaceDepsInfo, OpId>>().map(|llw| llw.0)
     }
 }
 

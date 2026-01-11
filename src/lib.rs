@@ -6,8 +6,21 @@
 // Allow proc-macros to find this crate
 extern crate self as pliron;
 
-// Export pliron_derive as pliron::derive.
+// Export pliron_derive as pliron::derive for procedural macros.
 pub use pliron_derive as derive;
+
+// Export linkme as pliron::linkme for procedural macros.
+// This re-export is tricky, and we use the workaround here:
+// https://github.com/dtolnay/linkme/issues/108#issuecomment-3308031385
+#[cfg(not(target_family = "wasm"))]
+pub use linkme;
+// Export combine as pliron::combine for procedural macros.
+pub use combine;
+// Export dyn_clone as pliron::dyn_clone for procedural macros.
+pub use dyn_clone;
+// Export inventory as pliron::inventory for procedural macros.
+#[cfg(target_family = "wasm")]
+pub use inventory;
 
 pub mod attribute;
 pub mod basic_block;

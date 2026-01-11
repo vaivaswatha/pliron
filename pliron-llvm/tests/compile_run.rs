@@ -1,9 +1,9 @@
 //! Tests that compile code and run it.
 
+use pliron::combine::Parser;
 use std::{env, path::PathBuf, sync::LazyLock};
 
 mod common;
-use combine::Parser;
 use common::init_env_logger;
 
 use assert_cmd::Command;

@@ -65,11 +65,12 @@ use crate::{
     types::{ArrayType, FuncType, StructType, VectorType},
 };
 
-use combine::{
-    between, optional,
+use pliron::combine::{
+    self, between, optional,
     parser::{Parser, char::spaces},
     token,
 };
+
 use pliron::derive::{def_op, derive_op_interface_impl, op_interface_impl};
 use thiserror::Error;
 

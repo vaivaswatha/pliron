@@ -559,10 +559,10 @@ type TypeInterfaceDepsInfo = (std::any::TypeId, Vec<std::any::TypeId>);
 pub mod statics {
     use super::*;
 
-    #[linkme::distributed_slice]
+    #[::pliron::linkme::distributed_slice]
     pub static TYPE_INTERFACE_VERIFIERS: [LazyLock<TypeInterfaceVerifierInfo>] = [..];
 
-    #[linkme::distributed_slice]
+    #[::pliron::linkme::distributed_slice]
     pub static TYPE_INTERFACE_DEPS: [LazyLock<TypeInterfaceDepsInfo>] = [..];
 
     pub fn get_type_interface_verifiers()
@@ -581,18 +581,19 @@ pub mod statics {
     use super::*;
     use crate::utils::inventory::LazyLockWrapper;
 
-    inventory::collect!(LazyLockWrapper<TypeInterfaceVerifierInfo>);
+    ::pliron::inventory::collect!(LazyLockWrapper<TypeInterfaceVerifierInfo>);
 
-    inventory::collect!(LazyLockWrapper<TypeInterfaceDepsInfo, TypeId>);
+    ::pliron::inventory::collect!(LazyLockWrapper<TypeInterfaceDepsInfo, TypeId>);
 
     pub fn get_type_interface_verifiers()
     -> impl Iterator<Item = &'static LazyLock<TypeInterfaceVerifierInfo>> {
-        inventory::iter::<LazyLockWrapper<TypeInterfaceVerifierInfo>>().map(|llw| llw.0)
+        ::pliron::inventory::iter::<LazyLockWrapper<TypeInterfaceVerifierInfo>>().map(|llw| llw.0)
     }
 
     pub fn get_type_interface_deps()
     -> impl Iterator<Item = &'static LazyLock<TypeInterfaceDepsInfo>> {
-        inventory::iter::<LazyLockWrapper<TypeInterfaceDepsInfo, TypeId>>().map(|llw| llw.0)
+        ::pliron::inventory::iter::<LazyLockWrapper<TypeInterfaceDepsInfo, TypeId>>()
+            .map(|llw| llw.0)
     }
 }
 

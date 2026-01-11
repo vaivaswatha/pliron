@@ -26,10 +26,4 @@ convert_case = "0"
 prettyplease.workspace = true
 expect-test.workspace = true
 pliron = { path = "../" }
-dyn-clone.workspace = true
 
-[target.'cfg(target_family = "wasm")'.dependencies]
-inventory.workspace = true
-
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
-linkme.workspace = true

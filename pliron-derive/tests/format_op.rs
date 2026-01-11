@@ -1,6 +1,6 @@
 //! Test format derive for `Op`s.
 
-use combine::Parser;
+use ::pliron::combine::Parser;
 use expect_test::expect;
 use pliron::{
     builtin::op_interfaces::{

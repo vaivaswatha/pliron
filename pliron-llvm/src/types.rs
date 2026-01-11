@@ -1,6 +1,7 @@
 //! [Type]s defined in the LLVM dialect.
 
-use combine::{Parser, between, optional, token};
+use pliron::combine::{Parser, between, optional, token};
+
 use pliron::builtin::type_interfaces::FunctionTypeInterface;
 use pliron::derive::{def_type, format, format_type, type_interface_impl};
 use pliron::{
@@ -496,8 +497,8 @@ pub fn register(ctx: &mut Context) {
 mod tests {
 
     use crate as llvm;
-    use combine::{Parser, eof, token};
     use expect_test::expect;
+    use pliron::combine::{self, Parser, eof, token};
     use pliron::derive::def_type;
 
     use crate::types::{FuncType, StructType, VoidType};

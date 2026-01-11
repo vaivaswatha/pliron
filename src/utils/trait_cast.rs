@@ -63,7 +63,7 @@ pub struct TraitCasterInfo {
 pub mod statics {
     use super::*;
 
-    #[linkme::distributed_slice]
+    #[::pliron::linkme::distributed_slice]
     pub static TRAIT_CASTERS: [LazyLock<TraitCasterInfo>] = [..];
 
     pub fn get_trait_casters() -> impl Iterator<Item = &'static LazyLock<TraitCasterInfo>> {
@@ -76,10 +76,10 @@ pub mod statics {
     use super::*;
     use crate::utils::inventory::LazyLockWrapper;
 
-    inventory::collect!(LazyLockWrapper<TraitCasterInfo>);
+    ::pliron::inventory::collect!(LazyLockWrapper<TraitCasterInfo>);
 
     pub fn get_trait_casters() -> impl Iterator<Item = &'static LazyLock<TraitCasterInfo>> {
-        inventory::iter::<LazyLockWrapper<TraitCasterInfo>>().map(|tcw| tcw.0)
+        ::pliron::inventory::iter::<LazyLockWrapper<TraitCasterInfo>>().map(|tcw| tcw.0)
     }
 }
 
@@ -124,7 +124,8 @@ macro_rules! type_to_trait {
         const _: () = {
             #[cfg_attr(
                 not(target_family = "wasm"),
-                linkme::distributed_slice($crate::utils::trait_cast::TRAIT_CASTERS)
+                ::pliron::linkme::distributed_slice
+                    ($crate::utils::trait_cast::TRAIT_CASTERS), linkme(crate = ::pliron::linkme)
             )]
             static CAST_TO_TRAIT: std::sync::LazyLock<$crate::utils::trait_cast::TraitCasterInfo> =
                 std::sync::LazyLock::new(|| $crate::utils::trait_cast::TraitCasterInfo {
@@ -139,7 +140,7 @@ macro_rules! type_to_trait {
                 });
 
             #[cfg(target_family = "wasm")]
-            inventory::submit! {
+            ::pliron::inventory::submit! {
                 $crate::utils::inventory::LazyLockWrapper::new(&CAST_TO_TRAIT)
             }
 

@@ -208,6 +208,10 @@ pub fn convert_linkage(linkage: LinkageAttr) -> LLVMLinkage {
     }
 }
 
+#[::pliron::linkme::distributed_slice]
+#[linkme(crate = pliron::linkme)]
+pub static TEST: [u64];
+
 /// Convert a float attribute to fp64 (since LLVM's C-API pretty much restricts us to that).
 #[attr_interface]
 trait FloatAttrToFP64: FloatAttr {

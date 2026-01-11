@@ -13,10 +13,7 @@ license.workspace = true
 
 [dependencies]
 pliron = { path = "../", version = "0" }
-combine.workspace = true
-dyn-clone.workspace = true
 thiserror.workspace = true
-linkme.workspace = true
 rustc-hash.workspace = true
 # When upgrading the LLVM version, change the LLVM versions in
 # `ci.yml` and the READMEs in `pliron-llvm` and `llvm-opt`.
