@@ -70,9 +70,9 @@ pub mod statics {
     use super::*;
 
     #[::pliron::linkme::distributed_slice]
-    pub static TRAIT_CASTERS: [LazyLock<TraitCasterInfo>] = [..];
+    pub static TRAIT_CASTERS: [TraitCasterInfo] = [..];
 
-    pub fn get_trait_casters() -> impl Iterator<Item = &'static LazyLock<TraitCasterInfo>> {
+    pub fn get_trait_casters() -> impl Iterator<Item = &'static TraitCasterInfo> {
         TRAIT_CASTERS.iter()
     }
 }
@@ -80,12 +80,11 @@ pub mod statics {
 #[cfg(target_family = "wasm")]
 pub mod statics {
     use super::*;
-    use crate::utils::inventory::LazyLockWrapper;
 
-    ::pliron::inventory::collect!(LazyLockWrapper<TraitCasterInfo>);
+    ::pliron::inventory::collect!(&'static TraitCasterInfo);
 
-    pub fn get_trait_casters() -> impl Iterator<Item = &'static LazyLock<TraitCasterInfo>> {
-        ::pliron::inventory::iter::<LazyLockWrapper<TraitCasterInfo>>().map(|tcw| tcw.0)
+    pub fn get_trait_casters() -> impl Iterator<Item = &'static &'static TraitCasterInfo> {
+        ::pliron::inventory::iter::<&'static TraitCasterInfo>()
     }
 }
 
@@ -133,8 +132,8 @@ macro_rules! type_to_trait {
                 ::pliron::linkme::distributed_slice
                     ($crate::utils::trait_cast::TRAIT_CASTERS), linkme(crate = ::pliron::linkme)
             )]
-            static CAST_TO_TRAIT: std::sync::LazyLock<$crate::utils::trait_cast::TraitCasterInfo> =
-                std::sync::LazyLock::new(|| $crate::utils::trait_cast::TraitCasterInfo {
+            static CAST_TO_TRAIT: $crate::utils::trait_cast::TraitCasterInfo =
+                $crate::utils::trait_cast::TraitCasterInfo {
                     from: std::any::TypeId::of::<$ty_name>(),
                     to: std::any::TypeId::of::<dyn $to_trait_name>(),
                     caster: &(cast_to_trait
@@ -143,11 +142,11 @@ macro_rules! type_to_trait {
                         )
                             -> Option<&'a (dyn $to_trait_name + 'static)>)
                         as &'static (dyn std::any::Any + Sync + Send),
-                });
+                };
 
             #[cfg(target_family = "wasm")]
             ::pliron::inventory::submit! {
-                $crate::utils::inventory::LazyLockWrapper::new(&CAST_TO_TRAIT)
+                &CAST_TO_TRAIT
             }
 
             fn cast_to_trait<'a>(
