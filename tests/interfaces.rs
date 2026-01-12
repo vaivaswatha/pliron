@@ -728,7 +728,6 @@ struct NoInbuiltVerifyOp2 {}
 impl_verify_succ!(NoInbuiltVerifyOp2);
 impl NoInbuiltVerifyOp2 {
     fn new(ctx: &mut Context) -> NoInbuiltVerifyOp2 {
-        console_error!("building noverifyoop2");
         let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
         Self { op }
     }
