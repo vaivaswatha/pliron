@@ -326,10 +326,15 @@ pub static OP_INTERFACE_VERIFIERS_MAP: LazyLock<FxHashMap<OpId, Vec<OpInterfaceV
                     sorted_verifiers: &mut Vec<OpInterfaceVerifier>,
                 ) {
                     if visited.insert(*verifier) {
-                        if let Some(supers) = deps.get(verifier) {
-                            for super_verifier in supers {
-                                visit(super_verifier, deps, visited, sorted_verifiers);
-                            }
+                        // #[op_interface] adds a #[inline(never)] to verifier functions to prevent inlining.
+                        // If we hit this assert inspite of that, we may want to consider removing the guarantee
+                        // that super-verifiers are run prior to sub-verifiers. See #74.
+                        let supers = deps.get(verifier).expect
+                        ("Every interface verifier must have a (possibly empty) list of super verifiers. \
+                         If you're seeing this error, it means that rustc has inlined a verifier function, \
+                         making it impossible to uniquely identify super verifiers.");
+                        for super_verifier in supers {
+                            visit(super_verifier, deps, visited, sorted_verifiers);
                         }
                         sorted_verifiers.push(*verifier);
                     }
