@@ -107,7 +107,7 @@ pub(crate) fn interface_impl(
 
             #[cfg(target_family = "wasm")]
             ::pliron::inventory::submit! {
-                ::pliron::utils::inventory::LazyLockWrapper::new(&INTERFACE_VERIFIER)
+                ::pliron::utils::inventory::LazyLockWrapper(&INTERFACE_VERIFIER)
             }
         };
     };

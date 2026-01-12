@@ -363,7 +363,7 @@ macro_rules! dict_key {
 
             #[cfg(target_family = "wasm")]
             ::pliron::inventory::submit! {
-                ::pliron::utils::inventory::LazyLockWrapper::new(&$decl)
+                ::pliron::utils::inventory::LazyLockWrapper(&$decl)
             }
         };
         $(#[$outer])*
