@@ -41,7 +41,7 @@ pub(crate) fn interface_define(
 
     // Create a method for getting super verifiers.
     let super_verifiers = quote! {
-        fn super_verifiers() -> Vec<#verifier_type> where Self: Sized{
+        fn super_verifiers() -> Vec<#verifier_type> where Self: Sized {
             vec![
                 #(
                     <Self as #dep_interfaces>::verify
@@ -49,6 +49,16 @@ pub(crate) fn interface_define(
             ]
         }
     };
+
+    for item in &mut r#trait.items {
+        if let syn::TraitItem::Fn(meth) = item
+            && meth.sig.ident == "verify"
+            && meth.default.is_some()
+        {
+            // Found the verifier method, add a #[inline(never)] to prevent inlining.
+            meth.attrs.push(parse_quote! { #[inline(never)] });
+        }
+    }
 
     r#trait
         .items
