@@ -29,7 +29,7 @@ jobs:
 
     - name: Install wasm-bindgen-cli
       run: |
-        cargo binstall -y wasm-bindgen-cli --version 0.2.106 || true
+        cargo binstall -y wasm-bindgen-cli --version 0.2.106 --force
         wasm-bindgen --version
 
     - uses: actions/setup-node@v6
