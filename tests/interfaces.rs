@@ -87,6 +87,7 @@ impl ZeroResultOp {
 
 // A simple test to trigger an interface verification error.
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn check_intrf_verfiy_errs() {
     let ctx = &mut setup_context_dialects();
     ZeroResultOp::register(ctx, ZeroResultOp::parser_fn);
@@ -231,6 +232,7 @@ impl VerifyIntrOpGeneric {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_op_intr_verify_order_generic() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     VerifyIntrOpGeneric::register(ctx, VerifyIntrOpGeneric::parser_fn);
@@ -306,6 +308,7 @@ impl VerifyIntrOpConstGeneric {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_op_intr_verify_order_const_generic() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     VerifyIntrOpConstGeneric::register(ctx, VerifyIntrOpConstGeneric::parser_fn);
@@ -404,6 +407,7 @@ trait TestAttrInterface2: TestAttrInterface {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_attr_intr_verify_order() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
@@ -489,6 +493,7 @@ impl Printable for VerifyIntrAttrGeneric {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_attr_intr_verify_order_generic() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
@@ -571,6 +576,7 @@ trait TestTypeInterface2: TestTypeInterface {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_type_intr_verify_order() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
@@ -656,6 +662,7 @@ impl Printable for VerifyIntrTypeGeneric {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_type_intr_verify_order_generic() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
@@ -721,6 +728,7 @@ struct NoInbuiltVerifyOp2 {}
 impl_verify_succ!(NoInbuiltVerifyOp2);
 impl NoInbuiltVerifyOp2 {
     fn new(ctx: &mut Context) -> NoInbuiltVerifyOp2 {
+        console_error!("building noverifyoop2");
         let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
         Self { op }
     }
@@ -815,6 +823,7 @@ impl OutlinedAttr for OulinePrintOnceTestAttr {}
 impl PrintOnceAttr for OulinePrintOnceTestAttr {}
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_outline_printonce_attr() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     OutlineTestAttr::register_attr_in_dialect(ctx, OutlineTestAttr::parser_fn);
