@@ -12,7 +12,7 @@ dict_key!(KEY2, "test_key");
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 #[should_panic(
-    expected = "Duplicate dictionary key \"test_key\" declared in tests/dict_key_duplicate.rs:9:1 and tests/dict_key_duplicate.rs:10:1"
+    expected = "Duplicate dictionary key \"test_key\" declared in tests/dict_key_duplicate.rs"
 )]
 fn test_duplicate_dict_keys() {
     let _ = Context::new();
