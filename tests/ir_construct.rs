@@ -39,6 +39,7 @@ mod common;
 
 // Test erasing the entire top module.
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn construct_and_erase() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     let module_op = const_ret_in_mod(ctx)?.0.get_operation();
@@ -49,6 +50,7 @@ fn construct_and_erase() -> Result<()> {
 
 // Ensure that erasing an op with uses panics.
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 #[should_panic(expected = "Operation with use(s) being erased")]
 fn removed_used_op() {
     let ctx = &mut setup_context_dialects();
@@ -62,6 +64,7 @@ fn removed_used_op() {
 
 // Testing replacing all uses of c0 with c1.
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn replace_c0_with_c1() -> Result<()> {
     let ctx = &mut setup_context_dialects();
 
@@ -86,6 +89,7 @@ fn replace_c0_with_c1() -> Result<()> {
 // Replace ret_op's first operand (which is c0) with c1.
 // Erase c0. Verify.
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn replace_c0_with_c1_operand() -> Result<()> {
     let ctx = &mut setup_context_dialects();
 
@@ -145,6 +149,7 @@ impl_verify_succ!(DualDefOp);
 /// (since our RefCell is at the Op or block level, we shouldn't
 /// end up with a multiple borrow panic).
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_replace_within_same_def_site() {
     let ctx = &mut setup_context_dialects();
     DualDefOp::register(ctx, DualDefOp::parser_fn);
@@ -214,6 +219,7 @@ fn test_replace_within_same_def_site() {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 /// A test to just print a constructed IR to stdout.
 fn print_simple() -> Result<()> {
     let ctx = &mut setup_context_dialects();
@@ -267,6 +273,7 @@ fn parse_simple() -> Result<()> {
 dict_key!(ATTR_KEY_TEST_ON_FUNC_VALUE, "test_on_func_value");
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn parse_function_with_attrs() -> Result<()> {
     let ctx = &mut setup_context_dialects();
     let (module_op, _, _const_op, ret_op) = const_ret_in_mod(ctx).unwrap();
@@ -443,6 +450,7 @@ fn parse_err_block_args() {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_preorder_forward_walk() {
     let ctx = &mut setup_context_dialects();
     let module_op = const_ret_in_mod(ctx).unwrap().0.get_operation();
@@ -491,6 +499,7 @@ fn test_preorder_forward_walk() {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn walker_print() {
     let ctx = &mut setup_context_dialects();
     let module_op = const_ret_in_mod(ctx).unwrap().0.get_operation();
@@ -563,6 +572,7 @@ fn walker_print() {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_postorder_forward_walk() {
     let ctx = &mut setup_context_dialects();
     let module_op = const_ret_in_mod(ctx).unwrap().0.get_operation();
@@ -608,6 +618,7 @@ fn test_postorder_forward_walk() {
 }
 
 #[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_walker_find_op() {
     let ctx = &mut setup_context_dialects();
     let (module_op, _, const_op, _) = const_ret_in_mod(ctx).unwrap();
