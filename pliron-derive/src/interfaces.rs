@@ -20,12 +20,12 @@ use syn::{ItemTrait, Result};
 pub(crate) fn interface_define(
     input: proc_macro::TokenStream,
     supertrait: Path,
-    interface_deps_slice: Path,
-    id: Path,
+    verifier_type: Path,
     append_dyn_clone_trait: bool,
 ) -> Result<proc_macro2::TokenStream> {
     let mut r#trait = syn::parse2::<ItemTrait>(input.into())?;
     let intr_name = r#trait.ident.clone();
+    let generics = r#trait.generics.clone();
 
     let dep_interfaces: Vec<_> = r#trait
         .supertraits
@@ -39,30 +39,30 @@ pub(crate) fn interface_define(
         .collect();
     let supertraits = r#trait.supertraits;
 
-    r#trait.supertraits = parse_quote! { #supertrait + #supertraits };
-
-    // In an anonymous namespace, note down the super-interface dependencies in
-    // our map, so that we can sort them all later for the verifiers to run.
-    let deps_entry = quote! {
-        const _: () = {
-            #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(#interface_deps_slice), linkme(crate = ::pliron::linkme))]
-            static INTERFACE_DEP: std::sync::LazyLock<(std::any::TypeId, Vec<std::any::TypeId>)>
-                = std::sync::LazyLock::new(|| {
-                    (std::any::TypeId::of::<dyn #intr_name>(), vec![#(std::any::TypeId::of::<dyn #dep_interfaces>(),)*])
-             });
-
-            #[cfg(target_family = "wasm")]
-            ::pliron::inventory::submit! {
-                ::pliron::utils::inventory::LazyLockWrapper::<_, #id>::new(&INTERFACE_DEP)
-            }
-        };
+    // Create a method for getting super verifiers.
+    let super_verifiers = quote! {
+        fn super_verifiers() -> Vec<#verifier_type> where Self: Sized{
+            vec![
+                #(
+                    <Self as #dep_interfaces>::verify
+                ),*
+            ]
+        }
     };
 
+    r#trait
+        .items
+        .push(syn::parse2::<syn::TraitItem>(super_verifiers)?);
+
+    // Append main super trait (Op/Attribute/Type).
+    r#trait.supertraits = parse_quote! { #supertrait + #supertraits };
+
     let mut output = r#trait.into_token_stream();
-    output.extend(deps_entry);
     if append_dyn_clone_trait {
+        // https://github.com/kardeiz/objekt-clonable/blob/master/dyn-clonable-impl/src/lib.rs
+        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
         output.extend(quote! {
-            ::pliron::dyn_clone::clone_trait_object!(#intr_name);
+            ::pliron::dyn_clone::clone_trait_object!(#impl_generics #intr_name #ty_generics #where_clause);
         });
     }
 
@@ -77,6 +77,7 @@ pub(crate) fn interface_impl(
     interface_verifiers_slice: Path,
     id: Path,
     verifier_type: Path,
+    super_verifiers_fn_type: Path,
     get_id_static: Ident,
 ) -> Result<proc_macro2::TokenStream> {
     let r#impl = syn::parse2::<ItemImpl>(input.into())?;
@@ -97,11 +98,11 @@ pub(crate) fn interface_impl(
         const _: () = {
             #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(#interface_verifiers_slice), linkme(crate = ::pliron::linkme))]
             static INTERFACE_VERIFIER: std::sync::LazyLock<
-                (#id, (std::any::TypeId, #verifier_type))
+                (#id, (#verifier_type, #super_verifiers_fn_type))
             > =
             std::sync::LazyLock::new(||
-                (#rust_ty::#get_id_static(), (std::any::TypeId::of::<dyn #intr_name>(),
-                     <#rust_ty as #intr_name>::verify))
+                (#rust_ty::#get_id_static(),
+                     (<#rust_ty as #intr_name>::verify, <#rust_ty as #intr_name>::super_verifiers))
             );
 
             #[cfg(target_family = "wasm")]

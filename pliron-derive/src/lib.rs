@@ -379,15 +379,13 @@ pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> Tok
 /// ```
 #[proc_macro_attribute]
 pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let id = parse_quote! { ::pliron::op::OpId };
     let supertrait = parse_quote! { ::pliron::op::Op };
-    let interface_deps_slice = parse_quote! { ::pliron::op::OP_INTERFACE_DEPS };
+    let verifier_type = parse_quote! { ::pliron::op::OpInterfaceVerifier };
 
     to_token_stream(interfaces::interface_define(
         item,
         supertrait,
-        interface_deps_slice,
-        id,
+        verifier_type,
         true,
     ))
 }
@@ -428,11 +426,13 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let id = parse_quote! { ::pliron::op::OpId };
     let get_id_static = format_ident!("{}", "get_opid_static");
     let verifier_type = parse_quote! { ::pliron::op::OpInterfaceVerifier };
+    let super_verifiers_fn_type = parse_quote! { ::pliron::op::OpInterfaceSuperVerifiers };
     to_token_stream(interfaces::interface_impl(
         item,
         interface_verifiers_slice,
         id,
         verifier_type,
+        super_verifiers_fn_type,
         get_id_static,
     ))
 }
@@ -518,15 +518,13 @@ pub fn derive_op_interface_impl(attr: TokenStream, item: TokenStream) -> TokenSt
 /// ```
 #[proc_macro_attribute]
 pub fn attr_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let id = parse_quote! { ::pliron::attribute::AttrId };
     let supertrait = parse_quote! { ::pliron::attribute::Attribute };
-    let interface_deps_slice = parse_quote! { ::pliron::attribute::ATTR_INTERFACE_DEPS };
+    let verifier_type = parse_quote! { ::pliron::attribute::AttrInterfaceVerifier };
 
     to_token_stream(interfaces::interface_define(
         item,
         supertrait,
-        interface_deps_slice,
-        id,
+        verifier_type,
         true,
     ))
 }
@@ -578,11 +576,13 @@ pub fn attr_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
     let id = parse_quote! { ::pliron::attribute::AttrId };
     let get_id_static = format_ident!("{}", "get_attr_id_static");
     let verifier_type = parse_quote! { ::pliron::attribute::AttrInterfaceVerifier };
+    let super_verifiers_fn_type = parse_quote! { ::pliron::attribute::AttrInterfaceSuperVerifiers };
     to_token_stream(interfaces::interface_impl(
         item,
         interface_verifiers_slice,
         id,
         verifier_type,
+        super_verifiers_fn_type,
         get_id_static,
     ))
 }
@@ -633,15 +633,13 @@ pub fn attr_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
 /// ```
 #[proc_macro_attribute]
 pub fn type_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let id = parse_quote! { ::pliron::r#type::TypeId };
     let supertrait = parse_quote! { ::pliron::r#type::Type };
-    let interface_deps_slice = parse_quote! { ::pliron::r#type::TYPE_INTERFACE_DEPS };
+    let verifier_type = parse_quote! { ::pliron::r#type::TypeInterfaceVerifier };
 
     to_token_stream(interfaces::interface_define(
         item,
         supertrait,
-        interface_deps_slice,
-        id,
+        verifier_type,
         false,
     ))
 }
@@ -693,11 +691,13 @@ pub fn type_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
     let id = parse_quote! { ::pliron::r#type::TypeId };
     let get_id_static = format_ident!("{}", "get_type_id_static");
     let verifier_type = parse_quote! { ::pliron::r#type::TypeInterfaceVerifier };
+    let super_verifiers_fn_type = parse_quote! { ::pliron::r#type::TypeInterfaceSuperVerifiers };
     to_token_stream(interfaces::interface_impl(
         item,
         interface_verifiers_slice,
         id,
         verifier_type,
+        super_verifiers_fn_type,
         get_id_static,
     ))
 }

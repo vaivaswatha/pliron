@@ -49,7 +49,7 @@ use crate::{arg_err_noloc, impl_printable_for_display, input_err};
 
 use combine::{Parser, parser};
 use downcast_rs::{Downcast, impl_downcast};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::cell::Ref;
 use std::fmt::Debug;
 use std::fmt::Display;
@@ -546,14 +546,13 @@ pub fn type_impls<T: ?Sized + Type>(ty: &dyn Type) -> bool {
 
 /// Every type interface must have a function named `verify` with this type.
 pub type TypeInterfaceVerifier = fn(&dyn Type, &Context) -> Result<()>;
+/// A function that returns the list of super verifiers for an interface.
+pub type TypeInterfaceSuperVerifiers = fn() -> Vec<TypeInterfaceVerifier>;
 
 #[doc(hidden)]
-/// A [Type] paired with an interface it implements (and the verifier for that interface).
-type TypeInterfaceVerifierInfo = (TypeId, (std::any::TypeId, TypeInterfaceVerifier));
-
-#[doc(hidden)]
-/// A [Type] interface mapped to its super-interfaces
-type TypeInterfaceDepsInfo = (std::any::TypeId, Vec<std::any::TypeId>);
+/// A [Type] paired with an interface it implements
+/// (the verifier and super verifiers for that interface).
+type TypeInterfaceVerifierInfo = (TypeId, (TypeInterfaceVerifier, TypeInterfaceSuperVerifiers));
 
 #[cfg(not(target_family = "wasm"))]
 pub mod statics {
@@ -562,17 +561,9 @@ pub mod statics {
     #[::pliron::linkme::distributed_slice]
     pub static TYPE_INTERFACE_VERIFIERS: [LazyLock<TypeInterfaceVerifierInfo>] = [..];
 
-    #[::pliron::linkme::distributed_slice]
-    pub static TYPE_INTERFACE_DEPS: [LazyLock<TypeInterfaceDepsInfo>] = [..];
-
     pub fn get_type_interface_verifiers()
     -> impl Iterator<Item = &'static LazyLock<TypeInterfaceVerifierInfo>> {
         TYPE_INTERFACE_VERIFIERS.iter()
-    }
-
-    pub fn get_type_interface_deps()
-    -> impl Iterator<Item = &'static LazyLock<TypeInterfaceDepsInfo>> {
-        TYPE_INTERFACE_DEPS.iter()
     }
 }
 
@@ -583,17 +574,9 @@ pub mod statics {
 
     ::pliron::inventory::collect!(LazyLockWrapper<TypeInterfaceVerifierInfo>);
 
-    ::pliron::inventory::collect!(LazyLockWrapper<TypeInterfaceDepsInfo, TypeId>);
-
     pub fn get_type_interface_verifiers()
     -> impl Iterator<Item = &'static LazyLock<TypeInterfaceVerifierInfo>> {
         ::pliron::inventory::iter::<LazyLockWrapper<TypeInterfaceVerifierInfo>>().map(|llw| llw.0)
-    }
-
-    pub fn get_type_interface_deps()
-    -> impl Iterator<Item = &'static LazyLock<TypeInterfaceDepsInfo>> {
-        ::pliron::inventory::iter::<LazyLockWrapper<TypeInterfaceDepsInfo, TypeId>>()
-            .map(|llw| llw.0)
     }
 }
 
@@ -602,115 +585,52 @@ pub use statics::*;
 #[doc(hidden)]
 /// A map from every [Type] to its ordered (as per interface deps) list of interface verifiers.
 /// An interface's super-interfaces are to be verified before it itself is.
-pub static TYPE_INTERFACE_VERIFIERS_MAP: LazyLock<
-    FxHashMap<TypeId, Vec<(std::any::TypeId, TypeInterfaceVerifier)>>,
-> = LazyLock::new(|| {
-    use std::any::TypeId;
-    // Collect TYPE_INTERFACE_VERIFIERS into a [TypeId] indexed map.
-    let mut type_intr_verifiers = FxHashMap::default();
-    for lazy in get_type_interface_verifiers() {
-        let (ty_id, (type_id, verifier)) = (**lazy).clone();
+pub static TYPE_INTERFACE_VERIFIERS_MAP: LazyLock<FxHashMap<TypeId, Vec<TypeInterfaceVerifier>>> =
+    LazyLock::new(|| {
+        // Collect TYPE_INTERFACE_VERIFIERS into a [TypeId] indexed map.
+        let mut type_intr_verifiers = FxHashMap::default();
+        for lazy in get_type_interface_verifiers() {
+            let (ty_id, (verifier, _super_verifiers)) = (**lazy).clone();
+            type_intr_verifiers
+                .entry(ty_id)
+                .and_modify(
+                    |verifiers: &mut Vec<(TypeInterfaceVerifier, TypeInterfaceSuperVerifiers)>| {
+                        verifiers.push((verifier, _super_verifiers))
+                    },
+                )
+                .or_insert(vec![(verifier, _super_verifiers)]);
+        }
+
+        // Sort verifiers based on interface dependencies.
         type_intr_verifiers
-            .entry(ty_id)
-            .and_modify(|verifiers: &mut Vec<(TypeId, TypeInterfaceVerifier)>| {
-                verifiers.push((type_id, verifier))
-            })
-            .or_insert(vec![(type_id, verifier)]);
-    }
-
-    // Collect interface deps into a map.
-    let interface_deps: FxHashMap<_, _> = get_type_interface_deps()
-        .map(|lazy| (**lazy).clone())
-        .collect();
-
-    // Assign an integer to each interface, such that if y depends on x
-    // i.e., x is a super-interface of y, then dep_sort_idx[x] < dep_sort_idx[y]
-    let mut dep_sort_idx = FxHashMap::<TypeId, u32>::default();
-    let mut sort_idx = 0;
-    fn assign_idx_to_intr(
-        interface_deps: &FxHashMap<TypeId, Vec<TypeId>>,
-        dep_sort_idx: &mut FxHashMap<TypeId, u32>,
-        sort_idx: &mut u32,
-        intr: &TypeId,
-    ) {
-        if dep_sort_idx.contains_key(intr) {
-            return;
-        }
-
-        // Assign index to every dependent first. We don't bother to check for cyclic
-        // dependences since super interfaces are also super traits in Rust.
-        let deps = interface_deps
-            .get(intr)
-            .expect("Expect every interface to have a (possibly empty) list of dependences");
-        for dep in deps {
-            assign_idx_to_intr(interface_deps, dep_sort_idx, sort_idx, dep);
-        }
-
-        // Assign an index to the current interface.
-        dep_sort_idx.insert(*intr, *sort_idx);
-        *sort_idx += 1;
-    }
-
-    // Assign dep_sort_idx to every interface.
-    for lazy in get_type_interface_deps() {
-        let (intr, _deps) = &**lazy;
-        assign_idx_to_intr(&interface_deps, &mut dep_sort_idx, &mut sort_idx, intr);
-    }
-
-    for verifiers in type_intr_verifiers.values_mut() {
-        // sort verifiers based on its dep_sort_idx.
-        verifiers.sort_by(|(a, _), (b, _)| dep_sort_idx[a].cmp(&dep_sort_idx[b]));
-    }
-
-    type_intr_verifiers
-});
-
-#[cfg(test)]
-mod tests {
-
-    use pliron::result::Result;
-    use rustc_hash::{FxHashMap, FxHashSet};
-    use std::any::TypeId;
-
-    use crate::verify_err_noloc;
-
-    use super::{TYPE_INTERFACE_VERIFIERS_MAP, get_type_interface_deps};
-
-    #[test]
-    /// For every interface that a [Type] implements, ensure that the interface verifiers
-    /// get called in the right order, with super-interface verifiers called before their
-    /// sub-interface verifier.
-    fn check_verifiers_deps() -> Result<()> {
-        // Collect interface deps into a map.
-        let interface_deps: FxHashMap<_, _> = get_type_interface_deps()
-            .map(|lazy| (**lazy).clone())
-            .collect();
-
-        for (ty, intrs) in TYPE_INTERFACE_VERIFIERS_MAP.iter() {
-            let mut satisfied_deps = FxHashSet::<TypeId>::default();
-            for (intr, _) in intrs {
-                let deps = interface_deps.get(intr).ok_or_else(|| {
-                    let err: Result<()> = verify_err_noloc!(
-                       "Missing deps list for TypeId {:?} when checking verifier dependences for {}",
-                        intr,
-                        ty
-                    );
-                    err.unwrap_err()
-                })?;
-                for dep in deps {
-                    if !satisfied_deps.contains(dep) {
-                        return verify_err_noloc!(
-                            "For {}, depencence {:?} not satisfied for {:?}",
-                            ty,
-                            dep,
-                            intr
-                        );
+            .into_iter()
+            .map(|(tyid, verifiers)| {
+                let deps: FxHashMap<TypeInterfaceVerifier, Vec<TypeInterfaceVerifier>> = verifiers
+                    .into_iter()
+                    .map(|(verifier, super_verifiers)| (verifier, super_verifiers()))
+                    .collect();
+                let mut sorted_verifiers: Vec<TypeInterfaceVerifier> = Vec::new();
+                let mut visited = FxHashSet::default();
+                // Topological sort of the verifiers based on dependencies.
+                fn visit(
+                    verifier: &TypeInterfaceVerifier,
+                    deps: &FxHashMap<TypeInterfaceVerifier, Vec<TypeInterfaceVerifier>>,
+                    visited: &mut FxHashSet<TypeInterfaceVerifier>,
+                    sorted_verifiers: &mut Vec<TypeInterfaceVerifier>,
+                ) {
+                    if visited.insert(*verifier) {
+                        if let Some(supers) = deps.get(verifier) {
+                            for super_verifier in supers {
+                                visit(super_verifier, deps, visited, sorted_verifiers);
+                            }
+                        }
+                        sorted_verifiers.push(*verifier);
                     }
                 }
-                satisfied_deps.insert(*intr);
-            }
-        }
-
-        Ok(())
-    }
-}
+                for verifier in deps.keys() {
+                    visit(verifier, &deps, &mut visited, &mut sorted_verifiers);
+                }
+                (tyid, sorted_verifiers)
+            })
+            .collect()
+    });

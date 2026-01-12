@@ -6,7 +6,7 @@ use combine::Parser;
 use combine::stream::position::SourcePosition;
 use common::{ConstantOp, ReturnOp};
 use expect_test::expect;
-use pliron::attribute::verify_attr;
+use pliron::attribute::{attr_cast, verify_attr};
 use pliron::builtin::attr_interfaces::{OutlinedAttr, PrintOnceAttr};
 use pliron::derive::{
     attr_interface, attr_interface_impl, def_attribute, def_op, def_type, derive_op_interface_impl,
@@ -15,7 +15,7 @@ use pliron::derive::{
 use pliron::location::{self, Located, Source};
 use pliron::parsable::{self, state_stream_from_iterator};
 use pliron::result::ExpectOk;
-use pliron::r#type::verify_type;
+use pliron::r#type::{type_cast, verify_type};
 use pliron::{
     attribute::Attribute,
     builtin::{
@@ -176,6 +176,153 @@ fn test_op_intr_verify_order() -> Result<()> {
     Ok(())
 }
 
+static TEST_OP_VERIFIERS_OUTPUT_GENERIC: LazyLock<Mutex<String>> =
+    LazyLock::new(|| Mutex::new("".into()));
+
+#[op_interface]
+trait TestOpInterfaceGeneric<T: Clone> {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_OP_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() += "TestOpInterfaceGeneric verified\n";
+        Ok(())
+    }
+}
+
+#[op_interface]
+trait TestOpInterfaceGeneric2<T: Clone>: TestOpInterfaceGeneric<T> {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_OP_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() += "TestOpInterfaceGeneric2 verified\n";
+        Ok(())
+    }
+}
+
+#[op_interface]
+trait TestOpInterfaceGeneric3<T: Clone>:
+    TestOpInterfaceGeneric<T> + TestOpInterfaceGeneric2<T>
+{
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_OP_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() += "TestOpInterfaceGeneric3 verified\n";
+        Ok(())
+    }
+}
+
+#[format_op]
+#[def_op("test.verify_intr_op_generic")]
+#[derive_op_interface_impl(TestOpInterfaceGeneric<i32>, TestOpInterfaceGeneric2<i32>, TestOpInterfaceGeneric3<i32>)]
+struct VerifyIntrOpGeneric {}
+impl_verify_succ!(VerifyIntrOpGeneric);
+impl VerifyIntrOpGeneric {
+    fn new(ctx: &mut Context) -> VerifyIntrOpGeneric {
+        let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
+        Self { op }
+    }
+}
+
+#[test]
+fn test_op_intr_verify_order_generic() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    VerifyIntrOpGeneric::register(ctx, VerifyIntrOpGeneric::parser_fn);
+
+    let vio = VerifyIntrOpGeneric::new(ctx);
+    vio.get_operation().deref(ctx).verify(ctx)?;
+
+    expect![[r#"
+        TestOpInterfaceGeneric verified
+        TestOpInterfaceGeneric2 verified
+        TestOpInterfaceGeneric3 verified
+    "#]]
+    .assert_eq(&TEST_OP_VERIFIERS_OUTPUT_GENERIC.lock().unwrap());
+
+    // Ad-hoc op interface conversions test.
+    let x = op_cast::<dyn TestOpInterfaceGeneric<i32>>(&vio).unwrap();
+    any_to_trait::<dyn TestOpInterfaceGeneric2<i32>>(x.as_any()).unwrap();
+
+    Ok(())
+}
+
+static TEST_OP_VERIFIERS_OUTPUT_CONST_GENERIC: LazyLock<Mutex<String>> =
+    LazyLock::new(|| Mutex::new("".into()));
+
+#[op_interface]
+trait TestOpInterfaceConstGeneric<const N: usize> {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_OP_VERIFIERS_OUTPUT_CONST_GENERIC.lock().unwrap() +=
+            "TestOpInterfaceConstGeneric verified\n";
+        Ok(())
+    }
+}
+
+#[op_interface]
+trait TestOpInterfaceConstGeneric2<const N: usize>: TestOpInterfaceConstGeneric<N> {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_OP_VERIFIERS_OUTPUT_CONST_GENERIC.lock().unwrap() +=
+            "TestOpInterfaceConstGeneric2 verified\n";
+        Ok(())
+    }
+}
+
+#[op_interface]
+trait TestOpInterfaceConstGeneric3<const N: usize>:
+    TestOpInterfaceConstGeneric<N> + TestOpInterfaceConstGeneric2<N>
+{
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_OP_VERIFIERS_OUTPUT_CONST_GENERIC.lock().unwrap() +=
+            "TestOpInterfaceConstGeneric3 verified\n";
+        Ok(())
+    }
+}
+
+#[format_op]
+#[def_op("test.verify_intr_op_const_generic")]
+#[derive_op_interface_impl(TestOpInterfaceConstGeneric<42>, TestOpInterfaceConstGeneric2<42>, TestOpInterfaceConstGeneric3<42>)]
+struct VerifyIntrOpConstGeneric {}
+impl_verify_succ!(VerifyIntrOpConstGeneric);
+impl VerifyIntrOpConstGeneric {
+    fn new(ctx: &mut Context) -> VerifyIntrOpConstGeneric {
+        let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
+        Self { op }
+    }
+}
+
+#[test]
+fn test_op_intr_verify_order_const_generic() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    VerifyIntrOpConstGeneric::register(ctx, VerifyIntrOpConstGeneric::parser_fn);
+
+    let vio = VerifyIntrOpConstGeneric::new(ctx);
+    vio.get_operation().deref(ctx).verify(ctx)?;
+
+    expect![[r#"
+        TestOpInterfaceConstGeneric verified
+        TestOpInterfaceConstGeneric2 verified
+        TestOpInterfaceConstGeneric3 verified
+    "#]]
+    .assert_eq(&TEST_OP_VERIFIERS_OUTPUT_CONST_GENERIC.lock().unwrap());
+
+    // Ad-hoc op interface conversions test.
+    let x = op_cast::<dyn TestOpInterfaceConstGeneric<42>>(&vio).unwrap();
+    any_to_trait::<dyn TestOpInterfaceConstGeneric2<42>>(x.as_any()).unwrap();
+
+    Ok(())
+}
+
 #[attr_interface]
 trait TestAttrInterfaceX {
     fn verify(_op: &dyn Attribute, _ctx: &Context) -> Result<()>
@@ -265,6 +412,97 @@ fn test_attr_intr_verify_order() -> Result<()> {
         TestAttrInterface2 verified
     "#]]
     .assert_eq(&TEST_ATTR_VERIFIERS_OUTPUT.lock().unwrap());
+
+    // Ad-hoc attr interface conversions test.
+    let x = attr_cast::<dyn TestAttrInterface>(&vio).unwrap();
+    any_to_trait::<dyn TestAttrInterface2>(x.as_any()).unwrap();
+
+    Ok(())
+}
+
+static TEST_ATTR_VERIFIERS_OUTPUT_GENERIC: LazyLock<Mutex<String>> =
+    LazyLock::new(|| Mutex::new("".into()));
+
+#[attr_interface]
+trait TestAttrInterfaceGeneric<T: Clone> {
+    fn verify(_op: &dyn Attribute, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_ATTR_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() +=
+            "TestAttrInterfaceGeneric verified\n";
+        Ok(())
+    }
+}
+
+#[attr_interface]
+trait TestAttrInterfaceGeneric2<T: Clone>: TestAttrInterfaceGeneric<T> {
+    fn verify(_op: &dyn Attribute, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_ATTR_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() +=
+            "TestAttrInterfaceGeneric2 verified\n";
+        Ok(())
+    }
+}
+
+#[attr_interface]
+trait TestAttrInterfaceGeneric3<T: Clone>:
+    TestAttrInterfaceGeneric<T> + TestAttrInterfaceGeneric2<T>
+{
+    fn verify(_op: &dyn Attribute, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_ATTR_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() +=
+            "TestAttrInterfaceGeneric3 verified\n";
+        Ok(())
+    }
+}
+
+#[def_attribute("test.verify_intr_attr_generic")]
+#[derive(PartialEq, Clone, Debug, Hash)]
+struct VerifyIntrAttrGeneric {}
+impl_verify_succ!(VerifyIntrAttrGeneric);
+
+#[attr_interface_impl]
+impl TestAttrInterfaceGeneric<i32> for VerifyIntrAttrGeneric {}
+#[attr_interface_impl]
+impl TestAttrInterfaceGeneric2<i32> for VerifyIntrAttrGeneric {}
+#[attr_interface_impl]
+impl TestAttrInterfaceGeneric3<i32> for VerifyIntrAttrGeneric {}
+
+impl Printable for VerifyIntrAttrGeneric {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "VerifyIntAttrGeneric")
+    }
+}
+
+#[test]
+fn test_attr_intr_verify_order_generic() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
+
+    let vio = VerifyIntrAttrGeneric {};
+    verify_attr(&vio, ctx)?;
+
+    expect![[r#"
+        TestAttrInterfaceGeneric verified
+        TestAttrInterfaceGeneric2 verified
+        TestAttrInterfaceGeneric3 verified
+    "#]]
+    .assert_eq(&TEST_ATTR_VERIFIERS_OUTPUT_GENERIC.lock().unwrap());
+
+    // Ad-hoc attr interface conversions test.
+    let x = attr_cast::<dyn TestAttrInterfaceGeneric<i32>>(&vio).unwrap();
+    any_to_trait::<dyn TestAttrInterfaceGeneric2<i32>>(x.as_any()).unwrap();
+
     Ok(())
 }
 
@@ -341,6 +579,97 @@ fn test_type_intr_verify_order() -> Result<()> {
         TestTypeInterface2 verified
     "#]]
     .assert_eq(&TEST_TYPE_VERIFIERS_OUTPUT.lock().unwrap());
+
+    // Ad-hoc type interface conversions test.
+    let x = type_cast::<dyn TestTypeInterface>(&vio).unwrap();
+    any_to_trait::<dyn TestTypeInterface2>(x.as_any()).unwrap();
+
+    Ok(())
+}
+
+static TEST_TYPE_VERIFIERS_OUTPUT_GENERIC: LazyLock<Mutex<String>> =
+    LazyLock::new(|| Mutex::new("".into()));
+
+#[type_interface]
+trait TestTypeInterfaceGeneric<T: Clone> {
+    fn verify(_op: &dyn Type, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_TYPE_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() +=
+            "TestTypeInterfaceGeneric verified\n";
+        Ok(())
+    }
+}
+
+#[type_interface]
+trait TestTypeInterfaceGeneric2<T: Clone>: TestTypeInterfaceGeneric<T> {
+    fn verify(_op: &dyn Type, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_TYPE_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() +=
+            "TestTypeInterfaceGeneric2 verified\n";
+        Ok(())
+    }
+}
+
+#[type_interface]
+trait TestTypeInterfaceGeneric3<T: Clone>:
+    TestTypeInterfaceGeneric<T> + TestTypeInterfaceGeneric2<T>
+{
+    fn verify(_op: &dyn Type, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_TYPE_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() +=
+            "TestTypeInterfaceGeneric3 verified\n";
+        Ok(())
+    }
+}
+
+#[def_type("test.verify_intr_type_generic")]
+#[derive(PartialEq, Clone, Debug, Hash)]
+struct VerifyIntrTypeGeneric {}
+impl_verify_succ!(VerifyIntrTypeGeneric);
+
+#[type_interface_impl]
+impl TestTypeInterfaceGeneric<i32> for VerifyIntrTypeGeneric {}
+#[type_interface_impl]
+impl TestTypeInterfaceGeneric2<i32> for VerifyIntrTypeGeneric {}
+#[type_interface_impl]
+impl TestTypeInterfaceGeneric3<i32> for VerifyIntrTypeGeneric {}
+
+impl Printable for VerifyIntrTypeGeneric {
+    fn fmt(
+        &self,
+        _ctx: &Context,
+        _state: &printable::State,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "VerifyIntTypeGeneric")
+    }
+}
+
+#[test]
+fn test_type_intr_verify_order_generic() -> Result<()> {
+    let ctx = &mut setup_context_dialects();
+    VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
+
+    let vio = VerifyIntrTypeGeneric {};
+    verify_type(&vio, ctx)?;
+
+    expect![[r#"
+        TestTypeInterfaceGeneric verified
+        TestTypeInterfaceGeneric2 verified
+        TestTypeInterfaceGeneric3 verified
+    "#]]
+    .assert_eq(&TEST_TYPE_VERIFIERS_OUTPUT_GENERIC.lock().unwrap());
+
+    // Ad-hoc type interface conversions test.
+    let x = type_cast::<dyn TestTypeInterfaceGeneric<i32>>(&vio).unwrap();
+    any_to_trait::<dyn TestTypeInterfaceGeneric2<i32>>(x.as_any()).unwrap();
+
     Ok(())
 }
 

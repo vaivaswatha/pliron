@@ -113,7 +113,7 @@ impl ToTokens for ImplType {
                     if let Some(interface_verifiers) =
                         ::pliron::r#type::TYPE_INTERFACE_VERIFIERS_MAP.get(&Self::get_type_id_static())
                     {
-                        for (_, verifier) in interface_verifiers {
+                        for verifier in interface_verifiers {
                             verifier(self, ctx)?;
                         }
                     }
@@ -166,7 +166,7 @@ mod tests {
                     if let Some(interface_verifiers) = ::pliron::r#type::TYPE_INTERFACE_VERIFIERS_MAP
                         .get(&Self::get_type_id_static())
                     {
-                        for (_, verifier) in interface_verifiers {
+                        for verifier in interface_verifiers {
                             verifier(self, ctx)?;
                         }
                     }
