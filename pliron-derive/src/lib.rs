@@ -425,14 +425,12 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let interface_verifiers_slice = parse_quote! { ::pliron::op::OP_INTERFACE_VERIFIERS };
     let id = parse_quote! { ::pliron::op::OpId };
     let get_id_static = format_ident!("{}", "get_opid_static");
-    let verifier_type = parse_quote! { ::pliron::op::OpInterfaceVerifier };
-    let super_verifiers_fn_type = parse_quote! { ::pliron::op::OpInterfaceSuperVerifiers };
+    let all_verifiers_fn_type = parse_quote! { ::pliron::op::OpInterfaceAllVerifiers };
     to_token_stream(interfaces::interface_impl(
         item,
         interface_verifiers_slice,
         id,
-        verifier_type,
-        super_verifiers_fn_type,
+        all_verifiers_fn_type,
         get_id_static,
     ))
 }
@@ -575,14 +573,12 @@ pub fn attr_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
     let interface_verifiers_slice = parse_quote! { ::pliron::attribute::ATTR_INTERFACE_VERIFIERS };
     let id = parse_quote! { ::pliron::attribute::AttrId };
     let get_id_static = format_ident!("{}", "get_attr_id_static");
-    let verifier_type = parse_quote! { ::pliron::attribute::AttrInterfaceVerifier };
-    let super_verifiers_fn_type = parse_quote! { ::pliron::attribute::AttrInterfaceSuperVerifiers };
+    let all_verifiers_fn_type = parse_quote! { ::pliron::attribute::AttrInterfaceAllVerifiers };
     to_token_stream(interfaces::interface_impl(
         item,
         interface_verifiers_slice,
         id,
-        verifier_type,
-        super_verifiers_fn_type,
+        all_verifiers_fn_type,
         get_id_static,
     ))
 }
@@ -690,14 +686,12 @@ pub fn type_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
     let interface_verifiers_slice = parse_quote! { ::pliron::r#type::TYPE_INTERFACE_VERIFIERS };
     let id = parse_quote! { ::pliron::r#type::TypeId };
     let get_id_static = format_ident!("{}", "get_type_id_static");
-    let verifier_type = parse_quote! { ::pliron::r#type::TypeInterfaceVerifier };
-    let super_verifiers_fn_type = parse_quote! { ::pliron::r#type::TypeInterfaceSuperVerifiers };
+    let all_verifiers_fn_type = parse_quote! { ::pliron::r#type::TypeInterfaceAllVerifiers };
     to_token_stream(interfaces::interface_impl(
         item,
         interface_verifiers_slice,
         id,
-        verifier_type,
-        super_verifiers_fn_type,
+        all_verifiers_fn_type,
         get_id_static,
     ))
 }

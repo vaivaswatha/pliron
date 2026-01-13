@@ -15,8 +15,8 @@
 //!
 //! Interfaces are rust Trait definitions annotated with the attribute macro
 //! [op_interface](pliron::derive::op_interface). The attribute ensures that any
-//! verifiers of super-interfaces (specified as super traits) are run prior to
-//! the verifier of this interface.
+//! verifiers of super-interfaces are run prior to the verifier of this interface.
+//! Note: Super-interface verifiers *may* run multiple times for the same op.
 //!
 //! [Op]s that implement an interface must annotate the implementation with
 //! [op_interface_impl](pliron::derive::op_interface_impl) macro to ensure that
@@ -253,13 +253,13 @@ pub fn op_impls<T: ?Sized + Op>(op: &dyn Op) -> bool {
 
 /// Every op interface must have a function named `verify` with this type.
 pub type OpInterfaceVerifier = fn(&dyn Op, &Context) -> Result<()>;
-/// A function that returns the list of super verifiers for an interface.
-pub type OpInterfaceSuperVerifiers = fn() -> Vec<OpInterfaceVerifier>;
+/// Function returns the list of super verifiers, followed by a self verifier, for an interface.
+pub type OpInterfaceAllVerifiers = fn() -> Vec<OpInterfaceVerifier>;
 
 #[doc(hidden)]
 /// An [Op] paired with an interface it implements
-/// (the verifier and super verifiers for that interface).
-type OpInterfaceVerifierInfo = (OpId, (OpInterfaceVerifier, OpInterfaceSuperVerifiers));
+/// (specically the verifiers (including super verifiers) for that interface).
+type OpInterfaceVerifierInfo = (OpId, OpInterfaceAllVerifiers);
 
 #[cfg(not(target_family = "wasm"))]
 pub mod statics {
@@ -297,52 +297,31 @@ pub static OP_INTERFACE_VERIFIERS_MAP: LazyLock<FxHashMap<OpId, Vec<OpInterfaceV
         // Collect OP_INTERFACE_VERIFIERS into an [OpId] indexed map.
         let mut op_intr_verifiers = FxHashMap::default();
         for lazy in get_op_interface_verifiers() {
-            let (op_id, (verifier, super_verifiers)) = (**lazy).clone();
+            let (op_id, all_verifiers_for_interface) = (**lazy).clone();
             op_intr_verifiers
                 .entry(op_id)
-                .and_modify(
-                    |verifiers: &mut Vec<(OpInterfaceVerifier, OpInterfaceSuperVerifiers)>| {
-                        verifiers.push((verifier, super_verifiers))
-                    },
-                )
-                .or_insert(vec![(verifier, super_verifiers)]);
+                .and_modify(|verifiers: &mut Vec<OpInterfaceAllVerifiers>| {
+                    verifiers.push(all_verifiers_for_interface)
+                })
+                .or_insert(vec![all_verifiers_for_interface]);
         }
 
-        // Sort verifiers based on interface dependencies.
+        // Remove duplicates (best effort as rustc may inline functions, resulting in different pointers).
+        // Relies on `__all_verifiers` returning the super-verifiers followed by self verifier
+        // to ensure that super-interfaces are verified first.
         op_intr_verifiers
             .into_iter()
             .map(|(opid, verifiers)| {
-                let deps: FxHashMap<OpInterfaceVerifier, Vec<OpInterfaceVerifier>> = verifiers
-                    .into_iter()
-                    .map(|(verifier, super_verifiers)| (verifier, super_verifiers()))
-                    .collect();
-                let mut sorted_verifiers: Vec<OpInterfaceVerifier> = Vec::new();
-                let mut visited = FxHashSet::default();
-                // Topological sort of the verifiers based on dependencies.
-                fn visit(
-                    verifier: &OpInterfaceVerifier,
-                    deps: &FxHashMap<OpInterfaceVerifier, Vec<OpInterfaceVerifier>>,
-                    visited: &mut FxHashSet<OpInterfaceVerifier>,
-                    sorted_verifiers: &mut Vec<OpInterfaceVerifier>,
-                ) {
-                    if visited.insert(*verifier) {
-                        // #[op_interface] adds a #[inline(never)] to verifier functions to prevent inlining.
-                        // If we hit this assert inspite of that, we may want to consider removing the guarantee
-                        // that super-verifiers are run prior to sub-verifiers. See #74.
-                        let supers = deps.get(verifier).expect
-                        ("Every interface verifier must have a (possibly empty) list of super verifiers. \
-                         If you're seeing this error, it means that rustc has inlined a verifier function, \
-                         making it impossible to uniquely identify super verifiers.");
-                        for super_verifier in supers {
-                            visit(super_verifier, deps, visited, sorted_verifiers);
+                let mut dedupd_verifiers = Vec::new();
+                let mut seen = FxHashSet::default();
+                for verifier_fn_list in verifiers {
+                    for verifier in verifier_fn_list() {
+                        if seen.insert(verifier) {
+                            dedupd_verifiers.push(verifier);
                         }
-                        sorted_verifiers.push(*verifier);
                     }
                 }
-                for verifier in deps.keys() {
-                    visit(verifier, &deps, &mut visited, &mut sorted_verifiers);
-                }
-                (opid, sorted_verifiers)
+                (opid, dedupd_verifiers)
             })
             .collect()
     });
