@@ -2,6 +2,7 @@
 
 use pliron::combine::Parser;
 use std::{env, path::PathBuf, sync::LazyLock};
+use which::which;
 
 mod common;
 use common::init_env_logger;
@@ -38,7 +39,41 @@ static LLI_BINARY: LazyLock<PathBuf> = LazyLock::new(|| {
         "Unexpected llvm-sys version format: Expected two-digit major version and one digit minor version, got {}",
         lli_version
     );
-    format!("lli-{}", &lli_version[..2]).into()
+
+    let llvm_major_version = &lli_version[..2];
+    let lli_binary_name = format!("lli-{}", llvm_major_version);
+
+    let env_var = env::var("LLI_BINARY_PATH");
+    let is_env_var_set = env_var.is_ok();
+
+    // Use LLI_BINARY_PATH if set, otherwise default to lli_binary_name
+    let binary_to_find = env_var.unwrap_or(lli_binary_name.clone());
+
+    // If LLI_BINARY_PATH is set and it's an absolute/relative path, do a cheap existence check first
+    if is_env_var_set {
+        let path = PathBuf::from(&binary_to_find);
+        if path.exists() {
+            return path;
+        }
+    }
+
+    // Use which to find the binary in PATH or verify the custom path
+    match which(&binary_to_find) {
+        Ok(path) => path,
+        Err(_) => {
+            if is_env_var_set {
+                panic!(
+                    "LLI binary not found at path specified by LLI_BINARY_PATH ({}) or in system PATH. Expected LLVM version {}.",
+                    binary_to_find, llvm_major_version
+                );
+            } else {
+                panic!(
+                    "LLI binary '{}' not found in PATH. Please install LLVM version {} or set the LLI_BINARY_PATH environment variable to the path of your LLI binary.",
+                    lli_binary_name, llvm_major_version
+                );
+            }
+        }
+    }
 });
 
 static RESOURCES_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
