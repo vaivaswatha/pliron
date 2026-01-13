@@ -26,6 +26,8 @@ pub(crate) fn interface_define(
     let mut r#trait = syn::parse2::<ItemTrait>(input.into())?;
     let intr_name = r#trait.ident.clone();
     let generics = r#trait.generics.clone();
+    // https://github.com/kardeiz/objekt-clonable/blob/master/dyn-clonable-impl/src/lib.rs
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let dep_interfaces: Vec<_> = r#trait
         .supertraits
@@ -39,14 +41,15 @@ pub(crate) fn interface_define(
         .collect();
     let supertraits = r#trait.supertraits;
 
-    // Create a method for getting super verifiers.
-    let super_verifiers = quote! {
-        fn super_verifiers() -> Vec<#verifier_type> where Self: Sized {
-            vec![
-                #(
-                    <Self as #dep_interfaces>::verify
-                ),*
-            ]
+    // Create a method for getting super verifiers + self verifier
+    let all_verifiers = quote! {
+        fn __all_verifiers() -> Vec<#verifier_type> where Self: Sized {
+            let mut all_verifiers: Vec<#verifier_type> = Vec::new();
+            #(
+                all_verifiers.append(&mut <Self as #dep_interfaces>::__all_verifiers());
+            )*
+            all_verifiers.push(<Self as #intr_name #ty_generics >::verify as #verifier_type);
+            all_verifiers
         }
     };
 
@@ -56,21 +59,21 @@ pub(crate) fn interface_define(
             && meth.default.is_some()
         {
             // Found the verifier method, add a #[inline(never)] to prevent inlining.
+            // This helps reduce multiple executions of the same verifier when
+            // called from different sub-interfaces.
             meth.attrs.push(parse_quote! { #[inline(never)] });
         }
     }
 
     r#trait
         .items
-        .push(syn::parse2::<syn::TraitItem>(super_verifiers)?);
+        .push(syn::parse2::<syn::TraitItem>(all_verifiers)?);
 
     // Append main super trait (Op/Attribute/Type).
     r#trait.supertraits = parse_quote! { #supertrait + #supertraits };
 
     let mut output = r#trait.into_token_stream();
     if append_dyn_clone_trait {
-        // https://github.com/kardeiz/objekt-clonable/blob/master/dyn-clonable-impl/src/lib.rs
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
         output.extend(quote! {
             ::pliron::dyn_clone::clone_trait_object!(#impl_generics #intr_name #ty_generics #where_clause);
         });
@@ -86,8 +89,7 @@ pub(crate) fn interface_impl(
     input: proc_macro::TokenStream,
     interface_verifiers_slice: Path,
     id: Path,
-    verifier_type: Path,
-    super_verifiers_fn_type: Path,
+    all_verifiers_fn_type: Path,
     get_id_static: Ident,
 ) -> Result<proc_macro2::TokenStream> {
     let r#impl = syn::parse2::<ItemImpl>(input.into())?;
@@ -107,13 +109,11 @@ pub(crate) fn interface_impl(
     let verifiers_entry = quote! {
         const _: () = {
             #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(#interface_verifiers_slice), linkme(crate = ::pliron::linkme))]
-            static INTERFACE_VERIFIER: std::sync::LazyLock<
-                (#id, (#verifier_type, #super_verifiers_fn_type))
-            > =
-            std::sync::LazyLock::new(||
-                (#rust_ty::#get_id_static(),
-                     (<#rust_ty as #intr_name>::verify, <#rust_ty as #intr_name>::super_verifiers))
-            );
+            static INTERFACE_VERIFIER: std::sync::LazyLock<(#id, (#all_verifiers_fn_type))> =
+                std::sync::LazyLock::new(||
+                    (#rust_ty::#get_id_static(),
+                        <#rust_ty as #intr_name>::__all_verifiers)
+                );
 
             #[cfg(target_family = "wasm")]
             ::pliron::inventory::submit! {
