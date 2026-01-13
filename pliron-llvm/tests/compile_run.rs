@@ -31,16 +31,16 @@ use tempfile::tempdir;
 static LLI_BINARY: LazyLock<PathBuf> = LazyLock::new(|| {
     let manifest =
         Manifest::from_path(env!("CARGO_MANIFEST_PATH")).expect("Could not read Cargo.toml");
-    let lli_version = manifest.dependencies.expect("Expected llvm-sys dependency")["llvm-sys"]
+    let llvm_version = manifest.dependencies.expect("Expected llvm-sys dependency")["llvm-sys"]
         .req()
         .to_string();
     assert!(
-        lli_version.len() == 3,
+        llvm_version.len() == 3,
         "Unexpected llvm-sys version format: Expected two-digit major version and one digit minor version, got {}",
-        lli_version
+        llvm_version
     );
 
-    let llvm_major_version = &lli_version[..2];
+    let llvm_major_version = &llvm_version[..2];
     let lli_binary_name = format!("lli-{}", llvm_major_version);
 
     let env_var = env::var("LLI_BINARY_PATH");
