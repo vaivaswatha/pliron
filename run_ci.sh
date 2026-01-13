@@ -30,8 +30,8 @@ cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
 RUSTFLAGS="-D warnings" cargo build --workspace
 RUSTFLAGS="-D warnings" cargo build -p pliron -p pliron-derive --target wasm32-unknown-unknown
-#cargo test --workspace
-#cargo test --release --workspace
+cargo test --workspace
+cargo test --release --workspace
 if [ "$WASM_TESTS" = true ]; then
   # Check if node is installed
   if ! command -v node &>/dev/null; then
@@ -48,5 +48,6 @@ if [ "$WASM_TESTS" = true ]; then
   fi
 
   cargo test --target wasm32-unknown-unknown
+  cargo test --release --target wasm32-unknown-unknown
 fi
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace

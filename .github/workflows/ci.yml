@@ -61,8 +61,11 @@ jobs:
     - name: Tests (Release)
       run: cargo test --release --workspace --verbose
 
-    - name: Tests (Wasm)
+    - name: WASM Tests (Debug)
       run: cargo test --target wasm32-unknown-unknown
+
+    - name: WASM Tests (Release)
+      run: cargo test --release --target wasm32-unknown-unknown
 
     - name: Documentation
       run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace
