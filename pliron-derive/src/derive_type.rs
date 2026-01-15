@@ -304,7 +304,115 @@ mod tests {
                     Ok(())
                 }
             }
+            impl SimpleType {
+                /// Get the singleton instance.
+                pub fn get(ctx: &::pliron::context::Context) -> ::pliron::r#type::TypePtr<Self> {
+                    ::pliron::r#type::Type::get_instance(Self {}, ctx)
+                        .expect("simple_type singleton not instantiated")
+                }
+            }
+            const _: () = {
+                #[cfg_attr(
+                    not(target_family = "wasm"),
+                    ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS),
+                    linkme(crate = ::pliron::linkme)
+                )]
+                static TYPE_REGISTRATION: std::sync::LazyLock<
+                    ::pliron::context::ContextRegistration,
+                > = std::sync::LazyLock::new(|| |ctx: &mut ::pliron::context::Context| {
+                    SimpleType::register_direct(ctx);
+                    ::pliron::r#type::Type::register_instance(SimpleType {}, ctx);
+                });
+                #[cfg(target_family = "wasm")]
+                ::pliron::inventory::submit! {
+                    ::pliron::utils::inventory::LazyLockWrapper(& TYPE_REGISTRATION)
+                }
+            };
         "##]]
         .assert_eq(&got);
+    }
+
+    #[test]
+    fn compound() {
+        let args = quote! { "testing.compound_type" };
+        let input = quote! {
+            #[derive(Hash, PartialEq, Eq, Debug)]
+            pub struct CompoundType {
+                x1: u32,
+                x2: String,
+            }
+        };
+        let t = def_type(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(t).unwrap();
+        let got = prettyplease::unparse(&f);
+
+        expect![[r##"
+            #[derive(Hash, PartialEq, Eq, Debug)]
+            pub struct CompoundType {
+                x1: u32,
+                x2: String,
+            }
+            impl ::pliron::r#type::Type for CompoundType {
+                fn hash_type(&self) -> ::pliron::storage_uniquer::TypeValueHash {
+                    ::pliron::storage_uniquer::TypeValueHash::new(self)
+                }
+                fn eq_type(&self, other: &dyn ::pliron::r#type::Type) -> bool {
+                    other.downcast_ref::<Self>().map_or(false, |other| other == self)
+                }
+                fn get_type_id(&self) -> ::pliron::r#type::TypeId {
+                    Self::get_type_id_static()
+                }
+                fn get_type_id_static() -> ::pliron::r#type::TypeId {
+                    ::pliron::r#type::TypeId {
+                        name: ::pliron::r#type::TypeName::new("compound_type"),
+                        dialect: ::pliron::dialect::DialectName::new("testing"),
+                    }
+                }
+                fn verify_interfaces(
+                    &self,
+                    ctx: &::pliron::context::Context,
+                ) -> ::pliron::result::Result<()> {
+                    if let Some(interface_verifiers) = ::pliron::r#type::TYPE_INTERFACE_VERIFIERS_MAP
+                        .get(&Self::get_type_id_static())
+                    {
+                        for verifier in interface_verifiers {
+                            verifier(self, ctx)?;
+                        }
+                    }
+                    Ok(())
+                }
+            }
+            impl CompoundType {
+                /// Get or create a new instance.
+                pub fn get(
+                    ctx: &mut ::pliron::context::Context,
+                    x1: u32,
+                    x2: String,
+                ) -> ::pliron::r#type::TypePtr<Self> {
+                    ::pliron::r#type::Type::register_instance(CompoundType { x1, x2 }, ctx)
+                }
+                pub fn get_existing(
+                    ctx: &::pliron::context::Context,
+                    x1: u32,
+                    x2: String,
+                ) -> ::std::option::Option<::pliron::r#type::TypePtr<Self>> {
+                    ::pliron::r#type::Type::get_instance(CompoundType { x1, x2 }, ctx)
+                }
+            }
+            const _: () = {
+                #[cfg_attr(
+                    not(target_family = "wasm"),
+                    ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS),
+                    linkme(crate = ::pliron::linkme)
+                )]
+                static TYPE_REGISTRATION: std::sync::LazyLock<
+                    ::pliron::context::ContextRegistration,
+                > = std::sync::LazyLock::new(|| CompoundType::register_direct);
+                #[cfg(target_family = "wasm")]
+                ::pliron::inventory::submit! {
+                    ::pliron::utils::inventory::LazyLockWrapper(& TYPE_REGISTRATION)
+                }
+            };
+        "##]].assert_eq(&got);
     }
 }
