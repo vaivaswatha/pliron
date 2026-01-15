@@ -562,7 +562,6 @@ mod tests {
     #[test]
     fn test_pointer_type_parsing() {
         let mut ctx = Context::new();
-        TypedPointerType::register_type_in_dialect(&mut ctx, TypedPointerType::parser_fn);
 
         let state_stream = state_stream_from_iterator(
             "llvm.typed_ptr <builtin.integer si64>".chars(),
@@ -579,7 +578,6 @@ mod tests {
     #[test]
     fn test_struct_type_parsing() {
         let mut ctx = Context::new();
-        TypedPointerType::register_type_in_dialect(&mut ctx, TypedPointerType::parser_fn);
 
         let state_stream = state_stream_from_iterator(
             "llvm.struct <LinkedList { builtin.integer i64, llvm.typed_ptr <llvm.struct <LinkedList>> }>"
