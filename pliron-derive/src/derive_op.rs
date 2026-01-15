@@ -15,7 +15,7 @@ pub(crate) fn def_op(
     Ok(p.into_token_stream())
 }
 
-/// The derived macro body for the `#[def_attribute]` proc macro.
+/// The derived macro body for the `#[def_op]` proc macro.
 struct DefOp {
     input: DeriveInput,
     impl_op: ImplOp,
@@ -138,6 +138,19 @@ impl ToTokens for ImplOp {
                     Ok(())
                 }
             }
+
+            const _: () = {
+                #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS), linkme(crate = ::pliron::linkme))]
+                static OP_REGISTRATION: std::sync::LazyLock<::pliron::context::ContextRegistration> =
+                    std::sync::LazyLock::new(||
+                        #name::register_direct
+                    );
+
+                #[cfg(target_family = "wasm")]
+                ::pliron::inventory::submit! {
+                    ::pliron::utils::inventory::LazyLockWrapper(&OP_REGISTRATION)
+                }
+            };
         });
     }
 }

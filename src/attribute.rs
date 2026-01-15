@@ -53,7 +53,7 @@ use crate::{
     builtin::attr_interfaces::OutlinedAttr,
     common_traits::Verify,
     context::Context,
-    dialect::DialectName,
+    dialect::{Dialect, DialectName},
     identifier::Identifier,
     impl_printable_for_display, input_err,
     irfmt::{
@@ -247,6 +247,37 @@ pub trait Attribute: Printable + Verify + Downcast + Sync + Send + DynClone + De
             .get_mut(&attrid.dialect)
             .unwrap_or_else(|| panic!("Unregistered dialect {}", &attrid.dialect));
         dialect.add_attr(Self::get_attr_id_static(), Box::new(attr_parser));
+    }
+
+    /// Register this attribute's [AttrId] in the dialect it belongs to.
+    fn register_direct<A: Attribute>(ctx: &mut Context)
+    where
+        Self: Sized + Parsable<Arg = (), Parsed = A>,
+    {
+        // Specifying higher ranked lifetime on a closure:
+        // https://stackoverflow.com/a/46198877/2128804
+        fn constrain<F>(f: F) -> F
+        where
+            F: for<'a> Fn(
+                &'a (),
+            ) -> Box<
+                dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a,
+            >,
+        {
+            f
+        }
+        let attr_parser = constrain(move |_| {
+            combine::parser(move |parsable_state: &mut StateStream<'_>| {
+                Self::parser_fn(&(), ())
+                    .parse_stream(parsable_state)
+                    .map(|attr| -> AttrObj { Box::new(attr) })
+                    .into_result()
+            })
+            .boxed()
+        });
+        let attrid = Self::get_attr_id_static();
+        Dialect::register_or_get(ctx, attrid.dialect.clone())
+            .add_attr(attrid.clone(), Box::new(attr_parser));
     }
 }
 impl_downcast!(Attribute);

@@ -82,7 +82,7 @@ impl Context {
 
 impl Default for Context {
     fn default() -> Self {
-        let ctx = Context {
+        let mut ctx = Context {
             operations: Arena::default(),
             basic_blocks: Arena::default(),
             regions: Arena::default(),
@@ -100,6 +100,12 @@ impl Default for Context {
         if let Err(err) = &*DICT_KEYS_VERIFIER {
             panic!("{}", err.err);
         }
+
+        // Run all context registrations
+        for registration in get_context_registrations() {
+            registration(&mut ctx);
+        }
+
         ctx
     }
 }
@@ -266,6 +272,11 @@ pub struct DictKeyId {
     pub column: u32,
 }
 
+/// These represent registrations that happen automatically at link time.
+/// Every dialect, op, type, and attribute that are linked into your code
+/// will register themselves using this type.
+pub type ContextRegistration = fn(&mut Context);
+
 #[doc(hidden)]
 /// `pliron` uses dictionaries indexed by static [Identifier]s in many places,
 /// such as [Context::aux_data_map], and the states of [Printable](crate::printable::State)
@@ -284,6 +295,15 @@ pub mod statics {
     pub fn get_dict_key_ids() -> impl Iterator<Item = &'static LazyLock<DictKeyId>> {
         DICT_KEY_IDS.iter()
     }
+
+    #[::pliron::linkme::distributed_slice]
+    #[linkme(crate = ::pliron::linkme)]
+    pub static CONTEXT_REGISTRATIONS: [LazyLock<ContextRegistration>];
+
+    pub fn get_context_registrations()
+    -> impl Iterator<Item = &'static LazyLock<ContextRegistration>> {
+        CONTEXT_REGISTRATIONS.iter()
+    }
 }
 
 #[cfg(target_family = "wasm")]
@@ -295,6 +315,13 @@ pub mod statics {
 
     pub fn get_dict_key_ids() -> impl Iterator<Item = &'static LazyLock<DictKeyId>> {
         ::pliron::inventory::iter::<LazyLockWrapper<DictKeyId>>().map(|llw| llw.0)
+    }
+
+    ::pliron::inventory::collect!(LazyLockWrapper<ContextRegistration>);
+
+    pub fn get_context_registrations()
+    -> impl Iterator<Item = &'static LazyLock<ContextRegistration>> {
+        ::pliron::inventory::iter::<LazyLockWrapper<ContextRegistration>>().map(|llw| llw.0)
     }
 }
 

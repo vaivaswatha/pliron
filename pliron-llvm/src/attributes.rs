@@ -233,23 +233,6 @@ impl_verify_succ!(AlignmentAttr);
 pub struct ShuffleVectorMaskAttr(pub Vec<i32>);
 impl_verify_succ!(ShuffleVectorMaskAttr);
 
-/// Register LLVM attributes into the dialect.
-pub fn register(ctx: &mut Context) {
-    IntegerOverflowFlagsAttr::register_attr_in_dialect(ctx, IntegerOverflowFlagsAttr::parser_fn);
-    ICmpPredicateAttr::register_attr_in_dialect(ctx, ICmpPredicateAttr::parser_fn);
-    FCmpPredicateAttr::register_attr_in_dialect(ctx, FCmpPredicateAttr::parser_fn);
-    GepIndicesAttr::register_attr_in_dialect(ctx, GepIndicesAttr::parser_fn);
-    CaseValuesAttr::register_attr_in_dialect(ctx, CaseValuesAttr::parser_fn);
-    InsertExtractValueIndicesAttr::register_attr_in_dialect(
-        ctx,
-        InsertExtractValueIndicesAttr::parser_fn,
-    );
-    FastmathFlagsAttr::register_attr_in_dialect(ctx, FastmathFlagsAttr::parser_fn);
-    LinkageAttr::register_attr_in_dialect(ctx, LinkageAttr::parser_fn);
-    AlignmentAttr::register_attr_in_dialect(ctx, AlignmentAttr::parser_fn);
-    ShuffleVectorMaskAttr::register_attr_in_dialect(ctx, ShuffleVectorMaskAttr::parser_fn);
-}
-
 #[cfg(test)]
 mod tests {
     use expect_test::expect;

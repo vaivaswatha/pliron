@@ -365,6 +365,7 @@ static TEST_ATTR_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
 
 #[def_attribute("test.verify_intr_attr")]
 #[derive(PartialEq, Clone, Debug, Hash)]
+#[format_attribute]
 struct VerifyIntrAttr {}
 impl_verify_succ!(VerifyIntrAttr);
 
@@ -372,17 +373,6 @@ impl_verify_succ!(VerifyIntrAttr);
 impl TestAttrInterface for VerifyIntrAttr {}
 #[attr_interface_impl]
 impl TestAttrInterface2 for VerifyIntrAttr {}
-
-impl Printable for VerifyIntrAttr {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "VerifyIntAttr")
-    }
-}
 
 #[attr_interface]
 trait TestAttrInterface {
@@ -471,6 +461,7 @@ trait TestAttrInterfaceGeneric3<T: Clone>:
 
 #[def_attribute("test.verify_intr_attr_generic")]
 #[derive(PartialEq, Clone, Debug, Hash)]
+#[format_attribute]
 struct VerifyIntrAttrGeneric {}
 impl_verify_succ!(VerifyIntrAttrGeneric);
 
@@ -480,17 +471,6 @@ impl TestAttrInterfaceGeneric<i32> for VerifyIntrAttrGeneric {}
 impl TestAttrInterfaceGeneric2<i32> for VerifyIntrAttrGeneric {}
 #[attr_interface_impl]
 impl TestAttrInterfaceGeneric3<i32> for VerifyIntrAttrGeneric {}
-
-impl Printable for VerifyIntrAttrGeneric {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "VerifyIntAttrGeneric")
-    }
-}
 
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]

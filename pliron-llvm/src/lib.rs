@@ -17,7 +17,5 @@ pub mod types;
 pub fn register(ctx: &mut Context) {
     let dialect = Dialect::new(DialectName::new("llvm"));
     dialect.register(ctx);
-    ops::register(ctx);
     types::register(ctx);
-    attributes::register(ctx);
 }

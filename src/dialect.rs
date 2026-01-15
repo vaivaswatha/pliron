@@ -114,8 +114,12 @@ impl Dialect {
     }
 
     /// Register this dialect if not already registered.
-    pub fn register(self, ctx: &mut Context) {
-        ctx.dialects.entry(self.name.clone()).or_insert(self);
+    pub fn register(self, ctx: &mut Context) -> &mut Dialect {
+        ctx.dialects.entry(self.name.clone()).or_insert(self)
+    }
+
+    pub fn register_or_get(ctx: &mut Context, name: DialectName) -> &mut Dialect {
+        Dialect::new(name).register(ctx)
     }
 
     /// Add an [Op](crate::op::Op) to this dialect.

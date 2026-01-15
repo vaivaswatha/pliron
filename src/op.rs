@@ -53,7 +53,7 @@ use crate::{
     builtin::{type_interfaces::FunctionTypeInterface, types::FunctionType},
     common_traits::{Named, Verify},
     context::{Context, Ptr},
-    dialect::DialectName,
+    dialect::{Dialect, DialectName},
     identifier::Identifier,
     impl_printable_for_display, input_err,
     irfmt::{
@@ -207,6 +207,14 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
             .get_mut(&dialect)
             .unwrap_or_else(|| panic!("Unregistered dialect {dialect}"));
         dialect.add_op(Self::get_opid_static(), op_parser);
+    }
+
+    fn register_direct(ctx: &mut Context)
+    where
+        Self: Sized + Parsable<Arg = Vec<(Identifier, Location)>, Parsed = OpBox>,
+    {
+        let opid = Self::get_opid_static();
+        Dialect::register_or_get(ctx, opid.dialect.clone()).add_op(opid.clone(), Self::parser_fn);
     }
 
     /// Get Op's location
