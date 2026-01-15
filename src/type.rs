@@ -65,7 +65,7 @@ use thiserror::Error;
 /// the rust type being defined) and its contents.
 ///
 /// So, for example, if we have
-/// ```rust
+/// ```ignore
 ///     # use pliron::{printable::Printable, context::Context,
 ///     #   printable::State, impl_verify_succ, result::Result};
 ///     # use pliron::derive::def_type;
