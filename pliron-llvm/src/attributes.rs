@@ -5,7 +5,6 @@ use std::fmt::Display;
 use pliron::combine::{self, Parser, choice, parser::char::spaces};
 use thiserror::Error;
 
-use pliron::attribute::Attribute;
 use pliron::builtin::attributes::IntegerAttr;
 use pliron::common_traits::Verify;
 use pliron::context::Context;
