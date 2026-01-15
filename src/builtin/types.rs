@@ -31,19 +31,6 @@ pub struct IntegerType {
 }
 
 impl IntegerType {
-    /// Get or create a new integer type.
-    pub fn get(ctx: &mut Context, width: u32, signedness: Signedness) -> TypePtr<Self> {
-        Type::register_instance(IntegerType { width, signedness }, ctx)
-    }
-    /// Get, if it already exists, an integer type.
-    pub fn get_existing(
-        ctx: &Context,
-        width: u32,
-        signedness: Signedness,
-    ) -> Option<TypePtr<Self>> {
-        Type::get_instance(IntegerType { width, signedness }, ctx)
-    }
-
     /// Get width.
     pub fn get_width(&self) -> u32 {
         self.width
@@ -130,25 +117,6 @@ pub struct FunctionType {
     results: Vec<Ptr<TypeObj>>,
 }
 
-impl FunctionType {
-    /// Get or create a new Function type.
-    pub fn get(
-        ctx: &mut Context,
-        inputs: Vec<Ptr<TypeObj>>,
-        results: Vec<Ptr<TypeObj>>,
-    ) -> TypePtr<Self> {
-        Type::register_instance(FunctionType { inputs, results }, ctx)
-    }
-    /// Get, if it already exists, a Function type.
-    pub fn get_existing(
-        ctx: &Context,
-        inputs: Vec<Ptr<TypeObj>>,
-        results: Vec<Ptr<TypeObj>>,
-    ) -> Option<TypePtr<Self>> {
-        Type::get_instance(FunctionType { inputs, results }, ctx)
-    }
-}
-
 #[type_interface_impl]
 impl FunctionTypeInterface for FunctionType {
     /// Get a reference to the function input / argument types.
@@ -169,13 +137,6 @@ impl_verify_succ!(FunctionType);
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct UnitType;
 
-impl UnitType {
-    /// Get or create a new unit type.
-    pub fn get(ctx: &mut Context) -> TypePtr<Self> {
-        Type::register_instance(Self {}, ctx)
-    }
-}
-
 impl_verify_succ!(UnitType);
 
 #[def_type("builtin.fp32")]
@@ -187,19 +148,6 @@ impl_verify_succ!(FP32Type);
 impl FloatTypeInterface for FP32Type {
     fn get_semantics(&self) -> Semantics {
         apfloat::Single::get_semantics()
-    }
-}
-
-impl FP32Type {
-    /// Register type in dialect and instantiate the singleton instance.
-    pub fn register_and_instantiate(ctx: &mut Context) {
-        Self::register_type_in_dialect(ctx, Self::parser_fn);
-        Type::register_instance(Self {}, ctx);
-    }
-
-    /// Get the singleton fp32 type.
-    pub fn get(ctx: &Context) -> TypePtr<Self> {
-        Type::get_instance(Self {}, ctx).expect("FP32Type singleton not instantiated")
     }
 }
 
@@ -215,28 +163,6 @@ impl FloatTypeInterface for FP64Type {
     }
 }
 
-impl FP64Type {
-    /// Register type in dialect and instantiate the singleton instance.
-    pub fn register_and_instantiate(ctx: &mut Context) {
-        Self::register_type_in_dialect(ctx, Self::parser_fn);
-        Type::register_instance(Self {}, ctx);
-    }
-
-    /// Get or create a new fp64 type.
-    pub fn get(ctx: &Context) -> TypePtr<Self> {
-        Type::get_instance(Self, ctx).expect("FP64Type singleton not instantiated")
-    }
-}
-
-pub fn register(ctx: &mut Context) {
-    IntegerType::register_type_in_dialect(ctx, IntegerType::parser_fn);
-    FunctionType::register_type_in_dialect(ctx, FunctionType::parser_fn);
-    UnitType::register_type_in_dialect(ctx, UnitType::parser_fn);
-
-    FP32Type::register_and_instantiate(ctx);
-    FP64Type::register_and_instantiate(ctx);
-}
-
 #[cfg(test)]
 mod tests {
     use combine::{Parser, eof};
@@ -245,7 +171,6 @@ mod tests {
     use super::FunctionType;
     use crate::{
         builtin::{
-            self,
             type_interfaces::FunctionTypeInterface as _,
             types::{IntegerType, Signedness},
         },
@@ -333,7 +258,6 @@ mod tests {
     #[test]
     fn test_fntype_parsing() {
         let mut ctx = Context::new();
-        builtin::register(&mut ctx);
 
         let si32 = IntegerType::get(&mut ctx, 32, Signedness::Signed);
 

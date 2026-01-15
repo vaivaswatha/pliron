@@ -2,6 +2,7 @@
 
 use pliron::{
     builtin::types::IntegerType,
+    context::Context,
     location,
     parsable::{self, Parsable, state_stream_from_iterator},
     printable::Printable,
@@ -10,7 +11,6 @@ use pliron::{
 use pliron_derive::format;
 
 mod common;
-use common::setup_context_dialects;
 
 #[format]
 struct IntWrapper {
@@ -19,7 +19,7 @@ struct IntWrapper {
 
 #[test]
 fn int_wrapper() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let int_ty = IntegerType::get(ctx, 64, pliron::builtin::types::Signedness::Signed);
     let test_ty = IntWrapper { inner: int_ty };
 
@@ -43,7 +43,7 @@ struct IntWrapperCustom {
 
 #[test]
 fn int_wrapper_custom() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let int_ty = IntegerType::get(ctx, 64, pliron::builtin::types::Signedness::Signed);
     let test_ty = IntWrapperCustom { inner: int_ty };
 
@@ -69,7 +69,7 @@ struct DoubleWrap {
 
 #[test]
 fn double_wrap() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let int_ty = IntegerType::get(ctx, 64, pliron::builtin::types::Signedness::Signed);
     let test_ty_intermediate = IntWrapper { inner: int_ty };
     let test_ty = DoubleWrap {
@@ -122,7 +122,7 @@ enum Enum {
 
 #[test]
 fn enum_test() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let int_ty = IntegerType::get(ctx, 64, pliron::builtin::types::Signedness::Signed);
     let test_ty = Enum::B {
         one: int_ty,
@@ -239,7 +239,7 @@ struct U64Wrapper {
 
 #[test]
 fn u64_wrapper() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let test_ty = U64Wrapper { a: 42 };
 
     let printed = test_ty.disp(ctx).to_string();
@@ -263,7 +263,7 @@ struct IntDiv {
 
 #[test]
 fn int_div() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let test_ty = IntDiv {
         upper: 42,
         lower: 7,
@@ -290,7 +290,7 @@ struct OptionalField {
 
 #[test]
 fn optional_field() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let test_ty = OptionalField { a: Some(42) };
 
     let printed = test_ty.disp(ctx).to_string();
@@ -327,7 +327,7 @@ struct VecField {
 
 #[test]
 fn vec_field() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let test_ty = VecField { a: vec![1, 2, 3] };
 
     let printed = test_ty.disp(ctx).to_string();
@@ -365,7 +365,7 @@ struct OptAndVec {
 
 #[test]
 fn opt_and_vec() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let test_ty = OptAndVec {
         a: Some(42),
         b: vec![1, 2, 3],
@@ -403,7 +403,7 @@ struct OptAndVecTuple(Option<u64>, Vec<u64>);
 
 #[test]
 fn opt_and_vec_tuple() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let test_ty = OptAndVecTuple(Some(42), vec![1, 2, 3]);
 
     let printed = test_ty.disp(ctx).to_string();

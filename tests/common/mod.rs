@@ -4,7 +4,6 @@ use pliron::utils::apint::APInt;
 use pliron::{
     attribute::AttrObj,
     builtin::{
-        self,
         attributes::IntegerAttr,
         op_interfaces::{
             IsTerminatorInterface, OneResultInterface, OneResultVerifyErr,
@@ -16,7 +15,6 @@ use pliron::{
     common_traits::Verify,
     context::Context,
     debug_info::set_operation_result_name,
-    dialect::{Dialect, DialectName},
     identifier::Identifier,
     impl_verify_succ, input_err,
     irfmt::parsers::{attr_parser, process_parsed_ssa_defs},
@@ -135,17 +133,6 @@ impl Parsable for ConstantOp {
 
         Ok(OpObj::new(op)).into_parse_result()
     }
-}
-
-pub fn setup_context_dialects() -> Context {
-    let mut ctx = Context::new();
-    builtin::register(&mut ctx);
-    // Create a test dialect for test ops/attributes and types.
-    let test_dialect = Dialect::new(DialectName::new("test"));
-    test_dialect.register(&mut ctx);
-    ReturnOp::register(&mut ctx, ReturnOp::parser_fn);
-    ConstantOp::register(&mut ctx, ConstantOp::parser_fn);
-    ctx
 }
 
 // Create a print a module "bar", with a function "foo"

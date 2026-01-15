@@ -11,7 +11,7 @@ use assert_cmd::Command;
 use cargo_manifest::Manifest;
 use pliron::{
     arg_error_noloc,
-    builtin::{self, ops::ModuleOp},
+    builtin::ops::ModuleOp,
     common_traits::Verify,
     context::Context,
     location,
@@ -82,14 +82,6 @@ static RESOURCES_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
         .collect()
 });
 
-pub fn setup_context_dialects() -> Context {
-    let mut ctx = Context::new();
-    builtin::register(&mut ctx);
-    pliron_llvm::register(&mut ctx);
-
-    ctx
-}
-
 /// Test an LLVM-IR file by executing it and comparing the output.
 /// The input file is `input_file`, which contains LLVM IR / Bitcode.
 /// The expected output is `expected_output`.
@@ -103,7 +95,7 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         }
     };
 
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let pliron_module = match from_llvm_ir::convert_module(ctx, &module) {
         Ok(plir) => plir,
         Err(err) => {

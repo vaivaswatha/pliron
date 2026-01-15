@@ -250,7 +250,6 @@ mod test {
     use expect_test::expect;
 
     use crate::{
-        builtin,
         context::Context,
         location,
         parsable::{self, state_stream_from_iterator},
@@ -260,7 +259,6 @@ mod test {
     #[test]
     fn test_parse_type() {
         let mut ctx = Context::new();
-        builtin::register(&mut ctx);
 
         let state_stream = state_stream_from_iterator(
             "builtin.some".chars(),

@@ -301,19 +301,6 @@ impl Eq for StructType {}
 #[format_type]
 pub struct PointerType;
 
-impl PointerType {
-    /// Register type in dialect and instantiate the singleton instance.
-    pub fn register_and_instantiate(ctx: &mut Context) {
-        Self::register_type_in_dialect(ctx, Self::parser_fn);
-        Type::register_instance(PointerType, ctx);
-    }
-
-    /// Get the singleton instance of pointer type.
-    pub fn get(ctx: &Context) -> TypePtr<Self> {
-        Type::get_instance(PointerType, ctx).expect("PointerType singleton not instantiated")
-    }
-}
-
 impl_verify_succ!(PointerType);
 
 /// Array type, corresponding to LLVM's array type.
@@ -326,15 +313,6 @@ pub struct ArrayType {
 }
 
 impl ArrayType {
-    /// Get or create a new array type.
-    pub fn get(ctx: &mut Context, elem: Ptr<TypeObj>, size: u64) -> TypePtr<Self> {
-        Type::register_instance(ArrayType { elem, size }, ctx)
-    }
-    /// Get, if it already exists, an array type.
-    pub fn get_existing(ctx: &Context, elem: Ptr<TypeObj>, size: u64) -> Option<TypePtr<Self>> {
-        Type::get_instance(ArrayType { elem, size }, ctx)
-    }
-
     /// Get array element type.
     pub fn elem_type(&self) -> Ptr<TypeObj> {
         self.elem
@@ -352,19 +330,6 @@ impl_verify_succ!(ArrayType);
 #[derive(Hash, PartialEq, Eq, Debug)]
 #[format_type]
 pub struct VoidType;
-
-impl VoidType {
-    /// Register type in dialect and instantiate the singleton instance.
-    pub fn register_and_instantiate(ctx: &mut Context) {
-        Self::register_type_in_dialect(ctx, Self::parser_fn);
-        Type::register_instance(Self, ctx);
-    }
-
-    /// Get the singleton instance of void type.
-    pub fn get(ctx: &Context) -> TypePtr<Self> {
-        Type::get_instance(Self, ctx).expect("VoidType singleton not instantiated")
-    }
-}
 
 impl_verify_succ!(VoidType);
 
@@ -384,23 +349,6 @@ pub enum FuncTypeErr {
 }
 
 impl FuncType {
-    /// Get or create a new Func type.
-    pub fn get(
-        ctx: &mut Context,
-        res: Ptr<TypeObj>,
-        args: Vec<Ptr<TypeObj>>,
-        is_var_arg: bool,
-    ) -> TypePtr<Self> {
-        Type::register_instance(
-            FuncType {
-                res,
-                args,
-                is_var_arg,
-            },
-            ctx,
-        )
-    }
-
     /// Result type
     pub fn result_type(&self) -> Ptr<TypeObj> {
         self.res
@@ -443,23 +391,6 @@ pub struct VectorType {
 }
 
 impl VectorType {
-    /// Get or create a new vector type.
-    pub fn get(
-        ctx: &mut Context,
-        elem_ty: Ptr<TypeObj>,
-        num_elems: u32,
-        kind: VectorTypeKind,
-    ) -> TypePtr<Self> {
-        Type::register_instance(
-            VectorType {
-                elem_ty,
-                num_elems,
-                kind,
-            },
-            ctx,
-        )
-    }
-
     /// Get the element type.
     pub fn elem_type(&self) -> Ptr<TypeObj> {
         self.elem_ty
@@ -483,30 +414,16 @@ impl VectorType {
 
 impl_verify_succ!(VectorType);
 
-/// Register LLVM types into the dialect.
-pub fn register(ctx: &mut Context) {
-    VoidType::register_and_instantiate(ctx);
-    ArrayType::register_type_in_dialect(ctx, ArrayType::parser_fn);
-    StructType::register_type_in_dialect(ctx, StructType::parser_fn);
-    PointerType::register_and_instantiate(ctx);
-    FuncType::register_type_in_dialect(ctx, FuncType::parser_fn);
-    VectorType::register_type_in_dialect(ctx, VectorType::parser_fn);
-}
-
 #[cfg(test)]
 mod tests {
 
-    use crate as llvm;
     use expect_test::expect;
     use pliron::combine::{self, Parser, eof, token};
     use pliron::derive::def_type;
 
     use crate::types::{FuncType, StructType, VoidType};
     use pliron::{
-        builtin::{
-            self,
-            types::{IntegerType, Signedness},
-        },
+        builtin::types::{IntegerType, Signedness},
         context::{Context, Ptr},
         identifier::Identifier,
         impl_verify_succ,
@@ -577,15 +494,6 @@ mod tests {
     }
 
     impl TypedPointerType {
-        /// Get or create a new pointer type.
-        pub fn get(ctx: &mut Context, to: Ptr<TypeObj>) -> TypePtr<Self> {
-            Type::register_instance(TypedPointerType { to }, ctx)
-        }
-        /// Get, if it already exists, a pointer type.
-        pub fn get_existing(ctx: &Context, to: Ptr<TypeObj>) -> Option<TypePtr<Self>> {
-            Type::get_instance(TypedPointerType { to }, ctx)
-        }
-
         /// Get the pointee type.
         pub fn get_pointee_type(&self) -> Ptr<TypeObj> {
             self.to
@@ -654,8 +562,6 @@ mod tests {
     #[test]
     fn test_pointer_type_parsing() {
         let mut ctx = Context::new();
-        builtin::register(&mut ctx);
-        llvm::register(&mut ctx);
         TypedPointerType::register_type_in_dialect(&mut ctx, TypedPointerType::parser_fn);
 
         let state_stream = state_stream_from_iterator(
@@ -673,8 +579,6 @@ mod tests {
     #[test]
     fn test_struct_type_parsing() {
         let mut ctx = Context::new();
-        builtin::register(&mut ctx);
-        llvm::register(&mut ctx);
         TypedPointerType::register_type_in_dialect(&mut ctx, TypedPointerType::parser_fn);
 
         let state_stream = state_stream_from_iterator(
@@ -721,8 +625,6 @@ mod tests {
     #[test]
     fn test_struct_type_errs() {
         let mut ctx = Context::new();
-        builtin::register(&mut ctx);
-        llvm::register(&mut ctx);
 
         let state_stream = state_stream_from_iterator(
             "llvm.struct < My1 { builtin.integer i8 } >".chars(),
@@ -748,8 +650,6 @@ mod tests {
     #[test]
     fn test_functype_parsing() {
         let mut ctx = Context::new();
-        builtin::register(&mut ctx);
-        llvm::register(&mut ctx);
 
         let si32 = IntegerType::get(&mut ctx, 32, Signedness::Signed);
 

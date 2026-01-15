@@ -37,7 +37,7 @@
 
 use crate::common_traits::Verify;
 use crate::context::{Arena, Context, Ptr, private::ArenaObj};
-use crate::dialect::DialectName;
+use crate::dialect::{Dialect, DialectName};
 use crate::identifier::Identifier;
 use crate::irfmt::parsers::spaced;
 use crate::location::Located;
@@ -194,6 +194,37 @@ pub trait Type: Printable + Verify + Downcast + Sync + Send + Debug {
             .get_mut(&typeid.dialect)
             .unwrap_or_else(|| panic!("Unregistered dialect {}", &typeid.dialect));
         dialect.add_type(typeid, Box::new(ptr_parser));
+    }
+
+    /// Register this Type's [TypeId] in the dialect it belongs to.
+    fn register_direct(ctx: &mut Context)
+    where
+        Self: Sized + Parsable<Arg = (), Parsed = TypePtr<Self>>,
+    {
+        // Specifying higher ranked lifetime on a closure:
+        // https://stackoverflow.com/a/46198877/2128804
+        fn constrain<F>(f: F) -> F
+        where
+            F: for<'a> Fn(
+                &'a (),
+            ) -> Box<
+                dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a,
+            >,
+        {
+            f
+        }
+        let ptr_parser = constrain(move |_| {
+            combine::parser(move |parsable_state: &mut StateStream<'_>| {
+                Self::parser_fn(&(), ())
+                    .parse_stream(parsable_state)
+                    .map(|typtr| typtr.to_ptr())
+                    .into_result()
+            })
+            .boxed()
+        });
+        let typeid = Self::get_type_id_static();
+        Dialect::register_or_get(ctx, typeid.dialect.clone())
+            .add_type(typeid, Box::new(ptr_parser));
     }
 }
 impl_downcast!(Type);

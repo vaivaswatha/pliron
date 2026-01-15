@@ -295,7 +295,6 @@ impl SymbolTableCollection {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builtin;
     use crate::builtin::ops::{FuncOp, ModuleOp};
     use crate::builtin::types::FunctionType;
     use crate::context::Context;
@@ -357,7 +356,6 @@ mod tests {
     #[test]
     fn test_symbol_table_collection() -> Result<()> {
         let ctx = &mut Context::new();
-        builtin::register(ctx);
 
         let module_op = ModuleOp::new(ctx, Identifier::try_from("module").unwrap());
         let nested_module_op = ModuleOp::new(ctx, Identifier::try_from("nested_module").unwrap());

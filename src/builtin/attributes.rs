@@ -493,21 +493,6 @@ impl TypedAttrInterface for TypeAttr {
 pub struct OperandSegmentSizesAttr(pub Vec<u32>);
 impl_verify_succ!(OperandSegmentSizesAttr);
 
-pub fn register(ctx: &mut Context) {
-    IdentifierAttr::register_attr_in_dialect(ctx, IdentifierAttr::parser_fn);
-    StringAttr::register_attr_in_dialect(ctx, StringAttr::parser_fn);
-    BoolAttr::register_attr_in_dialect(ctx, BoolAttr::parser_fn);
-    IntegerAttr::register_attr_in_dialect(ctx, IntegerAttr::parser_fn);
-    DictAttr::register_attr_in_dialect(ctx, DictAttr::parser_fn);
-    VecAttr::register_attr_in_dialect(ctx, VecAttr::parser_fn);
-    UnitAttr::register_attr_in_dialect(ctx, UnitAttr::parser_fn);
-    TypeAttr::register_attr_in_dialect(ctx, TypeAttr::parser_fn);
-    OperandSegmentSizesAttr::register_attr_in_dialect(ctx, OperandSegmentSizesAttr::parser_fn);
-
-    FPSingleAttr::register_attr_in_dialect(ctx, FPSingleAttr::parser_fn);
-    FPDoubleAttr::register_attr_in_dialect(ctx, FPDoubleAttr::parser_fn);
-}
-
 #[cfg(test)]
 mod tests {
     use awint::bw;
@@ -516,7 +501,6 @@ mod tests {
     use crate::{
         attribute::{AttrObj, attr_cast},
         builtin::{
-            self,
             attr_interfaces::TypedAttrInterface,
             attributes::{
                 FPDoubleAttr, FPSingleAttr, IntegerAttr, OperandSegmentSizesAttr, StringAttr,
@@ -536,7 +520,6 @@ mod tests {
     #[test]
     fn test_integer_attributes() {
         let mut ctx = Context::new();
-        builtin::register(&mut ctx);
 
         let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
 
@@ -581,7 +564,6 @@ mod tests {
     #[test]
     fn test_string_attributes() {
         let mut ctx = Context::new();
-        builtin::register(&mut ctx);
 
         let str_0_ptr: AttrObj = StringAttr::new("hello".to_string()).into();
         let str_1_ptr: AttrObj = StringAttr::new("world".to_string()).into();
@@ -685,7 +667,6 @@ mod tests {
     #[test]
     fn test_type_attributes() {
         let mut ctx = Context::new();
-        builtin::register(&mut ctx);
 
         let ty = IntegerType::get(&mut ctx, 64, Signedness::Signed).into();
         let ty_attr: AttrObj = TypeAttr::new(ty).into();
@@ -705,7 +686,6 @@ mod tests {
     #[test]
     fn test_operand_segment_sizes_attr() {
         let mut ctx = Context::new();
-        builtin::register(&mut ctx);
 
         let sizes = vec![1, 2, 3];
         let attr: AttrObj = OperandSegmentSizesAttr(sizes.clone()).into();
@@ -727,9 +707,6 @@ mod tests {
 
     #[test]
     fn test_floating_point_attributes() {
-        let mut ctx = Context::new();
-        builtin::register(&mut ctx);
-
         // Single precision float
         let single_attr: AttrObj = FPSingleAttr::from(std::f32::consts::PI).into();
         let single_attr2: AttrObj = FPSingleAttr::from(2.71).into();

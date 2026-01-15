@@ -139,18 +139,15 @@ mod tests {
     use crate::{
         basic_block::BasicBlock,
         builtin::{
-            self,
             op_interfaces::{OneResultInterface, ZeroOpdInterface},
             types::{IntegerType, Signedness},
         },
         common_traits::Verify,
         context::Context,
         debug_info::{get_block_arg_name, set_block_arg_name},
-        dialect::{Dialect, DialectName},
         impl_verify_succ,
         op::Op,
         operation::Operation,
-        parsable::Parsable,
         result::Result,
     };
 
@@ -180,10 +177,6 @@ mod tests {
     #[test]
     fn test_op_result_name() -> Result<()> {
         let mut ctx = Context::new();
-        let test_dialect = Dialect::new(DialectName::new("test"));
-        test_dialect.register(&mut ctx);
-        ZeroOp::register(&mut ctx, ZeroOp::parser_fn);
-
         let cop = ZeroOp::new(&mut ctx);
         let op = cop.get_operation();
         set_operation_result_name(&ctx, op, 0, "foo".try_into().unwrap());
@@ -198,8 +191,6 @@ mod tests {
     #[test]
     fn test_block_arg_name() -> Result<()> {
         let mut ctx = Context::new();
-        builtin::register(&mut ctx);
-
         let i64_ty = IntegerType::get(&mut ctx, 64, Signedness::Signed);
         let block = BasicBlock::new(
             &mut ctx,
