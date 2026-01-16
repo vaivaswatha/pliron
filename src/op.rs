@@ -196,20 +196,7 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 
     /// Register Op in Context and add it to its dialect.
-    fn register(ctx: &mut Context, op_parser: ParserFn<Vec<(Identifier, Location)>, OpObj>)
-    where
-        Self: Sized,
-    {
-        let opid = Self::get_opid_static();
-        let dialect = opid.dialect.clone();
-        let dialect = ctx
-            .dialects
-            .get_mut(&dialect)
-            .unwrap_or_else(|| panic!("Unregistered dialect {dialect}"));
-        dialect.add_op(Self::get_opid_static(), op_parser);
-    }
-
-    fn register_direct(ctx: &mut Context)
+    fn register(ctx: &mut Context)
     where
         Self: Sized + Parsable<Arg = Vec<(Identifier, Location)>, Parsed = OpBox>,
     {

@@ -216,41 +216,7 @@ pub trait Attribute: Printable + Verify + Downcast + Sync + Send + DynClone + De
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 
     /// Register this attribute's [AttrId] in the dialect it belongs to.
-    fn register_attr_in_dialect<A: Attribute>(ctx: &mut Context, attr_parser: ParserFn<(), A>)
-    where
-        Self: Sized,
-    {
-        // Specifying higher ranked lifetime on a closure:
-        // https://stackoverflow.com/a/46198877/2128804
-        fn constrain<F>(f: F) -> F
-        where
-            F: for<'a> Fn(
-                &'a (),
-            ) -> Box<
-                dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a,
-            >,
-        {
-            f
-        }
-        let attr_parser = constrain(move |_| {
-            combine::parser(move |parsable_state: &mut StateStream<'_>| {
-                attr_parser(&(), ())
-                    .parse_stream(parsable_state)
-                    .map(|attr| -> AttrObj { Box::new(attr) })
-                    .into_result()
-            })
-            .boxed()
-        });
-        let attrid = Self::get_attr_id_static();
-        let dialect = ctx
-            .dialects
-            .get_mut(&attrid.dialect)
-            .unwrap_or_else(|| panic!("Unregistered dialect {}", &attrid.dialect));
-        dialect.add_attr(Self::get_attr_id_static(), Box::new(attr_parser));
-    }
-
-    /// Register this attribute's [AttrId] in the dialect it belongs to.
-    fn register_direct<A: Attribute>(ctx: &mut Context)
+    fn register<A: Attribute>(ctx: &mut Context)
     where
         Self: Sized + Parsable<Arg = (), Parsed = A>,
     {

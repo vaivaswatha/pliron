@@ -127,7 +127,7 @@ impl ToTokens for ImplAttribute {
                 #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS), linkme(crate = ::pliron::linkme))]
                 static ATTRIBUTE_REGISTRATION: std::sync::LazyLock<::pliron::context::ContextRegistration> =
                     std::sync::LazyLock::new(||
-                        <#name as ::pliron::attribute::Attribute>::register_direct
+                        <#name as ::pliron::attribute::Attribute>::register
                     );
 
                 #[cfg(target_family = "wasm")]
@@ -197,7 +197,7 @@ mod tests {
                 static ATTRIBUTE_REGISTRATION: std::sync::LazyLock<
                     ::pliron::context::ContextRegistration,
                 > = std::sync::LazyLock::new(|| {
-                    <UnitAttr as ::pliron::attribute::Attribute>::register_direct
+                    <UnitAttr as ::pliron::attribute::Attribute>::register
                 });
                 #[cfg(target_family = "wasm")]
                 ::pliron::inventory::submit! {

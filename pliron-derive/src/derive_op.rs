@@ -143,7 +143,7 @@ impl ToTokens for ImplOp {
                 #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS), linkme(crate = ::pliron::linkme))]
                 static OP_REGISTRATION: std::sync::LazyLock<::pliron::context::ContextRegistration> =
                     std::sync::LazyLock::new(||
-                        <#name as ::pliron::op::Op>::register_direct
+                        <#name as ::pliron::op::Op>::register
                     );
 
                 #[cfg(target_family = "wasm")]
@@ -402,7 +402,7 @@ mod tests {
                 )]
                 static OP_REGISTRATION: std::sync::LazyLock<
                     ::pliron::context::ContextRegistration,
-                > = std::sync::LazyLock::new(|| <TestOp as ::pliron::op::Op>::register_direct);
+                > = std::sync::LazyLock::new(|| <TestOp as ::pliron::op::Op>::register);
                 #[cfg(target_family = "wasm")]
                 ::pliron::inventory::submit! {
                     ::pliron::utils::inventory::LazyLockWrapper(& OP_REGISTRATION)

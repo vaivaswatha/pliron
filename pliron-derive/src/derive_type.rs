@@ -138,13 +138,13 @@ impl ToTokens for ImplType {
         let register = if self.fields.is_empty() {
             quote! {
                 |ctx: &mut ::pliron::context::Context| {
-                    <#name as ::pliron::r#type::Type>::register_direct(ctx);
+                    <#name as ::pliron::r#type::Type>::register(ctx);
                     ::pliron::r#type::Type::register_instance(#name {}, ctx);
                 }
             }
         } else {
             quote! {
-                <#name as ::pliron::r#type::Type>::register_direct
+                <#name as ::pliron::r#type::Type>::register
             }
         };
 
@@ -320,7 +320,7 @@ mod tests {
                 static TYPE_REGISTRATION: std::sync::LazyLock<
                     ::pliron::context::ContextRegistration,
                 > = std::sync::LazyLock::new(|| |ctx: &mut ::pliron::context::Context| {
-                    <SimpleType as ::pliron::r#type::Type>::register_direct(ctx);
+                    <SimpleType as ::pliron::r#type::Type>::register(ctx);
                     ::pliron::r#type::Type::register_instance(SimpleType {}, ctx);
                 });
                 #[cfg(target_family = "wasm")]
@@ -408,7 +408,7 @@ mod tests {
                 static TYPE_REGISTRATION: std::sync::LazyLock<
                     ::pliron::context::ContextRegistration,
                 > = std::sync::LazyLock::new(|| {
-                    <CompoundType as ::pliron::r#type::Type>::register_direct
+                    <CompoundType as ::pliron::r#type::Type>::register
                 });
                 #[cfg(target_family = "wasm")]
                 ::pliron::inventory::submit! {

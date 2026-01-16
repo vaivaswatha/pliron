@@ -157,41 +157,7 @@ pub trait Type: Printable + Verify + Downcast + Sync + Send + Debug {
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 
     /// Register this Type's [TypeId] in the dialect it belongs to.
-    fn register_type_in_dialect(ctx: &mut Context, parser: ParserFn<(), TypePtr<Self>>)
-    where
-        Self: Sized,
-    {
-        // Specifying higher ranked lifetime on a closure:
-        // https://stackoverflow.com/a/46198877/2128804
-        fn constrain<F>(f: F) -> F
-        where
-            F: for<'a> Fn(
-                &'a (),
-            ) -> Box<
-                dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a,
-            >,
-        {
-            f
-        }
-        let ptr_parser = constrain(move |_| {
-            combine::parser(move |parsable_state: &mut StateStream<'_>| {
-                parser(&(), ())
-                    .parse_stream(parsable_state)
-                    .map(|typtr| typtr.to_ptr())
-                    .into_result()
-            })
-            .boxed()
-        });
-        let typeid = Self::get_type_id_static();
-        let dialect = ctx
-            .dialects
-            .get_mut(&typeid.dialect)
-            .unwrap_or_else(|| panic!("Unregistered dialect {}", &typeid.dialect));
-        dialect.add_type(typeid, Box::new(ptr_parser));
-    }
-
-    /// Register this Type's [TypeId] in the dialect it belongs to.
-    fn register_direct(ctx: &mut Context)
+    fn register(ctx: &mut Context)
     where
         Self: Sized + Parsable<Arg = (), Parsed = TypePtr<Self>>,
     {
