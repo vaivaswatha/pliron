@@ -242,8 +242,7 @@ pub trait Attribute: Printable + Verify + Downcast + Sync + Send + DynClone + De
             .boxed()
         });
         let attrid = Self::get_attr_id_static();
-        Dialect::register_or_get(ctx, attrid.dialect.clone())
-            .add_attr(attrid.clone(), Box::new(attr_parser));
+        Dialect::register(ctx, &attrid.dialect).add_attr(attrid.clone(), Box::new(attr_parser));
     }
 }
 impl_downcast!(Attribute);

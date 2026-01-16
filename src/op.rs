@@ -201,7 +201,7 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
         Self: Sized + Parsable<Arg = Vec<(Identifier, Location)>, Parsed = OpBox>,
     {
         let opid = Self::get_opid_static();
-        Dialect::register_or_get(ctx, opid.dialect.clone()).add_op(opid.clone(), Self::parser_fn);
+        Dialect::register(ctx, &opid.dialect).add_op(opid.clone(), Self::parser_fn);
     }
 
     /// Get Op's location

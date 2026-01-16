@@ -183,8 +183,7 @@ pub trait Type: Printable + Verify + Downcast + Sync + Send + Debug {
             .boxed()
         });
         let typeid = Self::get_type_id_static();
-        Dialect::register_or_get(ctx, typeid.dialect.clone())
-            .add_type(typeid, Box::new(ptr_parser));
+        Dialect::register(ctx, &typeid.dialect.clone()).add_type(typeid, Box::new(ptr_parser));
     }
 }
 impl_downcast!(Type);
