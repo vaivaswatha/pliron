@@ -72,21 +72,68 @@ pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// This macro generates appropriate get methods based on the struct's fields:
 /// - For unit structs: generates a singleton `get(ctx: &Context)` method
-/// - For structs with fields: generates a `get(ctx: &mut Context, ...)` method
+/// - For structs with fields (named or tuple): generates a `get(ctx: &mut Context, ...)` method
 ///
-/// Usage:
+/// ## Examples
+///
+/// ### Named fields struct:
 /// ```
 /// use pliron::derive::{def_type, derive_type_get, format_type};
-/// #[def_type("my_dialect.my_type")]
+/// use pliron::context::Context;
+///
+/// #[def_type("my_dialect.vector_type")]
 /// #[format_type]
-/// #[derive_type_get]
+/// #[derive_type_get]  // Auto-generates get method
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-/// pub struct MyType {
-///     field1: u32,
-///     field2: String,
+/// pub struct VectorType {
+///     elem_ty: u32,
+///     num_elems: u32,
 /// }
 /// # use pliron::impl_verify_succ;
-/// # impl_verify_succ!(MyType);
+/// # impl_verify_succ!(VectorType);
+///
+/// // Usage of the auto-generated get method:
+/// # fn example(ctx: &mut Context) {
+/// let vector_type = VectorType::get(ctx, 42, 8); // get(ctx, elem_ty, num_elems)
+/// # }
+/// ```
+///
+/// ### Tuple struct:
+/// ```
+/// use pliron::derive::{def_type, derive_type_get, format_type};
+/// use pliron::context::Context;
+///
+/// #[def_type("my_dialect.tuple_type")]
+/// #[format_type]
+/// #[derive_type_get]  // Auto-generates get method
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// pub struct TupleType(u32, String, bool);
+/// # use pliron::impl_verify_succ;
+/// # impl_verify_succ!(TupleType);
+///
+/// // Usage of the auto-generated get method:
+/// # fn example(ctx: &mut Context) {
+/// let tuple_type = TupleType::get(ctx, 42, "hello".to_string(), true); // get(ctx, field_0, field_1, field_2)
+/// # }
+/// ```
+///
+/// ### Unit struct:
+/// ```
+/// use pliron::derive::{def_type, derive_type_get, format_type};
+/// use pliron::context::Context;
+///
+/// #[def_type("my_dialect.unit_type")]
+/// #[format_type]
+/// #[derive_type_get]  // Auto-generates singleton get method
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// pub struct UnitType;
+/// # use pliron::impl_verify_succ;
+/// # impl_verify_succ!(UnitType);
+///
+/// // Usage of the auto-generated singleton get method:
+/// # fn example(ctx: &Context) {
+/// let unit_type = UnitType::get(ctx); // get(ctx) - no additional parameters
+/// # }
 /// ```
 #[proc_macro_attribute]
 pub fn derive_type_get(args: TokenStream, input: TokenStream) -> TokenStream {

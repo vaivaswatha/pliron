@@ -240,7 +240,7 @@ fn derive_type_get_impl(ident: &syn::Ident, fields: &syn::Fields) -> TokenStream
         }
     } else {
         let field_params = generate_field_params(fields);
-        let field_assignments = generate_field_assignments(fields);
+        let struct_construction = generate_struct_construction(ident, fields);
 
         quote! {
             impl #ident {
@@ -250,9 +250,7 @@ fn derive_type_get_impl(ident: &syn::Ident, fields: &syn::Fields) -> TokenStream
                     #field_params
                 ) -> ::pliron::r#type::TypePtr<Self> {
                     ::pliron::r#type::Type::register_instance(
-                        #ident {
-                            #field_assignments
-                        },
+                        #struct_construction,
                         ctx,
                     )
                 }
@@ -302,6 +300,23 @@ fn generate_field_assignments(fields: &syn::Fields) -> TokenStream {
             quote! { #(#assignments),* }
         }
         syn::Fields::Unit => quote! {},
+    }
+}
+
+/// Generate struct construction syntax based on field type
+fn generate_struct_construction(ident: &syn::Ident, fields: &syn::Fields) -> TokenStream {
+    match fields {
+        syn::Fields::Named(_) => {
+            let field_assignments = generate_field_assignments(fields);
+            quote! { #ident { #field_assignments } }
+        }
+        syn::Fields::Unnamed(_) => {
+            let field_assignments = generate_field_assignments(fields);
+            quote! { #ident(#field_assignments) }
+        }
+        syn::Fields::Unit => {
+            quote! { #ident {} }
+        }
     }
 }
 
@@ -528,11 +543,7 @@ mod tests {
                     field_2: bool,
                 ) -> ::pliron::r#type::TypePtr<Self> {
                     ::pliron::r#type::Type::register_instance(
-                        TupleType {
-                            field_0,
-                            field_1,
-                            field_2,
-                        },
+                        TupleType(field_0, field_1, field_2),
                         ctx,
                     )
                 }
