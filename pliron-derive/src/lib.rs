@@ -60,12 +60,37 @@ pub fn def_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
 /// #[format_type]
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// pub struct UnitType;
-/// # use pliron::{impl_verify_succ, printable::{State, Printable}, context::Context};
+/// # use pliron::impl_verify_succ;
 /// # impl_verify_succ!(UnitType);
 /// ```
 #[proc_macro_attribute]
 pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_type::def_type(args, input))
+}
+
+/// Derive get methods for types that retrieve interned types.
+///
+/// This macro generates appropriate get methods based on the struct's fields:
+/// - For unit structs: generates a singleton `get(ctx: &Context)` method
+/// - For structs with fields: generates a `get(ctx: &mut Context, ...)` method
+///
+/// Usage:
+/// ```
+/// use pliron::derive::{def_type, derive_type_get, format_type};
+/// #[def_type("my_dialect.my_type")]
+/// #[format_type]
+/// #[derive_type_get]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// pub struct MyType {
+///     field1: u32,
+///     field2: String,
+/// }
+/// # use pliron::impl_verify_succ;
+/// # impl_verify_succ!(MyType);
+/// ```
+#[proc_macro_attribute]
+pub fn derive_type_get(args: TokenStream, input: TokenStream) -> TokenStream {
+    to_token_stream(derive_type::derive_type_get(args, input))
 }
 
 /// `#[def_op(...)]`: Create a new IR operation.

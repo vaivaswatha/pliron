@@ -2,7 +2,7 @@ use combine::{
     Parser, choice,
     parser::char::{spaces, string},
 };
-use pliron::derive::def_type;
+use pliron::derive::{def_type, derive_type_get};
 use pliron_derive::{format_type, type_interface_impl};
 
 use crate::{
@@ -24,6 +24,7 @@ pub enum Signedness {
 }
 
 #[def_type("builtin.integer")]
+#[derive_type_get]
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 pub struct IntegerType {
     width: u32,
@@ -106,6 +107,7 @@ impl_verify_succ!(IntegerType);
 /// See MLIR's [FunctionType](https://mlir.llvm.org/docs/Dialects/Builtin/#functiontype).
 ///
 #[def_type("builtin.function")]
+#[derive_type_get]
 #[derive(Hash, PartialEq, Eq, Debug)]
 #[format_type(
     "`<` `(` vec($inputs, CharSpace(`,`)) `)` `->` `(`vec($results, CharSpace(`,`)) `)` `>`"
@@ -133,6 +135,7 @@ impl FunctionTypeInterface for FunctionType {
 impl_verify_succ!(FunctionType);
 
 #[def_type("builtin.unit")]
+#[derive_type_get]
 #[format_type]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct UnitType;
@@ -140,6 +143,7 @@ pub struct UnitType;
 impl_verify_succ!(UnitType);
 
 #[def_type("builtin.fp32")]
+#[derive_type_get]
 #[format_type]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FP32Type;
@@ -152,6 +156,7 @@ impl FloatTypeInterface for FP32Type {
 }
 
 #[def_type("builtin.fp64")]
+#[derive_type_get]
 #[format_type]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FP64Type;

@@ -84,52 +84,6 @@ struct ImplType {
     fields: syn::Fields,
 }
 
-impl ImplType {
-    fn generate_field_params(&self) -> TokenStream {
-        match &self.fields {
-            syn::Fields::Named(fields) => {
-                let params = fields.named.iter().map(|field| {
-                    let name = &field.ident;
-                    let ty = &field.ty;
-                    quote! { #name: #ty }
-                });
-                quote! { #(#params),* }
-            }
-            syn::Fields::Unnamed(fields) => {
-                let params = fields.unnamed.iter().enumerate().map(|(i, field)| {
-                    let name =
-                        syn::Ident::new(&format!("field_{}", i), proc_macro2::Span::call_site());
-                    let ty = &field.ty;
-                    quote! { #name: #ty }
-                });
-                quote! { #(#params),* }
-            }
-            syn::Fields::Unit => quote! {},
-        }
-    }
-
-    fn generate_field_assignments(&self) -> TokenStream {
-        match &self.fields {
-            syn::Fields::Named(fields) => {
-                let assignments = fields.named.iter().map(|field| {
-                    let name = &field.ident;
-                    quote! { #name }
-                });
-                quote! { #(#assignments),* }
-            }
-            syn::Fields::Unnamed(fields) => {
-                let assignments = fields.unnamed.iter().enumerate().map(|(i, _)| {
-                    let name =
-                        syn::Ident::new(&format!("field_{}", i), proc_macro2::Span::call_site());
-                    quote! { #name }
-                });
-                quote! { #(#assignments),* }
-            }
-            syn::Fields::Unit => quote! {},
-        }
-    }
-}
-
 impl ToTokens for ImplType {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let name = &self.ident;
@@ -145,60 +99,6 @@ impl ToTokens for ImplType {
         } else {
             quote! {
                 <#name as ::pliron::r#type::Type>::register
-            }
-        };
-
-        let impl_get = if self.fields.is_empty() {
-            let msg = LitStr::new(
-                &format!("{} singleton not instantiated", type_name),
-                Span::call_site(),
-            );
-            quote! {
-                impl #name {
-                    /// Get the singleton instance.
-                    pub fn get(
-                        ctx: &::pliron::context::Context
-                    ) -> ::pliron::r#type::TypePtr<Self> {
-                        ::pliron::r#type::Type::get_instance(
-                            Self {},
-                            ctx,
-                        ).expect(#msg)
-                    }
-                }
-            }
-        } else {
-            // Generate a factory method for structs with fields
-            // We need to extract field information from the struct
-            let field_params = self.generate_field_params();
-            let field_assignments = self.generate_field_assignments();
-
-            quote! {
-                impl #name {
-                    /// Get or create a new instance.
-                    pub fn get(
-                        ctx: &mut ::pliron::context::Context,
-                        #field_params
-                    ) -> ::pliron::r#type::TypePtr<Self> {
-                        ::pliron::r#type::Type::register_instance(
-                            #name {
-                                #field_assignments
-                            },
-                            ctx,
-                        )
-                    }
-
-                    pub fn get_existing(
-                        ctx: & ::pliron::context::Context,
-                        #field_params
-                    ) -> ::std::option::Option<::pliron::r#type::TypePtr<Self>> {
-                        ::pliron::r#type::Type::get_instance(
-                            #name {
-                                #field_assignments
-                            },
-                            ctx,
-                        )
-                    }
-                }
             }
         };
 
@@ -237,8 +137,6 @@ impl ToTokens for ImplType {
                 }
             }
 
-            #impl_get
-
             const _: () = {
                 #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS), linkme(crate = ::pliron::linkme))]
                 static TYPE_REGISTRATION: std::sync::LazyLock<::pliron::context::ContextRegistration> =
@@ -252,6 +150,158 @@ impl ToTokens for ImplType {
                 }
             };
         });
+    }
+}
+
+pub(crate) fn derive_type_get(
+    args: impl Into<TokenStream>,
+    input: impl Into<TokenStream>,
+) -> syn::Result<TokenStream> {
+    let args_stream = args.into();
+    if !args_stream.is_empty() {
+        return Err(syn::Error::new_spanned(
+            args_stream,
+            "`#[derive_type_get]` does not take any arguments",
+        ));
+    }
+
+    let input = syn::parse2::<DeriveInput>(input.into())?;
+    let p = DeriveTypeGet::derive(input)?;
+    Ok(p.into_token_stream())
+}
+
+/// Input for the `#[derive(DeriveTypeGet)]` proc macro.
+struct DeriveTypeGet {
+    input: DeriveInput,
+    ident: syn::Ident,
+    fields: syn::Fields,
+}
+
+impl DeriveTypeGet {
+    fn derive(input: DeriveInput) -> Result<Self> {
+        let fields = match input.data {
+            syn::Data::Struct(ref data_struct) => data_struct.fields.clone(),
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    &input,
+                    "DeriveTypeGet can only be derived for structs",
+                ));
+            }
+        };
+
+        if !input.generics.params.is_empty() {
+            return Err(syn::Error::new_spanned(
+                &input,
+                "DeriveTypeGet cannot be derived for generic structs",
+            ));
+        }
+
+        Ok(Self {
+            ident: input.ident.clone(),
+            input,
+            fields,
+        })
+    }
+}
+
+impl ToTokens for DeriveTypeGet {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let input = &self.input;
+        let impl_get = derive_type_get_impl(&self.ident, &self.fields);
+        tokens.extend(quote! {
+            #input
+
+            #impl_get
+        });
+    }
+}
+
+/// Generate get methods for types based on their fields
+fn derive_type_get_impl(ident: &syn::Ident, fields: &syn::Fields) -> TokenStream {
+    let type_name = ident.to_string();
+
+    if fields.is_empty() {
+        let msg = LitStr::new(
+            &format!("{} singleton not instantiated", type_name),
+            Span::call_site(),
+        );
+        quote! {
+            impl #ident {
+                /// Get the singleton instance.
+                pub fn get(
+                    ctx: &::pliron::context::Context
+                ) -> ::pliron::r#type::TypePtr<Self> {
+                    ::pliron::r#type::Type::get_instance(
+                        Self {},
+                        ctx,
+                    ).expect(#msg)
+                }
+            }
+        }
+    } else {
+        let field_params = generate_field_params(fields);
+        let field_assignments = generate_field_assignments(fields);
+
+        quote! {
+            impl #ident {
+                /// Get or create a new instance.
+                pub fn get(
+                    ctx: &mut ::pliron::context::Context,
+                    #field_params
+                ) -> ::pliron::r#type::TypePtr<Self> {
+                    ::pliron::r#type::Type::register_instance(
+                        #ident {
+                            #field_assignments
+                        },
+                        ctx,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/// Generate field parameters for function signatures
+fn generate_field_params(fields: &syn::Fields) -> TokenStream {
+    match fields {
+        syn::Fields::Named(fields) => {
+            let params = fields.named.iter().map(|field| {
+                let name = &field.ident;
+                let ty = &field.ty;
+                quote! { #name: #ty }
+            });
+            quote! { #(#params),* }
+        }
+        syn::Fields::Unnamed(fields) => {
+            let params = fields.unnamed.iter().enumerate().map(|(i, field)| {
+                let name = syn::Ident::new(&format!("field_{}", i), proc_macro2::Span::call_site());
+                let ty = &field.ty;
+                quote! { #name: #ty }
+            });
+            quote! { #(#params),* }
+        }
+        syn::Fields::Unit => quote! {},
+    }
+}
+
+/// Generate field assignments for struct construction
+fn generate_field_assignments(fields: &syn::Fields) -> TokenStream {
+    match fields {
+        syn::Fields::Named(fields) => {
+            let assignments = fields.named.iter().map(|field| {
+                let name = &field.ident;
+                quote! { #name }
+            });
+            quote! { #(#assignments),* }
+        }
+        syn::Fields::Unnamed(fields) => {
+            let assignments = fields.unnamed.iter().enumerate().map(|(i, _)| {
+                let name = syn::Ident::new(&format!("field_{}", i), proc_macro2::Span::call_site());
+                quote! { #name }
+            });
+            quote! { #(#assignments),* }
+        }
+        syn::Fields::Unit => quote! {},
     }
 }
 
@@ -302,13 +352,6 @@ mod tests {
                         }
                     }
                     Ok(())
-                }
-            }
-            impl SimpleType {
-                /// Get the singleton instance.
-                pub fn get(ctx: &::pliron::context::Context) -> ::pliron::r#type::TypePtr<Self> {
-                    ::pliron::r#type::Type::get_instance(Self {}, ctx)
-                        .expect("simple_type singleton not instantiated")
                 }
             }
             const _: () = {
@@ -382,23 +425,6 @@ mod tests {
                     Ok(())
                 }
             }
-            impl CompoundType {
-                /// Get or create a new instance.
-                pub fn get(
-                    ctx: &mut ::pliron::context::Context,
-                    x1: u32,
-                    x2: String,
-                ) -> ::pliron::r#type::TypePtr<Self> {
-                    ::pliron::r#type::Type::register_instance(CompoundType { x1, x2 }, ctx)
-                }
-                pub fn get_existing(
-                    ctx: &::pliron::context::Context,
-                    x1: u32,
-                    x2: String,
-                ) -> ::std::option::Option<::pliron::r#type::TypePtr<Self>> {
-                    ::pliron::r#type::Type::get_instance(CompoundType { x1, x2 }, ctx)
-                }
-            }
             const _: () = {
                 #[cfg_attr(
                     not(target_family = "wasm"),
@@ -414,5 +440,104 @@ mod tests {
                 }
             };
         "##]].assert_eq(&got);
+    }
+
+    #[test]
+    fn derive_type_get_unit_struct() {
+        let args = quote! {};
+        let input = quote! {
+            pub struct UnitType;
+        };
+        let t = derive_type_get(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(t).unwrap();
+        let got = prettyplease::unparse(&f);
+
+        expect![[r#"
+            pub struct UnitType;
+            impl UnitType {
+                /// Get the singleton instance.
+                pub fn get(ctx: &::pliron::context::Context) -> ::pliron::r#type::TypePtr<Self> {
+                    ::pliron::r#type::Type::get_instance(Self {}, ctx)
+                        .expect("UnitType singleton not instantiated")
+                }
+            }
+        "#]]
+        .assert_eq(&got);
+    }
+
+    #[test]
+    fn derive_type_get_named_fields() {
+        let args = quote! {};
+        let input = quote! {
+            pub struct VectorType {
+                elem_ty: Ptr<TypeObj>,
+                num_elems: u32,
+                kind: VectorTypeKind,
+            }
+        };
+        let t = derive_type_get(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(t).unwrap();
+        let got = prettyplease::unparse(&f);
+
+        expect![[r#"
+            pub struct VectorType {
+                elem_ty: Ptr<TypeObj>,
+                num_elems: u32,
+                kind: VectorTypeKind,
+            }
+            impl VectorType {
+                /// Get or create a new instance.
+                pub fn get(
+                    ctx: &mut ::pliron::context::Context,
+                    elem_ty: Ptr<TypeObj>,
+                    num_elems: u32,
+                    kind: VectorTypeKind,
+                ) -> ::pliron::r#type::TypePtr<Self> {
+                    ::pliron::r#type::Type::register_instance(
+                        VectorType {
+                            elem_ty,
+                            num_elems,
+                            kind,
+                        },
+                        ctx,
+                    )
+                }
+            }
+        "#]]
+        .assert_eq(&got);
+    }
+
+    #[test]
+    fn derive_type_get_unnamed_fields() {
+        let args = quote! {};
+        let input = quote! {
+            pub struct TupleType(u32, String, bool);
+        };
+        let t = derive_type_get(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(t).unwrap();
+        let got = prettyplease::unparse(&f);
+
+        expect![[r#"
+            pub struct TupleType(u32, String, bool);
+            impl TupleType {
+                /// Get or create a new instance.
+                pub fn get(
+                    ctx: &mut ::pliron::context::Context,
+                    field_0: u32,
+                    field_1: String,
+                    field_2: bool,
+                ) -> ::pliron::r#type::TypePtr<Self> {
+                    ::pliron::r#type::Type::register_instance(
+                        TupleType {
+                            field_0,
+                            field_1,
+                            field_2,
+                        },
+                        ctx,
+                    )
+                }
+            }
+        "#]]
+        .assert_eq(&got);
     }
 }
