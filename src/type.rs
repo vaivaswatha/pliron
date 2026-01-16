@@ -41,7 +41,7 @@ use crate::dialect::{Dialect, DialectName};
 use crate::identifier::Identifier;
 use crate::irfmt::parsers::spaced;
 use crate::location::Located;
-use crate::parsable::{Parsable, ParseResult, ParserFn, StateStream};
+use crate::parsable::{Parsable, ParseResult, StateStream};
 use crate::printable::{self, Printable};
 use crate::result::Result;
 use crate::storage_uniquer::TypeValueHash;

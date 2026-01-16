@@ -65,7 +65,7 @@ use crate::{
     },
     location::{Located, Location},
     operation::Operation,
-    parsable::{IntoParseResult, Parsable, ParseResult, ParserFn, StateStream},
+    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     region::Region,
     result::Result,

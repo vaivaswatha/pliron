@@ -407,9 +407,7 @@ mod tests {
                 )]
                 static TYPE_REGISTRATION: std::sync::LazyLock<
                     ::pliron::context::ContextRegistration,
-                > = std::sync::LazyLock::new(|| {
-                    <CompoundType as ::pliron::r#type::Type>::register
-                });
+                > = std::sync::LazyLock::new(|| <CompoundType as ::pliron::r#type::Type>::register);
                 #[cfg(target_family = "wasm")]
                 ::pliron::inventory::submit! {
                     ::pliron::utils::inventory::LazyLockWrapper(& TYPE_REGISTRATION)

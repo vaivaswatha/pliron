@@ -61,7 +61,7 @@ use crate::{
         printers::iter_with_sep,
     },
     location::Located,
-    parsable::{Parsable, ParseResult, ParserFn, StateStream},
+    parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     result::Result,
     storage_uniquer::TypeValueHash,
