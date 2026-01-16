@@ -65,7 +65,7 @@ use thiserror::Error;
 /// the rust type being defined) and its contents.
 ///
 /// So, for example, if we have
-/// ```
+/// ```rust
 ///     # use pliron::impl_verify_succ;
 ///     # use pliron::derive::{def_type, format_type};
 ///     # impl_verify_succ!(IntType);
