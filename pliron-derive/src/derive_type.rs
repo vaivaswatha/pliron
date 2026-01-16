@@ -144,7 +144,7 @@ impl ToTokens for ImplType {
             }
         } else {
             quote! {
-                #name::register_direct
+                <#name as ::pliron::r#type::Type>::register_direct
             }
         };
 
@@ -407,7 +407,9 @@ mod tests {
                 )]
                 static TYPE_REGISTRATION: std::sync::LazyLock<
                     ::pliron::context::ContextRegistration,
-                > = std::sync::LazyLock::new(|| CompoundType::register_direct);
+                > = std::sync::LazyLock::new(|| {
+                    <CompoundType as ::pliron::r#type::Type>::register_direct
+                });
                 #[cfg(target_family = "wasm")]
                 ::pliron::inventory::submit! {
                     ::pliron::utils::inventory::LazyLockWrapper(& TYPE_REGISTRATION)
