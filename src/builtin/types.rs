@@ -32,6 +32,15 @@ pub struct IntegerType {
 }
 
 impl IntegerType {
+    /// Get, if it already exists, an integer type.
+    pub fn get_existing(
+        ctx: &Context,
+        width: u32,
+        signedness: Signedness,
+    ) -> Option<TypePtr<Self>> {
+        Type::get_instance(IntegerType { width, signedness }, ctx)
+    }
+
     /// Get width.
     pub fn get_width(&self) -> u32 {
         self.width
@@ -117,6 +126,17 @@ pub struct FunctionType {
     inputs: Vec<Ptr<TypeObj>>,
     /// Function results / outputs.
     results: Vec<Ptr<TypeObj>>,
+}
+
+impl FunctionType {
+    /// Get, if it already exists, a Function type.
+    pub fn get_existing(
+        ctx: &Context,
+        inputs: Vec<Ptr<TypeObj>>,
+        results: Vec<Ptr<TypeObj>>,
+    ) -> Option<TypePtr<Self>> {
+        Type::get_instance(FunctionType { inputs, results }, ctx)
+    }
 }
 
 #[type_interface_impl]

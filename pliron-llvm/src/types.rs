@@ -3,7 +3,7 @@
 use pliron::combine::{Parser, between, optional, token};
 
 use pliron::builtin::type_interfaces::FunctionTypeInterface;
-use pliron::derive::{def_type, format, format_type, type_interface_impl};
+use pliron::derive::{def_type, derive_type_get, format, format_type, type_interface_impl};
 use pliron::{
     common_traits::Verify,
     context::{Context, Ptr},
@@ -35,6 +35,7 @@ use std::hash::Hash;
 ///      Recursive types may be created by first creating an opaque struct
 ///      and later setting its fields (body).
 #[def_type("llvm.struct")]
+#[derive_type_get]
 #[derive(Debug)]
 pub struct StructType {
     name: Option<Identifier>,
@@ -297,6 +298,7 @@ impl Eq for StructType {}
 
 /// An opaque pointer, corresponding to LLVM's pointer type.
 #[def_type("llvm.ptr")]
+#[derive_type_get]
 #[derive(Hash, PartialEq, Eq, Debug)]
 #[format_type]
 pub struct PointerType;
@@ -305,6 +307,7 @@ impl_verify_succ!(PointerType);
 
 /// Array type, corresponding to LLVM's array type.
 #[def_type("llvm.array")]
+#[derive_type_get]
 #[derive(Hash, PartialEq, Eq, Debug)]
 #[format_type("`[` $size ` x ` $elem `]`")]
 pub struct ArrayType {
@@ -327,6 +330,7 @@ impl ArrayType {
 impl_verify_succ!(ArrayType);
 
 #[def_type("llvm.void")]
+#[derive_type_get]
 #[derive(Hash, PartialEq, Eq, Debug)]
 #[format_type]
 pub struct VoidType;
@@ -334,6 +338,7 @@ pub struct VoidType;
 impl_verify_succ!(VoidType);
 
 #[def_type("llvm.func")]
+#[derive_type_get]
 #[format_type("`<` $res `(` vec($args, CharSpace(`,`)) `) variadic = ` $is_var_arg `>`")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FuncType {
@@ -382,6 +387,7 @@ pub enum VectorTypeKind {
 }
 
 #[def_type("llvm.vector")]
+#[derive_type_get]
 #[format_type("`<` $kind ` x ` $num_elems ` x ` $elem_ty `>`")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct VectorType {
@@ -419,7 +425,7 @@ mod tests {
 
     use expect_test::expect;
     use pliron::combine::{self, Parser, eof, token};
-    use pliron::derive::def_type;
+    use pliron::derive::{def_type, derive_type_get};
 
     use crate::types::{FuncType, StructType, VoidType};
     use pliron::{
@@ -488,12 +494,18 @@ mod tests {
     /// This used to be in LLVM earlier, but the latest version
     /// is now type-erased (https://llvm.org/docs/OpaquePointers.html)
     #[def_type("llvm.typed_ptr")]
+    #[derive_type_get]
     #[derive(Hash, PartialEq, Eq, Debug)]
     pub struct TypedPointerType {
         to: Ptr<TypeObj>,
     }
 
     impl TypedPointerType {
+        /// Get, if it already exists, a pointer type.
+        pub fn get_existing(ctx: &Context, to: Ptr<TypeObj>) -> Option<TypePtr<Self>> {
+            Type::get_instance(TypedPointerType { to }, ctx)
+        }
+
         /// Get the pointee type.
         pub fn get_pointee_type(&self) -> Ptr<TypeObj> {
             self.to
