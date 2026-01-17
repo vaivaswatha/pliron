@@ -3,7 +3,6 @@
 use std::{fmt::Display, ops::Deref};
 
 use combine::Parser;
-use rustc_hash::FxHashMap;
 
 use crate::{
     attribute::{AttrId, AttrParserFn},
@@ -15,6 +14,7 @@ use crate::{
     parsable::{IntoParseResult, Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
     r#type::{TypeId, TypeParserFn},
+    utils::data::FxHashMap,
 };
 
 /// Dialect name: Safe wrapper around a String.
