@@ -194,7 +194,7 @@ pub(crate) fn postparse_outline(state_stream: &mut StateStream, op: Ptr<Operatio
 
 /// Parse the outlined attributes and locations.
 pub(crate) fn parse_outlines(state_stream: &mut StateStream) -> Result<()> {
-    let Some(parse_state) = state_stream.state.aux_data.remove(&OUTLINED_STATE) else {
+    let Some(parse_state) = state_stream.state.aux_data.remove(&*OUTLINED_STATE) else {
         return Ok(());
     };
 

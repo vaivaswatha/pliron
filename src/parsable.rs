@@ -1,6 +1,6 @@
 //! IR objects that can be parsed from their text representation.
 
-use std::{any::Any, collections::hash_map::Entry};
+use std::any::Any;
 
 use crate::{
     basic_block::BasicBlock,
@@ -16,6 +16,7 @@ use crate::{
     op::op_impls,
     operation::Operation,
     result::{self, Result},
+    utils::data::{FxHashMap, Entry},
     value::Value,
 };
 use combine::{
@@ -29,7 +30,6 @@ use combine::{
         state::Stream,
     },
 };
-use rustc_hash::FxHashMap;
 use thiserror::Error;
 use utf8_chars::BufReadCharsExt;
 
