@@ -8,7 +8,6 @@
 //!     This may describe either a [Value] use (as operand in an [Operation])
 //!     or a [BasicBlock] use (as successor of an [Operation]).
 
-use rustc_hash::FxHashSet;
 use std::{
     cell::{Ref, RefMut},
     hash::Hash,
@@ -26,6 +25,7 @@ use crate::{
     printable::Printable,
     result::Result,
     r#type::{TypeObj, Typed},
+    utils::data::FxHashSet,
     verify_err,
 };
 

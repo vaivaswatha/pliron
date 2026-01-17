@@ -2,13 +2,13 @@
 
 /// Region traversal utilities
 pub mod region {
-    use rustc_hash::FxHashSet;
 
     use crate::{
         basic_block::BasicBlock,
         context::{Context, Ptr},
         linked_list::ContainsLinkedList,
         region::Region,
+        utils::data::FxHashSet,
     };
 
     /// Compute post-order of the blocks in a region.

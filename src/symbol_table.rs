@@ -1,8 +1,5 @@
 //! Utilities to work with [SymbolTableInterface] Ops.
 
-use std::collections::hash_map;
-
-use rustc_hash::FxHashMap;
 use thiserror::Error;
 
 use crate::builtin::op_interfaces::{SymbolOpInterface, SymbolTableInterface};
@@ -19,6 +16,7 @@ use crate::linked_list::ContainsLinkedList;
 use crate::op::op_cast;
 use crate::operation::Operation;
 use crate::result::Result;
+use crate::utils::data::FxHashMap;
 
 /// A utility to efficiently lookup and update [Symbol](SymbolOpInterface)s
 /// in a [SymbolTableInterface] Op. Similar to its counterpart in MLIR,
@@ -89,19 +87,17 @@ impl SymbolTable {
         insert_pt: Option<Ptr<Operation>>,
     ) -> Result<()> {
         let symbol_name = symbol_op.get_symbol_name(ctx);
-        match self.symbol_table.entry(symbol_name.clone()) {
-            hash_map::Entry::Occupied(prev_op) => {
-                return arg_err!(
-                    symbol_op.loc(ctx),
-                    arg_error!(
-                        prev_op.get().loc(ctx),
-                        SymbolTableErr::SymbolRedefined(symbol_name.to_string())
-                    )
-                );
-            }
-            hash_map::Entry::Vacant(vac) => {
-                vac.insert(symbol_op.clone());
-            }
+        if let Some(prev_op) = self
+            .symbol_table
+            .insert(symbol_name.clone(), symbol_op.clone())
+        {
+            return arg_err!(
+                symbol_op.loc(ctx),
+                arg_error!(
+                    prev_op.loc(ctx),
+                    SymbolTableErr::SymbolRedefined(symbol_name.to_string())
+                )
+            );
         }
 
         let symbol_table_op = self.symbol_table_op.get_operation();
@@ -270,13 +266,9 @@ impl SymbolTableCollection {
         ctx: &Context,
         symbol_table_op: Box<dyn SymbolTableInterface>,
     ) -> &mut SymbolTable {
-        match self.symbol_tables.entry(symbol_table_op.get_operation()) {
-            hash_map::Entry::Occupied(entry) => entry.into_mut(),
-            hash_map::Entry::Vacant(vac) => {
-                let symbol_table = SymbolTable::new(ctx, symbol_table_op);
-                vac.insert(symbol_table)
-            }
-        }
+        self.symbol_tables
+            .entry(symbol_table_op.get_operation())
+            .or_insert_with(|| SymbolTable::new(ctx, symbol_table_op))
     }
 
     /// Returns the [SymbolOpInterface] Op registered with the given symbol within the

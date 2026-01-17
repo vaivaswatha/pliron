@@ -3,7 +3,6 @@
 //! IR, after the top level operation is printed.
 
 use combine::{Parser, between, optional, parser::char::spaces, token};
-use rustc_hash::FxHashMap;
 
 use crate::{
     attribute::{AttrObj, attr_impls},
@@ -17,6 +16,7 @@ use crate::{
     parsable::{Parsable, StateStream},
     printable::{self, Printable},
     result::Result,
+    utils::data::FxHashMap,
     utils::vec_exns::VecExtns,
 };
 
@@ -185,13 +185,8 @@ pub(crate) fn postparse_outline(state_stream: &mut StateStream, op: Ptr<Operatio
         .downcast_mut::<OutlineParseState>()
         .expect("failed to downcast outline parse state");
 
-    match parse_state.outindex_map.entry(outindex) {
-        std::collections::hash_map::Entry::Occupied(_) => {
-            return input_err!(loc, "Duplicate outline index: {}", outindex);
-        }
-        std::collections::hash_map::Entry::Vacant(entry) => {
-            entry.insert(op);
-        }
+    if parse_state.outindex_map.insert(outindex, op).is_some() {
+        return input_err!(loc, "Duplicate outline index: {}", outindex);
     }
 
     Ok(())
