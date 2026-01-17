@@ -7,9 +7,7 @@ use std::{
     rc::Rc,
 };
 
-use rustc_hash::FxHashMap;
-
-use crate::{common_traits::RcShare, context::Context, identifier::Identifier};
+use crate::{common_traits::RcShare, context::Context, identifier::Identifier, utils::data::FxHashMap};
 
 struct StateInner {
     // Number of spaces per indentation

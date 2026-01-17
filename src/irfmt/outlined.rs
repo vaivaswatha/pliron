@@ -76,7 +76,7 @@ pub(crate) fn print_outlines(
     print_state: printable::State,
     f: &mut core::fmt::Formatter<'_>,
 ) -> std::fmt::Result {
-    let Some(print_state) = print_state.aux_data_mut().remove(&OUTLINED_STATE) else {
+    let Some(print_state) = print_state.aux_data_mut().remove(&*OUTLINED_STATE) else {
         return Ok(());
     };
 
