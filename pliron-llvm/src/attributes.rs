@@ -5,7 +5,6 @@ use std::fmt::Display;
 use pliron::combine::{self, Parser, choice, parser::char::spaces};
 use thiserror::Error;
 
-use pliron::attribute::Attribute;
 use pliron::builtin::attributes::IntegerAttr;
 use pliron::common_traits::Verify;
 use pliron::context::Context;
@@ -232,23 +231,6 @@ impl_verify_succ!(AlignmentAttr);
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct ShuffleVectorMaskAttr(pub Vec<i32>);
 impl_verify_succ!(ShuffleVectorMaskAttr);
-
-/// Register LLVM attributes into the dialect.
-pub fn register(ctx: &mut Context) {
-    IntegerOverflowFlagsAttr::register_attr_in_dialect(ctx, IntegerOverflowFlagsAttr::parser_fn);
-    ICmpPredicateAttr::register_attr_in_dialect(ctx, ICmpPredicateAttr::parser_fn);
-    FCmpPredicateAttr::register_attr_in_dialect(ctx, FCmpPredicateAttr::parser_fn);
-    GepIndicesAttr::register_attr_in_dialect(ctx, GepIndicesAttr::parser_fn);
-    CaseValuesAttr::register_attr_in_dialect(ctx, CaseValuesAttr::parser_fn);
-    InsertExtractValueIndicesAttr::register_attr_in_dialect(
-        ctx,
-        InsertExtractValueIndicesAttr::parser_fn,
-    );
-    FastmathFlagsAttr::register_attr_in_dialect(ctx, FastmathFlagsAttr::parser_fn);
-    LinkageAttr::register_attr_in_dialect(ctx, LinkageAttr::parser_fn);
-    AlignmentAttr::register_attr_in_dialect(ctx, AlignmentAttr::parser_fn);
-    ShuffleVectorMaskAttr::register_attr_in_dialect(ctx, ShuffleVectorMaskAttr::parser_fn);
-}
 
 #[cfg(test)]
 mod tests {

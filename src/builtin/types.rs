@@ -2,7 +2,7 @@ use combine::{
     Parser, choice,
     parser::char::{spaces, string},
 };
-use pliron::derive::def_type;
+use pliron::derive::{def_type, derive_type_get};
 use pliron_derive::{format_type, type_interface_impl};
 
 use crate::{
@@ -24,6 +24,7 @@ pub enum Signedness {
 }
 
 #[def_type("builtin.integer")]
+#[derive_type_get]
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 pub struct IntegerType {
     width: u32,
@@ -31,10 +32,6 @@ pub struct IntegerType {
 }
 
 impl IntegerType {
-    /// Get or create a new integer type.
-    pub fn get(ctx: &mut Context, width: u32, signedness: Signedness) -> TypePtr<Self> {
-        Type::register_instance(IntegerType { width, signedness }, ctx)
-    }
     /// Get, if it already exists, an integer type.
     pub fn get_existing(
         ctx: &Context,
@@ -119,6 +116,7 @@ impl_verify_succ!(IntegerType);
 /// See MLIR's [FunctionType](https://mlir.llvm.org/docs/Dialects/Builtin/#functiontype).
 ///
 #[def_type("builtin.function")]
+#[derive_type_get]
 #[derive(Hash, PartialEq, Eq, Debug)]
 #[format_type(
     "`<` `(` vec($inputs, CharSpace(`,`)) `)` `->` `(`vec($results, CharSpace(`,`)) `)` `>`"
@@ -131,14 +129,6 @@ pub struct FunctionType {
 }
 
 impl FunctionType {
-    /// Get or create a new Function type.
-    pub fn get(
-        ctx: &mut Context,
-        inputs: Vec<Ptr<TypeObj>>,
-        results: Vec<Ptr<TypeObj>>,
-    ) -> TypePtr<Self> {
-        Type::register_instance(FunctionType { inputs, results }, ctx)
-    }
     /// Get, if it already exists, a Function type.
     pub fn get_existing(
         ctx: &Context,
@@ -165,20 +155,15 @@ impl FunctionTypeInterface for FunctionType {
 impl_verify_succ!(FunctionType);
 
 #[def_type("builtin.unit")]
+#[derive_type_get]
 #[format_type]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct UnitType;
 
-impl UnitType {
-    /// Get or create a new unit type.
-    pub fn get(ctx: &mut Context) -> TypePtr<Self> {
-        Type::register_instance(Self {}, ctx)
-    }
-}
-
 impl_verify_succ!(UnitType);
 
 #[def_type("builtin.fp32")]
+#[derive_type_get]
 #[format_type]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FP32Type;
@@ -190,20 +175,8 @@ impl FloatTypeInterface for FP32Type {
     }
 }
 
-impl FP32Type {
-    /// Register type in dialect and instantiate the singleton instance.
-    pub fn register_and_instantiate(ctx: &mut Context) {
-        Self::register_type_in_dialect(ctx, Self::parser_fn);
-        Type::register_instance(Self {}, ctx);
-    }
-
-    /// Get the singleton fp32 type.
-    pub fn get(ctx: &Context) -> TypePtr<Self> {
-        Type::get_instance(Self {}, ctx).expect("FP32Type singleton not instantiated")
-    }
-}
-
 #[def_type("builtin.fp64")]
+#[derive_type_get]
 #[format_type]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FP64Type;
@@ -215,28 +188,6 @@ impl FloatTypeInterface for FP64Type {
     }
 }
 
-impl FP64Type {
-    /// Register type in dialect and instantiate the singleton instance.
-    pub fn register_and_instantiate(ctx: &mut Context) {
-        Self::register_type_in_dialect(ctx, Self::parser_fn);
-        Type::register_instance(Self {}, ctx);
-    }
-
-    /// Get or create a new fp64 type.
-    pub fn get(ctx: &Context) -> TypePtr<Self> {
-        Type::get_instance(Self, ctx).expect("FP64Type singleton not instantiated")
-    }
-}
-
-pub fn register(ctx: &mut Context) {
-    IntegerType::register_type_in_dialect(ctx, IntegerType::parser_fn);
-    FunctionType::register_type_in_dialect(ctx, FunctionType::parser_fn);
-    UnitType::register_type_in_dialect(ctx, UnitType::parser_fn);
-
-    FP32Type::register_and_instantiate(ctx);
-    FP64Type::register_and_instantiate(ctx);
-}
-
 #[cfg(test)]
 mod tests {
     use combine::{Parser, eof};
@@ -245,7 +196,6 @@ mod tests {
     use super::FunctionType;
     use crate::{
         builtin::{
-            self,
             type_interfaces::FunctionTypeInterface as _,
             types::{IntegerType, Signedness},
         },
@@ -333,7 +283,6 @@ mod tests {
     #[test]
     fn test_fntype_parsing() {
         let mut ctx = Context::new();
-        builtin::register(&mut ctx);
 
         let si32 = IntegerType::get(&mut ctx, 32, Signedness::Signed);
 

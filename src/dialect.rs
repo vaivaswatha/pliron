@@ -114,8 +114,13 @@ impl Dialect {
     }
 
     /// Register this dialect if not already registered.
-    pub fn register(self, ctx: &mut Context) {
-        ctx.dialects.entry(self.name.clone()).or_insert(self);
+    pub fn register<'a>(ctx: &'a mut Context, name: &'a DialectName) -> &'a mut Dialect {
+        // TODO: This should ideally be a single-lookup, so let's wait for Polonius
+        if !ctx.dialects.contains_key(name) {
+            ctx.dialects
+                .insert(name.clone(), Dialect::new(name.clone()));
+        }
+        ctx.dialects.get_mut(name).unwrap()
     }
 
     /// Add an [Op](crate::op::Op) to this dialect.
@@ -152,7 +157,6 @@ mod test {
     use expect_test::expect;
 
     use crate::{
-        builtin,
         context::Context,
         location,
         parsable::{self, Parsable, state_stream_from_iterator},
@@ -164,7 +168,6 @@ mod test {
     #[test]
     fn parse_dialect_name() {
         let mut ctx = Context::new();
-        builtin::register(&mut ctx);
 
         let state_stream = state_stream_from_iterator(
             "non_existant".chars(),

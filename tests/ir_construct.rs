@@ -23,13 +23,13 @@ use pliron::{
     location,
     op::Op,
     operation::Operation,
-    parsable::{self, Parsable, state_stream_from_iterator},
+    parsable::{self, state_stream_from_iterator},
     printable::Printable,
     result::Result,
 };
 use pliron_derive::format_op;
 
-use crate::common::{const_ret_in_mod, setup_context_dialects};
+use crate::common::const_ret_in_mod;
 use combine::parser::Parser;
 
 #[cfg(target_family = "wasm")]
@@ -41,7 +41,7 @@ mod common;
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn construct_and_erase() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let module_op = const_ret_in_mod(ctx)?.0.get_operation();
     Operation::erase(module_op, ctx);
     assert!(ctx.is_ir_empty());
@@ -53,7 +53,7 @@ fn construct_and_erase() -> Result<()> {
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 #[should_panic(expected = "Operation with use(s) being erased")]
 fn removed_used_op() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
 
     // const_ret_in_mod builds a module with a function.
     let (_, _, const_op, _) = const_ret_in_mod(ctx).unwrap();
@@ -66,7 +66,7 @@ fn removed_used_op() {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn replace_c0_with_c1() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
 
     // const_ret_in_mod builds a module with a function.
     let (module_op, _, const_op, _) = const_ret_in_mod(ctx).unwrap();
@@ -91,7 +91,7 @@ fn replace_c0_with_c1() -> Result<()> {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn replace_c0_with_c1_operand() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
 
     // const_ret_in_mod builds a module with a function.
     let (module_op, _, const_op, ret_op) = const_ret_in_mod(ctx).unwrap();
@@ -151,8 +151,7 @@ impl_verify_succ!(DualDefOp);
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_replace_within_same_def_site() {
-    let ctx = &mut setup_context_dialects();
-    DualDefOp::register(ctx, DualDefOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let u64_ty = IntegerType::get(ctx, 64, Signedness::Signed).into();
 
@@ -222,7 +221,7 @@ fn test_replace_within_same_def_site() {
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 /// A test to just print a constructed IR to stdout.
 fn print_simple() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let module_op = const_ret_in_mod(ctx)?.0.get_operation();
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
@@ -255,7 +254,7 @@ fn parse_simple() -> Result<()> {
             }
         }"#;
 
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let op = {
         let state_stream = state_stream_from_iterator(
             input.chars(),
@@ -275,7 +274,7 @@ dict_key!(ATTR_KEY_TEST_ON_FUNC_VALUE, "test_on_func_value");
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn parse_function_with_attrs() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let (module_op, _, _const_op, ret_op) = const_ret_in_mod(ctx).unwrap();
 
     let func_op = ret_op
@@ -338,7 +337,7 @@ fn parse_function_with_attrs() -> Result<()> {
 }
 
 fn expect_parse_error(input: &str, expected_err: Expect) {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let state_stream = state_stream_from_iterator(
         input.chars(),
         parsable::State::new(ctx, location::Source::InMemory),
@@ -452,7 +451,7 @@ fn parse_err_block_args() {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_preorder_forward_walk() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let module_op = const_ret_in_mod(ctx).unwrap().0.get_operation();
 
     let mut state = Vec::new();
@@ -501,7 +500,7 @@ fn test_preorder_forward_walk() {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn walker_print() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let module_op = const_ret_in_mod(ctx).unwrap().0.get_operation();
 
     fn print_op(
@@ -574,7 +573,7 @@ fn walker_print() {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_postorder_forward_walk() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let module_op = const_ret_in_mod(ctx).unwrap().0.get_operation();
 
     let mut state = Vec::new();
@@ -620,7 +619,7 @@ fn test_postorder_forward_walk() {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_walker_find_op() {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
     let (module_op, _, const_op, _) = const_ret_in_mod(ctx).unwrap();
 
     let const1_op = ConstantOp::new(ctx, 1);

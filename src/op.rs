@@ -53,7 +53,7 @@ use crate::{
     builtin::{type_interfaces::FunctionTypeInterface, types::FunctionType},
     common_traits::{Named, Verify},
     context::{Context, Ptr},
-    dialect::DialectName,
+    dialect::{Dialect, DialectName},
     identifier::Identifier,
     impl_printable_for_display, input_err,
     irfmt::{
@@ -65,7 +65,7 @@ use crate::{
     },
     location::{Located, Location},
     operation::Operation,
-    parsable::{IntoParseResult, Parsable, ParseResult, ParserFn, StateStream},
+    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     region::Region,
     result::Result,
@@ -196,17 +196,12 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 
     /// Register Op in Context and add it to its dialect.
-    fn register(ctx: &mut Context, op_parser: ParserFn<Vec<(Identifier, Location)>, OpObj>)
+    fn register(ctx: &mut Context)
     where
-        Self: Sized,
+        Self: Sized + Parsable<Arg = Vec<(Identifier, Location)>, Parsed = OpBox>,
     {
         let opid = Self::get_opid_static();
-        let dialect = opid.dialect.clone();
-        let dialect = ctx
-            .dialects
-            .get_mut(&dialect)
-            .unwrap_or_else(|| panic!("Unregistered dialect {dialect}"));
-        dialect.add_op(Self::get_opid_static(), op_parser);
+        Dialect::register(ctx, &opid.dialect).add_op(opid.clone(), Self::parser_fn);
     }
 
     /// Get Op's location

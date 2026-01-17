@@ -302,7 +302,7 @@ mod tests {
 
     use crate::builtin::attributes::StringAttr;
 
-    use crate::{builtin, input_err};
+    use crate::input_err;
     use crate::{
         location::Source,
         parsable::{self, state_stream_from_iterator},
@@ -436,7 +436,6 @@ mod tests {
     #[test]
     fn test_fused_with_metadata_print_and_parse() {
         let mut ctx = Context::default();
-        builtin::register(&mut ctx);
 
         let attr = StringAttr::new("testattr".to_string());
         let loc = Location::Fused {

@@ -8,15 +8,15 @@ use pliron::{
         OneResultInterface, ZeroOpdInterface, ZeroResultInterface,
     },
     common_traits::Verify,
+    context::Context,
     impl_verify_succ, location,
     op::Op,
     operation::Operation,
-    parsable::{self, Parsable, state_stream_from_iterator},
+    parsable::{self, state_stream_from_iterator},
     printable::Printable,
 };
 use pliron_derive::{def_op, derive_op_interface_impl, format_op};
 mod common;
-use common::setup_context_dialects;
 
 #[format_op("")]
 #[def_op("test.zero_results_zero_operands")]
@@ -26,8 +26,7 @@ impl_verify_succ!(ZeroResultsZeroOperandsOp);
 
 #[test]
 fn zero_results_zero_operands() {
-    let ctx = &mut setup_context_dialects();
-    ZeroResultsZeroOperandsOp::register(ctx, ZeroResultsZeroOperandsOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let op = Operation::new(
         ctx,
@@ -66,8 +65,7 @@ impl_verify_succ!(OneResultZeroOperandsOp);
 
 #[test]
 fn one_result_zero_operands() {
-    let ctx = &mut setup_context_dialects();
-    OneResultZeroOperandsOp::register(ctx, OneResultZeroOperandsOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc : builtin.function <() -> ()> {
           ^entry():
@@ -110,9 +108,7 @@ impl_verify_succ!(OneResultOneOperandOp);
 
 #[test]
 fn one_result_one_operand() {
-    let ctx = &mut setup_context_dialects();
-    OneResultZeroOperandsOp::register(ctx, OneResultZeroOperandsOp::parser_fn);
-    OneResultOneOperandOp::register(ctx, OneResultOneOperandOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -157,9 +153,7 @@ impl_verify_succ!(TwoResultsTwoOperandsOp);
 
 #[test]
 fn two_result_two_operands() {
-    let ctx = &mut setup_context_dialects();
-    OneResultZeroOperandsOp::register(ctx, OneResultZeroOperandsOp::parser_fn);
-    TwoResultsTwoOperandsOp::register(ctx, TwoResultsTwoOperandsOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -204,9 +198,7 @@ impl_verify_succ!(TwoResultsOneOperandOp);
 
 #[test]
 fn two_results_one_operand() {
-    let ctx = &mut setup_context_dialects();
-    OneResultZeroOperandsOp::register(ctx, OneResultZeroOperandsOp::parser_fn);
-    TwoResultsOneOperandOp::register(ctx, TwoResultsOneOperandOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -253,8 +245,7 @@ impl_verify_succ!(AttrOp);
 
 #[test]
 fn attr_op() {
-    let ctx = &mut setup_context_dialects();
-    AttrOp::register(ctx, AttrOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -299,8 +290,7 @@ impl_verify_succ!(AttrOp2);
 
 #[test]
 fn attr_op2() {
-    let ctx = &mut setup_context_dialects();
-    AttrOp2::register(ctx, AttrOp2::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -377,8 +367,7 @@ impl_verify_succ!(AttrOp2Labeled);
 
 #[test]
 fn attr_op2_labeled() {
-    let ctx = &mut setup_context_dialects();
-    AttrOp2Labeled::register(ctx, AttrOp2Labeled::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -455,8 +444,7 @@ impl_verify_succ!(AttrOp2Labeleddelimited);
 
 #[test]
 fn attr_op2_labeled_delimited() {
-    let ctx = &mut setup_context_dialects();
-    AttrOp2Labeleddelimited::register(ctx, AttrOp2Labeleddelimited::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -533,8 +521,7 @@ impl_verify_succ!(AttrOp2delimited);
 
 #[test]
 fn attr_op2_delimited() {
-    let ctx = &mut setup_context_dialects();
-    AttrOp2delimited::register(ctx, AttrOp2delimited::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -608,8 +595,7 @@ impl_verify_succ!(AttrOp3);
 
 #[test]
 fn attr_op3() {
-    let ctx = &mut setup_context_dialects();
-    AttrOp3::register(ctx, AttrOp3::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -652,9 +638,7 @@ impl_verify_succ!(IfOp);
 
 #[test]
 fn if_op() {
-    let ctx = &mut setup_context_dialects();
-    AttrOp::register(ctx, AttrOp::parser_fn);
-    IfOp::register(ctx, IfOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -711,9 +695,7 @@ impl_verify_succ!(IfElseOp);
 
 #[test]
 fn if_else_op() {
-    let ctx = &mut setup_context_dialects();
-    AttrOp::register(ctx, AttrOp::parser_fn);
-    IfElseOp::register(ctx, IfElseOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -781,9 +763,7 @@ impl_verify_succ!(BrOp);
 
 #[test]
 fn br_op() {
-    let ctx = &mut setup_context_dialects();
-    AttrOp::register(ctx, AttrOp::parser_fn);
-    BrOp::register(ctx, BrOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -832,9 +812,7 @@ impl_verify_succ!(MultipleSuccessorsOp);
 
 #[test]
 fn multiple_successors_op() {
-    let ctx = &mut setup_context_dialects();
-    AttrOp::register(ctx, AttrOp::parser_fn);
-    MultipleSuccessorsOp::register(ctx, MultipleSuccessorsOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -888,9 +866,7 @@ impl_verify_succ!(MultipleRegionsOp);
 
 #[test]
 fn multiple_regions_op() {
-    let ctx = &mut setup_context_dialects();
-    AttrOp::register(ctx, AttrOp::parser_fn);
-    MultipleRegionsOp::register(ctx, MultipleRegionsOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "
     builtin.func @testfunc: builtin.function <()->()> {
@@ -960,9 +936,7 @@ impl_verify_succ!(AttrDictOp);
 
 #[test]
 fn attr_dict_op() {
-    let ctx = &mut setup_context_dialects();
-    AttrDictOp::register(ctx, AttrDictOp::parser_fn);
-    AttrOp::register(ctx, AttrOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -1010,9 +984,7 @@ impl_verify_succ!(MultipleRegions2Op);
 
 #[test]
 fn multiple_regions2_op() {
-    let ctx = &mut setup_context_dialects();
-    AttrOp::register(ctx, AttrOp::parser_fn);
-    MultipleRegions2Op::register(ctx, MultipleRegions2Op::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "
         test.multiple_regions2 () [] [] : <()->()>
@@ -1049,9 +1021,7 @@ impl_verify_succ!(MultipleRegions3Op);
 
 #[test]
 fn multiple_regions3_op() {
-    let ctx = &mut setup_context_dialects();
-    AttrOp::register(ctx, AttrOp::parser_fn);
-    MultipleRegions3Op::register(ctx, MultipleRegions3Op::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "
         test.multiple_regions3 [
@@ -1090,9 +1060,7 @@ impl_verify_succ!(MultipleRegions4Op);
 
 #[test]
 fn multiple_regions4_op() {
-    let ctx = &mut setup_context_dialects();
-    AttrOp::register(ctx, AttrOp::parser_fn);
-    MultipleRegions4Op::register(ctx, MultipleRegions4Op::parser_fn);
+    let ctx = &mut Context::new();
 
     let printed = "
         test.multiple_regions4 [

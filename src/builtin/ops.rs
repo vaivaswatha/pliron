@@ -337,9 +337,3 @@ impl ForwardRefOp {
         ForwardRefOp { op }
     }
 }
-
-pub fn register(ctx: &mut Context) {
-    ModuleOp::register(ctx, ModuleOp::parser_fn);
-    FuncOp::register(ctx, FuncOp::parser_fn);
-    ForwardRefOp::register(ctx, ForwardRefOp::parser_fn);
-}

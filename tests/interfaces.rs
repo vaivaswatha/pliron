@@ -39,10 +39,10 @@ use pliron::{
     utils::trait_cast::any_to_trait,
 };
 use pliron::{input_error, verify_err};
-use pliron_derive::{format_attribute, format_op};
+use pliron_derive::{format_attribute, format_op, format_type};
 use thiserror::Error;
 
-use crate::common::{const_ret_in_mod, setup_context_dialects};
+use crate::common::const_ret_in_mod;
 
 #[cfg(target_family = "wasm")]
 use wasm_bindgen_test::*;
@@ -89,8 +89,7 @@ impl ZeroResultOp {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn check_intrf_verfiy_errs() {
-    let ctx = &mut setup_context_dialects();
-    ZeroResultOp::register(ctx, ZeroResultOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let zero_res_op = ZeroResultOp::new(ctx).get_operation();
     let (module_op, _, _, ret_op) = const_ret_in_mod(ctx).unwrap();
@@ -161,8 +160,7 @@ impl VerifyIntrOp {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_op_intr_verify_order() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
-    VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let vio = VerifyIntrOp::new(ctx);
 
@@ -234,8 +232,7 @@ impl VerifyIntrOpGeneric {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_op_intr_verify_order_generic() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
-    VerifyIntrOpGeneric::register(ctx, VerifyIntrOpGeneric::parser_fn);
+    let ctx = &mut Context::new();
 
     let vio = VerifyIntrOpGeneric::new(ctx);
     vio.get_operation().deref(ctx).verify(ctx)?;
@@ -310,8 +307,7 @@ impl VerifyIntrOpConstGeneric {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_op_intr_verify_order_const_generic() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
-    VerifyIntrOpConstGeneric::register(ctx, VerifyIntrOpConstGeneric::parser_fn);
+    let ctx = &mut Context::new();
 
     let vio = VerifyIntrOpConstGeneric::new(ctx);
     vio.get_operation().deref(ctx).verify(ctx)?;
@@ -365,6 +361,7 @@ static TEST_ATTR_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
 
 #[def_attribute("test.verify_intr_attr")]
 #[derive(PartialEq, Clone, Debug, Hash)]
+#[format_attribute]
 struct VerifyIntrAttr {}
 impl_verify_succ!(VerifyIntrAttr);
 
@@ -372,17 +369,6 @@ impl_verify_succ!(VerifyIntrAttr);
 impl TestAttrInterface for VerifyIntrAttr {}
 #[attr_interface_impl]
 impl TestAttrInterface2 for VerifyIntrAttr {}
-
-impl Printable for VerifyIntrAttr {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "VerifyIntAttr")
-    }
-}
 
 #[attr_interface]
 trait TestAttrInterface {
@@ -409,8 +395,7 @@ trait TestAttrInterface2: TestAttrInterface {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_attr_intr_verify_order() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
-    VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let vio = VerifyIntrAttr {};
     verify_attr(&vio, ctx)?;
@@ -471,6 +456,7 @@ trait TestAttrInterfaceGeneric3<T: Clone>:
 
 #[def_attribute("test.verify_intr_attr_generic")]
 #[derive(PartialEq, Clone, Debug, Hash)]
+#[format_attribute]
 struct VerifyIntrAttrGeneric {}
 impl_verify_succ!(VerifyIntrAttrGeneric);
 
@@ -481,22 +467,10 @@ impl TestAttrInterfaceGeneric2<i32> for VerifyIntrAttrGeneric {}
 #[attr_interface_impl]
 impl TestAttrInterfaceGeneric3<i32> for VerifyIntrAttrGeneric {}
 
-impl Printable for VerifyIntrAttrGeneric {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "VerifyIntAttrGeneric")
-    }
-}
-
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_attr_intr_verify_order_generic() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
-    VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let vio = VerifyIntrAttrGeneric {};
     verify_attr(&vio, ctx)?;
@@ -535,23 +509,13 @@ static TEST_TYPE_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
 
 #[def_type("test.verify_intr_type")]
 #[derive(PartialEq, Clone, Debug, Hash)]
+#[format_type]
 struct VerifyIntrType {}
 impl_verify_succ!(VerifyIntrType);
 #[type_interface_impl]
 impl TestTypeInterface for VerifyIntrType {}
 #[type_interface_impl]
 impl TestTypeInterface2 for VerifyIntrType {}
-
-impl Printable for VerifyIntrType {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "VerifyIntType")
-    }
-}
 
 #[type_interface]
 trait TestTypeInterface {
@@ -578,8 +542,7 @@ trait TestTypeInterface2: TestTypeInterface {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_type_intr_verify_order() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
-    VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let vio = VerifyIntrType {};
     verify_type(&vio, ctx)?;
@@ -640,6 +603,7 @@ trait TestTypeInterfaceGeneric3<T: Clone>:
 
 #[def_type("test.verify_intr_type_generic")]
 #[derive(PartialEq, Clone, Debug, Hash)]
+#[format_type]
 struct VerifyIntrTypeGeneric {}
 impl_verify_succ!(VerifyIntrTypeGeneric);
 
@@ -650,22 +614,10 @@ impl TestTypeInterfaceGeneric2<i32> for VerifyIntrTypeGeneric {}
 #[type_interface_impl]
 impl TestTypeInterfaceGeneric3<i32> for VerifyIntrTypeGeneric {}
 
-impl Printable for VerifyIntrTypeGeneric {
-    fn fmt(
-        &self,
-        _ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "VerifyIntTypeGeneric")
-    }
-}
-
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_type_intr_verify_order_generic() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
-    VerifyIntrOp::register(ctx, VerifyIntrOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let vio = VerifyIntrTypeGeneric {};
     verify_type(&vio, ctx)?;
@@ -712,8 +664,7 @@ impl TestNoInbuiltVerifyInterface for NoInbuiltVerifyOp {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_no_inbuilt_verify() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
-    NoInbuiltVerifyOp::register(ctx, NoInbuiltVerifyOp::parser_fn);
+    let ctx = &mut Context::new();
 
     let vio = NoInbuiltVerifyOp::new(ctx);
 
@@ -747,8 +698,7 @@ impl TestNoInbuiltVerifyInterface for NoInbuiltVerifyOp2 {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_no_inbuilt_verify2() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
-    NoInbuiltVerifyOp2::register(ctx, NoInbuiltVerifyOp2::parser_fn);
+    let ctx = &mut Context::new();
 
     let vio = NoInbuiltVerifyOp2::new(ctx);
 
@@ -780,8 +730,7 @@ impl OutlinedAttr for OutlineTestAttr {}
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_outline_attr() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
-    OutlineTestAttr::register_attr_in_dialect(ctx, OutlineTestAttr::parser_fn);
+    let ctx = &mut Context::new();
     let attr = OutlineTestAttr {
         ty: IntegerType::get(ctx, 32, pliron::builtin::types::Signedness::Signed).into(),
     };
@@ -824,9 +773,7 @@ impl PrintOnceAttr for OulinePrintOnceTestAttr {}
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_outline_printonce_attr() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
-    OutlineTestAttr::register_attr_in_dialect(ctx, OutlineTestAttr::parser_fn);
-    OulinePrintOnceTestAttr::register_attr_in_dialect(ctx, OulinePrintOnceTestAttr::parser_fn);
+    let ctx = &mut Context::new();
 
     let attr = OulinePrintOnceTestAttr {
         ty: IntegerType::get(ctx, 32, pliron::builtin::types::Signedness::Signed).into(),
@@ -944,10 +891,8 @@ impl CanonicalOp {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn test_outline_attr_canonical_op() -> Result<()> {
-    let ctx = &mut setup_context_dialects();
+    let ctx = &mut Context::new();
 
-    CanonicalOp::register(ctx, CanonicalOp::parser_fn);
-    OutlineTestAttr::register_attr_in_dialect(ctx, OutlineTestAttr::parser_fn);
     let attr = OutlineTestAttr {
         ty: IntegerType::get(ctx, 32, pliron::builtin::types::Signedness::Signed).into(),
     };

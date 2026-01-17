@@ -37,11 +37,11 @@
 
 use crate::common_traits::Verify;
 use crate::context::{Arena, Context, Ptr, private::ArenaObj};
-use crate::dialect::DialectName;
+use crate::dialect::{Dialect, DialectName};
 use crate::identifier::Identifier;
 use crate::irfmt::parsers::spaced;
 use crate::location::Located;
-use crate::parsable::{Parsable, ParseResult, ParserFn, StateStream};
+use crate::parsable::{Parsable, ParseResult, StateStream};
 use crate::printable::{self, Printable};
 use crate::result::Result;
 use crate::storage_uniquer::TypeValueHash;
@@ -66,21 +66,15 @@ use thiserror::Error;
 ///
 /// So, for example, if we have
 /// ```rust
-///     # use pliron::{printable::Printable, context::Context,
-///     #   printable::State, impl_verify_succ, result::Result};
-///     # use pliron::derive::def_type;
-///     # use std::fmt::{self, Formatter};
+///     # use pliron::impl_verify_succ;
+///     # use pliron::derive::{def_type, format_type};
 ///     # impl_verify_succ!(IntType);
 ///     #[def_type("test.intty")]
+///     #[format_type]
 ///     #[derive(Debug, PartialEq, Eq, Hash)]
 ///     struct IntType {
 ///         width: u64
 ///     }
-///     # impl Printable for IntType {
-///     #   fn fmt(&self, _: &Context, _: &State, _: &mut Formatter<'_>) -> fmt::Result {
-///     #       unimplemented!()
-///     #   }
-///     # }
 /// ```
 /// the uniquing will include
 ///   - [`std::any::TypeId::of::<IntType>()`](std::any::TypeId)
@@ -163,9 +157,9 @@ pub trait Type: Printable + Verify + Downcast + Sync + Send + Debug {
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 
     /// Register this Type's [TypeId] in the dialect it belongs to.
-    fn register_type_in_dialect(ctx: &mut Context, parser: ParserFn<(), TypePtr<Self>>)
+    fn register(ctx: &mut Context)
     where
-        Self: Sized,
+        Self: Sized + Parsable<Arg = (), Parsed = TypePtr<Self>>,
     {
         // Specifying higher ranked lifetime on a closure:
         // https://stackoverflow.com/a/46198877/2128804
@@ -181,7 +175,7 @@ pub trait Type: Printable + Verify + Downcast + Sync + Send + Debug {
         }
         let ptr_parser = constrain(move |_| {
             combine::parser(move |parsable_state: &mut StateStream<'_>| {
-                parser(&(), ())
+                Self::parser_fn(&(), ())
                     .parse_stream(parsable_state)
                     .map(|typtr| typtr.to_ptr())
                     .into_result()
@@ -189,11 +183,7 @@ pub trait Type: Printable + Verify + Downcast + Sync + Send + Debug {
             .boxed()
         });
         let typeid = Self::get_type_id_static();
-        let dialect = ctx
-            .dialects
-            .get_mut(&typeid.dialect)
-            .unwrap_or_else(|| panic!("Unregistered dialect {}", &typeid.dialect));
-        dialect.add_type(typeid, Box::new(ptr_parser));
+        Dialect::register(ctx, &typeid.dialect.clone()).add_type(typeid, Box::new(ptr_parser));
     }
 }
 impl_downcast!(Type);

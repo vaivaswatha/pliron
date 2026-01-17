@@ -53,7 +53,7 @@ use crate::{
     builtin::attr_interfaces::OutlinedAttr,
     common_traits::Verify,
     context::Context,
-    dialect::DialectName,
+    dialect::{Dialect, DialectName},
     identifier::Identifier,
     impl_printable_for_display, input_err,
     irfmt::{
@@ -61,7 +61,7 @@ use crate::{
         printers::iter_with_sep,
     },
     location::Located,
-    parsable::{Parsable, ParseResult, ParserFn, StateStream},
+    parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     result::Result,
     storage_uniquer::TypeValueHash,
@@ -216,9 +216,9 @@ pub trait Attribute: Printable + Verify + Downcast + Sync + Send + DynClone + De
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 
     /// Register this attribute's [AttrId] in the dialect it belongs to.
-    fn register_attr_in_dialect<A: Attribute>(ctx: &mut Context, attr_parser: ParserFn<(), A>)
+    fn register<A: Attribute>(ctx: &mut Context)
     where
-        Self: Sized,
+        Self: Sized + Parsable<Arg = (), Parsed = A>,
     {
         // Specifying higher ranked lifetime on a closure:
         // https://stackoverflow.com/a/46198877/2128804
@@ -234,7 +234,7 @@ pub trait Attribute: Printable + Verify + Downcast + Sync + Send + DynClone + De
         }
         let attr_parser = constrain(move |_| {
             combine::parser(move |parsable_state: &mut StateStream<'_>| {
-                attr_parser(&(), ())
+                Self::parser_fn(&(), ())
                     .parse_stream(parsable_state)
                     .map(|attr| -> AttrObj { Box::new(attr) })
                     .into_result()
@@ -242,11 +242,7 @@ pub trait Attribute: Printable + Verify + Downcast + Sync + Send + DynClone + De
             .boxed()
         });
         let attrid = Self::get_attr_id_static();
-        let dialect = ctx
-            .dialects
-            .get_mut(&attrid.dialect)
-            .unwrap_or_else(|| panic!("Unregistered dialect {}", &attrid.dialect));
-        dialect.add_attr(Self::get_attr_id_static(), Box::new(attr_parser));
+        Dialect::register(ctx, &attrid.dialect).add_attr(attrid.clone(), Box::new(attr_parser));
     }
 }
 impl_downcast!(Attribute);
