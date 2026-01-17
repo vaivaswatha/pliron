@@ -1,7 +1,4 @@
-use std::collections::hash_map;
-
 use pliron::derive::op_interface;
-use rustc_hash::FxHashMap;
 use thiserror::Error;
 
 use crate::{
@@ -23,6 +20,7 @@ use crate::{
     result::Result,
     symbol_table::{SymbolTableCollection, walk_symbol_table},
     r#type::{Type, TypeObj, Typed, type_impls},
+    utils::data::FxHashMap,
     value::Value,
     verify_err, verify_error,
 };
@@ -455,19 +453,14 @@ pub trait SymbolTableInterface: SingleBlockRegionInterface + OneRegionInterface 
                 op_cast::<dyn SymbolOpInterface>(Operation::get_op_dyn(op, ctx).as_ref())
             {
                 let sym = sym_op.get_symbol_name(ctx);
-                match seen.entry(sym.clone()) {
-                    hash_map::Entry::Occupied(prev_loc) => {
-                        return verify_err!(
-                            op.deref(ctx).loc(),
-                            verify_error!(
-                                prev_loc.get().clone(),
-                                SymbolTableInterfaceErr::SymbolRedefined(sym.to_string())
-                            )
-                        );
-                    }
-                    hash_map::Entry::Vacant(vac) => {
-                        vac.insert(op.deref(ctx).loc());
-                    }
+                if let Some(prev_loc) = seen.insert(sym.clone(), op.deref(ctx).loc()) {
+                    return verify_err!(
+                        op.deref(ctx).loc(),
+                        verify_error!(
+                            prev_loc,
+                            SymbolTableInterfaceErr::SymbolRedefined(sym.to_string())
+                        )
+                    );
                 }
             }
         }

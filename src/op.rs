@@ -39,7 +39,6 @@ use combine::{
 };
 use downcast_rs::{Downcast, impl_downcast};
 use dyn_clone::DynClone;
-use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
     fmt::{self, Display},
     hash::Hash,
@@ -70,6 +69,7 @@ use crate::{
     region::Region,
     result::Result,
     r#type::Typed,
+    utils::data::{FxHashMap, FxHashSet},
 };
 
 #[derive(Clone, Hash, PartialEq, Eq)]

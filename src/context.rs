@@ -12,9 +12,9 @@ use crate::{
     storage_uniquer::UniqueStore,
     r#type::TypeObj,
     uniqued_any::UniquedAny,
+    utils::data::FxHashMap,
     verify_err_noloc,
 };
-use rustc_hash::FxHashMap;
 use slotmap::{SlotMap, new_key_type};
 use std::{
     any::{Any, TypeId},
