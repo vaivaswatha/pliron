@@ -50,4 +50,8 @@ with other compiler projects, touching upon some design decisions.
 * [Rust(ing) the Future of Compilers: Pliron as the MLIR Alternative (No C/C++)](https://www.youtube.com/watch?v=rRgYGBAhKQ0)
 * [Pliron Rust Workshop (6 sessions)](https://www.youtube.com/watch?v=6EjMWJ2PY-o)
 
+### Projects using `pliron`
+* [Commonly used Pliron Dialects](https://github.com/vaivaswatha/pliron-common-dialects)
+* [Pliron Dialect for Tensors](https://github.com/vaivaswatha/pliron-tensor)
+
 ![pliron-logo](https://github.com/user-attachments/assets/adfaaeed-775f-4290-92fd-93d7c9b4fd12)

@@ -247,48 +247,67 @@ pub trait RegionKindInterface {
 }
 
 #[derive(Error, Debug)]
-#[error("Op {0} must have a single region")]
-pub struct OneRegionVerifyErr(String);
+#[error("Expected {} regions, found {}", .0, .1)]
+pub struct NRegionsVerifyErr(usize, usize);
 
-/// [Op]s that have exactly one region.
+/// [Op]s that have a fixed number of regions.
 #[op_interface]
-pub trait OneRegionInterface {
-    /// Get the single region that this [Op] has.
-    fn get_region(&self, ctx: &Context) -> Ptr<Region> {
-        self.get_operation().deref(ctx).get_region(0)
-    }
-
+pub trait NRegionsInterface<const N: usize> {
     /// Checks that the operation has exactly one region.
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
         let self_op = op.get_operation().deref(ctx);
-        if self_op.num_regions() != 1 {
-            return verify_err!(self_op.loc(), OneRegionVerifyErr(op.get_opid().to_string()));
+        if self_op.num_regions() != N {
+            return verify_err!(self_op.loc(), NRegionsVerifyErr(N, self_op.num_regions()));
         }
         Ok(())
     }
 }
 
-#[derive(Error, Debug)]
-#[error("Op {0} must have at most one region")]
-pub struct AtMostOneRegionVerifyErr(String);
-
-/// [Op]s that have at most one region.
+/// [Op]s that have exactly one region.
 #[op_interface]
-pub trait AtMostOneRegionInterface {
+pub trait OneRegionInterface: NRegionsInterface<1> {
+    /// Get the single region that this [Op] has.
+    fn get_region(&self, ctx: &Context) -> Ptr<Region> {
+        self.get_operation().deref(ctx).get_region(0)
+    }
+
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("At most {0} regions expected, but found {1} regions")]
+pub struct AtMostNRegionVerifyErr(usize, usize);
+
+#[op_interface]
+pub trait AtMostNRegionsInterface<const N: usize> {
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
         let self_op = op.get_operation().deref(ctx);
-        if self_op.num_regions() > 1 {
-            return verify_err!(
-                self_op.loc(),
-                AtMostOneRegionVerifyErr(op.get_opid().to_string())
-            );
+        let n_regions = self_op.num_regions();
+        if n_regions > N {
+            return verify_err!(self_op.loc(), AtMostNRegionVerifyErr(N, n_regions));
         }
+        Ok(())
+    }
+}
+
+/// [Op]s that have at most one region.
+#[op_interface]
+pub trait AtMostOneRegionInterface: AtMostNRegionsInterface<1> {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
         Ok(())
     }
 
@@ -502,12 +521,47 @@ pub trait SymbolUserOpInterface {
 }
 
 #[derive(Error, Debug)]
-#[error("Op {0} must have single result")]
-pub struct OneResultVerifyErr(pub String);
+#[error("Expected {0} results, but found {1} results")]
+pub struct NResultsVerifyErr(pub usize, pub usize);
+
+/// An [Op] having exactly N results.
+#[op_interface]
+pub trait NResultsInterface<const N: usize> {
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        let opr = op.get_operation();
+        let op = &*opr.deref(ctx);
+        if op.get_num_results() != N {
+            return verify_err!(op.loc(), NResultsVerifyErr(N, op.get_num_results()));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("At most {0} results expected, but found {1} results")]
+pub struct AtMostNResultsVerifyErr(usize, usize);
+
+#[op_interface]
+pub trait AtMostNResultsInterface<const N: usize> {
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        let self_op = op.get_operation().deref(ctx);
+        let n_results = self_op.get_num_results();
+        if n_results > N {
+            return verify_err!(self_op.loc(), AtMostNResultsVerifyErr(N, n_results));
+        }
+        Ok(())
+    }
+}
 
 /// An [Op] having exactly one result.
 #[op_interface]
-pub trait OneResultInterface {
+pub trait OneResultInterface: NResultsInterface<1> {
     /// Get the single result defined by this [Op].
     fn get_result(&self, ctx: &Context) -> Value {
         self.get_operation().deref(ctx).get_result(0)
@@ -518,75 +572,71 @@ pub trait OneResultInterface {
         self.get_operation().deref(ctx).get_type(0)
     }
 
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("Expected {} operands, but found {}", .0, .1)]
+pub struct NOpdsVerifyErr(pub usize, pub usize);
+
+/// An [Op] having exactly N operands.
+#[op_interface]
+pub trait NOpdsInterface<const N: usize> {
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
         let opr = op.get_operation();
         let op = &*opr.deref(ctx);
-        if op.get_num_results() != 1 {
-            return verify_err!(
-                op.loc(),
-                OneResultVerifyErr(Operation::get_opid(opr, ctx).to_string())
-            );
+        if op.get_num_operands() != N {
+            return verify_err!(op.loc(), NOpdsVerifyErr(N, op.get_num_operands()));
         }
         Ok(())
     }
 }
 
 #[derive(Error, Debug)]
-#[error("Op {0} must not produce result(s)")]
-pub struct ZeroResultVerifyErr(pub String);
+#[error("At most {0} operands expected, but found {1} operands")]
+pub struct AtMostNOpdsVerifyErr(usize, usize);
 
-/// An [Op] having no results.
 #[op_interface]
-pub trait ZeroResultInterface {
+pub trait AtMostNOpdsInterface<const N: usize> {
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
-        let opr = op.get_operation();
-        let op = &*opr.deref(ctx);
-        if op.get_num_results() != 0 {
-            return verify_err!(
-                op.loc(),
-                ZeroResultVerifyErr(Operation::get_opid(opr, ctx).to_string())
-            );
+        let self_op = op.get_operation().deref(ctx);
+        let n_operands = self_op.get_num_operands();
+        if n_operands > N {
+            return verify_err!(self_op.loc(), AtMostNOpdsVerifyErr(N, n_operands));
         }
         Ok(())
     }
 }
 
-#[derive(Error, Debug)]
-#[error("Op {0} must not have any operand")]
-pub struct ZeroOpdVerifyErr(String);
-
-/// An [Op] having no operands.
 #[op_interface]
-pub trait ZeroOpdInterface {
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+pub trait OptionalOpdInterface: AtMostNOpdsInterface<1> {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
-        let opr = op.get_operation();
-        let op = &*opr.deref(ctx);
-        if op.get_num_operands() != 0 {
-            return verify_err!(
-                op.loc(),
-                ZeroOpdVerifyErr(Operation::get_opid(opr, ctx).to_string())
-            );
-        }
         Ok(())
+    }
+
+    fn get_operand(&self, ctx: &Context) -> Option<Value> {
+        let self_op = self.get_operation().deref(ctx);
+        (self_op.get_num_operands() == 1).then(|| self_op.get_operand(0))
     }
 }
 
-#[derive(Error, Debug)]
-#[error("Op must have exactly one operand")]
-pub struct OneOpdVerifyErr(String);
-
-/// An [Op] having no operands.
+/// An [Op] having exactly one operand.
 #[op_interface]
-pub trait OneOpdInterface {
+pub trait OneOpdInterface: NOpdsInterface<1> {
     /// Get the single operand used by this [Op].
     fn get_operand(&self, ctx: &Context) -> Value {
         self.get_operation().deref(ctx).get_operand(0)
@@ -597,18 +647,10 @@ pub trait OneOpdInterface {
         self.get_operand(ctx).get_type(ctx)
     }
 
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
-        let opr = op.get_operation();
-        let op = &*opr.deref(ctx);
-        if op.get_num_operands() != 1 {
-            return verify_err!(
-                op.loc(),
-                OneOpdVerifyErr(Operation::get_opid(opr, ctx).to_string())
-            );
-        }
         Ok(())
     }
 }

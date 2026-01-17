@@ -7,7 +7,9 @@ use crate::{
     attribute::{AttributeDict, attr_cast},
     basic_block::BasicBlock,
     builtin::{
-        op_interfaces::{ATTR_KEY_SYM_NAME, NoTerminatorInterface, ZeroResultInterface},
+        op_interfaces::{
+            ATTR_KEY_SYM_NAME, NRegionsInterface, NResultsInterface, NoTerminatorInterface,
+        },
         ops::func_op_attr_names::ATTR_KEY_FUNC_TYPE,
         type_interfaces::FunctionTypeInterface,
     },
@@ -35,8 +37,8 @@ use super::{
     attr_interfaces::TypedAttrInterface,
     attributes::TypeAttr,
     op_interfaces::{
-        self, IsolatedFromAboveInterface, OneRegionInterface, OneResultInterface,
-        SingleBlockRegionInterface, SymbolOpInterface, SymbolTableInterface, ZeroOpdInterface,
+        self, IsolatedFromAboveInterface, NOpdsInterface, OneRegionInterface, OneResultInterface,
+        SingleBlockRegionInterface, SymbolOpInterface, SymbolTableInterface,
     },
     types::{FunctionType, UnitType},
 };
@@ -49,13 +51,14 @@ use super::{
 /// does not have a terminator.
 #[def_op("builtin.module")]
 #[derive_op_interface_impl(
+    NRegionsInterface<1>,
     OneRegionInterface,
     SingleBlockRegionInterface,
     SymbolTableInterface,
     SymbolOpInterface,
     IsolatedFromAboveInterface,
-    ZeroOpdInterface,
-    ZeroResultInterface,
+    NOpdsInterface<0>,
+    NResultsInterface<0>,
     NoTerminatorInterface
 )]
 pub struct ModuleOp;
@@ -84,7 +87,7 @@ impl Parsable for ModuleOp {
         if !results.is_empty() {
             input_err!(
                 state_stream.loc(),
-                op_interfaces::ZeroResultVerifyErr(Self::get_opid_static().to_string())
+                op_interfaces::NResultsVerifyErr(0, results.len())
             )?
         }
         let op = Operation::new(
@@ -132,11 +135,12 @@ impl ModuleOp {
 /// See MLIR's [func.func](https://mlir.llvm.org/docs/Dialects/Func/#funcfunc-mlirfuncfuncop).
 #[def_op("builtin.func")]
 #[derive_op_interface_impl(
+    NRegionsInterface<1>,
     OneRegionInterface,
     SymbolOpInterface,
     IsolatedFromAboveInterface,
-    ZeroOpdInterface,
-    ZeroResultInterface
+    NOpdsInterface<0>,
+    NResultsInterface<0>
 )]
 #[derive_attr_get_set(func_type : TypeAttr)]
 pub struct FuncOp;
@@ -215,7 +219,7 @@ impl Parsable for FuncOp {
         if !results.is_empty() {
             input_err!(
                 state_stream.loc(),
-                op_interfaces::ZeroResultVerifyErr(Self::get_opid_static().to_string())
+                op_interfaces::NResultsVerifyErr(0, results.len())
             )?
         }
 
@@ -271,7 +275,7 @@ impl Verify for FuncOp {
 /// [UnrealizedConversionCastOp](https://mlir.llvm.org/docs/Dialects/Builtin/#builtinunrealized_conversion_cast-unrealizedconversioncastop)
 /// for this purpose.
 #[def_op("builtin.forward_ref")]
-#[derive_op_interface_impl(OneResultInterface, ZeroOpdInterface)]
+#[derive_op_interface_impl(NResultsInterface<1>, NOpdsInterface<0>, OneResultInterface)]
 pub struct ForwardRefOp;
 
 impl Printable for ForwardRefOp {

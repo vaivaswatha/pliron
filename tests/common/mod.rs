@@ -1,4 +1,5 @@
 use awint::bw;
+use pliron::builtin::op_interfaces::NResultsVerifyErr;
 use pliron::derive::{def_op, derive_op_interface_impl};
 use pliron::utils::apint::APInt;
 use pliron::{
@@ -6,8 +7,8 @@ use pliron::{
     builtin::{
         attributes::IntegerAttr,
         op_interfaces::{
-            IsTerminatorInterface, OneResultInterface, OneResultVerifyErr,
-            SingleBlockRegionInterface, ZeroOpdInterface,
+            IsTerminatorInterface, NOpdsInterface, NResultsInterface, OneResultInterface,
+            SingleBlockRegionInterface,
         },
         ops::{FuncOp, ModuleOp},
         types::{FunctionType, IntegerType, Signedness},
@@ -54,7 +55,7 @@ mod constant_op {
 }
 
 #[def_op("test.constant")]
-#[derive_op_interface_impl(ZeroOpdInterface, OneResultInterface)]
+#[derive_op_interface_impl(NOpdsInterface<0>, OneResultInterface, NResultsInterface<1>)]
 pub struct ConstantOp;
 impl_verify_succ!(ConstantOp);
 impl ConstantOp {
@@ -112,10 +113,7 @@ impl Parsable for ConstantOp {
         let loc = state_stream.loc();
 
         if results.len() != 1 {
-            input_err!(
-                loc.clone(),
-                OneResultVerifyErr(Self::get_opid_static().to_string())
-            )?
+            input_err!(loc.clone(), NResultsVerifyErr(1, results.len()))?
         }
 
         let attr = attr_parser().parse_stream(state_stream).into_result()?.0;

@@ -170,7 +170,7 @@ impl AttributeDict {
         self.0.insert(k, Box::new(v));
     }
 
-    /// Clone, but skip Outlined attributes.
+    /// Clone, but skip [Outlined](OutlinedAttr) attributes.
     pub fn clone_skip_outlined(&self) -> Self {
         self.0
             .iter()

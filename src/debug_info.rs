@@ -139,7 +139,7 @@ mod tests {
     use crate::{
         basic_block::BasicBlock,
         builtin::{
-            op_interfaces::{OneResultInterface, ZeroOpdInterface},
+            op_interfaces::{NOpdsInterface, NResultsInterface, OneResultInterface},
             types::{IntegerType, Signedness},
         },
         common_traits::Verify,
@@ -153,7 +153,7 @@ mod tests {
 
     #[def_op("test.zero")]
     #[format_op]
-    #[derive_op_interface_impl(ZeroOpdInterface, OneResultInterface)]
+    #[derive_op_interface_impl(OneResultInterface, NResultsInterface<1>, NOpdsInterface<0>)]
     struct ZeroOp;
     impl_verify_succ!(ZeroOp);
     impl ZeroOp {

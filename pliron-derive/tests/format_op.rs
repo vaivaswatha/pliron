@@ -4,8 +4,8 @@ use ::pliron::combine::Parser;
 use expect_test::expect;
 use pliron::{
     builtin::op_interfaces::{
-        IsTerminatorInterface, IsolatedFromAboveInterface, OneOpdInterface, OneRegionInterface,
-        OneResultInterface, ZeroOpdInterface, ZeroResultInterface,
+        IsTerminatorInterface, IsolatedFromAboveInterface, NOpdsInterface, NRegionsInterface,
+        NResultsInterface, OneOpdInterface, OneRegionInterface, OneResultInterface,
     },
     common_traits::Verify,
     context::Context,
@@ -20,7 +20,7 @@ mod common;
 
 #[format_op("")]
 #[def_op("test.zero_results_zero_operands")]
-#[derive_op_interface_impl(ZeroOpdInterface, ZeroResultInterface)]
+#[derive_op_interface_impl(NOpdsInterface<0>, NResultsInterface<0>)]
 struct ZeroResultsZeroOperandsOp {}
 impl_verify_succ!(ZeroResultsZeroOperandsOp);
 
@@ -59,7 +59,7 @@ fn zero_results_zero_operands() {
 
 #[format_op("`: ` type($0)")]
 #[def_op("test.one_result_zero_operands")]
-#[derive_op_interface_impl(ZeroOpdInterface, OneResultInterface)]
+#[derive_op_interface_impl(NOpdsInterface<0>, NResultsInterface<1>, OneResultInterface)]
 struct OneResultZeroOperandsOp {}
 impl_verify_succ!(OneResultZeroOperandsOp);
 
@@ -102,7 +102,7 @@ fn one_result_zero_operands() {
 
 #[format_op("$0 `:` type($0)")]
 #[def_op("test.one_result_one_operand")]
-#[derive_op_interface_impl(OneOpdInterface, OneResultInterface)]
+#[derive_op_interface_impl(NOpdsInterface<1>, NResultsInterface<1>, OneOpdInterface, OneResultInterface)]
 struct OneResultOneOperandOp {}
 impl_verify_succ!(OneResultOneOperandOp);
 
@@ -632,7 +632,7 @@ fn attr_op3() {
 
 #[format_op("`(`$0`)` region($0)")]
 #[def_op("test.if_op")]
-#[derive_op_interface_impl(OneOpdInterface, ZeroResultInterface, OneRegionInterface)]
+#[derive_op_interface_impl(NOpdsInterface<1>, OneOpdInterface, NResultsInterface<0>, NRegionsInterface<1>, OneRegionInterface)]
 struct IfOp {}
 impl_verify_succ!(IfOp);
 
@@ -689,7 +689,7 @@ fn if_op() {
 
 #[format_op("`(`$0`)` region($0) `else` region($1)")]
 #[def_op("test.if_else_op")]
-#[derive_op_interface_impl(OneOpdInterface, ZeroResultInterface)]
+#[derive_op_interface_impl(NOpdsInterface<1>, OneOpdInterface, NResultsInterface<0>, NRegionsInterface<2>)]
 struct IfElseOp {}
 impl_verify_succ!(IfElseOp);
 

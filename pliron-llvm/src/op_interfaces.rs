@@ -3,7 +3,7 @@
 use pliron::{
     builtin::{
         attributes::BoolAttr,
-        op_interfaces::{OneOpdInterface, SymbolOpInterface},
+        op_interfaces::{NOpdsInterface, NResultsInterface, OneOpdInterface, SymbolOpInterface},
         type_interfaces::FloatTypeInterface,
     },
     derive::op_interface,
@@ -34,13 +34,11 @@ use crate::{
 
 use super::{attributes::IntegerOverflowFlagsAttr, types::PointerType};
 
-#[derive(Error, Debug)]
-#[error("Binary Arithmetic Op must have exactly two operands and one result")]
-pub struct BinArithOpErr;
-
 /// Binary arithmetic [Op].
 #[op_interface]
-pub trait BinArithOp: SameOperandsAndResultType + OneResultInterface {
+pub trait BinArithOp:
+    SameOperandsAndResultType + OneResultInterface + NOpdsInterface<2> + NResultsInterface<1>
+{
     /// Create a new binary arithmetic operation given the operands.
     fn new(ctx: &mut Context, lhs: Value, rhs: Value) -> Self
     where
@@ -57,15 +55,10 @@ pub trait BinArithOp: SameOperandsAndResultType + OneResultInterface {
         Self::from_operation(op)
     }
 
-    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {
-        let op = op.get_operation().deref(ctx);
-        if op.get_num_operands() != 2 {
-            return verify_err!(op.loc(), BinArithOpErr);
-        }
-
         Ok(())
     }
 }
@@ -352,7 +345,9 @@ pub trait PointerTypeResult: OneResultInterface {
 
 /// A Cast [Op] has one argument and one result.
 #[op_interface]
-pub trait CastOpInterface: OneResultInterface + OneOpdInterface {
+pub trait CastOpInterface:
+    OneResultInterface + OneOpdInterface + NResultsInterface<1> + NOpdsInterface<1>
+{
     /// Create a new cast operation given the operand.
     fn new(ctx: &mut Context, operand: Value, res_type: Ptr<TypeObj>) -> Self
     where
@@ -379,7 +374,9 @@ pub trait CastOpInterface: OneResultInterface + OneOpdInterface {
 
 /// A Cast [Op] with NNEG flag.
 #[op_interface]
-pub trait CastOpWithNNegInterface: CastOpInterface + NNegFlag {
+pub trait CastOpWithNNegInterface:
+    CastOpInterface + NNegFlag + NResultsInterface<1> + NOpdsInterface<1>
+{
     /// Create a new cast operation with nneg flag
     fn new_with_nneg(ctx: &mut Context, operand: Value, res_type: Ptr<TypeObj>, nneg: bool) -> Self
     where

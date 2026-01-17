@@ -369,10 +369,12 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 /// ```
 /// use pliron::derive::{def_op, format_op, derive_op_interface_impl};
 /// use pliron::impl_verify_succ;
-/// use pliron::{op::Op, builtin::op_interfaces::{OneOpdInterface, OneResultInterface}};
+/// use pliron::{op::Op, builtin::op_interfaces::
+///     {OneOpdInterface, OneResultInterface, NOpdsInterface, NResultsInterface}};
 /// #[format_op("$0 `<` $attr `>` `:` type($0)")]
 /// #[def_op("test.one_result_one_operand")]
-/// #[derive_op_interface_impl(OneOpdInterface, OneResultInterface)]
+/// #[derive_op_interface_impl
+///     (OneOpdInterface, OneResultInterface, NOpdsInterface<1>, NResultsInterface<1>)]
 /// struct OneResultOneOperandOp;
 /// impl_verify_succ!(OneResultOneOperandOp);
 /// ```

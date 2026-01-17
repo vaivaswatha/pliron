@@ -8,6 +8,7 @@ use common::{ConstantOp, ReturnOp};
 use expect_test::expect;
 use pliron::attribute::{attr_cast, verify_attr};
 use pliron::builtin::attr_interfaces::{OutlinedAttr, PrintOnceAttr};
+use pliron::builtin::op_interfaces::NResultsInterface;
 use pliron::derive::{
     attr_interface, attr_interface_impl, def_attribute, def_op, def_type, derive_op_interface_impl,
     op_interface, op_interface_impl, type_interface, type_interface_impl,
@@ -21,7 +22,7 @@ use pliron::{
     builtin::{
         attr_interfaces::TypedAttrInterface,
         attributes::{IntegerAttr, StringAttr},
-        op_interfaces::{OneResultInterface, OneResultVerifyErr},
+        op_interfaces::{NResultsVerifyErr, OneResultInterface},
         ops::ModuleOp,
         types::{IntegerType, UnitType},
     },
@@ -53,6 +54,9 @@ struct ZeroResultOp {}
 // This is setup to fail.
 #[op_interface_impl]
 impl OneResultInterface for ZeroResultOp {}
+
+#[op_interface_impl]
+impl NResultsInterface<1> for ZeroResultOp {}
 
 impl Printable for ZeroResultOp {
     fn fmt(
@@ -102,7 +106,7 @@ fn check_intrf_verfiy_errs() {
             err,
             ..
         })
-        if err.is::<OneResultVerifyErr>()
+        if err.is::<NResultsVerifyErr>()
     ))
 }
 

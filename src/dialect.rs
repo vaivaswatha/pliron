@@ -114,7 +114,7 @@ impl Dialect {
     }
 
     /// Register this dialect if not already registered.
-    pub fn register<'a>(ctx: &'a mut Context, name: &'a DialectName) -> &'a mut Dialect {
+    pub fn register<'a>(ctx: &'a mut Context, name: &DialectName) -> &'a mut Dialect {
         // TODO: This should ideally be a single-lookup, so let's wait for Polonius
         if !ctx.dialects.contains_key(name) {
             ctx.dialects
