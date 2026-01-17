@@ -1,7 +1,5 @@
 //! Utilities for attaching / retrieving debug info to / from the IR.
 
-use std::collections::hash_map;
-
 use crate::{
     attribute::{AttrObj, AttributeDict},
     basic_block::BasicBlock,
@@ -13,6 +11,7 @@ use crate::{
     dict_key,
     identifier::Identifier,
     operation::Operation,
+    utils::data::Entry,
     utils::vec_exns::VecExtns,
 };
 
@@ -29,7 +28,7 @@ fn set_name_from_attr_map(
 ) {
     let name_attr: AttrObj = IdentifierAttr::new(name).into();
     match attributes.0.entry(ATTR_KEY_DEBUG_INFO.clone()) {
-        hash_map::Entry::Occupied(mut occupied) => {
+        Entry::Occupied(mut occupied) => {
             let di_dict = occupied.get_mut().downcast_mut::<DictAttr>().unwrap();
             let expect_msg = "Existing attribute entry for result names incorrect";
             let names = di_dict
@@ -39,7 +38,7 @@ fn set_name_from_attr_map(
                 .expect(expect_msg);
             names.0[idx] = name_attr;
         }
-        hash_map::Entry::Vacant(vacant) => {
+        Entry::Vacant(vacant) => {
             let mut names = Vec::new_init(max_idx, |_idx| UnitAttr::new().into());
             names[idx] = name_attr;
             vacant.insert(

@@ -47,7 +47,6 @@ use std::{
 use combine::{Parser, parser, token};
 use downcast_rs::{Downcast, impl_downcast};
 use dyn_clone::DynClone;
-use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     builtin::attr_interfaces::OutlinedAttr,
@@ -65,6 +64,7 @@ use crate::{
     printable::{self, Printable},
     result::Result,
     storage_uniquer::TypeValueHash,
+    utils::data::{FxHashMap, FxHashSet},
 };
 
 /// Convenience type to easily print and parse key-value pairs in an [AttributeDict].

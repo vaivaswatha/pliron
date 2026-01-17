@@ -81,7 +81,7 @@ impl ConstantOp {
         let op = self.get_operation().deref(ctx);
         op.attributes
             .0
-            .get(&constant_op::ATTR_KEY_VALUE)
+            .get(&*constant_op::ATTR_KEY_VALUE)
             .unwrap()
             .clone()
     }
