@@ -10,10 +10,11 @@ use pliron::{
         attr_interfaces::{FloatAttr, TypedAttrInterface},
         attributes::{IdentifierAttr, IntegerAttr, StringAttr, TypeAttr},
         op_interfaces::{
-            self, ATTR_KEY_SYM_NAME, AtMostNOpdsInterface, AtMostNRegionsInterface,
-            AtMostOneRegionInterface, BranchOpInterface, CallOpCallable, CallOpInterface,
-            IsTerminatorInterface, IsolatedFromAboveInterface, NOpdsInterface, NResultsInterface,
-            OneOpdInterface, OneResultInterface, OperandSegmentInterface, OptionalOpdInterface,
+            self, ATTR_KEY_SYM_NAME, AtLeastNOpdsInterface, AtLeastNResultsInterface,
+            AtMostNOpdsInterface, AtMostNRegionsInterface, AtMostOneRegionInterface,
+            BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
+            IsolatedFromAboveInterface, NOpdsInterface, NResultsInterface, OneOpdInterface,
+            OneResultInterface, OperandSegmentInterface, OptionalOpdInterface,
             SameOperandsAndResultType, SameOperandsType, SameResultsType,
             SingleBlockRegionInterface, SymbolOpInterface, SymbolUserOpInterface,
         },
@@ -148,6 +149,7 @@ macro_rules! new_int_bin_op_without_format {
         /// | `res` | Signless integer |
         #[pliron::derive::derive_op_interface_impl(
             OneResultInterface, NResultsInterface<1>, SameOperandsType, SameResultsType,
+            AtLeastNOpdsInterface<1>, AtLeastNResultsInterface<1>,
             SameOperandsAndResultType, BinArithOp, IntBinArithOp, NOpdsInterface<2>,
         )]
         pub struct $op_name;
@@ -293,7 +295,7 @@ pub enum ICmpOpVerifyErr {
 /// | `res` | 1-bit signless integer |
 #[def_op("llvm.icmp")]
 #[format_op("$0 ` <` attr($icmp_predicate, $ICmpPredicateAttr) `> ` $1 ` : ` type($0)")]
-#[derive_op_interface_impl(SameOperandsType, OneResultInterface, NResultsInterface<1>)]
+#[derive_op_interface_impl(SameOperandsType, AtLeastNOpdsInterface<1>, OneResultInterface, NResultsInterface<1>)]
 #[derive_attr_get_set(icmp_predicate : ICmpPredicateAttr)]
 pub struct ICmpOp;
 
@@ -3103,7 +3105,9 @@ pub enum SelectOpVerifyErr {
     SameOperandsAndResultType,
     FastMathFlags,
     NResultsInterface<1>,
-    NOpdsInterface<1>
+    NOpdsInterface<1>,
+    AtLeastNOpdsInterface<1>,
+    AtLeastNResultsInterface<1>,
 )]
 #[format_op("attr($llvm_fast_math_flags, $FastmathFlagsAttr) $0 ` : ` type($0)")]
 pub struct FNegOp;
@@ -3172,6 +3176,7 @@ macro_rules! new_float_bin_op {
         /// | `res` | float |
         #[pliron::derive::derive_op_interface_impl(
             OneResultInterface, SameOperandsType, SameResultsType,
+            AtLeastNOpdsInterface<1>, AtLeastNResultsInterface<1>,
             SameOperandsAndResultType, BinArithOp, FloatBinArithOp,
             FloatBinArithOpWithFastMathFlags, FastMathFlags, NResultsInterface<1>, NOpdsInterface<2>
         )]
@@ -3226,7 +3231,14 @@ new_float_bin_op! {
 /// |-----|-------|
 /// | `res` | 1-bit signless integer |
 #[def_op("llvm.fcmp")]
-#[derive_op_interface_impl(OneResultInterface, SameOperandsType, FastMathFlags, NResultsInterface<1>, NOpdsInterface<2>)]
+#[derive_op_interface_impl(
+    OneResultInterface,
+    SameOperandsType,
+    AtLeastNOpdsInterface<1>,
+    FastMathFlags,
+    NResultsInterface<1>,
+    NOpdsInterface<2>
+)]
 #[derive_attr_get_set(fcmp_predicate : FCmpPredicateAttr)]
 #[format_op(
     "attr($llvm_fast_math_flags, $FastmathFlagsAttr) ` ` $0 ` <` attr($fcmp_predicate, $FCmpPredicateAttr) `> ` $1 ` : ` type($0)"

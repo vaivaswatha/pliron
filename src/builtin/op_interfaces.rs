@@ -22,7 +22,7 @@ use crate::{
     region::Region,
     result::Result,
     symbol_table::{SymbolTableCollection, walk_symbol_table},
-    r#type::{TypeObj, Typed, type_impls},
+    r#type::{Type, TypeObj, Typed, type_impls},
     value::Value,
     verify_err, verify_error,
 };
@@ -559,6 +559,42 @@ pub trait AtMostNResultsInterface<const N: usize> {
     }
 }
 
+#[op_interface]
+pub trait OptionalResultInterface: AtMostNResultsInterface<1> {
+    fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+
+    /// Get the single result defined by this [Op], if any.
+    fn get_result(&self, ctx: &Context) -> Option<Value> {
+        let self_op = self.get_operation().deref(ctx);
+        (self_op.get_num_results() == 1).then(|| self_op.get_result(0))
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("Expected at least {0} results, but found {1} results")]
+pub struct AtLeastNResultsVerifyErr(usize, usize);
+
+/// An [Op] having at least N results.
+#[op_interface]
+pub trait AtLeastNResultsInterface<const N: usize> {
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        let self_op = op.get_operation().deref(ctx);
+        let n_results = self_op.get_num_results();
+        if n_results < N {
+            return verify_err!(self_op.loc(), AtLeastNResultsVerifyErr(N, n_results));
+        }
+        Ok(())
+    }
+}
+
 /// An [Op] having exactly one result.
 #[op_interface]
 pub trait OneResultInterface: NResultsInterface<1> {
@@ -634,6 +670,26 @@ pub trait OptionalOpdInterface: AtMostNOpdsInterface<1> {
     }
 }
 
+#[derive(Error, Debug)]
+#[error("Expected at least {0} operands, but found {1} operands")]
+pub struct AtLeastNOpdsVerifyErr(usize, usize);
+
+/// An [Op] having at least N operands.
+#[op_interface]
+pub trait AtLeastNOpdsInterface<const N: usize> {
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        let self_op = op.get_operation().deref(ctx);
+        let n_operands = self_op.get_num_operands();
+        if n_operands < N {
+            return verify_err!(self_op.loc(), AtLeastNOpdsVerifyErr(N, n_operands));
+        }
+        Ok(())
+    }
+}
+
 /// An [Op] having exactly one operand.
 #[op_interface]
 pub trait OneOpdInterface: NOpdsInterface<1> {
@@ -674,16 +730,12 @@ pub trait IsolatedFromAboveInterface {
 }
 
 #[derive(Error, Debug)]
-pub enum SameOperandsTypeVerifyErr {
-    #[error("Op with same operands types must have at least one operand")]
-    NoOperands,
-    #[error("Op has different operand types")]
-    TypesDiffer,
-}
+#[error("Op has different operand types")]
+pub struct SameOperandsTypeVerifyErr;
 
 /// An [Op] with at least one operand, and them all having the same type.
 #[op_interface]
-pub trait SameOperandsType {
+pub trait SameOperandsType: AtLeastNOpdsInterface<1> {
     /// Get the common type of the operands.
     fn operand_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         self.get_operation().deref(ctx).get_operand(0).get_type(ctx)
@@ -695,15 +747,11 @@ pub trait SameOperandsType {
     {
         let op = op.get_operation().deref(ctx);
 
-        if op.get_num_operands() == 0 {
-            return verify_err!(op.loc(), SameOperandsTypeVerifyErr::NoOperands);
-        }
-
         let mut opds = op.operands();
         let ty = opds.next().unwrap().get_type(ctx);
         for opd in opds {
             if opd.get_type(ctx) != ty {
-                return verify_err!(op.loc(), SameResultsTypeVerifyErr::TypesDiffer);
+                return verify_err!(op.loc(), SameOperandsTypeVerifyErr);
             }
         }
 
@@ -712,16 +760,42 @@ pub trait SameOperandsType {
 }
 
 #[derive(Error, Debug)]
-pub enum SameResultsTypeVerifyErr {
-    #[error("Op with same result types must have at least one result")]
-    NoResults,
-    #[error("Op has different result types")]
-    TypesDiffer,
+#[error("Expected operand type {0}, but found {1}")]
+pub struct AllOperandsOfTypeVerifyErr(String, String);
+
+/// An [Op] with all operands having the specified type.
+#[op_interface]
+pub trait AllOperandsOfType<T: Type> {
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        let op = op.get_operation().deref(ctx);
+
+        for opd in op.operands() {
+            let opd_ty = &*opd.get_type(ctx).deref(ctx);
+            if !opd_ty.as_any().is::<T>() {
+                return verify_err!(
+                    op.loc(),
+                    AllOperandsOfTypeVerifyErr(
+                        T::get_type_id_static().disp(ctx).to_string(),
+                        opd_ty.disp(ctx).to_string()
+                    )
+                );
+            }
+        }
+
+        Ok(())
+    }
 }
+
+#[derive(Error, Debug)]
+#[error("Op has different result types")]
+pub struct SameResultsTypeVerifyErr;
 
 // An [Op] with at least one result, and them all having the same type.
 #[op_interface]
-pub trait SameResultsType {
+pub trait SameResultsType: AtLeastNResultsInterface<1> {
     /// Get the common type of the results.
     fn result_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         self.get_operation().deref(ctx).get_result(0).get_type(ctx)
@@ -733,15 +807,39 @@ pub trait SameResultsType {
     {
         let op = op.get_operation().deref(ctx);
 
-        if op.get_num_results() == 0 {
-            return verify_err!(op.loc(), SameResultsTypeVerifyErr::NoResults);
-        }
-
         let mut results = op.results();
         let ty = results.next().unwrap().get_type(ctx);
         for res in results {
             if res.get_type(ctx) != ty {
-                return verify_err!(op.loc(), SameResultsTypeVerifyErr::TypesDiffer);
+                return verify_err!(op.loc(), SameResultsTypeVerifyErr);
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("Expected result type {0}, but found {1}")]
+pub struct AllResultsOfTypeVerifyErr(String, String);
+
+/// An [Op] with all results having the specified type.
+#[op_interface]
+pub trait AllResultsOfType<T: Type> {
+    fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        let op = op.get_operation().deref(ctx);
+        for res in op.results() {
+            let res_ty = &*res.get_type(ctx).deref(ctx);
+            if !res_ty.as_any().is::<T>() {
+                return verify_err!(
+                    op.loc(),
+                    AllResultsOfTypeVerifyErr(
+                        T::get_type_id_static().disp(ctx).to_string(),
+                        res_ty.disp(ctx).to_string()
+                    )
+                );
             }
         }
         Ok(())
