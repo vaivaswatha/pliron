@@ -16,7 +16,7 @@ use crate::{
     op::op_impls,
     operation::Operation,
     result::{self, Result},
-    utils::data::{FxHashMap, Entry},
+    utils::data::{Entry, FxHashMap},
     value::Value,
 };
 use combine::{
