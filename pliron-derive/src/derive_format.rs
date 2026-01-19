@@ -390,7 +390,7 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
         let missing_attr_err = format!("Missing attribute {} on Op {}", &attr_name, &op_name);
         Ok(quote! {
             {
-                let name = #attr_name.try_into().expect("Invalid attribute name");
+                let name: ::pliron::identifier::Identifier = #attr_name.try_into().expect("Invalid attribute name");
                 let self_op = self.get_operation().deref(ctx);
                 let attr = self_op.attributes.0.get(&name).expect(&#missing_attr_err);
                 ::pliron::printable::Printable::fmt(attr, ctx, state, fmt)?;

@@ -76,7 +76,7 @@ pub(crate) fn print_outlines(
     print_state: printable::State,
     f: &mut core::fmt::Formatter<'_>,
 ) -> std::fmt::Result {
-    let Some(print_state) = print_state.aux_data_mut().remove(&OUTLINED_STATE) else {
+    let Some(print_state) = print_state.aux_data_mut().remove(&*OUTLINED_STATE) else {
         return Ok(());
     };
 
@@ -185,13 +185,8 @@ pub(crate) fn postparse_outline(state_stream: &mut StateStream, op: Ptr<Operatio
         .downcast_mut::<OutlineParseState>()
         .expect("failed to downcast outline parse state");
 
-    match parse_state.outindex_map.entry(outindex) {
-        std::collections::hash_map::Entry::Occupied(_) => {
-            return input_err!(loc, "Duplicate outline index: {}", outindex);
-        }
-        std::collections::hash_map::Entry::Vacant(entry) => {
-            entry.insert(op);
-        }
+    if parse_state.outindex_map.insert(outindex, op).is_some() {
+        return input_err!(loc, "Duplicate outline index: {}", outindex);
     }
 
     Ok(())
@@ -199,7 +194,7 @@ pub(crate) fn postparse_outline(state_stream: &mut StateStream, op: Ptr<Operatio
 
 /// Parse the outlined attributes and locations.
 pub(crate) fn parse_outlines(state_stream: &mut StateStream) -> Result<()> {
-    let Some(parse_state) = state_stream.state.aux_data.remove(&OUTLINED_STATE) else {
+    let Some(parse_state) = state_stream.state.aux_data.remove(&*OUTLINED_STATE) else {
         return Ok(());
     };
 

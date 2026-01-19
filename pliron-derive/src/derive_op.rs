@@ -251,7 +251,7 @@ pub(crate) fn derive_attr_get_set(
                     -> Option<std::cell::Ref<'a, #ty>>
                 {
                     std::cell::Ref::filter_map(self.op.deref(ctx), |op|
-                        op.attributes.get::<#ty>(&#module_name::#attr_name_const)).ok()
+                        op.attributes.get::<#ty>(&*#module_name::#attr_name_const)).ok()
                 }
 
                 #[doc = #fn_comment_set]
@@ -267,7 +267,7 @@ pub(crate) fn derive_attr_get_set(
                     -> Option<std::cell::Ref<'a, ::pliron::attribute::AttrObj>>
                 {
                     std::cell::Ref::filter_map(self.op.deref(ctx), |op|
-                        op.attributes.0.get(&#module_name::#attr_name_const)).ok()
+                        op.attributes.0.get(&*#module_name::#attr_name_const)).ok()
                 }
 
                 #[doc = #fn_comment_set]
