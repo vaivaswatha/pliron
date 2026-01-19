@@ -3,6 +3,7 @@
 //! IR, after the top level operation is printed.
 
 use combine::{Parser, between, optional, parser::char::spaces, token};
+use rustc_hash::FxHashMap;
 
 use crate::{
     attribute::{AttrObj, attr_impls},
@@ -16,7 +17,6 @@ use crate::{
     parsable::{Parsable, StateStream},
     printable::{self, Printable},
     result::Result,
-    utils::data::FxHashMap,
     utils::vec_exns::VecExtns,
 };
 

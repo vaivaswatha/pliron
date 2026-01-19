@@ -8,6 +8,7 @@ use combine::{
     stream::position::SourcePosition,
     token,
 };
+use rustc_hash::FxHashSet;
 
 use crate::{
     attribute::AttrObj,
@@ -20,7 +21,6 @@ use crate::{
     parsable::Parsable,
     printable::{self, Printable},
     uniqued_any::{self, UniquedKey},
-    utils::data::FxHashSet,
 };
 
 /// Where is the source program?

@@ -13,8 +13,8 @@ use pliron::{
     printable,
     printable::Printable,
     region::Region,
-    utils::data::FxHashMap,
 };
+use rustc_hash::FxHashMap;
 use std::{fmt::Display, ops::Deref};
 
 /// Visualise an [Operation], as a graphviz DOT graph.

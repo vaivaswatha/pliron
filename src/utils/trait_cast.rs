@@ -10,7 +10,7 @@ use std::{
     sync::LazyLock,
 };
 
-use super::data::FxHashMap;
+use rustc_hash::FxHashMap;
 
 /// Cast a [dyn Any](Any) object to a `dyn Trait` object for any
 /// trait that the contained (in [Any]) type implements, and for which

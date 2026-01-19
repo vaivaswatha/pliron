@@ -3,6 +3,7 @@
 use std::{fmt::Display, ops::Deref};
 
 use combine::Parser;
+use rustc_hash::FxHashMap;
 
 use crate::{
     attribute::{AttrId, AttrParserFn},
@@ -14,7 +15,6 @@ use crate::{
     parsable::{IntoParseResult, Parsable, ParseResult, ParserFn, StateStream},
     printable::{self, Printable},
     r#type::{TypeId, TypeParserFn},
-    utils::data::FxHashMap,
 };
 
 /// Dialect name: Safe wrapper around a String.
@@ -114,12 +114,13 @@ impl Dialect {
     }
 
     /// Register this dialect if not already registered.
-    pub fn register<'a>(ctx: &'a mut Context, name: &'a DialectName) -> &'a mut Dialect {
-        ctx.dialects
-            .raw_entry_mut()
-            .from_key(name)
-            .or_insert_with(|| (name.clone(), Dialect::new(name.clone())))
-            .1
+    pub fn register<'a>(ctx: &'a mut Context, name: &DialectName) -> &'a mut Dialect {
+        // TODO: This should ideally be a single-lookup, so let's wait for Polonius
+        if !ctx.dialects.contains_key(name) {
+            ctx.dialects
+                .insert(name.clone(), Dialect::new(name.clone()));
+        }
+        ctx.dialects.get_mut(name).unwrap()
     }
 
     /// Add an [Op](crate::op::Op) to this dialect.

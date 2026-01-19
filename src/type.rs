@@ -45,11 +45,11 @@ use crate::parsable::{Parsable, ParseResult, StateStream};
 use crate::printable::{self, Printable};
 use crate::result::Result;
 use crate::storage_uniquer::TypeValueHash;
-use crate::utils::data::{FxHashMap, FxHashSet};
 use crate::{arg_err_noloc, impl_printable_for_display, input_err};
 
 use combine::{Parser, parser};
 use downcast_rs::{Downcast, impl_downcast};
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::cell::Ref;
 use std::fmt::Debug;
 use std::fmt::Display;

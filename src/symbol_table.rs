@@ -1,5 +1,6 @@
 //! Utilities to work with [SymbolTableInterface] Ops.
 
+use rustc_hash::FxHashMap;
 use thiserror::Error;
 
 use crate::builtin::op_interfaces::{SymbolOpInterface, SymbolTableInterface};
@@ -16,7 +17,6 @@ use crate::linked_list::ContainsLinkedList;
 use crate::op::op_cast;
 use crate::operation::Operation;
 use crate::result::Result;
-use crate::utils::data::FxHashMap;
 
 /// A utility to efficiently lookup and update [Symbol](SymbolOpInterface)s
 /// in a [SymbolTableInterface] Op. Similar to its counterpart in MLIR,

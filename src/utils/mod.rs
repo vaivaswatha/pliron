@@ -2,7 +2,6 @@
 
 pub mod apfloat;
 pub mod apint;
-pub mod data;
 #[cfg(target_family = "wasm")]
 pub mod inventory;
 pub mod trait_cast;

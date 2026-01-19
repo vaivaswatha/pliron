@@ -3,13 +3,14 @@
 //! Only a single unique copy (in self context) will
 //! exit of objects instantiated by this utility.
 
+use rustc_hash::{FxHashMap, FxHasher};
 use std::{
     cell::RefCell,
+    collections::hash_map::Entry,
     hash::{Hash, Hasher},
 };
 
 use crate::context::{Arena, ArenaIndex};
-use crate::utils::data::{Entry, FxHashMap, FxHasher};
 
 /// Computes the hash of a rust value and its rust type.
 /// ```rust
