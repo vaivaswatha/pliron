@@ -260,10 +260,10 @@ where
 
     /// Is this node part of a linked list?
     pub fn is_linked(&self, ctx: &Context) -> bool {
-        let has_container = self.deref(ctx).get_container().is_some();
+        let node = &*self.deref(ctx);
+        let has_container = node.get_container().is_some();
         assert!(
-            has_container
-                || self.deref(ctx).get_next().is_none() && self.deref(ctx).get_prev().is_none(),
+            has_container || node.get_next().is_none() && node.get_prev().is_none(),
             "LinkedList node has no container, but has next/prev node"
         );
         has_container
@@ -271,30 +271,24 @@ where
 
     /// Unlink self from list.
     pub fn unlink(&self, ctx: &Context) {
-        let container = self.deref(ctx).get_container();
-        assert!(
-            container.is_some(),
-            "LinkedList: Attempt to remove unlinked node"
-        );
-        let container = container.unwrap();
-        match self.deref(ctx).get_next() {
-            Some(next) => next.deref_mut(ctx).set_prev(self.deref(ctx).get_prev()),
+        let container = self
+            .deref(ctx)
+            .get_container()
+            .expect("LinkedList: Attempt to remove unlinked node");
+        let next = self.deref(ctx).get_next();
+        let prev = self.deref(ctx).get_prev();
+        match next {
+            Some(next) => next.deref_mut(ctx).set_prev(prev),
             None => {
-                private::ContainsLinkedList::set_tail(
-                    &mut (*container.deref_mut(ctx)),
-                    self.deref(ctx).get_prev(),
-                );
+                private::ContainsLinkedList::set_tail(&mut (*container.deref_mut(ctx)), prev);
             }
         }
-        match self.deref(ctx).get_prev() {
+        match prev {
             Some(prev) => {
-                prev.deref_mut(ctx).set_next(self.deref(ctx).get_next());
+                prev.deref_mut(ctx).set_next(next);
             }
             None => {
-                private::ContainsLinkedList::set_head(
-                    &mut (*container.deref_mut(ctx)),
-                    self.deref(ctx).get_next(),
-                );
+                private::ContainsLinkedList::set_head(&mut (*container.deref_mut(ctx)), next);
             }
         }
 
