@@ -187,7 +187,7 @@ impl IntegerAttr {
     }
 
     /// Get the value of the attribute.
-    pub fn get_value(&self) -> APInt {
+    pub fn value(&self) -> APInt {
         self.val.clone()
     }
 
