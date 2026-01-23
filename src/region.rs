@@ -47,7 +47,7 @@ impl Region {
     /// If `new_parent_op` is same as the current parent, no action.
     /// Indices of other regions in the current parent will be invalidated.
     pub fn move_to_op(ptr: Ptr<Self>, new_parent_op: Ptr<Operation>, ctx: &Context) {
-        let src = ptr.deref(ctx).get_parent_op();
+        let src = ptr.deref(ctx).parent_op();
         if src == new_parent_op {
             return;
         }
@@ -63,7 +63,7 @@ impl Region {
     }
 
     /// Get the operation that contains this region.
-    pub fn get_parent_op(&self) -> Ptr<Operation> {
+    pub fn parent_op(&self) -> Ptr<Operation> {
         self.parent_op
     }
 

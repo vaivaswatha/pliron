@@ -283,10 +283,10 @@ fn graphviz_callback(
             }
         }
         IRNode::Region(region) => {
-            let parent_op = region.deref(ctx).get_parent_op();
+            let parent_op = region.deref(ctx).parent_op();
             let oper_index = graph_state.get_operation_index(parent_op);
             let region_idx = graph_state
-                .get_region_index(region.deref(ctx).get_parent_op())
+                .get_region_index(region.deref(ctx).parent_op())
                 .unwrap();
             let op_id = Operation::get_op_dyn(parent_op, ctx).get_opid();
             let parent_op_label = op_id.name.deref();
