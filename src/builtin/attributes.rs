@@ -161,7 +161,7 @@ impl Printable for IntegerAttr {
             f,
             "<{}: {}>",
             self.val
-                .to_string_decimal(ty.get_signedness() == Signedness::Signed),
+                .to_string_decimal(ty.signedness() == Signedness::Signed),
             ty.disp(ctx)
         )
     }
@@ -173,7 +173,7 @@ pub struct IntegerAttrBitwidthErr;
 
 impl Verify for IntegerAttr {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        if self.ty.deref(ctx).get_width() as usize != self.val.bw() {
+        if self.ty.deref(ctx).width() as usize != self.val.bw() {
             return verify_err_noloc!(IntegerAttrBitwidthErr);
         }
         Ok(())
@@ -222,7 +222,7 @@ impl Parsable for IntegerAttr {
         .then(|(digits, ty)| {
             combine::parser(move |state_stream: &mut StateStream<'a>| {
                 let ty_ref = &*ty.deref(state_stream.state.ctx);
-                let apint = match APInt::from_str(&digits, ty_ref.get_width() as usize, 10) {
+                let apint = match APInt::from_str(&digits, ty_ref.width() as usize, 10) {
                     Ok(val) => Ok(val).into_parse_result(),
                     Err(err) => input_err!(state_stream.loc(), "{}", err).into_parse_result(),
                 }?;
