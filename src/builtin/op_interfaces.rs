@@ -72,12 +72,12 @@ pub trait BranchOpInterface: IsTerminatorInterface {
         for (succ_idx, succ) in op.get_operation().deref(ctx).successors().enumerate() {
             let succ = &*succ.deref(ctx);
             let operands = self_op.successor_operands(ctx, succ_idx);
-            if succ.get_num_arguments() != operands.len() {
+            if succ.num_arguments() != operands.len() {
                 return verify_err!(
                     op.loc(ctx),
                     BranchOpInterfaceVerifyErr::SuccessorOperandsMismatch {
                         provided: operands.len(),
-                        expected: succ.get_num_arguments()
+                        expected: succ.num_arguments()
                     }
                 );
             }
