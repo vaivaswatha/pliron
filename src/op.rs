@@ -345,7 +345,7 @@ pub fn canonical_syntax_print(
     );
     let regions = iter_with_sep(op.regions(), printable::ListSeparator::Newline);
 
-    if op.get_num_results() != 0 {
+    if op.num_results() != 0 {
         let results = iter_with_sep(op.results(), sep);
         write!(f, "{} = ", results.disp(ctx))?;
     }

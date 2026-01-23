@@ -147,11 +147,11 @@ impl OpInserter {
             OpInsertionPoint::AtBlockEnd(block) => block,
             OpInsertionPoint::AfterOperation(op) => op
                 .deref(ctx)
-                .get_parent_block()
+                .parent_block()
                 .expect("Insertion point Operation must have parent block"),
             OpInsertionPoint::BeforeOperation(op) => op
                 .deref(ctx)
-                .get_parent_block()
+                .parent_block()
                 .expect("Insertion point Operation must have parent block"),
         }
     }

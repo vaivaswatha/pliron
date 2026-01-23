@@ -132,14 +132,14 @@ fn operation_print(ctx: &Context, op: OpObj, f: &mut std::fmt::Formatter<'_>) ->
     let op = op.as_ref().get_operation().deref(ctx);
     let operands = iter_with_sep(op.operands(), sep);
 
-    if op.get_num_results() != 0 {
+    if op.num_results() != 0 {
         let results = iter_with_sep(op.results(), sep);
         write!(f, "{} = ", results.disp(ctx))?;
     }
 
     write!(f, "{} ({})", opid.disp(ctx), operands.disp(ctx))?;
 
-    if op.get_num_successors() > 0 {
+    if op.num_successors() > 0 {
         let successors = iter_with_sep(
             op.successors()
                 .map(|succ| format!("^{}", succ.unique_name(ctx))),
@@ -215,7 +215,7 @@ fn graphviz_callback(
         IRNode::Operation(op) => {
             let oper_index = graph_state.get_operation_index(op);
             let operation_identifier =
-                if let Some(parent_block_identifier) = op.deref(ctx).get_parent_block() {
+                if let Some(parent_block_identifier) = op.deref(ctx).parent_block() {
                     format!("{}", parent_block_identifier.deref(ctx).unique_name(ctx))
                 } else {
                     write!(
