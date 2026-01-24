@@ -41,6 +41,7 @@ pub mod parsable;
 pub mod printable;
 pub mod region;
 pub mod result;
+pub mod rewriter;
 pub mod storage_uniquer;
 pub mod symbol_table;
 pub mod r#type;

@@ -165,6 +165,11 @@ impl Value {
         }
     }
 
+    /// Replace all uses of the underlying definition with `other`.
+    pub fn replace_all_uses_with(&self, ctx: &Context, other: &Value) {
+        self.replace_some_uses_with(ctx, |_, _| true, other);
+    }
+
     /// Replace the given use of `this` [Value] with `other`.
     pub fn replace_use_with(&self, ctx: &Context, r#use: Use<Value>, other: &Value) {
         DefNode::replace_use_with(ctx, self, &r#use, other);
@@ -337,6 +342,11 @@ impl Ptr<BasicBlock> {
         for r#use in &touched_uses {
             DefNode::replace_use_with(ctx, self, r#use, &other);
         }
+    }
+
+    /// Retarget all predecessors to `other`.
+    pub fn retarget_all_preds_to(&self, ctx: &Context, other: Ptr<BasicBlock>) {
+        self.retarget_some_preds_to(ctx, |_, _| true, other);
     }
 
     /// Retarget the given pred (`block_use`) of `this` [`Ptr<BasicBlock>`] to `other`.

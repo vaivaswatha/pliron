@@ -5,6 +5,7 @@ use crate::{
     common_traits::Verify,
     dialect::{Dialect, DialectName},
     identifier::Identifier,
+    input_error_noloc,
     operation::Operation,
     printable::{self, Printable},
     region::Region,
@@ -192,23 +193,23 @@ impl<'a, T: ArenaObj> Ptr<T> {
     /// Try and return a Ref to the pointee.
     /// This borrows from a RefCell and the borrow is live
     /// as long as the returned Ref lives.
-    pub fn try_deref(&self, ctx: &'a Context) -> Option<Ref<'a, T>> {
+    pub fn try_deref(&self, ctx: &'a Context) -> Result<Ref<'a, T>> {
         T::get_arena(ctx)
             .get(self.idx)
             .expect("Dangling Ptr deref")
             .try_borrow()
-            .ok()
+            .map_err(|err| input_error_noloc!(err))
     }
 
     /// Try and return a RefMut to the pointee.
     /// This mutably borrows from a RefCell and the borrow is live
     /// as long as the returned RefMut lives.
-    pub fn try_deref_mut(&self, ctx: &'a Context) -> Option<RefMut<'a, T>> {
+    pub fn try_deref_mut(&self, ctx: &'a Context) -> Result<RefMut<'a, T>> {
         T::get_arena(ctx)
             .get(self.idx)
             .expect("Dangling Ptr deref_mut")
             .try_borrow_mut()
-            .ok()
+            .map_err(|err| input_error_noloc!(err))
     }
 
     /// Create a unique (to the arena) name based on the arena index.
