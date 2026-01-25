@@ -284,7 +284,7 @@ impl ToLLVMType for IntegerType {
         llvm_ctx: &LLVMContext,
         _cctx: &mut ConversionContext,
     ) -> Result<LLVMType> {
-        Ok(llvm_int_type_in_context(llvm_ctx, self.get_width()))
+        Ok(llvm_int_type_in_context(llvm_ctx, self.width()))
     }
 }
 
