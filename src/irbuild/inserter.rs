@@ -6,6 +6,7 @@ use crate::{
     common_traits::Named,
     context::{Context, Ptr},
     identifier::Identifier,
+    irbuild::listener::InsertionListener,
     op::Op,
     operation::Operation,
     printable::{self, Printable},
@@ -58,7 +59,8 @@ impl Printable for OpInsertionPoint {
 }
 
 /// An interface for insertion of IR entities.
-pub trait Inserter: Default {
+/// Use `()` as the listener type if no listener is needed.
+pub trait Inserter<L: InsertionListener>: Default {
     /// Appends an [Operation] at the current insertion point.
     /// The insertion point is updated to be after this newly inserted [Operation].
     fn append_operation(&mut self, ctx: &Context, operation: Ptr<Operation>);
@@ -69,12 +71,11 @@ pub trait Inserter: Default {
 
     /// Inserts an [Operation] at the current insertion point.
     /// To insert a sequence in-order, use [append_operation](Self::append_operation).
-    fn insert_operation(&self, ctx: &Context, operation: Ptr<Operation>);
+    fn insert_operation(&mut self, ctx: &Context, operation: Ptr<Operation>);
 
     /// Inserts an [Op] at the current insertion point.
     /// To insert a sequence in-order, use [append_op](Self::append_op).
-    fn insert_op(&self, ctx: &Context, op: impl Op);
-
+    fn insert_op(&mut self, ctx: &Context, op: impl Op);
     /// Create a new [BasicBlock] and insert it before the provided marker block.
     /// The insertion point is updated to be at the end of the newly created block.
     fn create_block_before(
@@ -148,20 +149,40 @@ pub trait Inserter: Default {
     fn set_insertion_point_before_operation(&mut self, op: Ptr<Operation>) {
         self.set_insertion_point(OpInsertionPoint::BeforeOperation(op));
     }
+
+    /// Sets the listener for insertion events.
+    fn set_listener(&mut self, listener: L);
+
+    /// Gets a reference to the listener for insertion events.
+    fn get_listener(&self) -> Option<&L>;
+
+    /// Gets a mutable reference to the listener for insertion events.
+    fn get_listener_mut(&mut self) -> Option<&mut L>;
 }
 
 /// A utility for inserting [Operation]s from a specified insertion point.
-#[derive(Default)]
-pub struct IRInserter {
+/// Use [DummyListener](super::listener::DummyListener) if no listener is needed.
+pub struct IRInserter<L: InsertionListener> {
     op_insertion_point: OpInsertionPoint,
+    listener: Option<L>,
 }
 
-impl IRInserter {
+impl<L: InsertionListener> Default for IRInserter<L> {
+    fn default() -> Self {
+        Self {
+            op_insertion_point: OpInsertionPoint::default(),
+            listener: None,
+        }
+    }
+}
+
+impl<L: InsertionListener> IRInserter<L> {
     /// Creates a new [Inserter] that inserts the next operation
     /// at the start of the given [BasicBlock].
     pub fn new_at_block_start(block: Ptr<BasicBlock>) -> Self {
         Self {
             op_insertion_point: OpInsertionPoint::AtBlockStart(block),
+            listener: None,
         }
     }
 
@@ -170,6 +191,7 @@ impl IRInserter {
     pub fn new_at_block_end(block: Ptr<BasicBlock>) -> Self {
         Self {
             op_insertion_point: OpInsertionPoint::AtBlockEnd(block),
+            listener: None,
         }
     }
 
@@ -178,6 +200,7 @@ impl IRInserter {
     pub fn new_after_operation(op: Ptr<Operation>) -> Self {
         Self {
             op_insertion_point: OpInsertionPoint::AfterOperation(op),
+            listener: None,
         }
     }
 
@@ -186,6 +209,7 @@ impl IRInserter {
     pub fn new_before_operation(op: Ptr<Operation>) -> Self {
         Self {
             op_insertion_point: OpInsertionPoint::BeforeOperation(op),
+            listener: None,
         }
     }
 
@@ -200,7 +224,7 @@ impl IRInserter {
     }
 }
 
-impl Inserter for IRInserter {
+impl<L: InsertionListener> Inserter<L> for IRInserter<L> {
     fn append_operation(&mut self, ctx: &Context, operation: Ptr<Operation>) {
         // Insert the operation at the current insertion point
         self.insert_operation(ctx, operation);
@@ -213,7 +237,7 @@ impl Inserter for IRInserter {
         self.append_operation(ctx, operation);
     }
 
-    fn insert_operation(&self, ctx: &Context, operation: Ptr<Operation>) {
+    fn insert_operation(&mut self, ctx: &Context, operation: Ptr<Operation>) {
         match self.op_insertion_point {
             OpInsertionPoint::AtBlockStart(block) => {
                 // Insert operation at the start of the block
@@ -235,9 +259,13 @@ impl Inserter for IRInserter {
                 panic!("Insertion point is not set");
             }
         }
+        // Notify the listerner if present
+        if let Some(listener) = &mut self.listener {
+            listener.notify_operation_inserted(ctx, operation);
+        }
     }
 
-    fn insert_op(&self, ctx: &Context, op: impl Op) {
+    fn insert_op(&mut self, ctx: &Context, op: impl Op) {
         let operation = op.get_operation();
         self.insert_operation(ctx, operation);
     }
@@ -251,6 +279,10 @@ impl Inserter for IRInserter {
     ) {
         let block = BasicBlock::new(ctx, label, arg_types);
         block.insert_before(ctx, mark);
+        // Notify the listener if present
+        if let Some(listener) = &mut self.listener {
+            listener.notify_block_created(ctx, block);
+        }
         self.op_insertion_point = OpInsertionPoint::AtBlockEnd(block);
     }
 
@@ -263,6 +295,10 @@ impl Inserter for IRInserter {
     ) {
         let block = BasicBlock::new(ctx, label, arg_types);
         block.insert_after(ctx, mark);
+        // Notify the listener if present
+        if let Some(listener) = &mut self.listener {
+            listener.notify_block_created(ctx, block);
+        }
         self.op_insertion_point = OpInsertionPoint::AtBlockEnd(block);
     }
 
@@ -275,6 +311,10 @@ impl Inserter for IRInserter {
     ) {
         let block = BasicBlock::new(ctx, label, arg_types);
         block.insert_at_front(region, ctx);
+        // Notify the listener if present
+        if let Some(listener) = &mut self.listener {
+            listener.notify_block_created(ctx, block);
+        }
         self.op_insertion_point = OpInsertionPoint::AtBlockEnd(block);
     }
 
@@ -287,6 +327,10 @@ impl Inserter for IRInserter {
     ) {
         let block = BasicBlock::new(ctx, label, arg_types);
         block.insert_at_back(region, ctx);
+        // Notify the listener if present
+        if let Some(listener) = &mut self.listener {
+            listener.notify_block_created(ctx, block);
+        }
         self.op_insertion_point = OpInsertionPoint::AtBlockEnd(block);
     }
 
@@ -314,5 +358,20 @@ impl Inserter for IRInserter {
 
     fn set_insertion_point(&mut self, point: OpInsertionPoint) {
         self.op_insertion_point = point;
+    }
+
+    /// Sets the listener for insertion events.
+    fn set_listener(&mut self, listener: L) {
+        self.listener = Some(listener);
+    }
+
+    /// Gets a reference to the listener for insertion events.
+    fn get_listener(&self) -> Option<&L> {
+        self.listener.as_ref()
+    }
+
+    /// Gets a mutable reference to the listener for insertion events.
+    fn get_listener_mut(&mut self) -> Option<&mut L> {
+        self.listener.as_mut()
     }
 }

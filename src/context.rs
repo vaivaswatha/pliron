@@ -1,11 +1,11 @@
 //! [Context] and [Ptr] together provide memory management for `pliron`.
 
 use crate::{
+    arg_error_noloc,
     basic_block::BasicBlock,
     common_traits::Verify,
     dialect::{Dialect, DialectName},
     identifier::Identifier,
-    input_error_noloc,
     operation::Operation,
     printable::{self, Printable},
     region::Region,
@@ -198,7 +198,7 @@ impl<'a, T: ArenaObj> Ptr<T> {
             .get(self.idx)
             .expect("Dangling Ptr deref")
             .try_borrow()
-            .map_err(|err| input_error_noloc!(err))
+            .map_err(|err| arg_error_noloc!(err))
     }
 
     /// Try and return a RefMut to the pointee.
@@ -209,7 +209,7 @@ impl<'a, T: ArenaObj> Ptr<T> {
             .get(self.idx)
             .expect("Dangling Ptr deref_mut")
             .try_borrow_mut()
-            .map_err(|err| input_error_noloc!(err))
+            .map_err(|err| arg_error_noloc!(err))
     }
 
     /// Create a unique (to the arena) name based on the arena index.

@@ -1,18 +1,22 @@
+//! [Rewriter] extends [Inserter] with more capabilities, such as replace and erase operations.
+
 use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
-    graph::walkers::{IRNode, WALKCONFIG_PREORDER_FORWARD, immutable::walk_op},
     identifier::Identifier,
-    inserter::{IRInserter, Inserter, OpInsertionPoint},
+    irbuild::{
+        inserter::{IRInserter, Inserter, OpInsertionPoint},
+        listener::RewriteListener,
+    },
     op::Op,
     operation::Operation,
     region::Region,
-    result::Result,
     r#type::TypeObj,
 };
 
 /// Rewriter interface for transformations.
-pub trait Rewriter: Inserter {
+/// Use `()` as the listener type if no listener is needed.
+pub trait Rewriter<L: RewriteListener>: Inserter<L> {
     /// Replace an operation (and delete it) with another operation.
     /// Results of the new operation must match the results of the old operation.
     fn replace_operation(&mut self, ctx: &mut Context, op: Ptr<Operation>, new_op: Ptr<Operation>);
@@ -31,13 +35,26 @@ pub trait Rewriter: Inserter {
 }
 
 /// An implementation of the rewriter trait.
-#[derive(Default)]
-pub struct IRRewriter<I: Inserter = IRInserter> {
+pub struct IRRewriter<L: RewriteListener, I: Inserter<L> = IRInserter<L>> {
     inserter: I,
     modified: bool,
+    _phantom: std::marker::PhantomData<L>,
 }
 
-impl<I: Inserter> Inserter for IRRewriter<I> {
+impl<L: RewriteListener, I: Inserter<L>> Default for IRRewriter<L, I>
+where
+    I: Default,
+{
+    fn default() -> Self {
+        Self {
+            inserter: I::default(),
+            modified: false,
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<L: RewriteListener, I: Inserter<L>> Inserter<L> for IRRewriter<L, I> {
     fn append_operation(&mut self, ctx: &Context, operation: Ptr<Operation>) {
         self.inserter.append_operation(ctx, operation)
     }
@@ -46,11 +63,11 @@ impl<I: Inserter> Inserter for IRRewriter<I> {
         self.inserter.append_op(ctx, op)
     }
 
-    fn insert_operation(&self, ctx: &Context, operation: Ptr<Operation>) {
+    fn insert_operation(&mut self, ctx: &Context, operation: Ptr<Operation>) {
         self.inserter.insert_operation(ctx, operation)
     }
 
-    fn insert_op(&self, ctx: &Context, op: impl Op) {
+    fn insert_op(&mut self, ctx: &Context, op: impl Op) {
         self.inserter.insert_op(ctx, op)
     }
 
@@ -109,14 +126,29 @@ impl<I: Inserter> Inserter for IRRewriter<I> {
     fn set_insertion_point(&mut self, point: OpInsertionPoint) {
         self.inserter.set_insertion_point(point)
     }
+
+    fn set_listener(&mut self, listener: L) {
+        self.inserter.set_listener(listener);
+    }
+
+    fn get_listener(&self) -> Option<&L> {
+        self.inserter.get_listener()
+    }
+
+    fn get_listener_mut(&mut self) -> Option<&mut L> {
+        self.inserter.get_listener_mut()
+    }
 }
 
-impl<I: Inserter> Rewriter for IRRewriter<I> {
+impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
     fn replace_operation(&mut self, ctx: &mut Context, op: Ptr<Operation>, new_op: Ptr<Operation>) {
         assert!(
             op.deref(ctx).get_num_results() == new_op.deref(ctx).get_num_results(),
             "Replacement operation must have the same number of results as the original operation."
         );
+        if let Some(listener) = self.inserter.get_listener_mut() {
+            listener.notify_operation_replacement(ctx, op, new_op);
+        }
         // We need to collect the results first to avoid `RefCell` borrowing issues.
         let results: Vec<_> = op
             .deref(ctx)
@@ -126,11 +158,14 @@ impl<I: Inserter> Rewriter for IRRewriter<I> {
         for (res, new_res) in results {
             res.replace_all_uses_with(ctx, &new_res);
         }
-        Operation::erase(op, ctx);
+        self.erase_operation(ctx, op);
         self.set_modified();
     }
 
     fn erase_operation(&mut self, ctx: &mut Context, op: Ptr<Operation>) {
+        if let Some(listener) = self.inserter.get_listener_mut() {
+            listener.notify_operation_erasure(ctx, op);
+        }
         Operation::erase(op, ctx);
         self.set_modified();
     }
@@ -146,63 +181,4 @@ impl<I: Inserter> Rewriter for IRRewriter<I> {
     fn clear_modified(&mut self) {
         self.modified = false;
     }
-}
-
-/// Match operations and rewrite them.
-pub trait MatchRewrite<R: Rewriter = IRRewriter> {
-    /// Should operation be rewritten?
-    fn r#match(&mut self, ctx: &Context, op: Ptr<Operation>) -> bool;
-    /// Rewrite the matched operation.
-    /// Insertion point is set to be before the operation being rewritten.
-    fn rewrite(&mut self, ctx: &mut Context, rewriter: &mut R, op: Ptr<Operation>) -> Result<()>;
-}
-
-/// Collects all operations (recursively) that match a given pattern
-/// and then applies a rewrite to them.
-pub fn collect_rewrite<R: Rewriter, M: MatchRewrite<R>>(
-    ctx: &mut Context,
-    mut match_rewrite: M,
-    mut rewriter: R,
-    op: Ptr<Operation>,
-) -> Result<()> {
-    // Collect all operations that match.
-    let mut to_rewrite = Vec::new();
-    struct WalkerState<'a, M> {
-        match_rewrite: &'a mut M,
-        to_rewrite: &'a mut Vec<Ptr<Operation>>,
-    }
-    let mut state = WalkerState {
-        match_rewrite: &mut match_rewrite,
-        to_rewrite: &mut to_rewrite,
-    };
-
-    // A callback for the walker.
-    fn walker_callback<R: Rewriter, M: MatchRewrite<R>>(
-        ctx: &Context,
-        state: &mut WalkerState<M>,
-        node: IRNode,
-    ) {
-        if let IRNode::Operation(op) = node
-            && state.match_rewrite.r#match(ctx, op)
-        {
-            state.to_rewrite.push(op);
-        }
-    }
-
-    // Walk the operation tree.
-    walk_op(
-        ctx,
-        &mut state,
-        &WALKCONFIG_PREORDER_FORWARD,
-        op,
-        walker_callback,
-    );
-
-    // Now rewrite all collected operations.
-    for op in to_rewrite {
-        // TODO: Use a Listener to see if the operation was deleted during rewriting.
-        rewriter.set_insertion_point(OpInsertionPoint::BeforeOperation(op));
-        match_rewrite.rewrite(ctx, &mut rewriter, op)?;
-    }
-    Ok(())
 }
