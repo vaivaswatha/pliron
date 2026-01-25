@@ -36,7 +36,7 @@ fn replace_c0_with_c1() -> Result<()> {
             .get_value(ctx)
             .downcast_ref::<IntegerAttr>()
             .unwrap()
-            .get_value()
+            .value()
             .to_u64()
             == 0
     );
@@ -49,7 +49,7 @@ fn replace_c0_with_c1() -> Result<()> {
                 let val = const_op.get_value(ctx);
                 return val
                     .downcast_ref::<IntegerAttr>()
-                    .is_some_and(|int_attr| int_attr.get_value().to_u64() < 2);
+                    .is_some_and(|int_attr| int_attr.value().to_u64() < 2);
             }
             false
         }
@@ -68,7 +68,7 @@ fn replace_c0_with_c1() -> Result<()> {
             let cur_val = const_op
                 .downcast_ref::<IntegerAttr>()
                 .unwrap()
-                .get_value()
+                .value()
                 .to_u64();
             if cur_val >= 2 {
                 panic!("Expected match only on constant value less than 2");

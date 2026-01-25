@@ -562,7 +562,7 @@ mod tests {
                 .deref(&ctx)
                 .downcast_ref::<IntegerType>()
                 .unwrap()
-                .get_width()
+                .width()
                 == 64
         );
 

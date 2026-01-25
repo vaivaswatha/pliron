@@ -356,7 +356,7 @@ impl Verify for ICmpOp {
         let Some(res_ty) = res_ty.downcast_ref::<IntegerType>() else {
             return verify_err!(loc, ICmpOpVerifyErr::ResultNotBool);
         };
-        if res_ty.get_width() != 1 {
+        if res_ty.width() != 1 {
             return verify_err!(loc, ICmpOpVerifyErr::ResultNotBool);
         }
 
@@ -2188,27 +2188,27 @@ fn integer_cast_verify(op: &Operation, ctx: &Context, cmp: ICmpPredicateAttr) ->
 
     match cmp {
         ICmpPredicateAttr::SLT | ICmpPredicateAttr::ULT => {
-            if res_ty.get_width() >= opd_ty.get_width() {
+            if res_ty.width() >= opd_ty.width() {
                 return verify_err!(loc, IntCastVerifyErr::ResultTypeLargerThanOperand);
             }
         }
         ICmpPredicateAttr::SGT | ICmpPredicateAttr::UGT => {
-            if res_ty.get_width() <= opd_ty.get_width() {
+            if res_ty.width() <= opd_ty.width() {
                 return verify_err!(loc, IntCastVerifyErr::ResultTypeSmallerThanOperand);
             }
         }
         ICmpPredicateAttr::SLE | ICmpPredicateAttr::ULE => {
-            if res_ty.get_width() > opd_ty.get_width() {
+            if res_ty.width() > opd_ty.width() {
                 return verify_err!(loc, IntCastVerifyErr::ResultTypeLargerThanOperand);
             }
         }
         ICmpPredicateAttr::SGE | ICmpPredicateAttr::UGE => {
-            if res_ty.get_width() < opd_ty.get_width() {
+            if res_ty.width() < opd_ty.width() {
                 return verify_err!(loc, IntCastVerifyErr::ResultTypeSmallerThanOperand);
             }
         }
         ICmpPredicateAttr::EQ | ICmpPredicateAttr::NE => {
-            if res_ty.get_width() != opd_ty.get_width() {
+            if res_ty.width() != opd_ty.width() {
                 return verify_err!(loc, IntCastVerifyErr::ResultTypeEqualToOperand);
             }
         }
@@ -3069,7 +3069,7 @@ impl Verify for SelectOp {
         }
 
         let cond_ty = cond_ty.downcast_ref::<IntegerType>();
-        if cond_ty.is_none_or(|ty| ty.get_width() != 1) {
+        if cond_ty.is_none_or(|ty| ty.width() != 1) {
             return verify_err!(loc, SelectOpVerifyErr::ConditionTypeErr);
         }
         Ok(())
@@ -3284,7 +3284,7 @@ impl Verify for FCmpOp {
                 err
             })?;
 
-        if res_ty.deref(ctx).get_width() != 1 {
+        if res_ty.deref(ctx).width() != 1 {
             return verify_err!(loc, FCmpOpVerifyErr::ResultNotBool);
         }
 

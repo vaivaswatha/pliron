@@ -87,7 +87,7 @@ pub trait IntBinArithOp: BinArithOp {
             return verify_err!(op.loc(ctx), IntBinArithOpErr);
         };
 
-        if int_ty.get_signedness() != Signedness::Signless {
+        if int_ty.signedness() != Signedness::Signless {
             return verify_err!(op.loc(ctx), IntBinArithOpErr);
         }
 

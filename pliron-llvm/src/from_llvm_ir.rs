@@ -391,7 +391,7 @@ fn get_const_op_as_u32(ctx: &Context, val: Value) -> Option<u32> {
     get_const_op_as_int(ctx, val).and_then(|int_attr| {
         let int_ty = int_attr.get_type().deref(ctx);
         // LLVM integers are signless.
-        (int_ty.is_signless() && int_ty.get_width() == 32).then(|| int_attr.get_value().to_u32())
+        (int_ty.is_signless() && int_ty.width() == 32).then(|| int_attr.value().to_u32())
     })
 }
 
@@ -432,7 +432,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
             // TODO: Zero extend or sign extend?
             let u64 = llvm_const_int_get_zext_value(val);
             let int_ty = TypePtr::<IntegerType>::from_ptr(ty, ctx)?;
-            let width = int_ty.deref(ctx).get_width() as usize;
+            let width = int_ty.deref(ctx).width() as usize;
             if width == 0 {
                 return input_err_noloc!(ConversionErr::ZeroWidthIntConst);
             }
