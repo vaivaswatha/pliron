@@ -136,7 +136,7 @@ impl OpInserter {
     }
 
     /// Gets the current insertion point.
-    pub fn get_insertion_point(&self) -> OpInsertionPoint {
+    pub fn insertion_point(&self) -> OpInsertionPoint {
         self.insertion_point
     }
 

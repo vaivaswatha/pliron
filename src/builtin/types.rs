@@ -42,12 +42,12 @@ impl IntegerType {
     }
 
     /// Get width.
-    pub fn get_width(&self) -> u32 {
+    pub fn width(&self) -> u32 {
         self.width
     }
 
     /// Get signedness.
-    pub fn get_signedness(&self) -> Signedness {
+    pub fn signedness(&self) -> Signedness {
         self.signedness
     }
 

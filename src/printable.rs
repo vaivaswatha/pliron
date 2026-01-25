@@ -42,7 +42,7 @@ impl RcShare for State {
 
 impl State {
     /// Number of spaces per indentation
-    pub fn get_indent_width(&self) -> u16 {
+    pub fn indent_width(&self) -> u16 {
         self.0.as_ref().borrow().indent_width
     }
 
@@ -52,17 +52,17 @@ impl State {
     }
 
     /// What's the indentation we're at right now?
-    pub fn get_current_indent(&self) -> u16 {
+    pub fn current_indent(&self) -> u16 {
         self.0.as_ref().borrow().cur_indent
     }
 
-    /// Increase the current indentation by [Self::get_indent_width]
+    /// Increase the current indentation by [Self::indent_width]
     pub fn push_indent(&self) {
         let mut inner = self.0.as_ref().borrow_mut();
         inner.cur_indent += inner.indent_width;
     }
 
-    /// Decrease the current indentation by [Self::get_indent_width].
+    /// Decrease the current indentation by [Self::indent_width].
     pub fn pop_indent(&self) {
         let mut inner = self.0.as_ref().borrow_mut();
         inner.cur_indent -= inner.indent_width;
@@ -257,7 +257,7 @@ where
 
 /// Print a new line followed by indentation as per current state.
 pub fn fmt_indented_newline(state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    let align = state.get_current_indent().into();
+    let align = state.current_indent().into();
     write!(f, "\n{:>align$}", "")?;
     Ok(())
 }
