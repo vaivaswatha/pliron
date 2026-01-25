@@ -949,7 +949,7 @@ impl ToLLVMValue for CallIntrinsicOp {
         cctx: &mut ConversionContext,
     ) -> Result<LLVMValue> {
         let op = self.get_operation().deref(ctx);
-        let args: Vec<_> = (0..op.get_num_operands())
+        let args: Vec<_> = (0..op.num_operands())
             .map(|i| convert_value_operand(cctx, ctx, &op.get_operand(i)))
             .collect::<Result<_>>()?;
         let fn_ty = convert_type(
@@ -1592,7 +1592,7 @@ fn convert_block(
         let op_llvm = op_conv.convert(ctx, llvm_ctx, cctx)?;
         let opr_ref = opr.deref(ctx);
         // LLVM instructions have at most one result.
-        if opr_ref.get_num_results() == 1 {
+        if opr_ref.num_results() == 1 {
             cctx.value_map.insert(opr_ref.get_result(0), op_llvm);
         }
     }
