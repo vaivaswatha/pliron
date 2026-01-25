@@ -171,7 +171,7 @@ impl BasicBlock {
     /// Get parent operation.
     pub fn get_parent_op(&self, ctx: &Context) -> Option<Ptr<Operation>> {
         self.get_parent_region()
-            .map(|region| region.deref(ctx).parent_op())
+            .map(|region| region.deref(ctx).get_parent_op())
     }
 
     /// Get idx'th argument as a Value.
