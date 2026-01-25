@@ -85,7 +85,7 @@ pub fn set_operation_result_name(
     name: Identifier,
 ) {
     let op = &mut *op.deref_mut(ctx);
-    let num_results = op.num_results();
+    let num_results = op.get_num_results();
     assert!(res_idx < num_results);
 
     set_name_from_attr_map(&mut op.attributes, res_idx, num_results, name);

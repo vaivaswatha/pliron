@@ -850,7 +850,7 @@ impl Printable for SwitchOp {
             .successors()
             .next()
             .expect("SwitchOp must have at least one successor");
-        let num_total_successors = op.num_successors();
+        let num_total_successors = op.get_num_successors();
 
         write!(
             f,
@@ -1049,11 +1049,11 @@ impl Verify for SwitchOp {
 
         let op = &*self.get_operation().deref(ctx);
 
-        if op.num_successors() < 1 {
+        if op.get_num_successors() < 1 {
             verify_err!(loc.clone(), SwitchOpVerifyErr::DefaultDestErr)?;
         }
 
-        if op.num_operands() < 1 {
+        if op.get_num_operands() < 1 {
             verify_err!(loc.clone(), SwitchOpVerifyErr::ConditionErr)?;
         }
 
@@ -1350,7 +1350,7 @@ impl Verify for StoreOp {
         let loc = self.loc(ctx);
         let op = &*self.op.deref(ctx);
 
-        if op.num_operands() != 2 {
+        if op.get_num_operands() != 2 {
             return verify_err!(loc, StoreOpVerifyErr::NumOpdsErr);
         }
 
@@ -1505,7 +1505,7 @@ impl CallOpInterface for CallOp {
             CallOpCallable::Direct(callee_sym.clone().into())
         } else {
             assert!(
-                op.num_operands() > 0,
+                op.get_num_operands() > 0,
                 "Indirect call must have function pointer operand"
             );
             CallOpCallable::Indirect(op.get_operand(0))

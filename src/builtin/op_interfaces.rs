@@ -201,7 +201,7 @@ pub trait OperandSegmentInterface {
 
         let total = attr.0.iter().cloned().sum::<u32>();
 
-        let num_operands: u32 = self_op.num_operands().try_into().unwrap();
+        let num_operands: u32 = self_op.get_num_operands().try_into().unwrap();
         if total != num_operands {
             return verify_err!(
                 self_op.loc(),
@@ -526,8 +526,8 @@ pub trait NResultsInterface<const N: usize> {
     {
         let opr = op.get_operation();
         let op = &*opr.deref(ctx);
-        if op.num_results() != N {
-            return verify_err!(op.loc(), NResultsVerifyErr(N, op.num_results()));
+        if op.get_num_results() != N {
+            return verify_err!(op.loc(), NResultsVerifyErr(N, op.get_num_results()));
         }
         Ok(())
     }
@@ -544,7 +544,7 @@ pub trait AtMostNResultsInterface<const N: usize> {
         Self: Sized,
     {
         let self_op = op.get_operation().deref(ctx);
-        let n_results = self_op.num_results();
+        let n_results = self_op.get_num_results();
         if n_results > N {
             return verify_err!(self_op.loc(), AtMostNResultsVerifyErr(N, n_results));
         }
@@ -564,7 +564,7 @@ pub trait OptionalResultInterface: AtMostNResultsInterface<1> {
     /// Get the single result defined by this [Op], if any.
     fn get_result(&self, ctx: &Context) -> Option<Value> {
         let self_op = self.get_operation().deref(ctx);
-        (self_op.num_results() == 1).then(|| self_op.get_result(0))
+        (self_op.get_num_results() == 1).then(|| self_op.get_result(0))
     }
 }
 
@@ -580,7 +580,7 @@ pub trait AtLeastNResultsInterface<const N: usize> {
         Self: Sized,
     {
         let self_op = op.get_operation().deref(ctx);
-        let n_results = self_op.num_results();
+        let n_results = self_op.get_num_results();
         if n_results < N {
             return verify_err!(self_op.loc(), AtLeastNResultsVerifyErr(N, n_results));
         }
@@ -622,8 +622,8 @@ pub trait NOpdsInterface<const N: usize> {
     {
         let opr = op.get_operation();
         let op = &*opr.deref(ctx);
-        if op.num_operands() != N {
-            return verify_err!(op.loc(), NOpdsVerifyErr(N, op.num_operands()));
+        if op.get_num_operands() != N {
+            return verify_err!(op.loc(), NOpdsVerifyErr(N, op.get_num_operands()));
         }
         Ok(())
     }
@@ -640,7 +640,7 @@ pub trait AtMostNOpdsInterface<const N: usize> {
         Self: Sized,
     {
         let self_op = op.get_operation().deref(ctx);
-        let n_operands = self_op.num_operands();
+        let n_operands = self_op.get_num_operands();
         if n_operands > N {
             return verify_err!(self_op.loc(), AtMostNOpdsVerifyErr(N, n_operands));
         }
@@ -659,7 +659,7 @@ pub trait OptionalOpdInterface: AtMostNOpdsInterface<1> {
 
     fn get_operand(&self, ctx: &Context) -> Option<Value> {
         let self_op = self.get_operation().deref(ctx);
-        (self_op.num_operands() == 1).then(|| self_op.get_operand(0))
+        (self_op.get_num_operands() == 1).then(|| self_op.get_operand(0))
     }
 }
 
@@ -675,7 +675,7 @@ pub trait AtLeastNOpdsInterface<const N: usize> {
         Self: Sized,
     {
         let self_op = op.get_operation().deref(ctx);
-        let n_operands = self_op.num_operands();
+        let n_operands = self_op.get_num_operands();
         if n_operands < N {
             return verify_err!(self_op.loc(), AtLeastNOpdsVerifyErr(N, n_operands));
         }

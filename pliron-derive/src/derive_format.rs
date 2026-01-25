@@ -605,7 +605,7 @@ impl PrintableBuilder<OpPrinterState> for DeriveOpPrintable {
                 use ::pliron::irfmt::printers::iter_with_sep;
                 use ::pliron::common_traits::Named;
                 let op = self.get_operation().deref(ctx);
-                if op.num_results() > 0 {
+                if op.get_num_results() > 0 {
                     let sep = ::pliron::printable::ListSeparator::CharSpace(',');
                     let results = iter_with_sep(op.results(), sep);
                     write!(fmt, "{} = ", results.disp(ctx))?;

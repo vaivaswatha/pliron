@@ -230,7 +230,7 @@ pub fn process_parsed_ssa_defs(
 ) -> Result<()> {
     let ctx = &mut state_stream.state.ctx;
     assert!(
-        results.len() == op.deref(ctx).num_results(),
+        results.len() == op.deref(ctx).get_num_results(),
         "Error processing parsed SSA definitions. Result count mismatch"
     );
 

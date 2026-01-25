@@ -221,24 +221,24 @@ impl Operation {
     }
 
     /// Get parent block.
-    pub fn parent_block(&self) -> Option<Ptr<BasicBlock>> {
+    pub fn get_parent_block(&self) -> Option<Ptr<BasicBlock>> {
         self.block_links.parent_block
     }
 
     /// Get parent region.
     pub fn get_parent_region(&self, ctx: &Context) -> Option<Ptr<Region>> {
-        self.parent_block()
+        self.get_parent_block()
             .and_then(|block| block.deref(ctx).get_parent_region())
     }
 
     /// Get parent operation.
     pub fn get_parent_op(&self, ctx: &Context) -> Option<Ptr<Operation>> {
-        self.parent_block()
+        self.get_parent_block()
             .and_then(|block| block.deref(ctx).get_parent_op(ctx))
     }
 
     /// Number of results this operation has.
-    pub fn num_results(&self) -> usize {
+    pub fn get_num_results(&self) -> usize {
         self.results.len()
     }
 
@@ -281,7 +281,7 @@ impl Operation {
     }
 
     /// Get number of operands.
-    pub fn num_operands(&self) -> usize {
+    pub fn get_num_operands(&self) -> usize {
         self.operands.len()
     }
 
@@ -316,7 +316,7 @@ impl Operation {
     }
 
     /// Get number of successors
-    pub fn num_successors(&self) -> usize {
+    pub fn get_num_successors(&self) -> usize {
         self.successors.len()
     }
 
