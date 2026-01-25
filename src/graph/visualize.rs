@@ -273,7 +273,7 @@ fn graphviz_callback(
             if block
                 == block
                     .deref(ctx)
-                    .parent_region()
+                    .get_parent_region()
                     .unwrap()
                     .deref(ctx)
                     .get_tail()

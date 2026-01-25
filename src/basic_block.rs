@@ -164,13 +164,13 @@ impl BasicBlock {
     }
 
     /// Get parent region.
-    pub fn parent_region(&self) -> Option<Ptr<Region>> {
+    pub fn get_parent_region(&self) -> Option<Ptr<Region>> {
         self.region_links.parent_region
     }
 
     /// Get parent operation.
     pub fn get_parent_op(&self, ctx: &Context) -> Option<Ptr<Operation>> {
-        self.parent_region()
+        self.get_parent_region()
             .map(|region| region.deref(ctx).parent_op())
     }
 
@@ -212,7 +212,7 @@ impl BasicBlock {
     }
 
     /// Get the number of arguments.
-    pub fn num_arguments(&self) -> usize {
+    pub fn get_num_arguments(&self) -> usize {
         self.args.len()
     }
 

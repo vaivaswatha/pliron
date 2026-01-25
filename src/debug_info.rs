@@ -113,7 +113,7 @@ pub fn get_operation_result_name(
 //      this array is always the same as the number of arguments.
 pub fn set_block_arg_name(ctx: &Context, block: Ptr<BasicBlock>, arg_idx: usize, name: Identifier) {
     let block = &mut *block.deref_mut(ctx);
-    let num_args = block.num_arguments();
+    let num_args = block.get_num_arguments();
     assert!(arg_idx < num_args);
 
     set_name_from_attr_map(&mut block.attributes, arg_idx, num_args, name);

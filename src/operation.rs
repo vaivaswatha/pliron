@@ -228,7 +228,7 @@ impl Operation {
     /// Get parent region.
     pub fn get_parent_region(&self, ctx: &Context) -> Option<Ptr<Region>> {
         self.parent_block()
-            .and_then(|block| block.deref(ctx).parent_region())
+            .and_then(|block| block.deref(ctx).get_parent_region())
     }
 
     /// Get parent operation.
