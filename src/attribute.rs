@@ -220,29 +220,15 @@ pub trait Attribute: Printable + Verify + Downcast + Sync + Send + DynClone + De
     where
         Self: Sized + Parsable<Arg = (), Parsed = A>,
     {
-        // Specifying higher ranked lifetime on a closure:
-        // https://stackoverflow.com/a/46198877/2128804
-        fn constrain<F>(f: F) -> F
-        where
-            F: for<'a> Fn(
-                &'a (),
-            ) -> Box<
-                dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a,
-            >,
-        {
-            f
-        }
-        let attr_parser = constrain(move |_| {
+        let attr_parser: AttrParserFn = Box::new(|&()| {
             combine::parser(move |parsable_state: &mut StateStream<'_>| {
-                Self::parser_fn(&(), ())
-                    .parse_stream(parsable_state)
-                    .map(|attr| -> AttrObj { Box::new(attr) })
-                    .into_result()
+                Self::parse(parsable_state, ())
+                    .map(|(attr, r)| -> (AttrObj, _) { (Box::new(attr), r) })
             })
             .boxed()
         });
         let attrid = Self::get_attr_id_static();
-        Dialect::register(ctx, &attrid.dialect).add_attr(attrid.clone(), Box::new(attr_parser));
+        Dialect::register(ctx, &attrid.dialect).add_attr(attrid.clone(), attr_parser);
     }
 }
 impl_downcast!(Attribute);
@@ -251,12 +237,12 @@ dyn_clone::clone_trait_object!(Attribute);
 /// [Attribute] objects are boxed and stored in the IR.
 pub type AttrObj = Box<dyn Attribute>;
 
-/// A storable closure for parsing any [AttrId] followed by the full [Attribute].
+/// A storable function pointer to parse a specific [Attribute].
+/// The [Attribute]'s [Dialect] maps an [AttrId] to such a parser.
 pub(crate) type AttrParserFn = Box<
-    dyn for<'a> Fn(
+    for<'a> fn(
         &'a (),
-    )
-        -> Box<dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a>,
+    ) -> Box<dyn Parser<StateStream<'a>, Output = AttrObj, PartialState = ()> + 'a>,
 >;
 
 impl PartialEq for AttrObj {

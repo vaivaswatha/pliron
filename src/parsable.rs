@@ -160,14 +160,6 @@ pub trait Parsable {
         })
         .boxed()
     }
-
-    /// Same as [Self::parser] but takes a unit reference for use as [ParserFn]
-    fn parser_fn<'a>(
-        _: &'a (),
-        arg: Self::Arg,
-    ) -> Box<dyn Parser<StateStream<'a>, Output = Self::Parsed, PartialState = ()> + 'a> {
-        Self::parser(arg)
-    }
 }
 
 /// Build a [StateStream] from an iterator, for use with [Parsable].
@@ -200,15 +192,6 @@ pub fn state_stream_from_file<'a>(
         state,
     )
 }
-
-/// A storable parser function. This allows storing a function pointer
-/// to a parser in a table, allowing for invoking it indirectly.
-// (if we can get rid of the dummy parameter, we wouldn't need [Parsable::parser_fn]).
-pub type ParserFn<Arg, Parsed> =
-    for<'a> fn(
-        _: &'a (),
-        arg: Arg,
-    ) -> Box<dyn Parser<StateStream<'a>, Output = Parsed, PartialState = ()> + 'a>;
 
 /// Convert [Result] into [StdParseResult2].
 /// Enables using `?` on [Result] during parsing.
