@@ -59,7 +59,7 @@ impl Printable for OpInsertionPoint {
 }
 
 /// An interface for insertion of IR entities.
-/// Use `()` as the listener type if no listener is needed.
+/// Use [DummyListener](super::listener::DummyListener) if no listener is needed.
 pub trait Inserter<L: InsertionListener>: Default {
     /// Appends an [Operation] at the current insertion point.
     /// The insertion point is updated to be after this newly inserted [Operation].

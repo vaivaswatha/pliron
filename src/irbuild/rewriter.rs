@@ -15,7 +15,7 @@ use crate::{
 };
 
 /// Rewriter interface for transformations.
-/// Use `()` as the listener type if no listener is needed.
+/// Use [DummyListener](super::listener::DummyListener) if no listener is needed.
 pub trait Rewriter<L: RewriteListener>: Inserter<L> {
     /// Replace an operation (and delete it) with another operation.
     /// Results of the new operation must match the results of the old operation.
@@ -35,6 +35,7 @@ pub trait Rewriter<L: RewriteListener>: Inserter<L> {
 }
 
 /// An implementation of the rewriter trait.
+/// Use [DummyListener](super::listener::DummyListener) if no listener is needed.
 pub struct IRRewriter<L: RewriteListener, I: Inserter<L> = IRInserter<L>> {
     inserter: I,
     modified: bool,

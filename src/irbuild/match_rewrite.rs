@@ -79,7 +79,6 @@ pub fn collect_rewrite<M: MatchRewrite>(
         if erased.contains(&op) {
             continue;
         }
-        // TODO: Use a Listener to see if the operation was deleted during rewriting.
         rewriter.set_insertion_point(OpInsertionPoint::BeforeOperation(op));
         match_rewrite.rewrite(ctx, &mut rewriter, op)?;
         let listener = rewriter
