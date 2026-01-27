@@ -10,9 +10,9 @@ use crate::{
     context::Context,
     identifier::Identifier,
     impl_printable_for_display, input_err,
-    location::{Located, Location},
-    op::{OpId, OpObj},
-    parsable::{IntoParseResult, Parsable, ParseResult, ParserFn, StateStream},
+    location::Located,
+    op::{OpId, OpParserFn},
+    parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     r#type::{TypeId, TypeParserFn},
 };
@@ -84,7 +84,7 @@ pub struct Dialect {
     /// Name of this dialect.
     pub name: DialectName,
     /// Ops that are part of this dialect.
-    pub(crate) ops: FxHashMap<OpId, ParserFn<Vec<(Identifier, Location)>, OpObj>>,
+    pub(crate) ops: FxHashMap<OpId, OpParserFn>,
     /// Types that are part of this dialect.
     pub(crate) types: FxHashMap<TypeId, TypeParserFn>,
     /// Attributes that are part of this dialect.
@@ -124,11 +124,7 @@ impl Dialect {
     }
 
     /// Add an [Op](crate::op::Op) to this dialect.
-    pub(crate) fn add_op(
-        &mut self,
-        op: OpId,
-        op_parser: ParserFn<Vec<(Identifier, Location)>, OpObj>,
-    ) {
+    pub(crate) fn add_op(&mut self, op: OpId, op_parser: OpParserFn) {
         assert!(op.dialect == self.name);
         self.ops.insert(op, op_parser);
     }

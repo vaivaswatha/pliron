@@ -161,40 +161,26 @@ pub trait Type: Printable + Verify + Downcast + Sync + Send + Debug {
     where
         Self: Sized + Parsable<Arg = (), Parsed = TypePtr<Self>>,
     {
-        // Specifying higher ranked lifetime on a closure:
-        // https://stackoverflow.com/a/46198877/2128804
-        fn constrain<F>(f: F) -> F
-        where
-            F: for<'a> Fn(
-                &'a (),
-            ) -> Box<
-                dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a,
-            >,
-        {
-            f
-        }
-        let ptr_parser = constrain(move |_| {
+        let ptr_parser: TypeParserFn = Box::new(|&()| {
             combine::parser(move |parsable_state: &mut StateStream<'_>| {
-                Self::parser_fn(&(), ())
-                    .parse_stream(parsable_state)
-                    .map(|typtr| typtr.to_ptr())
-                    .into_result()
+                Self::parse(parsable_state, ())
+                    .map(|(typtr, r)| -> (Ptr<TypeObj>, _) { (typtr.to_ptr(), r) })
             })
             .boxed()
         });
         let typeid = Self::get_type_id_static();
-        Dialect::register(ctx, &typeid.dialect.clone()).add_type(typeid, Box::new(ptr_parser));
+        Dialect::register(ctx, &typeid.dialect.clone()).add_type(typeid, ptr_parser);
     }
 }
 impl_downcast!(Type);
 
-/// A storable closure for parsing any [TypeId] followed by the full [Type].
+/// A storable function pointer to parse a specific [Type].
+/// The [Type]'s [Dialect] maps a [TypeId] to such a parser.
 pub(crate) type TypeParserFn = Box<
-    dyn for<'a> Fn(
+    for<'a> fn(
         &'a (),
-    ) -> Box<
-        dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a,
-    >,
+    )
+        -> Box<dyn Parser<StateStream<'a>, Output = Ptr<TypeObj>, PartialState = ()> + 'a>,
 >;
 
 /// Trait for IR entities that have a direct type.

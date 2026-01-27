@@ -200,8 +200,9 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
     where
         Self: Sized + Parsable<Arg = Vec<(Identifier, Location)>, Parsed = OpBox>,
     {
+        let op_parser: OpParserFn = Box::new(|&(), args| Self::parser(args));
         let opid = Self::get_opid_static();
-        Dialect::register(ctx, &opid.dialect).add_op(opid.clone(), Self::parser_fn);
+        Dialect::register(ctx, &opid.dialect).add_op(opid.clone(), op_parser);
     }
 
     /// Get Op's location
@@ -211,6 +212,15 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
 }
 impl_downcast!(Op);
 dyn_clone::clone_trait_object!(Op);
+
+/// A storable function pointer to parse a specific [Op].
+/// The [Op]'s [Dialect] maps an [OpId] to such a parser.
+pub(crate) type OpParserFn = Box<
+    for<'a> fn(
+        &'a (),
+        Vec<(Identifier, Location)>,
+    ) -> Box<dyn Parser<StateStream<'a>, Output = OpObj, PartialState = ()> + 'a>,
+>;
 
 /// [Op] objects are boxed and stored in the IR.
 pub type OpObj = OpBox;
