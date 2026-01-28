@@ -31,7 +31,7 @@ pub mod debug_info;
 pub mod dialect;
 pub mod graph;
 pub mod identifier;
-pub mod inserter;
+pub mod irbuild;
 pub mod irfmt;
 pub mod linked_list;
 pub mod location;
