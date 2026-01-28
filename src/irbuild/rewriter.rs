@@ -183,3 +183,41 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
         self.modified = false;
     }
 }
+
+/// A scoped rewriter that sets the insertion point for the duration of its lifetime.
+/// On drop, it restores the previous insertion point.
+/// The rewriter can be used as a normal rewriter via [Deref](std::ops::Deref).
+pub struct ScopedRewriter<'a, L: RewriteListener, I: Inserter<L>> {
+    rewriter: &'a mut IRRewriter<L, I>,
+    prev_insertion_point: OpInsertionPoint,
+}
+
+impl<'a, L: RewriteListener, I: Inserter<L>> ScopedRewriter<'a, L, I> {
+    pub fn new(rewriter: &'a mut IRRewriter<L, I>, insertion_point: OpInsertionPoint) -> Self {
+        let prev_insertion_point = rewriter.get_insertion_point();
+        rewriter.set_insertion_point(insertion_point);
+        Self {
+            rewriter,
+            prev_insertion_point,
+        }
+    }
+}
+
+impl<'a, L: RewriteListener, I: Inserter<L>> Drop for ScopedRewriter<'a, L, I> {
+    fn drop(&mut self) {
+        self.rewriter.set_insertion_point(self.prev_insertion_point);
+    }
+}
+
+impl<'a, L: RewriteListener, I: Inserter<L>> std::ops::Deref for ScopedRewriter<'a, L, I> {
+    type Target = IRRewriter<L, I>;
+
+    fn deref(&self) -> &Self::Target {
+        self.rewriter
+    }
+}
+impl<'a, L: RewriteListener, I: Inserter<L>> std::ops::DerefMut for ScopedRewriter<'a, L, I> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.rewriter
+    }
+}
