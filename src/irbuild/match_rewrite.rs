@@ -7,7 +7,7 @@ use rustc_hash::FxHashSet;
 
 use crate::{
     context::{Context, Ptr},
-    graph::walkers::{IRNode, WALKCONFIG_PREORDER_FORWARD, immutable::walk_op},
+    graph::walkers::{IRNode, WALKCONFIG_PREORDER_FORWARD, uninterruptible::immutable::walk_op},
     irbuild::{
         inserter::{Inserter, OpInsertionPoint},
         listener::{Recorder, RecorderEvent},

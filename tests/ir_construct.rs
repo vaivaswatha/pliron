@@ -456,7 +456,7 @@ fn test_preorder_forward_walk() {
 
     let mut state = Vec::new();
 
-    walkers::immutable::walk_op(
+    walkers::uninterruptible::immutable::walk_op(
         ctx,
         &mut state,
         &WALKCONFIG_PREORDER_FORWARD,
@@ -578,7 +578,7 @@ fn test_postorder_forward_walk() {
 
     let mut state = Vec::new();
 
-    walkers::immutable::walk_op(
+    walkers::uninterruptible::immutable::walk_op(
         ctx,
         &mut state,
         &WALKCONFIG_POSTORDER_FORWARD,
