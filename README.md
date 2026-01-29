@@ -16,12 +16,12 @@
   ```mlir
   builtin.module @bar 
   {
-    ^block_1v1():
+    ^block1v1():
       builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
       {
-        ^entry_block_2v1():
-          c0_op_3v1_res0 = test.constant builtin.integer <0: si64>;
-          test.return c0_op_3v1_res0
+        ^entry_block2v1():
+          c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+          test.return c0_op3v1_res0
       }
   }
   ```
@@ -34,8 +34,8 @@ LLVM-IR bitcode.
 Add a dependence to the [crate](https://crates.io/crates/pliron) in your Rust project.
 
 Note: `pliron`, is under active development. All effort is made to ensure that the code is well tested
-and of production quality. Current efforts are directed at completing the LLVM dialect, which can
-already [compile bzip2](https://github.com/vaivaswatha/pliron/wiki/Compiling-bzip2-through-pliron's-LLVM-dialect).
+and of production quality. The LLVM dialect, although not complete, can be useful practically. It can,
+for example, [compile bzip2](https://github.com/vaivaswatha/pliron/wiki/Compiling-bzip2-through-pliron's-LLVM-dialect).
 We also plan to start work on supporting a cranelift dialect / backend soon.
 
 ### Documentation
@@ -50,7 +50,7 @@ with other compiler projects, touching upon some design decisions.
 * [Rust(ing) the Future of Compilers: Pliron as the MLIR Alternative (No C/C++)](https://www.youtube.com/watch?v=rRgYGBAhKQ0)
 * [Pliron Rust Workshop (6 sessions)](https://www.youtube.com/watch?v=6EjMWJ2PY-o)
 
-### Projects using `pliron`
+### Related Projects
 * [Commonly used Pliron Dialects](https://github.com/vaivaswatha/pliron-common-dialects)
 * [Pliron Dialect for Tensors](https://github.com/vaivaswatha/pliron-tensor)
 
