@@ -89,10 +89,10 @@ pub fn collect_rewrite<M: MatchRewrite>(
                 RecorderEvent::ErasedOperation(erased_op) => {
                     erased.insert(*erased_op);
                 }
-                RecorderEvent::InsertedOperation(_new_op) => {
+                RecorderEvent::InsertedOperation(new_op) => {
                     // Check if the newly inserted operation also matches.
-                    if match_rewrite.r#match(ctx, *_new_op) {
-                        to_rewrite.push_back(*_new_op);
+                    if match_rewrite.r#match(ctx, *new_op) {
+                        to_rewrite.push_back(*new_op);
                     }
                 }
                 RecorderEvent::ReplacedOperation { .. } => {

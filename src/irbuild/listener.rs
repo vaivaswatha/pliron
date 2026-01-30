@@ -27,7 +27,7 @@ pub trait RewriteListener: InsertionListener {
     );
 }
 
-/// A listerner that doesn't do anything on being notified.
+/// A listener that doesn't do anything on being notified.
 pub struct DummyListener;
 impl InsertionListener for DummyListener {
     fn notify_operation_inserted(&mut self, _ctx: &Context, _operation: Ptr<Operation>) {}
