@@ -250,3 +250,56 @@ fn scoped_rewriter_test() -> Result<()> {
 
     Ok(())
 }
+
+/// Test that erases a function containing a constant 0 operation.
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn erase_func_with_const_zero() -> Result<()> {
+    let ctx = &mut Context::new();
+    let (module_op, _func_op, _, _) = const_ret_in_mod(ctx).unwrap();
+
+    struct EraseFunc;
+    impl MatchRewrite for EraseFunc {
+        fn r#match(&mut self, ctx: &Context, op: Ptr<Operation>) -> bool {
+            if let Some(const_op) = Operation::get_op::<ConstantOp>(op, ctx) {
+                let val = const_op.get_value(ctx);
+                return val
+                    .downcast_ref::<IntegerAttr>()
+                    .is_some_and(|int_attr| int_attr.value().to_u64() == 0);
+            }
+            false
+        }
+
+        fn rewrite(
+            &mut self,
+            ctx: &mut Context,
+            rewriter: &mut MatchRewriter,
+            op: Ptr<Operation>,
+        ) -> Result<()> {
+            // Insert a constant 1 operation before erasing the function.
+            let const1_op = ConstantOp::new(ctx, 1).get_operation();
+            rewriter.insert_operation(ctx, const1_op);
+            // Insert a constant 0 operation before erasing the function.
+            let const0_op = ConstantOp::new(ctx, 0).get_operation();
+            rewriter.insert_operation(ctx, const0_op);
+
+            let func_op = op.deref(ctx).get_parent_op(ctx).unwrap();
+            rewriter.erase_operation(ctx, func_op);
+            Ok(())
+        }
+    }
+
+    collect_rewrite(ctx, EraseFunc, module_op.get_operation())?;
+    module_op.get_operation().verify(ctx)?;
+
+    let printed = format!("{}", module_op.disp(ctx));
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block1v1():
+            
+        }"#]]
+    .assert_eq(&printed);
+
+    Ok(())
+}

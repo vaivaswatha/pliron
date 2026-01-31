@@ -3,11 +3,13 @@
 use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
+    graph::traversals::region::post_order,
     identifier::Identifier,
     irbuild::{
         inserter::{IRInserter, Inserter, OpInsertionPoint},
         listener::RewriteListener,
     },
+    linked_list::ContainsLinkedList,
     op::Op,
     operation::Operation,
     region::Region,
@@ -17,12 +19,18 @@ use crate::{
 /// Rewriter interface for transformations.
 /// Use [DummyListener](super::listener::DummyListener) if no listener is needed.
 pub trait Rewriter<L: RewriteListener>: Inserter<L> {
-    /// Replace an operation (and delete it) with another operation.
+    /// Replace an [Operation] (and delete it) with another operation.
     /// Results of the new operation must match the results of the old operation.
     fn replace_operation(&mut self, ctx: &mut Context, op: Ptr<Operation>, new_op: Ptr<Operation>);
 
-    /// Erase an operation. The operation must have no uses.
+    /// Erase an [Operation]. The operation must have no uses.
     fn erase_operation(&mut self, ctx: &mut Context, op: Ptr<Operation>);
+
+    /// Erase a [BasicBlock]. The block must have no uses.
+    fn erase_block(&mut self, ctx: &mut Context, block: Ptr<BasicBlock>);
+
+    /// Erase a [Region]. Affects the index of all regions after it.
+    fn erase_region(&mut self, ctx: &mut Context, region: Ptr<Region>);
 
     /// Has the IR been modified via this rewriter?
     fn is_modified(&self) -> bool;
@@ -147,7 +155,7 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
             op.deref(ctx).get_num_results() == new_op.deref(ctx).get_num_results(),
             "Replacement operation must have the same number of results as the original operation."
         );
-        if let Some(listener) = self.inserter.get_listener_mut() {
+        if let Some(listener) = self.get_listener_mut() {
             listener.notify_operation_replacement(ctx, op, new_op);
         }
         // We need to collect the results first to avoid `RefCell` borrowing issues.
@@ -164,10 +172,71 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
     }
 
     fn erase_operation(&mut self, ctx: &mut Context, op: Ptr<Operation>) {
-        if let Some(listener) = self.inserter.get_listener_mut() {
+        // We need to intervene and erase sub-entities only when there's a listener.
+        // Otherwise `Operation::erase` later on will take care of it.
+        if self.get_listener().is_some() {
+            let regions = op.deref(ctx).regions().collect::<Vec<_>>();
+            for region in regions.into_iter().rev() {
+                self.erase_region(ctx, region);
+            }
+        }
+
+        if let Some(listener) = self.get_listener_mut() {
             listener.notify_operation_erasure(ctx, op);
         }
+
         Operation::erase(op, ctx);
+        self.set_modified();
+    }
+
+    fn erase_block(&mut self, ctx: &mut Context, block: Ptr<BasicBlock>) {
+        // We need to intervene and erase sub-entities only when there's a listener.
+        // Otherwise `BasicBlock::erase` later on will take care of it.
+        if self.get_listener().is_some() {
+            let operations = block.deref(ctx).iter(ctx).collect::<Vec<_>>();
+            // We erase operations in reverse order so that uses are erased before defs.
+            for op in operations.into_iter().rev() {
+                self.erase_operation(ctx, op);
+            }
+        }
+
+        if let Some(listener) = self.get_listener_mut() {
+            listener.notify_block_erasure(ctx, block);
+        }
+
+        BasicBlock::erase(block, ctx);
+        self.set_modified();
+    }
+
+    fn erase_region(&mut self, ctx: &mut Context, region: Ptr<Region>) {
+        // We need to intervene and erase sub-entities only when there's a listener.
+        // Otherwise `Region::erase` later on will take care of it.
+        if self.get_listener().is_some() {
+            // We erase blocks in post-order so that uses are erased before defs.
+            let blocks = post_order(ctx, region);
+            for block in blocks.iter().rev() {
+                // We do not erase the block already because its predecessors
+                // (which are its uses) haven't already been erased. We erase
+                // only the operations now and the blocks later.
+                let operations = block.deref(ctx).iter(ctx).collect::<Vec<_>>();
+                // We erase operations in reverse order so that uses are erased before defs.
+                for op in operations.into_iter().rev() {
+                    self.erase_operation(ctx, op);
+                }
+            }
+            // Now erase the blocks.
+            for block in blocks {
+                self.erase_block(ctx, block);
+            }
+        }
+
+        if let Some(listener) = self.get_listener_mut() {
+            listener.notify_region_erasure(ctx, region);
+        }
+
+        let index_in_parent = region.deref(ctx).get_index_in_parent(ctx);
+        let parent_op = region.deref(ctx).get_parent_op();
+        Operation::erase_region(parent_op, ctx, index_in_parent);
         self.set_modified();
     }
 

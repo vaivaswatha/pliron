@@ -4,6 +4,7 @@ use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
     operation::Operation,
+    region::Region,
 };
 
 /// Listener interface for insertion events.
@@ -25,6 +26,10 @@ pub trait RewriteListener: InsertionListener {
         old_op: Ptr<Operation>,
         new_op: Ptr<Operation>,
     );
+    /// Notify that a block is about to be erased.
+    fn notify_block_erasure(&mut self, ctx: &Context, block: Ptr<BasicBlock>);
+    /// Notify that a region is about to be erased.
+    fn notify_region_erasure(&mut self, ctx: &Context, region: Ptr<Region>);
 }
 
 /// A listener that doesn't do anything on being notified.
@@ -42,6 +47,8 @@ impl RewriteListener for DummyListener {
         _new_op: Ptr<Operation>,
     ) {
     }
+    fn notify_block_erasure(&mut self, _ctx: &Context, _block: Ptr<BasicBlock>) {}
+    fn notify_region_erasure(&mut self, _ctx: &Context, _region: Ptr<Region>) {}
 }
 
 /// Events recorded by the [Recorder] listener.
@@ -50,6 +57,8 @@ pub enum RecorderEvent {
     CreatedBlock(Ptr<BasicBlock>),
     ErasedOperation(Ptr<Operation>),
     ReplacedOperation(Ptr<Operation>, Ptr<Operation>),
+    ErasedBlock(Ptr<BasicBlock>),
+    ErasedRegion(Ptr<Region>),
 }
 
 /// A listener that records events in the order they occur.
@@ -82,6 +91,14 @@ impl RewriteListener for Recorder {
     ) {
         self.events
             .push(RecorderEvent::ReplacedOperation(old_op, new_op));
+    }
+
+    fn notify_block_erasure(&mut self, _ctx: &Context, block: Ptr<BasicBlock>) {
+        self.events.push(RecorderEvent::ErasedBlock(block));
+    }
+
+    fn notify_region_erasure(&mut self, _ctx: &Context, region: Ptr<Region>) {
+        self.events.push(RecorderEvent::ErasedRegion(region));
     }
 }
 

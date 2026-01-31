@@ -67,6 +67,17 @@ impl Region {
         self.parent_op
     }
 
+    /// Get the index of this region in its parent operation.
+    pub fn get_index_in_parent(&self, ctx: &Context) -> usize {
+        let parent_op = self.get_parent_op();
+        parent_op
+            .deref(ctx)
+            .regions
+            .iter()
+            .position(|r| *r == self.self_ptr)
+            .expect("Region missing in it's parent Operation")
+    }
+
     /// Drop all uses that this region holds.
     pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &Context) {
         let blocks: Vec<_> = ptr.deref(ctx).iter(ctx).collect();

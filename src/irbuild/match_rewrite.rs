@@ -84,14 +84,21 @@ pub fn collect_rewrite<M: MatchRewrite>(
         let listener = rewriter
             .get_listener_mut()
             .expect("Rewriter must have a listener attached");
+        // First process all erased operations to avoid dereferencing them.
+        for event in &listener.events {
+            if let RecorderEvent::ErasedOperation(erased_op) = event {
+                erased.insert(*erased_op);
+            }
+        }
+        // Then process all other events.
         for event in &listener.events {
             match event {
-                RecorderEvent::ErasedOperation(erased_op) => {
-                    erased.insert(*erased_op);
+                RecorderEvent::ErasedOperation(_) => {
+                    // Already processed above.
                 }
                 RecorderEvent::InsertedOperation(new_op) => {
                     // Check if the newly inserted operation also matches.
-                    if match_rewrite.r#match(ctx, *new_op) {
+                    if !erased.contains(new_op) && match_rewrite.r#match(ctx, *new_op) {
                         to_rewrite.push_back(*new_op);
                     }
                 }
@@ -100,6 +107,16 @@ pub fn collect_rewrite<M: MatchRewrite>(
                 }
                 RecorderEvent::CreatedBlock(_) => {
                     // No action needed for block creations.
+                }
+                RecorderEvent::ErasedBlock(_) => {
+                    // No action needed for block erasures.
+                    // Operations inside the block will have triggered operation erasure events.
+                    // and we only care about operations here.
+                }
+                RecorderEvent::ErasedRegion(_) => {
+                    // No action needed for region erasures.
+                    // Operations inside the region will have triggered operation erasure events.
+                    // and we only care about operations here.
                 }
             }
         }
