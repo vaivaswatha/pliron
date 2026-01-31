@@ -163,10 +163,14 @@ pub struct Ptr<T: ArenaObj> {
     pub(crate) _dummy: PhantomData<T>,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("Attempt to dereference a dangling Ptr")]
+pub struct DanglingPtrDerefError;
+
 impl<'a, T: ArenaObj> Ptr<T> {
-    /// Return a [Ref] to the pointee.
-    /// This borrows from a RefCell and the borrow is live
-    /// as long as the returned Ref lives.
+    /// Borrow the inner [RefCell] and return a [Ref] to the pointee.
+    /// The borrow is live as long as the returned [Ref] lives.
+    /// Panics on dangling [Ptr] or borrow interior mutability errors.
     /// Run `cargo` with options `+nightly -Zbuild-std -Zbuild-std-features="debug_refcell"`
     /// to enable printing the interior mutability violation locations.
     #[track_caller]
@@ -177,9 +181,9 @@ impl<'a, T: ArenaObj> Ptr<T> {
             .borrow()
     }
 
-    /// Return a RefMut to the pointee.
-    /// This mutably borrows from a RefCell and the borrow is live
-    /// as long as the returned RefMut lives.
+    /// Mutably borrow the inner [RefCell] and return a [RefMut] to the pointee.
+    /// The borrow is live as long as the returned [RefMut] lives.
+    /// Panics on dangling [Ptr] or borrow interior mutability errors.
     /// Run `cargo` with options `+nightly -Zbuild-std -Zbuild-std-features="debug_refcell"`
     /// to enable printing the interior mutability violation locations.
     #[track_caller]
@@ -190,24 +194,26 @@ impl<'a, T: ArenaObj> Ptr<T> {
             .borrow_mut()
     }
 
-    /// Try and return a Ref to the pointee.
-    /// This borrows from a RefCell and the borrow is live
-    /// as long as the returned Ref lives.
+    /// Try and borrow the inner [RefCell] and return a [Ref] to the pointee.
+    /// The borrow is live as long as the returned [Ref] lives.
+    /// If [Ptr] is dangling or already mutably borrowed, an [Error](crate::result::Error)
+    /// with [DanglingPtrDerefError] or [BorrowError](std::cell::BorrowError) is returned.
     pub fn try_deref(&self, ctx: &'a Context) -> Result<Ref<'a, T>> {
         T::get_arena(ctx)
             .get(self.idx)
-            .expect("Dangling Ptr deref")
+            .ok_or_else(|| arg_error_noloc!(DanglingPtrDerefError))?
             .try_borrow()
             .map_err(|err| arg_error_noloc!(err))
     }
 
-    /// Try and return a RefMut to the pointee.
-    /// This mutably borrows from a RefCell and the borrow is live
-    /// as long as the returned RefMut lives.
+    /// Try and mutably borrow the inner [RefCell] and return a [RefMut] to the pointee.
+    /// The borrow is live as long as the returned [RefMut] lives.
+    /// If [Ptr] is dangling or already borrowed, an [Error](crate::result::Error)
+    /// with [DanglingPtrDerefError] or [BorrowMutError](std::cell::BorrowMutError) is returned.
     pub fn try_deref_mut(&self, ctx: &'a Context) -> Result<RefMut<'a, T>> {
         T::get_arena(ctx)
             .get(self.idx)
-            .expect("Dangling Ptr deref_mut")
+            .ok_or_else(|| arg_error_noloc!(DanglingPtrDerefError))?
             .try_borrow_mut()
             .map_err(|err| arg_error_noloc!(err))
     }
