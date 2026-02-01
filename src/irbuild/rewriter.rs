@@ -1,15 +1,18 @@
 //! [Rewriter] extends [Inserter] with more capabilities, such as replace and erase operations.
 
+use std::vec;
+
 use crate::{
     basic_block::BasicBlock,
+    common_traits::Named,
     context::{Context, Ptr},
     graph::traversals::region::post_order,
-    identifier::Identifier,
+    identifier::{Identifier, underscore},
     irbuild::{
         inserter::{BlockInsertionPoint, IRInserter, Inserter, OpInsertionPoint},
         listener::RewriteListener,
     },
-    linked_list::ContainsLinkedList,
+    linked_list::{ContainsLinkedList, LinkedList},
     op::Op,
     operation::Operation,
     region::Region,
@@ -43,6 +46,14 @@ pub trait Rewriter<L: RewriteListener>: Inserter<L> {
 
     /// Move a [BasicBlock] to a new insertion point.
     fn move_block(&mut self, ctx: &Context, block: Ptr<BasicBlock>, new_point: BlockInsertionPoint);
+
+    /// Split a [BasicBlock] at the given position.
+    fn split_block(
+        &mut self,
+        ctx: &mut Context,
+        block: Ptr<BasicBlock>,
+        position: OpInsertionPoint,
+    ) -> Ptr<BasicBlock>;
 
     /// Has the IR been modified via this rewriter?
     fn is_modified(&self) -> bool;
@@ -107,7 +118,7 @@ impl<L: RewriteListener, I: Inserter<L>> Inserter<L> for IRRewriter<L, I> {
         insertion_point: BlockInsertionPoint,
         label: Option<Identifier>,
         arg_types: Vec<Ptr<TypeObj>>,
-    ) {
+    ) -> Ptr<BasicBlock> {
         self.inserter
             .create_block(ctx, insertion_point, label, arg_types)
     }
@@ -257,6 +268,39 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
     ) {
         self.unlink_block(ctx, block);
         self.insert_block(ctx, new_point, block);
+    }
+
+    fn split_block(
+        &mut self,
+        ctx: &mut Context,
+        block: Ptr<BasicBlock>,
+        position: OpInsertionPoint,
+    ) -> Ptr<BasicBlock> {
+        // `create_block` below sets the insert point to the new block, so we save and restore it.
+        let mut rewriter = ScopedRewriter::new(self, OpInsertionPoint::Unset);
+        let label = block
+            .deref(ctx)
+            .given_name(ctx)
+            .map(|label| label + underscore() + "split".try_into().unwrap());
+
+        let new_block =
+            rewriter.create_block(ctx, BlockInsertionPoint::AfterBlock(block), label, vec![]);
+        let first_op_opt = match position {
+            OpInsertionPoint::AtBlockStart(target_block) => {
+                target_block.deref(ctx).iter(ctx).next()
+            }
+            OpInsertionPoint::AtBlockEnd(_target_block) => None,
+            OpInsertionPoint::BeforeOperation(op) => Some(op),
+            OpInsertionPoint::AfterOperation(op) => op.deref(ctx).get_next(),
+            OpInsertionPoint::Unset => panic!("Cannot split block at unset insertion point."),
+        };
+        let mut current_op_opt = first_op_opt;
+        while let Some(current_op) = current_op_opt {
+            let next_op = current_op.deref(ctx).get_next();
+            rewriter.move_operation(ctx, current_op, OpInsertionPoint::AtBlockEnd(new_block));
+            current_op_opt = next_op;
+        }
+        new_block
     }
 
     fn is_modified(&self) -> bool {

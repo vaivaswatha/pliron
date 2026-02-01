@@ -122,7 +122,6 @@ pub trait Inserter<L: InsertionListener>: Default {
     fn insert_op(&mut self, ctx: &Context, op: impl Op);
 
     /// Insert [BasicBlock] and the provided insertion point.
-    /// The internal [OpInsertionPoint] is updated to be at the end of the newly created block.
     fn insert_block(
         &mut self,
         ctx: &Context,
@@ -138,7 +137,7 @@ pub trait Inserter<L: InsertionListener>: Default {
         insertertion_point: BlockInsertionPoint,
         label: Option<Identifier>,
         arg_types: Vec<Ptr<TypeObj>>,
-    );
+    ) -> Ptr<BasicBlock>;
 
     /// Gets the current insertion point.
     fn get_insertion_point(&self) -> OpInsertionPoint;
@@ -325,7 +324,6 @@ impl<L: InsertionListener> Inserter<L> for IRInserter<L> {
         if let Some(listener) = &mut self.listener {
             listener.notify_block_inserted(ctx, block);
         }
-        self.op_insertion_point = OpInsertionPoint::AtBlockEnd(block);
     }
 
     fn create_block(
@@ -334,9 +332,11 @@ impl<L: InsertionListener> Inserter<L> for IRInserter<L> {
         insertion_point: BlockInsertionPoint,
         label: Option<Identifier>,
         arg_types: Vec<Ptr<TypeObj>>,
-    ) {
+    ) -> Ptr<BasicBlock> {
         let block = BasicBlock::new(ctx, label, arg_types);
         self.insert_block(ctx, insertion_point, block);
+        self.op_insertion_point = OpInsertionPoint::AtBlockEnd(block);
+        block
     }
 
     fn get_insertion_point(&self) -> OpInsertionPoint {

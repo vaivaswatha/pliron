@@ -1,6 +1,6 @@
 use core::panic;
 
-use crate::common::const_ret_in_mod;
+use crate::common::{ReturnOp, const_ret_in_mod};
 use common::ConstantOp;
 use expect_test::expect;
 use pliron::{
@@ -298,6 +298,82 @@ fn erase_func_with_const_zero() -> Result<()> {
         {
           ^block1v1():
             
+        }"#]]
+    .assert_eq(&printed);
+
+    Ok(())
+}
+
+/// Test that splits a block after finding a constant 0 operation.
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn split_block_after_const_zero() -> Result<()> {
+    let ctx = &mut Context::new();
+    let (module_op, _func_op, _, _) = const_ret_in_mod(ctx).unwrap();
+
+    struct SplitBlockAfterConstZero;
+    impl MatchRewrite for SplitBlockAfterConstZero {
+        fn r#match(&mut self, ctx: &Context, op: Ptr<Operation>) -> bool {
+            if let Some(const_op) = Operation::get_op::<ConstantOp>(op, ctx) {
+                let val = const_op.get_value(ctx);
+                return val
+                    .downcast_ref::<IntegerAttr>()
+                    .is_some_and(|int_attr| int_attr.value().to_u64() == 0);
+            }
+            false
+        }
+
+        fn rewrite(
+            &mut self,
+            ctx: &mut Context,
+            rewriter: &mut MatchRewriter,
+            op: Ptr<Operation>,
+        ) -> Result<()> {
+            let const0_op = Operation::get_op::<ConstantOp>(op, ctx).unwrap();
+            let block = op.deref(ctx).get_parent_block().unwrap();
+
+            // Split the block after the constant 0 operation
+            let new_block = rewriter.split_block(ctx, block, OpInsertionPoint::AfterOperation(op));
+
+            // Insert constant 1 in the new block at the start
+            let const1_op = ConstantOp::new(ctx, 1).get_operation();
+            let const1_result = const1_op.deref(ctx).get_result(0);
+            rewriter.set_insertion_point(OpInsertionPoint::AtBlockStart(new_block));
+            rewriter.insert_operation(ctx, const1_op);
+            // Modify the return operation in the new block to return constant 1
+            const0_op
+                .get_result(ctx)
+                .replace_all_uses_with(ctx, &const1_result);
+
+            // Add a return at the end of old block to return the const0_op's result
+            let ret = ReturnOp::new(ctx, const0_op.get_result(ctx)).get_operation();
+            {
+                ScopedRewriter::new(rewriter, OpInsertionPoint::AtBlockEnd(block))
+                    .insert_operation(ctx, ret);
+            }
+
+            Ok(())
+        }
+    }
+
+    collect_rewrite(ctx, SplitBlockAfterConstZero, module_op.get_operation())?;
+    module_op.get_operation().verify(ctx)?;
+
+    let printed = format!("{}", module_op.disp(ctx));
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block1v1():
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+            {
+              ^entry_block2v1():
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                test.return c0_op3v1_res0
+
+              ^entry_split_block3v1():
+                op5v1_res0 = test.constant builtin.integer <1: si64>;
+                test.return op5v1_res0
+            }
         }"#]]
     .assert_eq(&printed);
 
