@@ -6,7 +6,7 @@ use crate::{
     graph::traversals::region::post_order,
     identifier::Identifier,
     irbuild::{
-        inserter::{IRInserter, Inserter, OpInsertionPoint},
+        inserter::{BlockInsertionPoint, IRInserter, Inserter, OpInsertionPoint},
         listener::RewriteListener,
     },
     linked_list::ContainsLinkedList,
@@ -31,6 +31,18 @@ pub trait Rewriter<L: RewriteListener>: Inserter<L> {
 
     /// Erase a [Region]. Affects the index of all regions after it.
     fn erase_region(&mut self, ctx: &mut Context, region: Ptr<Region>);
+
+    /// Unlink an [Operation] from its current position
+    fn unlink_operation(&mut self, ctx: &Context, op: Ptr<Operation>);
+
+    /// Unlink a [BasicBlock] from its current position
+    fn unlink_block(&mut self, ctx: &Context, block: Ptr<BasicBlock>);
+
+    /// Move an [Operation] to a new insertion point.
+    fn move_operation(&mut self, ctx: &Context, op: Ptr<Operation>, new_point: OpInsertionPoint);
+
+    /// Move a [BasicBlock] to a new insertion point.
+    fn move_block(&mut self, ctx: &Context, block: Ptr<BasicBlock>, new_point: BlockInsertionPoint);
 
     /// Has the IR been modified via this rewriter?
     fn is_modified(&self) -> bool;
@@ -80,48 +92,24 @@ impl<L: RewriteListener, I: Inserter<L>> Inserter<L> for IRRewriter<L, I> {
         self.inserter.insert_op(ctx, op)
     }
 
-    fn create_block_before(
+    fn insert_block(
         &mut self,
-        ctx: &mut Context,
-        mark: Ptr<BasicBlock>,
-        label: Option<Identifier>,
-        arg_types: Vec<Ptr<TypeObj>>,
+        ctx: &Context,
+        insertion_point: BlockInsertionPoint,
+        block: Ptr<BasicBlock>,
     ) {
-        self.inserter
-            .create_block_before(ctx, mark, label, arg_types)
+        self.inserter.insert_block(ctx, insertion_point, block)
     }
 
-    fn create_block_after(
+    fn create_block(
         &mut self,
         ctx: &mut Context,
-        mark: Ptr<BasicBlock>,
+        insertion_point: BlockInsertionPoint,
         label: Option<Identifier>,
         arg_types: Vec<Ptr<TypeObj>>,
     ) {
         self.inserter
-            .create_block_after(ctx, mark, label, arg_types)
-    }
-
-    fn create_block_at_start(
-        &mut self,
-        ctx: &mut Context,
-        region: Ptr<Region>,
-        label: Option<Identifier>,
-        arg_types: Vec<Ptr<TypeObj>>,
-    ) {
-        self.inserter
-            .create_block_at_start(ctx, region, label, arg_types)
-    }
-
-    fn create_block_at_end(
-        &mut self,
-        ctx: &mut Context,
-        region: Ptr<Region>,
-        label: Option<Identifier>,
-        arg_types: Vec<Ptr<TypeObj>>,
-    ) {
-        self.inserter
-            .create_block_at_end(ctx, region, label, arg_types)
+            .create_block(ctx, insertion_point, label, arg_types)
     }
 
     fn get_insertion_point(&self) -> OpInsertionPoint {
@@ -238,6 +226,37 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
         let parent_op = region.deref(ctx).get_parent_op();
         Operation::erase_region(parent_op, ctx, index_in_parent);
         self.set_modified();
+    }
+
+    fn unlink_operation(&mut self, ctx: &Context, op: Ptr<Operation>) {
+        if let Some(listener) = self.get_listener_mut() {
+            listener.notify_operation_unlinking(ctx, op);
+        }
+        op.unlink(ctx);
+        self.set_modified();
+    }
+
+    fn unlink_block(&mut self, ctx: &Context, block: Ptr<BasicBlock>) {
+        if let Some(listener) = self.get_listener_mut() {
+            listener.notify_block_unlinking(ctx, block);
+        }
+        block.unlink(ctx);
+        self.set_modified();
+    }
+
+    fn move_operation(&mut self, ctx: &Context, op: Ptr<Operation>, new_point: OpInsertionPoint) {
+        self.unlink_operation(ctx, op);
+        ScopedRewriter::new(self, new_point).insert_operation(ctx, op);
+    }
+
+    fn move_block(
+        &mut self,
+        ctx: &Context,
+        block: Ptr<BasicBlock>,
+        new_point: BlockInsertionPoint,
+    ) {
+        self.unlink_block(ctx, block);
+        self.insert_block(ctx, new_point, block);
     }
 
     fn is_modified(&self) -> bool {

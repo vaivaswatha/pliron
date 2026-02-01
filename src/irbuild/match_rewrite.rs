@@ -105,8 +105,8 @@ pub fn collect_rewrite<M: MatchRewrite>(
                 RecorderEvent::ReplacedOperation { .. } => {
                     // No action needed for replacements.
                 }
-                RecorderEvent::CreatedBlock(_) => {
-                    // No action needed for block creations.
+                RecorderEvent::InsertedBlock(_) => {
+                    // No action needed for block insertions.
                 }
                 RecorderEvent::ErasedBlock(_) => {
                     // No action needed for block erasures.
@@ -117,6 +117,12 @@ pub fn collect_rewrite<M: MatchRewrite>(
                     // No action needed for region erasures.
                     // Operations inside the region will have triggered operation erasure events.
                     // and we only care about operations here.
+                }
+                RecorderEvent::UnlinkedOperation(_op, _prev_position) => {
+                    // No action needed for operation unlinking.
+                }
+                RecorderEvent::UnlinkedBlock(_block, _prev_position) => {
+                    // No action needed for block unlinking.
                 }
             }
         }

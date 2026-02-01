@@ -25,6 +25,17 @@ pub enum OpInsertionPoint {
     BeforeOperation(Ptr<Operation>),
 }
 
+/// Insertion point specification for insertion [BasicBlock]s using [IRInserter].
+#[derive(Clone, Copy, Default)]
+pub enum BlockInsertionPoint {
+    #[default]
+    Unset,
+    AtRegionStart(Ptr<Region>),
+    AtRegionEnd(Ptr<Region>),
+    AfterBlock(Ptr<BasicBlock>),
+    BeforeBlock(Ptr<BasicBlock>),
+}
+
 impl Printable for OpInsertionPoint {
     fn fmt(
         &self,
@@ -33,7 +44,7 @@ impl Printable for OpInsertionPoint {
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
         match self {
-            OpInsertionPoint::Unset => write!(f, "Insertion Point not set"),
+            OpInsertionPoint::Unset => write!(f, "Op Insertion Point not set"),
             OpInsertionPoint::AtBlockStart(block) => {
                 write!(
                     f,
@@ -58,6 +69,39 @@ impl Printable for OpInsertionPoint {
     }
 }
 
+impl Printable for BlockInsertionPoint {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        match self {
+            BlockInsertionPoint::Unset => write!(f, "Block Insertion Point not set"),
+            BlockInsertionPoint::AtRegionStart(region) => {
+                write!(
+                    f,
+                    "At start of Region {}",
+                    region.deref(ctx).get_index_in_parent(ctx)
+                )
+            }
+            BlockInsertionPoint::AtRegionEnd(region) => {
+                write!(
+                    f,
+                    "At end of Region {}",
+                    region.deref(ctx).get_index_in_parent(ctx)
+                )
+            }
+            BlockInsertionPoint::AfterBlock(block) => {
+                write!(f, "After BasicBlock {}", block.deref(ctx).unique_name(ctx))
+            }
+            BlockInsertionPoint::BeforeBlock(block) => {
+                write!(f, "Before BasicBlock {}", block.deref(ctx).unique_name(ctx))
+            }
+        }
+    }
+}
+
 /// An interface for insertion of IR entities.
 /// Use [DummyListener](super::listener::DummyListener) if no listener is needed.
 pub trait Inserter<L: InsertionListener>: Default {
@@ -76,42 +120,22 @@ pub trait Inserter<L: InsertionListener>: Default {
     /// Inserts an [Op] at the current insertion point.
     /// To insert a sequence in-order, use [append_op](Self::append_op).
     fn insert_op(&mut self, ctx: &Context, op: impl Op);
-    /// Create a new [BasicBlock] and insert it before the provided marker block.
-    /// The insertion point is updated to be at the end of the newly created block.
-    fn create_block_before(
+
+    /// Insert [BasicBlock] and the provided insertion point.
+    /// The internal [OpInsertionPoint] is updated to be at the end of the newly created block.
+    fn insert_block(
         &mut self,
-        ctx: &mut Context,
-        mark: Ptr<BasicBlock>,
-        label: Option<Identifier>,
-        arg_types: Vec<Ptr<TypeObj>>,
+        ctx: &Context,
+        insertion_point: BlockInsertionPoint,
+        block: Ptr<BasicBlock>,
     );
 
-    /// Create a new [BasicBlock] and insert it after the provided marker block.
-    /// The insertion point is updated to be at the end of the newly created block.
-    fn create_block_after(
+    /// Create a new [BasicBlock] and insert it before at the provided insertion point.
+    /// The internal [OpInsertionPoint] is updated to be at the end of the newly created block.
+    fn create_block(
         &mut self,
         ctx: &mut Context,
-        mark: Ptr<BasicBlock>,
-        label: Option<Identifier>,
-        arg_types: Vec<Ptr<TypeObj>>,
-    );
-
-    /// Create a new [BasicBlock] and insert it at the start of the provided [Region].
-    /// The insertion point is updated to be at the end of the newly created block.
-    fn create_block_at_start(
-        &mut self,
-        ctx: &mut Context,
-        region: Ptr<Region>,
-        label: Option<Identifier>,
-        arg_types: Vec<Ptr<TypeObj>>,
-    );
-
-    /// Create a new [BasicBlock] and insert it at the end of the provided [Region].
-    /// The insertion point is updated to be at the end of the newly created block.
-    fn create_block_at_end(
-        &mut self,
-        ctx: &mut Context,
-        region: Ptr<Region>,
+        insertertion_point: BlockInsertionPoint,
         label: Option<Identifier>,
         arg_types: Vec<Ptr<TypeObj>>,
     );
@@ -238,6 +262,10 @@ impl<L: InsertionListener> Inserter<L> for IRInserter<L> {
     }
 
     fn insert_operation(&mut self, ctx: &Context, operation: Ptr<Operation>) {
+        assert!(
+            !operation.is_linked(ctx),
+            "Cannot insert an already linked operation"
+        );
         match self.op_insertion_point {
             OpInsertionPoint::AtBlockStart(block) => {
                 // Insert operation at the start of the block
@@ -259,7 +287,7 @@ impl<L: InsertionListener> Inserter<L> for IRInserter<L> {
                 panic!("Insertion point is not set");
             }
         }
-        // Notify the listerner if present
+        // Notify the listener if present
         if let Some(listener) = &mut self.listener {
             listener.notify_operation_inserted(ctx, operation);
         }
@@ -270,68 +298,45 @@ impl<L: InsertionListener> Inserter<L> for IRInserter<L> {
         self.insert_operation(ctx, operation);
     }
 
-    fn create_block_before(
+    fn insert_block(
         &mut self,
-        ctx: &mut Context,
-        mark: Ptr<BasicBlock>,
-        label: Option<Identifier>,
-        arg_types: Vec<Ptr<TypeObj>>,
+        ctx: &Context,
+        insertion_point: BlockInsertionPoint,
+        block: Ptr<BasicBlock>,
     ) {
-        let block = BasicBlock::new(ctx, label, arg_types);
-        block.insert_before(ctx, mark);
+        match insertion_point {
+            BlockInsertionPoint::AtRegionStart(region) => {
+                block.insert_at_front(region, ctx);
+            }
+            BlockInsertionPoint::AtRegionEnd(region) => {
+                block.insert_at_back(region, ctx);
+            }
+            BlockInsertionPoint::AfterBlock(prev_block) => {
+                block.insert_after(ctx, prev_block);
+            }
+            BlockInsertionPoint::BeforeBlock(next_block) => {
+                block.insert_before(ctx, next_block);
+            }
+            BlockInsertionPoint::Unset => {
+                panic!("Block insertion point is not set");
+            }
+        }
         // Notify the listener if present
         if let Some(listener) = &mut self.listener {
-            listener.notify_block_created(ctx, block);
+            listener.notify_block_inserted(ctx, block);
         }
         self.op_insertion_point = OpInsertionPoint::AtBlockEnd(block);
     }
 
-    fn create_block_after(
+    fn create_block(
         &mut self,
         ctx: &mut Context,
-        mark: Ptr<BasicBlock>,
+        insertion_point: BlockInsertionPoint,
         label: Option<Identifier>,
         arg_types: Vec<Ptr<TypeObj>>,
     ) {
         let block = BasicBlock::new(ctx, label, arg_types);
-        block.insert_after(ctx, mark);
-        // Notify the listener if present
-        if let Some(listener) = &mut self.listener {
-            listener.notify_block_created(ctx, block);
-        }
-        self.op_insertion_point = OpInsertionPoint::AtBlockEnd(block);
-    }
-
-    fn create_block_at_start(
-        &mut self,
-        ctx: &mut Context,
-        region: Ptr<Region>,
-        label: Option<Identifier>,
-        arg_types: Vec<Ptr<TypeObj>>,
-    ) {
-        let block = BasicBlock::new(ctx, label, arg_types);
-        block.insert_at_front(region, ctx);
-        // Notify the listener if present
-        if let Some(listener) = &mut self.listener {
-            listener.notify_block_created(ctx, block);
-        }
-        self.op_insertion_point = OpInsertionPoint::AtBlockEnd(block);
-    }
-
-    fn create_block_at_end(
-        &mut self,
-        ctx: &mut Context,
-        region: Ptr<Region>,
-        label: Option<Identifier>,
-        arg_types: Vec<Ptr<TypeObj>>,
-    ) {
-        let block = BasicBlock::new(ctx, label, arg_types);
-        block.insert_at_back(region, ctx);
-        // Notify the listener if present
-        if let Some(listener) = &mut self.listener {
-            listener.notify_block_created(ctx, block);
-        }
-        self.op_insertion_point = OpInsertionPoint::AtBlockEnd(block);
+        self.insert_block(ctx, insertion_point, block);
     }
 
     fn get_insertion_point(&self) -> OpInsertionPoint {
