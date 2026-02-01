@@ -1,5 +1,5 @@
 //! Provide linked-list operations for `Ptr<T: LinkedList>`.
-use crate::context::{Context, Ptr};
+use crate::context::{Context, Ptr, private::ArenaObj};
 
 /// The setter methods on [LinkedList] and [ContainsLinkedList]
 /// are not safe for using from anywhere except the impls here.
@@ -110,6 +110,21 @@ pub trait LinkedList: private::LinkedList {
     fn get_prev(&self) -> Option<Ptr<Self>>;
     /// Get a reference to the object that contains this linked list.
     fn get_container(&self) -> Option<Ptr<Self::ContainerType>>;
+}
+
+/// Append all nodes from `donor` to the back of `donee`, leaving `donor` empty.
+pub fn append_linked_list<C: ContainsLinkedList<U> + ArenaObj, U: LinkedList<ContainerType = C>>(
+    donee: Ptr<C>,
+    donor: Ptr<C>,
+    ctx: &Context,
+) {
+    let mut current = donor.deref(ctx).get_head();
+    while let Some(node) = current {
+        let next = node.deref(ctx).get_next();
+        node.unlink(ctx);
+        node.insert_at_back(donee, ctx);
+        current = next;
+    }
 }
 
 /// Linked list operations on Ptr<T: LinkedList> for convenience and safety.
@@ -563,5 +578,75 @@ pub(crate) mod tests {
         let n2 = LLNode::new(ctx, 2);
         // n1 itself is unlinked, so this is a panic.
         n2.insert_before(ctx, n1);
+    }
+
+    #[test]
+    fn test_clear_linked_list() {
+        let ctx = &mut Context::default();
+        let root = LLRoot::empty(ctx);
+
+        let n1 = LLNode::new(ctx, 1);
+        let n2 = LLNode::new(ctx, 2);
+        let n3 = LLNode::new(ctx, 3);
+
+        n1.insert_at_front(root, ctx);
+        n2.insert_at_back(root, ctx);
+        n3.insert_at_back(root, ctx);
+        validate_list(ctx, root, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_append_linked_list() {
+        let ctx = &mut Context::default();
+        let root1 = LLRoot::empty(ctx);
+        let root2 = LLRoot::empty(ctx);
+
+        let n1 = LLNode::new(ctx, 1);
+        let n2 = LLNode::new(ctx, 2);
+        let n3 = LLNode::new(ctx, 3);
+        let n4 = LLNode::new(ctx, 4);
+
+        n1.insert_at_back(root1, ctx);
+        n2.insert_at_back(root1, ctx);
+        n3.insert_at_back(root2, ctx);
+        n4.insert_at_back(root2, ctx);
+
+        validate_list(ctx, root1, vec![1, 2]);
+        validate_list(ctx, root2, vec![3, 4]);
+
+        super::append_linked_list(root1, root2, ctx);
+
+        validate_list(ctx, root1, vec![1, 2, 3, 4]);
+        validate_list(ctx, root2, vec![]);
+
+        assert!(n1.is_linked(ctx) && n2.is_linked(ctx) && n3.is_linked(ctx) && n4.is_linked(ctx));
+    }
+
+    #[test]
+    fn test_append_empty_to_nonempty() {
+        let ctx = &mut Context::default();
+        let root1 = LLRoot::empty(ctx);
+        let root2 = LLRoot::empty(ctx);
+
+        let n1 = LLNode::new(ctx, 1);
+        n1.insert_at_back(root1, ctx);
+
+        super::append_linked_list(root1, root2, ctx);
+        validate_list(ctx, root1, vec![1]);
+        validate_list(ctx, root2, vec![]);
+    }
+
+    #[test]
+    fn test_append_nonempty_to_empty() {
+        let ctx = &mut Context::default();
+        let root1 = LLRoot::empty(ctx);
+        let root2 = LLRoot::empty(ctx);
+
+        let n1 = LLNode::new(ctx, 1);
+        n1.insert_at_back(root2, ctx);
+
+        super::append_linked_list(root1, root2, ctx);
+        validate_list(ctx, root1, vec![1]);
+        validate_list(ctx, root2, vec![]);
     }
 }

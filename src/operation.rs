@@ -267,6 +267,11 @@ impl Operation {
             .fold(0, |count, res| count + res.def.num_uses())
     }
 
+    ///  Get all uses of all results of this operation.
+    pub fn uses(&self) -> impl Iterator<Item = Use<Value>> + '_ {
+        self.results.iter().flat_map(|res| res.def.uses())
+    }
+
     /// Get type of the idx'th result.
     pub fn get_type(&self, idx: usize) -> Ptr<TypeObj> {
         self.results
