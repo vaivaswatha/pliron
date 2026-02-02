@@ -17,6 +17,7 @@ use crate::{
     operation::Operation,
     region::Region,
     r#type::TypeObj,
+    value::Value,
 };
 
 /// Rewriter interface for transformations.
@@ -25,6 +26,15 @@ pub trait Rewriter<L: RewriteListener>: Inserter<L> {
     /// Replace an [Operation] (and delete it) with another operation.
     /// Results of the new operation must match the results of the old operation.
     fn replace_operation(&mut self, ctx: &mut Context, op: Ptr<Operation>, new_op: Ptr<Operation>);
+
+    /// Replace an [Operation] (and delete it) with a list of values.
+    /// Results of the new operation must match the list of values.
+    fn replace_operation_with_values(
+        &mut self,
+        ctx: &mut Context,
+        op: Ptr<Operation>,
+        new_values: Vec<Value>,
+    );
 
     /// Erase an [Operation]. The operation must have no uses.
     fn erase_operation(&mut self, ctx: &mut Context, op: Ptr<Operation>);
@@ -54,6 +64,17 @@ pub trait Rewriter<L: RewriteListener>: Inserter<L> {
         block: Ptr<BasicBlock>,
         position: OpInsertionPoint,
     ) -> Ptr<BasicBlock>;
+
+    /// Inline a [Region] into another [Region] at the given insertion point.
+    /// The source region will be empty after this operation. The caller must
+    /// take care of transferring control flow and arguments as necessary.
+    ///
+    fn inline_region(
+        &mut self,
+        ctx: &Context,
+        src_region: Ptr<Region>,
+        dest_insertion_point: BlockInsertionPoint,
+    );
 
     /// Has the IR been modified via this rewriter?
     fn is_modified(&self) -> bool;
@@ -127,7 +148,7 @@ impl<L: RewriteListener, I: Inserter<L>> Inserter<L> for IRRewriter<L, I> {
         self.inserter.get_insertion_point()
     }
 
-    fn get_insertion_block(&self, ctx: &Context) -> Ptr<BasicBlock> {
+    fn get_insertion_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
         self.inserter.get_insertion_block(ctx)
     }
 
@@ -150,19 +171,25 @@ impl<L: RewriteListener, I: Inserter<L>> Inserter<L> for IRRewriter<L, I> {
 
 impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
     fn replace_operation(&mut self, ctx: &mut Context, op: Ptr<Operation>, new_op: Ptr<Operation>) {
+        let new_values = new_op.deref(ctx).results().collect();
+        self.replace_operation_with_values(ctx, op, new_values)
+    }
+
+    fn replace_operation_with_values(
+        &mut self,
+        ctx: &mut Context,
+        op: Ptr<Operation>,
+        new_values: Vec<Value>,
+    ) {
         assert!(
-            op.deref(ctx).get_num_results() == new_op.deref(ctx).get_num_results(),
-            "Replacement operation must have the same number of results as the original operation."
+            op.deref(ctx).get_num_results() == new_values.len(),
+            "Replacement values must match the number of results of the original operation."
         );
         if let Some(listener) = self.get_listener_mut() {
-            listener.notify_operation_replacement(ctx, op, new_op);
+            listener.notify_operation_replacement(ctx, op, new_values.clone());
         }
         // We need to collect the results first to avoid `RefCell` borrowing issues.
-        let results: Vec<_> = op
-            .deref(ctx)
-            .results()
-            .zip(new_op.deref(ctx).results())
-            .collect();
+        let results: Vec<_> = op.deref(ctx).results().zip(new_values).collect();
         for (res, new_res) in results {
             res.replace_all_uses_with(ctx, &new_res);
         }
@@ -301,6 +328,27 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
             current_op_opt = next_op;
         }
         new_block
+    }
+
+    fn inline_region(
+        &mut self,
+        ctx: &Context,
+        src_region: Ptr<Region>,
+        dest_insertion_point: BlockInsertionPoint,
+    ) {
+        assert!(
+            src_region
+                != dest_insertion_point
+                    .get_insertion_region(ctx)
+                    .expect("Insertion point itself is not in a Region"),
+            "Cannot inline a region into itself."
+        );
+        let blocks: Vec<_> = src_region.deref(ctx).iter(ctx).collect();
+        let mut insertion_pt = dest_insertion_point;
+        for block in blocks {
+            self.move_block(ctx, block, insertion_pt);
+            insertion_pt = BlockInsertionPoint::AfterBlock(block);
+        }
     }
 
     fn is_modified(&self) -> bool {

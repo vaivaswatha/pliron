@@ -8,8 +8,9 @@ use pliron::{
         attributes::IntegerAttr,
         op_interfaces::{
             IsolatedFromAboveInterface, NOpdsInterface, NResultsInterface, OneOpdInterface,
-            OneResultInterface, SingleBlockRegionInterface, SymbolOpInterface,
+            OneRegionInterface, OneResultInterface, SingleBlockRegionInterface, SymbolOpInterface,
         },
+        ops::FuncOp,
         types::{IntegerType, Signedness},
     },
     common_traits::Verify,
@@ -17,7 +18,7 @@ use pliron::{
     identifier::Identifier,
     impl_verify_succ,
     irbuild::{
-        inserter::{Inserter, OpInsertionPoint},
+        inserter::{BlockInsertionPoint, Inserter, OpInsertionPoint},
         match_rewrite::{MatchRewrite, MatchRewriter, collect_rewrite},
         rewriter::{Rewriter, ScopedRewriter},
     },
@@ -373,6 +374,88 @@ fn split_block_after_const_zero() -> Result<()> {
               ^entry_split_block3v1():
                 op5v1_res0 = test.constant builtin.integer <1: si64>;
                 test.return op5v1_res0
+            }
+        }"#]]
+    .assert_eq(&printed);
+
+    Ok(())
+}
+
+/// Test that inlines a region from one function into another.
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn inline_region_on_const_zero() -> Result<()> {
+    let ctx = &mut Context::new();
+    let (module_op1, func_op1, _, _) = const_ret_in_mod(ctx).unwrap();
+    let (module_op2, _func_op2, _, _) = const_ret_in_mod(ctx).unwrap();
+
+    struct InlineRegionOnConstZero(FuncOp);
+    impl MatchRewrite for InlineRegionOnConstZero {
+        fn r#match(&mut self, ctx: &Context, op: Ptr<Operation>) -> bool {
+            if let Some(const_op) = Operation::get_op::<ConstantOp>(op, ctx) {
+                let val = const_op.get_value(ctx);
+                return val
+                    .downcast_ref::<IntegerAttr>()
+                    .is_some_and(|int_attr| int_attr.value().to_u64() == 0);
+            }
+            false
+        }
+
+        fn rewrite(
+            &mut self,
+            ctx: &mut Context,
+            rewriter: &mut MatchRewriter,
+            op: Ptr<Operation>,
+        ) -> Result<()> {
+            let func_op = op.deref(ctx).get_parent_op(ctx).unwrap();
+            // Get the region from the matched function
+            let region = func_op.deref(ctx).get_region(0);
+
+            // Inline the region at the end of the second function's block
+            rewriter.inline_region(
+                ctx,
+                region,
+                BlockInsertionPoint::AtRegionEnd(self.0.get_region(ctx)),
+            );
+
+            Ok(())
+        }
+    }
+
+    collect_rewrite(
+        ctx,
+        InlineRegionOnConstZero(func_op1),
+        module_op2.get_operation(),
+    )?;
+    module_op1.get_operation().verify(ctx)?;
+    module_op2.get_operation().verify(ctx)?;
+
+    let printed = format!("{}", module_op1.disp(ctx));
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block1v1():
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+            {
+              ^entry_block2v1():
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                test.return c0_op3v1_res0
+
+              ^entry_block4v1():
+                c0_op7v1_res0 = test.constant builtin.integer <0: si64>;
+                test.return c0_op7v1_res0
+            }
+        }"#]]
+    .assert_eq(&printed);
+
+    let printed = format!("{}", module_op2.disp(ctx));
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block3v1():
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+            {
+              
             }
         }"#]]
     .assert_eq(&printed);

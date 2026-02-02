@@ -102,6 +102,50 @@ impl Printable for BlockInsertionPoint {
     }
 }
 
+impl OpInsertionPoint {
+    /// Get the insertion block if set.
+    pub fn get_insertion_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
+        match self {
+            OpInsertionPoint::AtBlockStart(block) => Some(*block),
+            OpInsertionPoint::AtBlockEnd(block) => Some(*block),
+            OpInsertionPoint::AfterOperation(op) => Some(
+                op.deref(ctx)
+                    .get_parent_block()
+                    .expect("Insertion point Operation must have parent block"),
+            ),
+            OpInsertionPoint::BeforeOperation(op) => Some(
+                op.deref(ctx)
+                    .get_parent_block()
+                    .expect("Insertion point Operation must have parent block"),
+            ),
+            OpInsertionPoint::Unset => None,
+        }
+    }
+}
+
+impl BlockInsertionPoint {
+    /// Get the insertion region if set.
+    pub fn get_insertion_region(&self, ctx: &Context) -> Option<Ptr<Region>> {
+        match self {
+            BlockInsertionPoint::AtRegionStart(region) => Some(*region),
+            BlockInsertionPoint::AtRegionEnd(region) => Some(*region),
+            BlockInsertionPoint::AfterBlock(block) => Some(
+                block
+                    .deref(ctx)
+                    .get_parent_region()
+                    .expect("Insertion point BasicBlock must have parent region"),
+            ),
+            BlockInsertionPoint::BeforeBlock(block) => Some(
+                block
+                    .deref(ctx)
+                    .get_parent_region()
+                    .expect("Insertion point BasicBlock must have parent region"),
+            ),
+            BlockInsertionPoint::Unset => None,
+        }
+    }
+}
+
 /// An interface for insertion of IR entities.
 /// Use [DummyListener](super::listener::DummyListener) if no listener is needed.
 pub trait Inserter<L: InsertionListener>: Default {
@@ -147,8 +191,8 @@ pub trait Inserter<L: InsertionListener>: Default {
         !matches!(self.get_insertion_point(), OpInsertionPoint::Unset)
     }
 
-    /// Get the current insertion block.
-    fn get_insertion_block(&self, ctx: &Context) -> Ptr<BasicBlock>;
+    /// Get the current insertion block, if set.
+    fn get_insertion_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>>;
 
     /// Set the insertion point.
     fn set_insertion_point(&mut self, point: OpInsertionPoint);
@@ -343,22 +387,8 @@ impl<L: InsertionListener> Inserter<L> for IRInserter<L> {
         self.op_insertion_point
     }
 
-    fn get_insertion_block(&self, ctx: &Context) -> Ptr<BasicBlock> {
-        match self.op_insertion_point {
-            OpInsertionPoint::AtBlockStart(block) => block,
-            OpInsertionPoint::AtBlockEnd(block) => block,
-            OpInsertionPoint::AfterOperation(op) => op
-                .deref(ctx)
-                .get_parent_block()
-                .expect("Insertion point Operation must have parent block"),
-            OpInsertionPoint::BeforeOperation(op) => op
-                .deref(ctx)
-                .get_parent_block()
-                .expect("Insertion point Operation must have parent block"),
-            OpInsertionPoint::Unset => {
-                panic!("Insertion point is not set");
-            }
-        }
+    fn get_insertion_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
+        self.op_insertion_point.get_insertion_block(ctx)
     }
 
     fn set_insertion_point(&mut self, point: OpInsertionPoint) {

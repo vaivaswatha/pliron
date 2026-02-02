@@ -7,6 +7,7 @@ use crate::{
     linked_list::{ContainsLinkedList as _, LinkedList},
     operation::Operation,
     region::Region,
+    value::Value,
 };
 
 /// Listener interface for insertion events.
@@ -26,7 +27,7 @@ pub trait RewriteListener: InsertionListener {
         &mut self,
         ctx: &Context,
         old_op: Ptr<Operation>,
-        new_op: Ptr<Operation>,
+        new_values: Vec<Value>,
     );
     /// Notify that a block is about to be erased.
     fn notify_block_erasure(&mut self, ctx: &Context, block: Ptr<BasicBlock>);
@@ -50,7 +51,7 @@ impl RewriteListener for DummyListener {
         &mut self,
         _ctx: &Context,
         _old_op: Ptr<Operation>,
-        _new_op: Ptr<Operation>,
+        _new_values: Vec<Value>,
     ) {
     }
     fn notify_block_erasure(&mut self, _ctx: &Context, _block: Ptr<BasicBlock>) {}
@@ -64,7 +65,7 @@ pub enum RecorderEvent {
     InsertedOperation(Ptr<Operation>),
     InsertedBlock(Ptr<BasicBlock>),
     ErasedOperation(Ptr<Operation>),
-    ReplacedOperation(Ptr<Operation>, Ptr<Operation>),
+    ReplacedOperation(Ptr<Operation>, Vec<Value>),
     ErasedBlock(Ptr<BasicBlock>),
     ErasedRegion(Ptr<Region>),
     UnlinkedOperation(Ptr<Operation>, OpInsertionPoint),
@@ -97,10 +98,10 @@ impl RewriteListener for Recorder {
         &mut self,
         _ctx: &Context,
         old_op: Ptr<Operation>,
-        new_op: Ptr<Operation>,
+        new_values: Vec<Value>,
     ) {
         self.events
-            .push(RecorderEvent::ReplacedOperation(old_op, new_op));
+            .push(RecorderEvent::ReplacedOperation(old_op, new_values));
     }
 
     fn notify_block_erasure(&mut self, _ctx: &Context, block: Ptr<BasicBlock>) {
