@@ -182,6 +182,19 @@ impl Value {
             Value::BlockArgument { block, arg_idx: _ } => block.deref(ctx).loc(),
         }
     }
+
+    /// Set this value's type.
+    pub fn set_type(&self, ctx: &Context, ty: Ptr<TypeObj>) {
+        match self {
+            Value::OpResult { op, res_idx } => {
+                op.deref_mut(ctx).get_result_mut(*res_idx).set_type(ty)
+            }
+            Value::BlockArgument { block, arg_idx } => block
+                .deref_mut(ctx)
+                .get_argument_mut(*arg_idx)
+                .set_type(ctx, ty),
+        }
+    }
 }
 
 impl Verify for Value {

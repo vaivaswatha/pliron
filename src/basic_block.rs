@@ -44,9 +44,21 @@ pub(crate) struct BlockArgument {
     pub(crate) ty: Ptr<TypeObj>,
 }
 
-impl Typed for BlockArgument {
-    fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
+impl BlockArgument {
+    /// Get the [Type](crate::type::Type) of this argument.
+    pub fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
         self.ty
+    }
+
+    /// Set the [Type](crate::type::Type) of this argument.
+    pub fn set_type(&mut self, _ctx: &Context, ty: Ptr<TypeObj>) {
+        self.ty = ty;
+    }
+}
+
+impl Typed for BlockArgument {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        self.get_type(ctx)
     }
 }
 

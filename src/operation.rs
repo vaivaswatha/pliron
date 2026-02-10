@@ -49,6 +49,11 @@ impl OpResult {
     pub fn get_type(&self) -> Ptr<TypeObj> {
         self.ty
     }
+
+    /// Set the [Type](crate::type::Type) of this operation result.
+    pub fn set_type(&mut self, ty: Ptr<TypeObj>) {
+        self.ty = ty;
+    }
 }
 
 impl Typed for OpResult {
