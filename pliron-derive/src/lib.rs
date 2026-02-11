@@ -1,4 +1,5 @@
 mod derive_attr;
+mod derive_entity;
 mod derive_format;
 mod derive_op;
 mod derive_type;
@@ -501,6 +502,142 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
         all_verifiers_fn_type,
         get_id_static,
     ))
+}
+
+/// `#[pliron_type(...)]`: Unified macro for defining IR types.
+///
+/// This macro provides a simplified, unified syntax for defining IR types by expanding
+/// into the existing type definition macros. It supports the following configuration options:
+///
+/// - `name = "dialect.type_name"`: The fully qualified name of the type (required)
+/// - `format = "format_string"`: Custom format string for printing/parsing (optional)
+/// - `interfaces = [Interface1, Interface2, ...]`: List of interfaces to implement (optional)
+/// - `verifier = "succ"`: Verifier implementation, currently only "succ" is supported (optional)
+/// - `generate_get = true/false`: Whether to generate a get method for the type (optional, default: false)
+///
+/// ## Examples
+///
+/// ### Basic type definition:
+/// ```
+/// use pliron::derive::pliron_type;
+///
+/// #[pliron_type(name = "test.unit_type", verifier = "succ")]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// pub struct UnitType;
+/// ```
+///
+/// ### Type with custom format:
+/// ```
+/// use pliron::derive::pliron_type;
+///
+/// #[pliron_type(
+///     name = "test.flags_type",
+///     format = "`type` `{` $flags `}`",
+///     verifier = "succ"
+/// )]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// struct FlagsType {
+///     flags: u32,
+/// }
+/// ```
+///
+/// ### Type with get method generation:
+/// ```
+/// use pliron::derive::pliron_type;
+///
+/// #[pliron_type(
+///     name = "test.vector_type",
+///     generate_get = true,
+///     verifier = "succ"
+/// )]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// struct VectorType {
+///     elem_ty: u32,
+///     num_elems: u32,
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn pliron_type(args: TokenStream, input: TokenStream) -> TokenStream {
+    to_token_stream(derive_entity::pliron_type(args, input))
+}
+
+/// `#[pliron_attr(...)]`: Unified macro for defining IR attributes.
+///
+/// This macro provides a simplified, unified syntax for defining IR attributes by expanding
+/// into the existing attribute definition macros. It supports the following configuration options:
+///
+/// - `name = "dialect.attribute_name"`: The fully qualified name of the attribute (required)
+/// - `format = "format_string"`: Custom format string for printing/parsing (optional)
+/// - `interfaces = [Interface1, Interface2, ...]`: List of interfaces to implement (optional)
+/// - `verifier = "succ"`: Verifier implementation, currently only "succ" is supported (optional)
+///
+/// ## Examples
+///
+/// ### Basic attribute definition:
+/// ```
+/// use pliron::derive::pliron_attr;
+///
+/// #[pliron_attr(name = "test.string_attr", verifier = "succ")]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// struct StringAttr {
+///     value: String,
+/// }
+/// ```
+///
+/// ### Attribute with custom format:
+/// ```
+/// use pliron::derive::pliron_attr;
+///
+/// #[pliron_attr(
+///     name = "test.string_attr",
+///     format = "`attr` `(` $value `)`",
+///     verifier = "succ"
+/// )]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// struct StringAttr {
+///     value: String,
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn pliron_attr(args: TokenStream, input: TokenStream) -> TokenStream {
+    to_token_stream(derive_entity::pliron_attr(args, input))
+}
+
+/// `#[pliron_op(...)]`: Unified macro for defining IR operations.
+///
+/// This macro provides a simplified, unified syntax for defining IR operations by expanding
+/// into the existing operation definition macros. It supports the following configuration options:
+///
+/// - `name = "dialect.op_name"`: The fully qualified name of the operation (required)
+/// - `format = "format_string"`: Custom format string for printing/parsing (optional)
+/// - `interfaces = [Interface1, Interface2, ...]`: List of interfaces to implement (optional)
+/// - `verifier = "succ"`: Verifier implementation, currently only "succ" is supported (optional)
+///
+/// ## Examples
+///
+/// ### Basic operation definition:
+/// ```
+/// use pliron::derive::pliron_op;
+///
+/// #[pliron_op(name = "test.my_op", verifier = "succ")]
+/// struct MyOp;
+/// ```
+///
+/// ### Operation with custom format and interfaces:
+/// ```
+/// use pliron::derive::pliron_op;
+///
+/// #[pliron_op(
+///     name = "test.if_op",
+///     format = "`(`$0`)` region($0)",
+///     interfaces = [OneOpdInterface, ZeroResultInterface, OneRegionInterface],
+///     verifier = "succ"
+/// )]
+/// struct IfOp;
+/// ```
+#[proc_macro_attribute]
+pub fn pliron_op(args: TokenStream, input: TokenStream) -> TokenStream {
+    to_token_stream(derive_entity::pliron_op(args, input))
 }
 
 /// Derive implementation of an [Op](../pliron/op/trait.Op.html) Interface for an Op.
