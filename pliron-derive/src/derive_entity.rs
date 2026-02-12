@@ -708,8 +708,8 @@ mod tests {
         expect![[r##"
             #[::pliron::derive::def_op("test.call_op")]
             #[::pliron::derive::derive_attr_get_set(
-                llvm_call_callee: IdentifierAttr,
-                llvm_call_fastmath_flags: FastmathFlagsAttr
+                llvm_call_callee:IdentifierAttr,
+                llvm_call_fastmath_flags:FastmathFlagsAttr
             )]
             struct CallOp;
             ::pliron::impl_verify_succ!(CallOp);
