@@ -56,13 +56,13 @@ impl Parse for EntityConfig {
                                 content.parse_terminated(Ident::parse, Token![,])?;
                             config.interfaces = Some(interfaces.into_iter().collect());
                         }
-                        "verifier" => {
+                        "verify" => {
                             let verifier: LitStr = input.parse()?;
                             if verifier.value() != "succ" {
                                 return Err(syn::Error::new(
                                     verifier.span(),
                                     format!(
-                                        "Unknown verifier value: '{}'. Only 'succ' is supported",
+                                        "Unknown verify value: '{}'. Only 'succ' is supported",
                                         verifier.value()
                                     ),
                                 ));
@@ -118,7 +118,7 @@ pub fn pliron_type(
     {
         let interface_list = quote! { #(#interfaces),* };
         expanded = quote! {
-            #[derive_op_interface_impl(#interface_list)]
+            #[::pliron::derive::derive_op_interface_impl(#interface_list)]
             #expanded
         };
     }
@@ -126,7 +126,7 @@ pub fn pliron_type(
     // Add derive_type_get if requested
     if config.generate_get {
         expanded = quote! {
-            #[derive_type_get]
+            #[::pliron::derive::derive_type_get]
             #expanded
         };
     }
@@ -135,13 +135,13 @@ pub fn pliron_type(
     match &config.format {
         Some(FormatSpec::Custom(format_str)) => {
             expanded = quote! {
-                #[format_type(#format_str)]
+                #[::pliron::derive::format_type(#format_str)]
                 #expanded
             };
         }
         Some(FormatSpec::Default) => {
             expanded = quote! {
-                #[format_type]
+                #[::pliron::derive::format_type]
                 #expanded
             };
         }
@@ -151,7 +151,7 @@ pub fn pliron_type(
     // Add def_type attribute
     if let Some(name) = &config.name {
         expanded = quote! {
-            #[def_type(#name)]
+            #[::pliron::derive::def_type(#name)]
             #expanded
         };
     }
@@ -191,7 +191,7 @@ pub fn pliron_attr(
     {
         let interface_list = quote! { #(#interfaces),* };
         expanded = quote! {
-            #[derive_op_interface_impl(#interface_list)]
+            #[::pliron::derive::derive_op_interface_impl(#interface_list)]
             #expanded
         };
     }
@@ -200,22 +200,23 @@ pub fn pliron_attr(
     match &config.format {
         Some(FormatSpec::Custom(format_str)) => {
             expanded = quote! {
-                #[format_attribute(#format_str)]
+                #[::pliron::derive::format_attribute(#format_str)]
                 #expanded
             };
         }
-        Some(FormatSpec::Default) | None => {
+        Some(FormatSpec::Default) => {
             expanded = quote! {
-                #[format_attribute]
+                #[::pliron::derive::format_attribute]
                 #expanded
             };
         }
+        _ => {}
     }
 
     // Add def_attribute attribute
     if let Some(name) = &config.name {
         expanded = quote! {
-            #[def_attribute(#name)]
+            #[::pliron::derive::def_attribute(#name)]
             #expanded
         };
     }
@@ -255,7 +256,7 @@ pub fn pliron_op(
     {
         let interface_list = quote! { #(#interfaces),* };
         expanded = quote! {
-            #[derive_op_interface_impl(#interface_list)]
+            #[::pliron::derive::derive_op_interface_impl(#interface_list)]
             #expanded
         };
     }
@@ -264,22 +265,23 @@ pub fn pliron_op(
     match &config.format {
         Some(FormatSpec::Custom(format_str)) => {
             expanded = quote! {
-                #[format_op(#format_str)]
+                #[::pliron::derive::format_op(#format_str)]
                 #expanded
             };
         }
-        Some(FormatSpec::Default) | None => {
+        Some(FormatSpec::Default) => {
             expanded = quote! {
-                #[format_op]
+                #[::pliron::derive::format_op]
                 #expanded
             };
         }
+        _ => {}
     }
 
     // Add def_op attribute
     if let Some(name) = &config.name {
         expanded = quote! {
-            #[def_op(#name)]
+            #[::pliron::derive::def_op(#name)]
             #expanded
         };
     }
