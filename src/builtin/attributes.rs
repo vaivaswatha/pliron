@@ -43,7 +43,7 @@ use super::{
 #[pliron_attr(
     name = "builtin.identifier"
     format = "$0"
-    verify = "succ"
+    verifier = "succ"
 )]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct IdentifierAttr(Identifier);
@@ -65,7 +65,7 @@ impl From<IdentifierAttr> for Identifier {
 /// Similar to MLIR's [StringAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#stringattr).
 #[pliron_attr(
     name = "builtin.string"
-    verify = "succ"
+    verifier = "succ"
 )]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct StringAttr(String);
@@ -119,7 +119,7 @@ impl Parsable for StringAttr {
 #[pliron_attr(
     name = "builtin.bool"
     format = "$0"
-    verify = "succ"
+    verifier = "succ"
 )]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct BoolAttr(bool);
@@ -253,7 +253,7 @@ impl TypedAttrInterface for IntegerAttr {
 #[pliron_attr(
     name = "builtin.single"
     format = "$0"
-    verify = "succ"
+    verifier = "succ"
 )]
 #[derive(PartialEq, Clone, Debug)]
 /// An attribute that is a single-precision floating-point number.
@@ -312,7 +312,7 @@ impl FloatAttr for FPSingleAttr {
 #[pliron_attr(
     name = "builtin.double"
     format = "$0"
-    verify = "succ"
+    verifier = "succ"
 )]
 #[derive(PartialEq, Clone, Debug)]
 /// An attribute that is a double-precision floating-point number.
@@ -372,7 +372,7 @@ impl FloatAttr for FPDoubleAttr {
 /// Similar to MLIR's [DictionaryAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#dictionaryattr),
 #[pliron_attr(
     name = "builtin.dict"
-    verify = "succ"
+    verifier = "succ"
 )]
 #[derive(PartialEq, Clone, Eq, Debug, Hash)]
 pub struct DictAttr(AttributeDict);
@@ -459,7 +459,7 @@ impl Verify for VecAttr {
 #[pliron_attr(
     name = "builtin.unit"
     format
-    verify = "succ"
+    verifier = "succ"
 )]
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Default, Hash)]
 pub struct UnitAttr;
@@ -475,7 +475,7 @@ impl UnitAttr {
 #[pliron_attr(
     name = "builtin.type"
     format = "$0"
-    verify = "succ"
+    verifier = "succ"
 )]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct TypeAttr(Ptr<TypeObj>);
@@ -502,7 +502,7 @@ impl TypedAttrInterface for TypeAttr {
 #[pliron_attr(
     name = "builtin.operand_segment_sizes"
     format = "`[` vec($0, CharSpace(`,`)) `]`"
-    verify = "succ"
+    verifier = "succ"
 )]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct OperandSegmentSizesAttr(pub Vec<u32>);

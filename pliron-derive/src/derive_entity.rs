@@ -21,7 +21,7 @@ struct EntityConfig {
     name: Option<LitStr>,
     format: Option<FormatSpec>,
     interfaces: Option<Vec<Ident>>,
-    verify: Option<LitStr>,
+    verifier: Option<LitStr>,
     generate_get: bool,
 }
 
@@ -56,18 +56,18 @@ impl Parse for EntityConfig {
                                 content.parse_terminated(Ident::parse, Token![,])?;
                             config.interfaces = Some(interfaces.into_iter().collect());
                         }
-                        "verify" => {
-                            let verify: LitStr = input.parse()?;
-                            if verify.value() != "succ" {
+                        "verifier" => {
+                            let verifier: LitStr = input.parse()?;
+                            if verifier.value() != "succ" {
                                 return Err(syn::Error::new(
-                                    verify.span(),
+                                    verifier.span(),
                                     format!(
-                                        "Unknown verify value: '{}'. Only 'succ' is supported",
-                                        verify.value()
+                                        "Unknown verifier value: '{}'. Only 'succ' is supported",
+                                        verifier.value()
                                     ),
                                 ));
                             }
-                            config.verify = Some(verify);
+                            config.verifier = Some(verifier);
                         }
                         "generate_get" => {
                             let value: syn::LitBool = input.parse()?;
@@ -156,9 +156,9 @@ pub fn pliron_type(
         };
     }
 
-    // Add verify implementation
-    if let Some(verify) = &config.verify
-        && verify.value() == "succ"
+    // Add verifier implementation
+    if let Some(verifier) = &config.verifier
+        && verifier.value() == "succ"
     {
         let item: syn::Item = syn::parse2(input)?;
         if let syn::Item::Struct(struct_item) = item {
@@ -221,9 +221,9 @@ pub fn pliron_attr(
         };
     }
 
-    // Add verify implementation
-    if let Some(verify) = &config.verify
-        && verify.value() == "succ"
+    // Add verifier implementation
+    if let Some(verifier) = &config.verifier
+        && verifier.value() == "succ"
     {
         let item: syn::Item = syn::parse2(input)?;
         if let syn::Item::Struct(struct_item) = item {
@@ -286,9 +286,9 @@ pub fn pliron_op(
         };
     }
 
-    // Add verify implementation
-    if let Some(verify) = &config.verify
-        && verify.value() == "succ"
+    // Add verifier implementation
+    if let Some(verifier) = &config.verifier
+        && verifier.value() == "succ"
     {
         let item: syn::Item = syn::parse2(input)?;
         if let syn::Item::Struct(struct_item) = item {
@@ -311,7 +311,7 @@ mod tests {
 
     #[test]
     fn pliron_type_basic() {
-        let args = quote! { name = "test.unit_type", verify = "succ" };
+        let args = quote! { name = "test.unit_type", verifier = "succ" };
         let input = quote! {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             pub struct UnitType;
@@ -322,7 +322,6 @@ mod tests {
 
         expect![[r##"
             #[::pliron::derive::def_type("test.unit_type")]
-            #[::pliron::derive::format_type]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             pub struct UnitType;
             ::pliron::impl_verify_succ!(UnitType);
@@ -335,7 +334,7 @@ mod tests {
         let args = quote! {
             name = "test.flags_type",
             format = "`type` `{` $flags `}`",
-            verify = "succ"
+            verifier = "succ"
         };
         let input = quote! {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -364,7 +363,7 @@ mod tests {
         let args = quote! {
             name = "test.vector_type",
             generate_get = true,
-            verify = "succ"
+            verifier = "succ"
         };
         let input = quote! {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -379,7 +378,6 @@ mod tests {
 
         expect![[r##"
             #[::pliron::derive::def_type("test.vector_type")]
-            #[::pliron::derive::format_type]
             #[::pliron::derive::derive_type_get]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct VectorType {
@@ -396,7 +394,7 @@ mod tests {
         let args = quote! {
             name = "test.interface_type",
             interfaces = [Interface1, Interface2],
-            verify = "succ"
+            verifier = "succ"
         };
         let input = quote! {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -408,7 +406,6 @@ mod tests {
 
         expect![[r##"
             #[::pliron::derive::def_type("test.interface_type")]
-            #[::pliron::derive::format_type]
             #[::pliron::derive::derive_op_interface_impl(Interface1, Interface2)]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct InterfaceType;
@@ -419,7 +416,7 @@ mod tests {
 
     #[test]
     fn pliron_attr_basic() {
-        let args = quote! { name = "test.string_attr", verify = "succ" };
+        let args = quote! { name = "test.string_attr", verifier = "succ" };
         let input = quote! {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct StringAttr {
@@ -432,7 +429,6 @@ mod tests {
 
         expect![[r##"
             #[::pliron::derive::def_attribute("test.string_attr")]
-            #[::pliron::derive::format_attribute]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct StringAttr {
                 value: String,
@@ -447,7 +443,7 @@ mod tests {
         let args = quote! {
             name = "test.string_attr",
             format = "`attr` `(` $value `)`",
-            verify = "succ"
+            verifier = "succ"
         };
         let input = quote! {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -473,7 +469,7 @@ mod tests {
 
     #[test]
     fn pliron_op_basic() {
-        let args = quote! { name = "test.my_op", verify = "succ" };
+        let args = quote! { name = "test.my_op", verifier = "succ" };
         let input = quote! {
             struct MyOp;
         };
@@ -483,7 +479,6 @@ mod tests {
 
         expect![[r##"
             #[::pliron::derive::def_op("test.my_op")]
-            #[::pliron::derive::format_op]
             struct MyOp;
             ::pliron::impl_verify_succ!(MyOp);
         "##]]
@@ -496,7 +491,7 @@ mod tests {
             name = "test.if_op",
             format = "`(`$0`)` region($0)",
             interfaces = [OneOpdInterface, ZeroResultInterface, OneRegionInterface],
-            verify = "succ"
+            verifier = "succ"
         };
         let input = quote! {
             struct IfOp;
@@ -508,7 +503,11 @@ mod tests {
         expect![[r##"
             #[::pliron::derive::def_op("test.if_op")]
             #[::pliron::derive::format_op("`(`$0`)` region($0)")]
-            #[::pliron::derive::derive_op_interface_impl(OneOpdInterface, ZeroResultInterface, OneRegionInterface)]
+            #[::pliron::derive::derive_op_interface_impl(
+                OneOpdInterface,
+                ZeroResultInterface,
+                OneRegionInterface
+            )]
             struct IfOp;
             ::pliron::impl_verify_succ!(IfOp);
         "##]]
@@ -516,7 +515,7 @@ mod tests {
     }
 
     #[test]
-    fn pliron_type_no_verify() {
+    fn pliron_type_no_verifier() {
         let args = quote! { name = "test.simple_type" };
         let input = quote! {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -528,7 +527,6 @@ mod tests {
 
         expect![[r##"
             #[::pliron::derive::def_type("test.simple_type")]
-            #[::pliron::derive::format_type]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct SimpleType;
         "##]]
@@ -551,7 +549,6 @@ mod tests {
 
         expect![[r##"
             #[::pliron::derive::def_attribute("test.interface_attr")]
-            #[::pliron::derive::format_attribute]
             #[::pliron::derive::derive_op_interface_impl(AttrInterface1, AttrInterface2)]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct InterfaceAttr;
@@ -578,7 +575,7 @@ mod tests {
         let args = quote! {
             name = "test.default_type",
             format,
-            verify = "succ"
+            verifier = "succ"
         };
         let input = quote! {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -604,7 +601,7 @@ mod tests {
             name = "test.full_type",
             format = "`full` `<` $field `>`",
             interfaces = [Iface1, Iface2],
-            verify = "succ",
+            verifier = "succ",
             generate_get = true
         };
         let input = quote! {
