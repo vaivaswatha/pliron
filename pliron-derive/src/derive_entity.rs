@@ -71,10 +71,21 @@ pub fn pliron_type(args: impl Into<TokenStream>, input: impl Into<TokenStream>) 
 
     let mut expanded = quote! { #input_tokens };
 
-    // Add def_type attribute
-    if let Some(name) = &config.name {
+    // Add interface implementations if specified
+    if let Some(interfaces) = &config.interfaces
+        && !interfaces.is_empty()
+    {
+        let interface_list = quote! { #(#interfaces),* };
         expanded = quote! {
-            #[def_type(#name)]
+            #[derive_op_interface_impl(#interface_list)]
+            #expanded
+        };
+    }
+
+    // Add derive_type_get if requested
+    if config.generate_get {
+        expanded = quote! {
+            #[derive_type_get]
             #expanded
         };
     }
@@ -92,21 +103,10 @@ pub fn pliron_type(args: impl Into<TokenStream>, input: impl Into<TokenStream>) 
         };
     }
 
-    // Add derive_type_get if requested
-    if config.generate_get {
+    // Add def_type attribute
+    if let Some(name) = &config.name {
         expanded = quote! {
-            #[derive_type_get]
-            #expanded
-        };
-    }
-
-    // Add interface implementations if specified
-    if let Some(interfaces) = &config.interfaces
-        && !interfaces.is_empty()
-    {
-        let interface_list = quote! { #(#interfaces),* };
-        expanded = quote! {
-            #[derive_op_interface_impl(#interface_list)]
+            #[def_type(#name)]
             #expanded
         };
     }
@@ -137,10 +137,13 @@ pub fn pliron_attr(args: impl Into<TokenStream>, input: impl Into<TokenStream>) 
 
     let mut expanded = quote! { #input_tokens };
 
-    // Add def_attribute attribute
-    if let Some(name) = &config.name {
+    // Add interface implementations if specified
+    if let Some(interfaces) = &config.interfaces
+        && !interfaces.is_empty()
+    {
+        let interface_list = quote! { #(#interfaces),* };
         expanded = quote! {
-            #[def_attribute(#name)]
+            #[derive_op_interface_impl(#interface_list)]
             #expanded
         };
     }
@@ -158,13 +161,10 @@ pub fn pliron_attr(args: impl Into<TokenStream>, input: impl Into<TokenStream>) 
         };
     }
 
-    // Add interface implementations if specified
-    if let Some(interfaces) = &config.interfaces
-        && !interfaces.is_empty()
-    {
-        let interface_list = quote! { #(#interfaces),* };
+    // Add def_attribute attribute
+    if let Some(name) = &config.name {
         expanded = quote! {
-            #[derive_op_interface_impl(#interface_list)]
+            #[def_attribute(#name)]
             #expanded
         };
     }
@@ -195,10 +195,13 @@ pub fn pliron_op(args: impl Into<TokenStream>, input: impl Into<TokenStream>) ->
 
     let mut expanded = quote! { #input_tokens };
 
-    // Add def_op attribute
-    if let Some(name) = &config.name {
+    // Add interface implementations if specified
+    if let Some(interfaces) = &config.interfaces
+        && !interfaces.is_empty()
+    {
+        let interface_list = quote! { #(#interfaces),* };
         expanded = quote! {
-            #[def_op(#name)]
+            #[derive_op_interface_impl(#interface_list)]
             #expanded
         };
     }
@@ -216,13 +219,10 @@ pub fn pliron_op(args: impl Into<TokenStream>, input: impl Into<TokenStream>) ->
         };
     }
 
-    // Add interface implementations if specified
-    if let Some(interfaces) = &config.interfaces
-        && !interfaces.is_empty()
-    {
-        let interface_list = quote! { #(#interfaces),* };
+    // Add def_op attribute
+    if let Some(name) = &config.name {
         expanded = quote! {
-            #[derive_op_interface_impl(#interface_list)]
+            #[def_op(#name)]
             #expanded
         };
     }
@@ -262,8 +262,8 @@ mod tests {
         let got = prettyplease::unparse(&f);
 
         expect![[r##"
-            #[format_type]
             #[def_type("test.unit_type")]
+            #[format_type]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             pub struct UnitType;
             ::pliron::impl_verify_succ!(UnitType);
@@ -289,8 +289,8 @@ mod tests {
         let got = prettyplease::unparse(&f);
 
         expect![[r##"
-            #[format_type("`type` `{` $flags `}`")]
             #[def_type("test.flags_type")]
+            #[format_type("`type` `{` $flags `}`")]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct FlagsType {
                 flags: u32,
@@ -319,9 +319,9 @@ mod tests {
         let got = prettyplease::unparse(&f);
 
         expect![[r##"
-            #[derive_type_get]
-            #[format_type]
             #[def_type("test.vector_type")]
+            #[format_type]
+            #[derive_type_get]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct VectorType {
                 elem_ty: u32,
@@ -348,9 +348,9 @@ mod tests {
         let got = prettyplease::unparse(&f);
 
         expect![[r##"
-            #[derive_op_interface_impl(Interface1, Interface2)]
-            #[format_type]
             #[def_type("test.interface_type")]
+            #[format_type]
+            #[derive_op_interface_impl(Interface1, Interface2)]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct InterfaceType;
             ::pliron::impl_verify_succ!(InterfaceType);
@@ -372,8 +372,8 @@ mod tests {
         let got = prettyplease::unparse(&f);
 
         expect![[r##"
-            #[format_attribute]
             #[def_attribute("test.string_attr")]
+            #[format_attribute]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct StringAttr {
                 value: String,
@@ -401,8 +401,8 @@ mod tests {
         let got = prettyplease::unparse(&f);
 
         expect![[r##"
-            #[format_attribute("`attr` `(` $value `)`")]
             #[def_attribute("test.string_attr")]
+            #[format_attribute("`attr` `(` $value `)`")]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct StringAttr {
                 value: String,
@@ -423,8 +423,8 @@ mod tests {
         let got = prettyplease::unparse(&f);
 
         expect![[r##"
-            #[format_op]
             #[def_op("test.my_op")]
+            #[format_op]
             struct MyOp;
             ::pliron::impl_verify_succ!(MyOp);
         "##]]
@@ -447,9 +447,9 @@ mod tests {
         let got = prettyplease::unparse(&f);
 
         expect![[r##"
-            #[derive_op_interface_impl(OneOpdInterface, ZeroResultInterface, OneRegionInterface)]
-            #[format_op("`(`$0`)` region($0)")]
             #[def_op("test.if_op")]
+            #[format_op("`(`$0`)` region($0)")]
+            #[derive_op_interface_impl(OneOpdInterface, ZeroResultInterface, OneRegionInterface)]
             struct IfOp;
             ::pliron::impl_verify_succ!(IfOp);
         "##]]
@@ -468,8 +468,8 @@ mod tests {
         let got = prettyplease::unparse(&f);
 
         expect![[r##"
-            #[format_type]
             #[def_type("test.simple_type")]
+            #[format_type]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct SimpleType;
         "##]]
@@ -491,9 +491,9 @@ mod tests {
         let got = prettyplease::unparse(&f);
 
         expect![[r##"
-            #[derive_op_interface_impl(AttrInterface1, AttrInterface2)]
-            #[format_attribute]
             #[def_attribute("test.interface_attr")]
+            #[format_attribute]
+            #[derive_op_interface_impl(AttrInterface1, AttrInterface2)]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct InterfaceAttr;
         "##]]
@@ -534,10 +534,10 @@ mod tests {
         let got = prettyplease::unparse(&f);
 
         expect![[r##"
-            #[derive_op_interface_impl(Iface1, Iface2)]
-            #[derive_type_get]
-            #[format_type("`full` `<` $field `>`")]
             #[def_type("test.full_type")]
+            #[format_type("`full` `<` $field `>`")]
+            #[derive_type_get]
+            #[derive_op_interface_impl(Iface1, Iface2)]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct FullType {
                 field: u32,
