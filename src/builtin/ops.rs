@@ -1,6 +1,5 @@
 use combine::{Parser, optional, token};
-use pliron::derive::{def_op, derive_op_interface_impl};
-use pliron_derive::derive_attr_get_set;
+use pliron::derive::{derive_attr_get_set, pliron_op};
 use thiserror::Error;
 
 use crate::{
@@ -16,7 +15,7 @@ use crate::{
     common_traits::{Named, Verify},
     context::{Context, Ptr},
     identifier::Identifier,
-    impl_verify_succ, indented_block, input_err,
+    indented_block, input_err,
     irfmt::{
         parsers::{spaced, type_parser},
         printers::op::{region, symb_op_header, typed_symb_op_header},
@@ -49,17 +48,21 @@ use super::{
 /// It contains a single [SSACFG](super::op_interfaces::RegionKind::SSACFG)
 /// region containing a single block which can contain any operations and
 /// does not have a terminator.
-#[def_op("builtin.module")]
-#[derive_op_interface_impl(
-    NRegionsInterface<1>,
-    OneRegionInterface,
-    SingleBlockRegionInterface,
-    SymbolTableInterface,
-    SymbolOpInterface,
-    IsolatedFromAboveInterface,
-    NOpdsInterface<0>,
-    NResultsInterface<0>,
-    NoTerminatorInterface
+///
+#[pliron_op(
+    name = "builtin.module"
+    interfaces = [
+        NRegionsInterface<1>,
+        OneRegionInterface,
+        SingleBlockRegionInterface,
+        SymbolTableInterface,
+        SymbolOpInterface,
+        IsolatedFromAboveInterface,
+        NOpdsInterface<0>,
+        NResultsInterface<0>,
+        NoTerminatorInterface
+    ]
+    verifier = "succ"
 )]
 pub struct ModuleOp;
 
@@ -111,8 +114,6 @@ impl Parsable for ModuleOp {
     }
 }
 
-impl_verify_succ!(ModuleOp);
-
 impl ModuleOp {
     /// Create a new [ModuleOp].
     /// The underlying [Operation] is not linked to a [BasicBlock].
@@ -133,14 +134,16 @@ impl ModuleOp {
 
 /// An operation with a name containing a single SSA control-flow-graph region.
 /// See MLIR's [func.func](https://mlir.llvm.org/docs/Dialects/Func/#funcfunc-mlirfuncfuncop).
-#[def_op("builtin.func")]
-#[derive_op_interface_impl(
-    NRegionsInterface<1>,
-    OneRegionInterface,
-    SymbolOpInterface,
-    IsolatedFromAboveInterface,
-    NOpdsInterface<0>,
-    NResultsInterface<0>
+#[pliron_op(
+    name = "builtin.func"
+    interfaces = [
+        NRegionsInterface<1>,
+        OneRegionInterface,
+        SymbolOpInterface,
+        IsolatedFromAboveInterface,
+        NOpdsInterface<0>,
+        NResultsInterface<0>
+    ]
 )]
 #[derive_attr_get_set(func_type : TypeAttr)]
 pub struct FuncOp;
@@ -274,8 +277,14 @@ impl Verify for FuncOp {
 /// MLIR [uses](https://github.com/llvm/llvm-project/blob/185b81e034ba60081023b6e59504dfffb560f3e3/mlir/lib/AsmParser/Parser.cpp#L1075)
 /// [UnrealizedConversionCastOp](https://mlir.llvm.org/docs/Dialects/Builtin/#builtinunrealized_conversion_cast-unrealizedconversioncastop)
 /// for this purpose.
-#[def_op("builtin.forward_ref")]
-#[derive_op_interface_impl(NResultsInterface<1>, NOpdsInterface<0>, OneResultInterface)]
+#[pliron_op(
+    name = "builtin.forward_ref"
+    interfaces = [
+        NResultsInterface<1>,
+        NOpdsInterface<0>,
+        OneResultInterface,
+    ]
+)]
 pub struct ForwardRefOp;
 
 impl Printable for ForwardRefOp {
