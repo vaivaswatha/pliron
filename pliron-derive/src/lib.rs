@@ -611,6 +611,7 @@ pub fn pliron_attr(args: TokenStream, input: TokenStream) -> TokenStream {
 /// - `name = "dialect.op_name"`: The fully qualified name of the operation (required)
 /// - `format = "format_string"`: Custom format string for printing/parsing (optional)
 /// - `interfaces = [Interface1, Interface2, ...]`: List of interfaces to implement (optional)
+/// - `attributes = (attr_name: AttrType, ...)`: List of attributes with their types (optional)
 /// - `verifier = "succ"`: Verifier implementation, currently only "succ" is supported (optional)
 ///
 /// ## Examples
@@ -635,6 +636,21 @@ pub fn pliron_attr(args: TokenStream, input: TokenStream) -> TokenStream {
 /// )]
 /// struct IfOp;
 /// ```
+///
+/// ### Operation with attributes:
+/// ```
+/// use pliron::derive::pliron_op;
+///
+/// #[pliron_op(
+///     name = "llvm.call",
+///     attributes = (callee: IdentifierAttr, fastmath_flags: FastmathFlagsAttr),
+///     verifier = "succ"
+/// )]
+/// struct CallOp;
+/// ```
+///
+/// The `attributes` parameter generates getter and setter methods for each attribute,
+/// equivalent to using `#[derive_attr_get_set(...)]`.
 #[proc_macro_attribute]
 pub fn pliron_op(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_entity::pliron_op(args, input))

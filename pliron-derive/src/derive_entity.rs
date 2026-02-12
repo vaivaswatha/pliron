@@ -39,7 +39,7 @@ struct EntityConfig {
     interfaces: Option<Vec<Type>>,
     attributes: Option<Vec<AttributeSpec>>,
     verifier: Option<LitStr>,
-    generate_get: bool,
+    generate_get: Option<bool>,
 }
 
 impl Parse for EntityConfig {
@@ -95,7 +95,7 @@ impl Parse for EntityConfig {
                         }
                         "generate_get" => {
                             let value: syn::LitBool = input.parse()?;
-                            config.generate_get = value.value;
+                            config.generate_get = Some(value.value);
                         }
                         _ => {
                             return Err(syn::Error::new(
@@ -134,6 +134,14 @@ pub fn pliron_type(
     let config = syn::parse2::<EntityConfig>(args)?;
     let input_tokens = input.clone();
 
+    // Validate that attributes is not specified for types
+    if config.attributes.is_some() {
+        return Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "attributes is not supported for types",
+        ));
+    }
+
     let mut expanded = quote! { #input_tokens };
 
     // Add interface implementations if specified
@@ -148,7 +156,7 @@ pub fn pliron_type(
     }
 
     // Add derive_type_get if requested
-    if config.generate_get {
+    if let Some(true) = config.generate_get {
         expanded = quote! {
             #[::pliron::derive::derive_type_get]
             #expanded
@@ -206,6 +214,22 @@ pub fn pliron_attr(
     let input = input.into();
     let config = syn::parse2::<EntityConfig>(args)?;
     let input_tokens = input.clone();
+
+    // Validate that generate_get is not specified for attributes
+    if config.generate_get.is_some() {
+        return Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "generate_get is not supported for attributes",
+        ));
+    }
+
+    // Validate that attributes is not specified for attributes
+    if config.attributes.is_some() {
+        return Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "attributes is not supported for attributes",
+        ));
+    }
 
     let mut expanded = quote! { #input_tokens };
 
@@ -271,6 +295,14 @@ pub fn pliron_op(
     let input = input.into();
     let config = syn::parse2::<EntityConfig>(args)?;
     let input_tokens = input.clone();
+
+    // Validate that generate_get is not specified for operations
+    if config.generate_get.is_some() {
+        return Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "generate_get is not supported for operations",
+        ));
+    }
 
     let mut expanded = quote! { #input_tokens };
 
