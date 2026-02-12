@@ -1,5 +1,4 @@
-use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
     Ident, LitStr, Token,
@@ -64,9 +63,11 @@ impl Parse for EntityConfig {
 }
 
 /// Generate the expanded tokens for a pliron type definition
-pub fn pliron_type(args: TokenStream, input: TokenStream) -> syn::Result<TokenStream2> {
-    let config = syn::parse::<EntityConfig>(args)?;
-    let input_tokens = TokenStream2::from(input.clone());
+pub fn pliron_type(args: impl Into<TokenStream>, input: impl Into<TokenStream>) -> syn::Result<TokenStream> {
+    let args = args.into();
+    let input = input.into();
+    let config = syn::parse2::<EntityConfig>(args)?;
+    let input_tokens = TokenStream::from(input.clone());
 
     let mut expanded = quote! { #input_tokens };
 
@@ -114,7 +115,7 @@ pub fn pliron_type(args: TokenStream, input: TokenStream) -> syn::Result<TokenSt
     if let Some(verifier) = &config.verifier
         && verifier.value() == "succ"
     {
-        let item: syn::Item = syn::parse(input)?;
+        let item: syn::Item = syn::parse2(input)?;
         if let syn::Item::Struct(struct_item) = item {
             let struct_name = &struct_item.ident;
             expanded = quote! {
@@ -128,9 +129,11 @@ pub fn pliron_type(args: TokenStream, input: TokenStream) -> syn::Result<TokenSt
 }
 
 /// Generate the expanded tokens for a pliron attribute definition
-pub fn pliron_attr(args: TokenStream, input: TokenStream) -> syn::Result<TokenStream2> {
-    let config = syn::parse::<EntityConfig>(args)?;
-    let input_tokens = TokenStream2::from(input.clone());
+pub fn pliron_attr(args: impl Into<TokenStream>, input: impl Into<TokenStream>) -> syn::Result<TokenStream> {
+    let args = args.into();
+    let input = input.into();
+    let config = syn::parse2::<EntityConfig>(args)?;
+    let input_tokens = TokenStream::from(input.clone());
 
     let mut expanded = quote! { #input_tokens };
 
@@ -170,7 +173,7 @@ pub fn pliron_attr(args: TokenStream, input: TokenStream) -> syn::Result<TokenSt
     if let Some(verifier) = &config.verifier
         && verifier.value() == "succ"
     {
-        let item: syn::Item = syn::parse(input)?;
+        let item: syn::Item = syn::parse2(input)?;
         if let syn::Item::Struct(struct_item) = item {
             let struct_name = &struct_item.ident;
             expanded = quote! {
@@ -184,9 +187,11 @@ pub fn pliron_attr(args: TokenStream, input: TokenStream) -> syn::Result<TokenSt
 }
 
 /// Generate the expanded tokens for a pliron operation definition
-pub fn pliron_op(args: TokenStream, input: TokenStream) -> syn::Result<TokenStream2> {
-    let config = syn::parse::<EntityConfig>(args)?;
-    let input_tokens = TokenStream2::from(input.clone());
+pub fn pliron_op(args: impl Into<TokenStream>, input: impl Into<TokenStream>) -> syn::Result<TokenStream> {
+    let args = args.into();
+    let input = input.into();
+    let config = syn::parse2::<EntityConfig>(args)?;
+    let input_tokens = TokenStream::from(input.clone());
 
     let mut expanded = quote! { #input_tokens };
 
@@ -226,7 +231,7 @@ pub fn pliron_op(args: TokenStream, input: TokenStream) -> syn::Result<TokenStre
     if let Some(verifier) = &config.verifier
         && verifier.value() == "succ"
     {
-        let item: syn::Item = syn::parse(input)?;
+        let item: syn::Item = syn::parse2(input)?;
         if let syn::Item::Struct(struct_item) = item {
             let struct_name = &struct_item.ident;
             expanded = quote! {
@@ -252,7 +257,7 @@ mod tests {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             pub struct UnitType;
         };
-        let result = pliron_type(args.into(), input.into()).unwrap();
+        let result = pliron_type(args, input).unwrap();
         let f = syn::parse2::<syn::File>(result).unwrap();
         let got = prettyplease::unparse(&f);
 
@@ -279,7 +284,7 @@ mod tests {
                 flags: u32,
             }
         };
-        let result = pliron_type(args.into(), input.into()).unwrap();
+        let result = pliron_type(args, input).unwrap();
         let f = syn::parse2::<syn::File>(result).unwrap();
         let got = prettyplease::unparse(&f);
 
@@ -309,7 +314,7 @@ mod tests {
                 num_elems: u32,
             }
         };
-        let result = pliron_type(args.into(), input.into()).unwrap();
+        let result = pliron_type(args, input).unwrap();
         let f = syn::parse2::<syn::File>(result).unwrap();
         let got = prettyplease::unparse(&f);
 
@@ -338,7 +343,7 @@ mod tests {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct InterfaceType;
         };
-        let result = pliron_type(args.into(), input.into()).unwrap();
+        let result = pliron_type(args, input).unwrap();
         let f = syn::parse2::<syn::File>(result).unwrap();
         let got = prettyplease::unparse(&f);
 
@@ -362,7 +367,7 @@ mod tests {
                 value: String,
             }
         };
-        let result = pliron_attr(args.into(), input.into()).unwrap();
+        let result = pliron_attr(args, input).unwrap();
         let f = syn::parse2::<syn::File>(result).unwrap();
         let got = prettyplease::unparse(&f);
 
@@ -391,7 +396,7 @@ mod tests {
                 value: String,
             }
         };
-        let result = pliron_attr(args.into(), input.into()).unwrap();
+        let result = pliron_attr(args, input).unwrap();
         let f = syn::parse2::<syn::File>(result).unwrap();
         let got = prettyplease::unparse(&f);
 
@@ -413,7 +418,7 @@ mod tests {
         let input = quote! {
             struct MyOp;
         };
-        let result = pliron_op(args.into(), input.into()).unwrap();
+        let result = pliron_op(args, input).unwrap();
         let f = syn::parse2::<syn::File>(result).unwrap();
         let got = prettyplease::unparse(&f);
 
@@ -437,7 +442,7 @@ mod tests {
         let input = quote! {
             struct IfOp;
         };
-        let result = pliron_op(args.into(), input.into()).unwrap();
+        let result = pliron_op(args, input).unwrap();
         let f = syn::parse2::<syn::File>(result).unwrap();
         let got = prettyplease::unparse(&f);
 
@@ -446,7 +451,7 @@ mod tests {
             #[format_op("`(`$0`)` region($0)")]
             #[def_op("test.if_op")]
             struct IfOp;
-            ::pliron::impl_verify_succ!(MyOp);
+            ::pliron::impl_verify_succ!(IfOp);
         "##]]
         .assert_eq(&got);
     }
@@ -458,7 +463,7 @@ mod tests {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct SimpleType;
         };
-        let result = pliron_type(args.into(), input.into()).unwrap();
+        let result = pliron_type(args, input).unwrap();
         let f = syn::parse2::<syn::File>(result).unwrap();
         let got = prettyplease::unparse(&f);
 
@@ -481,7 +486,7 @@ mod tests {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct InterfaceAttr;
         };
-        let result = pliron_attr(args.into(), input.into()).unwrap();
+        let result = pliron_attr(args, input).unwrap();
         let f = syn::parse2::<syn::File>(result).unwrap();
         let got = prettyplease::unparse(&f);
 
@@ -499,7 +504,7 @@ mod tests {
     fn entity_config_parse_error() {
         let args = quote! { unknown_key = "value" };
         let input = quote! { struct TestType; };
-        let result = pliron_type(args.into(), input.into());
+        let result = pliron_type(args, input);
         assert!(result.is_err());
         assert!(
             result
@@ -524,7 +529,7 @@ mod tests {
                 field: u32,
             }
         };
-        let result = pliron_type(args.into(), input.into()).unwrap();
+        let result = pliron_type(args, input).unwrap();
         let f = syn::parse2::<syn::File>(result).unwrap();
         let got = prettyplease::unparse(&f);
 
