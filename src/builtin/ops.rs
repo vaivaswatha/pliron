@@ -1,5 +1,5 @@
 use combine::{Parser, optional, token};
-use pliron::derive::{derive_attr_get_set, pliron_op};
+use pliron::derive::pliron_op;
 use thiserror::Error;
 
 use crate::{
@@ -144,8 +144,8 @@ impl ModuleOp {
         NOpdsInterface<0>,
         NResultsInterface<0>
     ]
+    attributes = (func_type : TypeAttr)
 )]
-#[derive_attr_get_set(func_type : TypeAttr)]
 pub struct FuncOp;
 
 impl FuncOp {
