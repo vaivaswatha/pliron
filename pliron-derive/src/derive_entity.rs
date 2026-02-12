@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
-    Ident, LitStr, Token,
+    Ident, LitStr, Token, Type,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
 };
@@ -20,7 +20,7 @@ enum FormatSpec {
 struct EntityConfig {
     name: Option<LitStr>,
     format: Option<FormatSpec>,
-    interfaces: Option<Vec<Ident>>,
+    interfaces: Option<Vec<Type>>,
     verifier: Option<LitStr>,
     generate_get: bool,
 }
@@ -52,8 +52,8 @@ impl Parse for EntityConfig {
                         "interfaces" => {
                             let content;
                             syn::bracketed!(content in input);
-                            let interfaces: Punctuated<Ident, Token![,]> =
-                                content.parse_terminated(Ident::parse, Token![,])?;
+                            let interfaces: Punctuated<Type, Token![,]> =
+                                content.parse_terminated(Type::parse, Token![,])?;
                             config.interfaces = Some(interfaces.into_iter().collect());
                         }
                         "verifier" => {
@@ -591,6 +591,31 @@ mod tests {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct DefaultType;
             ::pliron::impl_verify_succ!(DefaultType);
+        "##]]
+        .assert_eq(&got);
+    }
+
+    #[test]
+    fn pliron_type_with_generic_interfaces() {
+        let args = quote! {
+            name = "test.generic_type",
+            interfaces = [NRegionsInterface<1>, ZeroResultInterface],
+            verifier = "succ"
+        };
+        let input = quote! {
+            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+            struct GenericType;
+        };
+        let result = pliron_type(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(result).unwrap();
+        let got = prettyplease::unparse(&f);
+
+        expect![[r##"
+            #[::pliron::derive::def_type("test.generic_type")]
+            #[::pliron::derive::derive_op_interface_impl(NRegionsInterface<1>, ZeroResultInterface)]
+            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+            struct GenericType;
+            ::pliron::impl_verify_succ!(GenericType);
         "##]]
         .assert_eq(&got);
     }
