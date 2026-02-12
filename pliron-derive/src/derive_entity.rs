@@ -6,6 +6,22 @@ use syn::{
     punctuated::Punctuated,
 };
 
+/// Attribute specification for pliron entities
+#[derive(Clone)]
+struct AttributeSpec {
+    name: Ident,
+    ty: Type,
+}
+
+impl Parse for AttributeSpec {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let name = input.parse()?;
+        input.parse::<Token![:]>()?;
+        let ty = input.parse()?;
+        Ok(AttributeSpec { name, ty })
+    }
+}
+
 /// Format specification for pliron entities
 #[derive(Clone)]
 enum FormatSpec {
@@ -21,6 +37,7 @@ struct EntityConfig {
     name: Option<LitStr>,
     format: Option<FormatSpec>,
     interfaces: Option<Vec<Type>>,
+    attributes: Option<Vec<AttributeSpec>>,
     verifier: Option<LitStr>,
     generate_get: bool,
 }
@@ -55,6 +72,13 @@ impl Parse for EntityConfig {
                             let interfaces: Punctuated<Type, Token![,]> =
                                 content.parse_terminated(Type::parse, Token![,])?;
                             config.interfaces = Some(interfaces.into_iter().collect());
+                        }
+                        "attributes" => {
+                            let content;
+                            syn::parenthesized!(content in input);
+                            let attributes: Punctuated<AttributeSpec, Token![,]> =
+                                content.parse_terminated(AttributeSpec::parse, Token![,])?;
+                            config.attributes = Some(attributes.into_iter().collect());
                         }
                         "verifier" => {
                             let verifier: LitStr = input.parse()?;
@@ -257,6 +281,21 @@ pub fn pliron_op(
         let interface_list = quote! { #(#interfaces),* };
         expanded = quote! {
             #[::pliron::derive::derive_op_interface_impl(#interface_list)]
+            #expanded
+        };
+    }
+
+    // Add attributes if specified (only for operations)
+    if let Some(attributes) = &config.attributes
+        && !attributes.is_empty()
+    {
+        let attr_list = attributes.iter().map(|attr| {
+            let name = &attr.name;
+            let ty = &attr.ty;
+            quote! { #name : #ty }
+        });
+        expanded = quote! {
+            #[::pliron::derive::derive_attr_get_set(#(#attr_list),*)]
             #expanded
         };
     }
@@ -616,6 +655,32 @@ mod tests {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct GenericType;
             ::pliron::impl_verify_succ!(GenericType);
+        "##]]
+        .assert_eq(&got);
+    }
+
+    #[test]
+    fn pliron_op_with_attributes() {
+        let args = quote! {
+            name = "test.call_op",
+            attributes = (llvm_call_callee: IdentifierAttr, llvm_call_fastmath_flags: FastmathFlagsAttr),
+            verifier = "succ"
+        };
+        let input = quote! {
+            struct CallOp;
+        };
+        let result = pliron_op(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(result).unwrap();
+        let got = prettyplease::unparse(&f);
+
+        expect![[r##"
+            #[::pliron::derive::def_op("test.call_op")]
+            #[::pliron::derive::derive_attr_get_set(
+                llvm_call_callee: IdentifierAttr,
+                llvm_call_fastmath_flags: FastmathFlagsAttr
+            )]
+            struct CallOp;
+            ::pliron::impl_verify_succ!(CallOp);
         "##]]
         .assert_eq(&got);
     }
