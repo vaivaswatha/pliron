@@ -6,11 +6,20 @@ use syn::{
     punctuated::Punctuated,
 };
 
+/// Format specification for pliron entities
+#[derive(Clone)]
+enum FormatSpec {
+    /// Use default format generation
+    Default,
+    /// Use custom format string
+    Custom(LitStr),
+}
+
 /// Configuration for pliron entity definitions
 #[derive(Default)]
 struct EntityConfig {
     name: Option<LitStr>,
-    format: Option<LitStr>,
+    format: Option<FormatSpec>,
     interfaces: Option<Vec<Ident>>,
     verifier: Option<LitStr>,
     generate_get: bool,
@@ -22,34 +31,55 @@ impl Parse for EntityConfig {
 
         while !input.is_empty() {
             let key: Ident = input.parse()?;
-            input.parse::<Token![=]>()?;
 
             match key.to_string().as_str() {
-                "name" => {
-                    config.name = Some(input.parse()?);
-                }
                 "format" => {
-                    config.format = Some(input.parse()?);
-                }
-                "interfaces" => {
-                    let content;
-                    syn::bracketed!(content in input);
-                    let interfaces: Punctuated<Ident, Token![,]> =
-                        content.parse_terminated(Ident::parse, Token![,])?;
-                    config.interfaces = Some(interfaces.into_iter().collect());
-                }
-                "verifier" => {
-                    config.verifier = Some(input.parse()?);
-                }
-                "generate_get" => {
-                    let value: syn::LitBool = input.parse()?;
-                    config.generate_get = value.value;
+                    // Check if there's an equals sign - if not, it's default format
+                    if input.peek(Token![=]) {
+                        input.parse::<Token![=]>()?;
+                        let format_str: LitStr = input.parse()?;
+                        config.format = Some(FormatSpec::Custom(format_str));
+                    } else {
+                        config.format = Some(FormatSpec::Default);
+                    }
                 }
                 _ => {
-                    return Err(syn::Error::new(
-                        key.span(),
-                        format!("Unknown configuration key: {}", key),
-                    ));
+                    input.parse::<Token![=]>()?;
+                    match key.to_string().as_str() {
+                        "name" => {
+                            config.name = Some(input.parse()?);
+                        }
+                        "interfaces" => {
+                            let content;
+                            syn::bracketed!(content in input);
+                            let interfaces: Punctuated<Ident, Token![,]> =
+                                content.parse_terminated(Ident::parse, Token![,])?;
+                            config.interfaces = Some(interfaces.into_iter().collect());
+                        }
+                        "verifier" => {
+                            let verifier: LitStr = input.parse()?;
+                            if verifier.value() != "succ" {
+                                return Err(syn::Error::new(
+                                    verifier.span(),
+                                    format!(
+                                        "Unknown verifier value: '{}'. Only 'succ' is supported",
+                                        verifier.value()
+                                    ),
+                                ));
+                            }
+                            config.verifier = Some(verifier);
+                        }
+                        "generate_get" => {
+                            let value: syn::LitBool = input.parse()?;
+                            config.generate_get = value.value;
+                        }
+                        _ => {
+                            return Err(syn::Error::new(
+                                key.span(),
+                                format!("Unknown configuration key: {}", key),
+                            ));
+                        }
+                    }
                 }
             }
 
@@ -58,16 +88,27 @@ impl Parse for EntityConfig {
             }
         }
 
+        // Validate that name is provided
+        if config.name.is_none() {
+            return Err(syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "name is a required field",
+            ));
+        }
+
         Ok(config)
     }
 }
 
 /// Generate the expanded tokens for a pliron type definition
-pub fn pliron_type(args: impl Into<TokenStream>, input: impl Into<TokenStream>) -> syn::Result<TokenStream> {
+pub fn pliron_type(
+    args: impl Into<TokenStream>,
+    input: impl Into<TokenStream>,
+) -> syn::Result<TokenStream> {
     let args = args.into();
     let input = input.into();
     let config = syn::parse2::<EntityConfig>(args)?;
-    let input_tokens = TokenStream::from(input.clone());
+    let input_tokens = input.clone();
 
     let mut expanded = quote! { #input_tokens };
 
@@ -91,16 +132,20 @@ pub fn pliron_type(args: impl Into<TokenStream>, input: impl Into<TokenStream>) 
     }
 
     // Add format_type attribute
-    if let Some(format) = &config.format {
-        expanded = quote! {
-            #[format_type(#format)]
-            #expanded
-        };
-    } else {
-        expanded = quote! {
-            #[format_type]
-            #expanded
-        };
+    match &config.format {
+        Some(FormatSpec::Custom(format_str)) => {
+            expanded = quote! {
+                #[format_type(#format_str)]
+                #expanded
+            };
+        }
+        Some(FormatSpec::Default) => {
+            expanded = quote! {
+                #[format_type]
+                #expanded
+            };
+        }
+        _ => {}
     }
 
     // Add def_type attribute
@@ -129,11 +174,14 @@ pub fn pliron_type(args: impl Into<TokenStream>, input: impl Into<TokenStream>) 
 }
 
 /// Generate the expanded tokens for a pliron attribute definition
-pub fn pliron_attr(args: impl Into<TokenStream>, input: impl Into<TokenStream>) -> syn::Result<TokenStream> {
+pub fn pliron_attr(
+    args: impl Into<TokenStream>,
+    input: impl Into<TokenStream>,
+) -> syn::Result<TokenStream> {
     let args = args.into();
     let input = input.into();
     let config = syn::parse2::<EntityConfig>(args)?;
-    let input_tokens = TokenStream::from(input.clone());
+    let input_tokens = input.clone();
 
     let mut expanded = quote! { #input_tokens };
 
@@ -149,16 +197,19 @@ pub fn pliron_attr(args: impl Into<TokenStream>, input: impl Into<TokenStream>) 
     }
 
     // Add format_attribute attribute
-    if let Some(format) = &config.format {
-        expanded = quote! {
-            #[format_attribute(#format)]
-            #expanded
-        };
-    } else {
-        expanded = quote! {
-            #[format_attribute]
-            #expanded
-        };
+    match &config.format {
+        Some(FormatSpec::Custom(format_str)) => {
+            expanded = quote! {
+                #[format_attribute(#format_str)]
+                #expanded
+            };
+        }
+        Some(FormatSpec::Default) | None => {
+            expanded = quote! {
+                #[format_attribute]
+                #expanded
+            };
+        }
     }
 
     // Add def_attribute attribute
@@ -187,11 +238,14 @@ pub fn pliron_attr(args: impl Into<TokenStream>, input: impl Into<TokenStream>) 
 }
 
 /// Generate the expanded tokens for a pliron operation definition
-pub fn pliron_op(args: impl Into<TokenStream>, input: impl Into<TokenStream>) -> syn::Result<TokenStream> {
+pub fn pliron_op(
+    args: impl Into<TokenStream>,
+    input: impl Into<TokenStream>,
+) -> syn::Result<TokenStream> {
     let args = args.into();
     let input = input.into();
     let config = syn::parse2::<EntityConfig>(args)?;
-    let input_tokens = TokenStream::from(input.clone());
+    let input_tokens = input.clone();
 
     let mut expanded = quote! { #input_tokens };
 
@@ -207,16 +261,19 @@ pub fn pliron_op(args: impl Into<TokenStream>, input: impl Into<TokenStream>) ->
     }
 
     // Add format_op attribute
-    if let Some(format) = &config.format {
-        expanded = quote! {
-            #[format_op(#format)]
-            #expanded
-        };
-    } else {
-        expanded = quote! {
-            #[format_op]
-            #expanded
-        };
+    match &config.format {
+        Some(FormatSpec::Custom(format_str)) => {
+            expanded = quote! {
+                #[format_op(#format_str)]
+                #expanded
+            };
+        }
+        Some(FormatSpec::Default) | None => {
+            expanded = quote! {
+                #[format_op]
+                #expanded
+            };
+        }
     }
 
     // Add def_op attribute
@@ -512,6 +569,31 @@ mod tests {
                 .to_string()
                 .contains("Unknown configuration key")
         );
+    }
+
+    #[test]
+    fn pliron_type_with_default_format() {
+        let args = quote! {
+            name = "test.default_type",
+            format,
+            verifier = "succ"
+        };
+        let input = quote! {
+            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+            struct DefaultType;
+        };
+        let result = pliron_type(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(result).unwrap();
+        let got = prettyplease::unparse(&f);
+
+        expect![[r##"
+            #[def_type("test.default_type")]
+            #[format_type]
+            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+            struct DefaultType;
+            ::pliron::impl_verify_succ!(DefaultType);
+        "##]]
+        .assert_eq(&got);
     }
 
     #[test]
