@@ -2,13 +2,11 @@ use combine::{
     Parser, choice,
     parser::char::{spaces, string},
 };
-use pliron::derive::{def_type, derive_type_get};
-use pliron_derive::{format_type, type_interface_impl};
+use pliron::derive::{pliron_type, type_interface_impl};
 
 use crate::{
     builtin::type_interfaces::{FloatTypeInterface, FunctionTypeInterface},
     context::{Context, Ptr},
-    impl_verify_succ,
     irfmt::parsers::int_parser,
     parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable},
@@ -23,8 +21,11 @@ pub enum Signedness {
     Signless,
 }
 
-#[def_type("builtin.integer")]
-#[derive_type_get]
+#[pliron_type(
+    name = "builtin.integer"
+    generate_get = true
+    verifier = "succ"
+)]
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 pub struct IntegerType {
     width: u32,
@@ -109,18 +110,17 @@ impl Printable for IntegerType {
     }
 }
 
-impl_verify_succ!(IntegerType);
-
 /// Map from a list of inputs to a list of results
 ///
 /// See MLIR's [FunctionType](https://mlir.llvm.org/docs/Dialects/Builtin/#functiontype).
 ///
-#[def_type("builtin.function")]
-#[derive_type_get]
-#[derive(Hash, PartialEq, Eq, Debug)]
-#[format_type(
-    "`<` `(` vec($inputs, CharSpace(`,`)) `)` `->` `(`vec($results, CharSpace(`,`)) `)` `>`"
+#[pliron_type(
+    name = "builtin.function"
+    format = "`<` `(` vec($inputs, CharSpace(`,`)) `)` `->` `(`vec($results, CharSpace(`,`)) `)` `>`"
+    generate_get = true
+    verifier = "succ"
 )]
+#[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FunctionType {
     /// Function arguments / inputs.
     inputs: Vec<Ptr<TypeObj>>,
@@ -152,22 +152,23 @@ impl FunctionTypeInterface for FunctionType {
     }
 }
 
-impl_verify_succ!(FunctionType);
-
-#[def_type("builtin.unit")]
-#[derive_type_get]
-#[format_type]
+#[pliron_type(
+    name = "builtin.unit"
+    format
+    generate_get = true
+    verifier = "succ"
+)]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct UnitType;
 
-impl_verify_succ!(UnitType);
-
-#[def_type("builtin.fp32")]
-#[derive_type_get]
-#[format_type]
+#[pliron_type(
+    name = "builtin.fp32"
+    format
+    generate_get = true
+    verifier = "succ"
+)]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FP32Type;
-impl_verify_succ!(FP32Type);
 #[type_interface_impl]
 impl FloatTypeInterface for FP32Type {
     fn get_semantics(&self) -> Semantics {
@@ -175,12 +176,14 @@ impl FloatTypeInterface for FP32Type {
     }
 }
 
-#[def_type("builtin.fp64")]
-#[derive_type_get]
-#[format_type]
+#[pliron_type(
+    name = "builtin.fp64"
+    format
+    generate_get = true
+    verifier = "succ"
+)]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FP64Type;
-impl_verify_succ!(FP64Type);
 #[type_interface_impl]
 impl FloatTypeInterface for FP64Type {
     fn get_semantics(&self) -> Semantics {
