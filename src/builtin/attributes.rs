@@ -5,7 +5,7 @@ use combine::{
     parser::char::{char, digit, spaces},
     token,
 };
-use pliron::derive::{pliron_attr, attr_interface_impl};
+use pliron::derive::{attr_interface_impl, pliron_attr};
 use rustc_apfloat::Float;
 use thiserror::Error;
 
