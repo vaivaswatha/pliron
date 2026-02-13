@@ -116,8 +116,8 @@ fn replace_c0_with_c1() -> Result<()> {
 
 /// A test global operation.
 #[pliron_op(
-    name = "test.global"
-    format
+    name = "test.global",
+    format,
     interfaces = [
         IsolatedFromAboveInterface,
         NOpdsInterface<0>,
@@ -125,9 +125,9 @@ fn replace_c0_with_c1() -> Result<()> {
         OneResultInterface,
         SymbolOpInterface,
         SingleBlockRegionInterface,
-    ]
-    attributes = (test_global_op_const_val: IntegerAttr)
-    verifier = "succ"
+    ],
+    attributes = (test_global_op_const_val: IntegerAttr),
+    verifier = "succ",
 )]
 pub struct GlobalOp;
 
@@ -150,20 +150,15 @@ impl GlobalOp {
 }
 
 /// An opaque pointer
-#[pliron_type(
-    name = "test.ptr"
-    format
-    generate_get = true
-    verifier = "succ"
-)]
+#[pliron_type(name = "test.ptr", format, generate_get = true, verifier = "succ")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct PointerType;
 
 #[pliron_op(
-    name = "test.load"
-    format = "$0 ` ` : ` type($0)"
-    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>]
-    verifier = "succ"
+    name = "test.load",
+    format = "$0 ` ` : ` type($0)",
+    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>],
+    verifier = "succ",
 )]
 pub struct LoadOp;
 

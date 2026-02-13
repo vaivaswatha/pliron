@@ -29,10 +29,10 @@ use pliron::{
 };
 
 #[pliron_op(
-    name = "test.return"
-    format = "$0"
-    interfaces = [IsTerminatorInterface]
-    verifier = "succ"
+    name = "test.return",
+    format = "$0",
+    interfaces = [IsTerminatorInterface],
+    verifier = "succ",
 )]
 pub struct ReturnOp;
 impl ReturnOp {
@@ -55,9 +55,9 @@ mod constant_op {
 }
 
 #[pliron_op(
-    name = "test.constant"
-    interfaces = [NOpdsInterface<0>, OneResultInterface, NResultsInterface<1>]
-    verifier = "succ"
+    name = "test.constant",
+    interfaces = [NOpdsInterface<0>, OneResultInterface, NResultsInterface<1>],
+    verifier = "succ",
 )]
 pub struct ConstantOp;
 impl ConstantOp {

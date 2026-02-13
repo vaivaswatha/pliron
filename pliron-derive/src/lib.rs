@@ -634,7 +634,7 @@ pub fn pliron_attr(args: TokenStream, input: TokenStream) -> TokenStream {
 /// #[pliron_op(
 ///     name = "test.if_op",
 ///     format = "`(`$0`)` region($0)",
-///     interfaces = [ NRegionsInterface<1> ]
+///     interfaces = [ NRegionsInterface<1> ],
 ///     verifier = "succ"
 /// )]
 /// struct IfOp;

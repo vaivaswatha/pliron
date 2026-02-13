@@ -50,7 +50,7 @@ use super::{
 /// does not have a terminator.
 ///
 #[pliron_op(
-    name = "builtin.module"
+    name = "builtin.module",
     interfaces = [
         NRegionsInterface<1>,
         OneRegionInterface,
@@ -61,8 +61,8 @@ use super::{
         NOpdsInterface<0>,
         NResultsInterface<0>,
         NoTerminatorInterface
-    ]
-    verifier = "succ"
+    ],
+    verifier = "succ",
 )]
 pub struct ModuleOp;
 
@@ -135,7 +135,7 @@ impl ModuleOp {
 /// An operation with a name containing a single SSA control-flow-graph region.
 /// See MLIR's [func.func](https://mlir.llvm.org/docs/Dialects/Func/#funcfunc-mlirfuncfuncop).
 #[pliron_op(
-    name = "builtin.func"
+    name = "builtin.func",
     interfaces = [
         NRegionsInterface<1>,
         OneRegionInterface,
@@ -143,8 +143,8 @@ impl ModuleOp {
         IsolatedFromAboveInterface,
         NOpdsInterface<0>,
         NResultsInterface<0>
-    ]
-    attributes = (func_type : TypeAttr)
+    ],
+    attributes = (func_type : TypeAttr),
 )]
 pub struct FuncOp;
 
@@ -278,12 +278,12 @@ impl Verify for FuncOp {
 /// [UnrealizedConversionCastOp](https://mlir.llvm.org/docs/Dialects/Builtin/#builtinunrealized_conversion_cast-unrealizedconversioncastop)
 /// for this purpose.
 #[pliron_op(
-    name = "builtin.forward_ref"
+    name = "builtin.forward_ref",
     interfaces = [
         NResultsInterface<1>,
         NOpdsInterface<0>,
         OneResultInterface,
-    ]
+    ],
 )]
 pub struct ForwardRefOp;
 

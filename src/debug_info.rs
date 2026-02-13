@@ -150,12 +150,12 @@ mod tests {
     };
 
     #[pliron_op(
-        name = "test.zero"
-        format
+        name = "test.zero",
+        format,
         interfaces = [
             OneResultInterface, NResultsInterface<1>, NOpdsInterface<0>
-        ]
-        verifier = "succ"
+        ],
+        verifier = "succ",
     )]
     struct ZeroOp;
     impl ZeroOp {

@@ -21,11 +21,7 @@ pub enum Signedness {
     Signless,
 }
 
-#[pliron_type(
-    name = "builtin.integer"
-    generate_get = true
-    verifier = "succ"
-)]
+#[pliron_type(name = "builtin.integer", generate_get = true, verifier = "succ")]
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 pub struct IntegerType {
     width: u32,
@@ -115,9 +111,9 @@ impl Printable for IntegerType {
 /// See MLIR's [FunctionType](https://mlir.llvm.org/docs/Dialects/Builtin/#functiontype).
 ///
 #[pliron_type(
-    name = "builtin.function"
-    format = "`<` `(` vec($inputs, CharSpace(`,`)) `)` `->` `(`vec($results, CharSpace(`,`)) `)` `>`"
-    generate_get = true
+    name = "builtin.function",
+    format = "`<` `(` vec($inputs, CharSpace(`,`)) `)` `->` `(`vec($results, CharSpace(`,`)) `)` `>`",
+    generate_get = true,
     verifier = "succ"
 )]
 #[derive(Hash, PartialEq, Eq, Debug)]
@@ -152,21 +148,11 @@ impl FunctionTypeInterface for FunctionType {
     }
 }
 
-#[pliron_type(
-    name = "builtin.unit"
-    format
-    generate_get = true
-    verifier = "succ"
-)]
+#[pliron_type(name = "builtin.unit", format, generate_get = true, verifier = "succ")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct UnitType;
 
-#[pliron_type(
-    name = "builtin.fp32"
-    format
-    generate_get = true
-    verifier = "succ"
-)]
+#[pliron_type(name = "builtin.fp32", format, generate_get = true, verifier = "succ")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FP32Type;
 #[type_interface_impl]
@@ -176,12 +162,7 @@ impl FloatTypeInterface for FP32Type {
     }
 }
 
-#[pliron_type(
-    name = "builtin.fp64"
-    format
-    generate_get = true
-    verifier = "succ"
-)]
+#[pliron_type(name = "builtin.fp64", format, generate_get = true, verifier = "succ")]
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FP64Type;
 #[type_interface_impl]

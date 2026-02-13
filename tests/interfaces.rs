@@ -46,10 +46,7 @@ use crate::common::const_ret_in_mod;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen_test::*;
 
-#[pliron_op(
-    name = "test.zero_result"
-    verifier = "succ"
-)]
+#[pliron_op(name = "test.zero_result", verifier = "succ")]
 struct ZeroResultOp {}
 
 // This is setup to fail.
@@ -223,10 +220,10 @@ trait TestOpInterfaceGeneric3<T: Clone>:
 }
 
 #[pliron_op(
-    name = "test.verify_intr_op_generic"
-    format
-    interfaces = [TestOpInterfaceGeneric<i32>, TestOpInterfaceGeneric2<i32>, TestOpInterfaceGeneric3<i32>]
-    verifier = "succ"
+    name = "test.verify_intr_op_generic",
+    format,
+    interfaces = [TestOpInterfaceGeneric<i32>, TestOpInterfaceGeneric2<i32>, TestOpInterfaceGeneric3<i32>],
+    verifier = "succ",
 )]
 struct VerifyIntrOpGeneric {}
 impl VerifyIntrOpGeneric {
@@ -301,9 +298,9 @@ trait TestOpInterfaceConstGeneric3<const N: usize>:
 
 #[pliron_op(
     name = "test.verify_intr_op_const_generic",
-    format
-    interfaces = [TestOpInterfaceConstGeneric<42>, TestOpInterfaceConstGeneric2<42>, TestOpInterfaceConstGeneric3<42>]
-    verifier = "succ"
+    format,
+    interfaces = [TestOpInterfaceConstGeneric<42>, TestOpInterfaceConstGeneric2<42>, TestOpInterfaceConstGeneric3<42>],
+    verifier = "succ",
 )]
 struct VerifyIntrOpConstGeneric {}
 impl VerifyIntrOpConstGeneric {
@@ -366,11 +363,7 @@ impl TypedAttrInterface for MyAttr {
 static TEST_ATTR_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
     LazyLock::new(|| Mutex::new("".into()));
 
-#[pliron_attr(
-    name = "test.verify_intr_attr"
-    format
-    verifier = "succ"
-)]
+#[pliron_attr(name = "test.verify_intr_attr", format, verifier = "succ")]
 #[derive(PartialEq, Clone, Debug, Hash)]
 struct VerifyIntrAttr {}
 
@@ -463,11 +456,7 @@ trait TestAttrInterfaceGeneric3<T: Clone>:
     }
 }
 
-#[pliron_attr(
-    name = "test.verify_intr_attr_generic"
-    format
-    verifier = "succ"
-)]
+#[pliron_attr(name = "test.verify_intr_attr_generic", format, verifier = "succ")]
 #[derive(PartialEq, Clone, Debug, Hash)]
 struct VerifyIntrAttrGeneric {}
 
@@ -518,11 +507,7 @@ impl TestTypeInterfaceX for IntegerType {}
 static TEST_TYPE_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
     LazyLock::new(|| Mutex::new("".into()));
 
-#[pliron_type(
-    name = "test.verify_intr_type"
-    format
-    verifier = "succ"
-)]
+#[pliron_type(name = "test.verify_intr_type", format, verifier = "succ")]
 #[derive(PartialEq, Clone, Debug, Hash)]
 struct VerifyIntrType {}
 #[type_interface_impl]
@@ -614,11 +599,7 @@ trait TestTypeInterfaceGeneric3<T: Clone>:
     }
 }
 
-#[pliron_type(
-    name = "test.verify_intr_type_generic"
-    format
-    verifier = "succ"
-)]
+#[pliron_type(name = "test.verify_intr_type_generic", format, verifier = "succ")]
 #[derive(PartialEq, Clone, Debug, Hash)]
 struct VerifyIntrTypeGeneric {}
 
@@ -727,8 +708,8 @@ fn test_no_inbuilt_verify2() -> Result<()> {
 }
 
 #[pliron_attr(
-    name = "test.outline_test_attr"
-    format = "`<` $ty `>`"
+    name = "test.outline_test_attr",
+    format = "`<` $ty `>`",
     verifier = "succ"
 )]
 #[derive(PartialEq, Clone, Debug, Hash)]
@@ -769,8 +750,8 @@ fn test_outline_attr() -> Result<()> {
 }
 
 #[pliron_attr(
-    name = "test.outline_print_once_test_attr"
-    format = "`<` $ty `>`"
+    name = "test.outline_print_once_test_attr",
+    format = "`<` $ty `>`",
     verifier = "succ"
 )]
 #[derive(PartialEq, Clone, Debug, Hash)]
