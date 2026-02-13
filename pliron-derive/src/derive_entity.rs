@@ -111,7 +111,8 @@ impl Parse for EntityConfig {
                 }
             }
 
-            if input.peek(Token![,]) {
+            // Require comma separator between properties, allow trailing comma
+            if !input.is_empty() {
                 input.parse::<Token![,]>()?;
             }
         }
