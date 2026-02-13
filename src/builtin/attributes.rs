@@ -10,7 +10,7 @@ use rustc_apfloat::Float;
 use thiserror::Error;
 
 use crate::{
-    attribute::{AttrObj, Attribute, AttributeDict},
+    attribute::{AttrObj, AttributeDict},
     builtin::{
         attr_interfaces::FloatAttr,
         types::{FP32Type, FP64Type},

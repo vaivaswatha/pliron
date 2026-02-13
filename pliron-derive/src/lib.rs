@@ -493,14 +493,15 @@ pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let interface_verifiers_slice = parse_quote! { ::pliron::op::OP_INTERFACE_VERIFIERS };
     let id = parse_quote! { ::pliron::op::OpId };
-    let get_id_static = format_ident!("{}", "get_opid_static");
+    let get_id_static_method = format_ident!("{}", "get_opid_static");
+    let get_id_static_trait = parse_quote! { ::pliron::op::Op };
     let all_verifiers_fn_type = parse_quote! { ::pliron::op::OpInterfaceAllVerifiers };
     to_token_stream(interfaces::interface_impl(
         item,
         interface_verifiers_slice,
         id,
         all_verifiers_fn_type,
-        get_id_static,
+        (get_id_static_trait, get_id_static_method),
     ))
 }
 
@@ -521,7 +522,7 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```
 /// use pliron::derive::pliron_type;
 ///
-/// #[pliron_type(name = "test.unit_type", verifier = "succ")]
+/// #[pliron_type(name = "test.unit_type", format, verifier = "succ")]
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// pub struct UnitType;
 /// ```
@@ -548,6 +549,7 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #[pliron_type(
 ///     name = "test.vector_type",
 ///     generate_get = true,
+///     format,
 ///     verifier = "succ"
 /// )]
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -577,7 +579,7 @@ pub fn pliron_type(args: TokenStream, input: TokenStream) -> TokenStream {
 /// ```
 /// use pliron::derive::pliron_attr;
 ///
-/// #[pliron_attr(name = "test.string_attr", verifier = "succ")]
+/// #[pliron_attr(name = "test.string_attr", format, verifier = "succ")]
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// struct StringAttr {
 ///     value: String,
@@ -620,18 +622,19 @@ pub fn pliron_attr(args: TokenStream, input: TokenStream) -> TokenStream {
 /// ```
 /// use pliron::derive::pliron_op;
 ///
-/// #[pliron_op(name = "test.my_op", verifier = "succ")]
+/// #[pliron_op(name = "test.my_op", format, verifier = "succ")]
 /// struct MyOp;
 /// ```
 ///
 /// ### Operation with custom format and interfaces:
 /// ```
 /// use pliron::derive::pliron_op;
+/// use pliron::builtin::op_interfaces::NRegionsInterface;
 ///
 /// #[pliron_op(
 ///     name = "test.if_op",
 ///     format = "`(`$0`)` region($0)",
-///     interfaces = [OneOpdInterface, ZeroResultInterface, OneRegionInterface],
+///     interfaces = [ NRegionsInterface<1> ]
 ///     verifier = "succ"
 /// )]
 /// struct IfOp;
@@ -640,10 +643,12 @@ pub fn pliron_attr(args: TokenStream, input: TokenStream) -> TokenStream {
 /// ### Operation with attributes:
 /// ```
 /// use pliron::derive::pliron_op;
+/// use pliron::builtin::attributes::{UnitAttr, IntegerAttr};
 ///
 /// #[pliron_op(
-///     name = "llvm.call",
-///     attributes = (callee: IdentifierAttr, fastmath_flags: FastmathFlagsAttr),
+///     name = "dialect.test",
+///     format,
+///     attributes = (attr1: UnitAttr, attr2: IntegerAttr),
 ///     verifier = "succ"
 /// )]
 /// struct CallOp;
@@ -789,14 +794,15 @@ pub fn attr_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn attr_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let interface_verifiers_slice = parse_quote! { ::pliron::attribute::ATTR_INTERFACE_VERIFIERS };
     let id = parse_quote! { ::pliron::attribute::AttrId };
-    let get_id_static = format_ident!("{}", "get_attr_id_static");
+    let get_id_static_method = format_ident!("{}", "get_attr_id_static");
+    let get_id_static_trait = parse_quote! { ::pliron::attribute::Attribute };
     let all_verifiers_fn_type = parse_quote! { ::pliron::attribute::AttrInterfaceAllVerifiers };
     to_token_stream(interfaces::interface_impl(
         item,
         interface_verifiers_slice,
         id,
         all_verifiers_fn_type,
-        get_id_static,
+        (get_id_static_trait, get_id_static_method),
     ))
 }
 
@@ -898,13 +904,14 @@ pub fn type_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn type_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let interface_verifiers_slice = parse_quote! { ::pliron::r#type::TYPE_INTERFACE_VERIFIERS };
     let id = parse_quote! { ::pliron::r#type::TypeId };
-    let get_id_static = format_ident!("{}", "get_type_id_static");
+    let get_id_static_method = format_ident!("{}", "get_type_id_static");
+    let get_id_static_trait = parse_quote! { ::pliron::r#type::Type };
     let all_verifiers_fn_type = parse_quote! { ::pliron::r#type::TypeInterfaceAllVerifiers };
     to_token_stream(interfaces::interface_impl(
         item,
         interface_verifiers_slice,
         id,
         all_verifiers_fn_type,
-        get_id_static,
+        (get_id_static_trait, get_id_static_method),
     ))
 }
