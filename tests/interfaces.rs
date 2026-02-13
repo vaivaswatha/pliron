@@ -10,8 +10,8 @@ use pliron::attribute::{attr_cast, verify_attr};
 use pliron::builtin::attr_interfaces::{OutlinedAttr, PrintOnceAttr};
 use pliron::builtin::op_interfaces::NResultsInterface;
 use pliron::derive::{
-    attr_interface, attr_interface_impl, def_attribute, def_op, def_type, derive_op_interface_impl,
-    op_interface, op_interface_impl, type_interface, type_interface_impl,
+    attr_interface, attr_interface_impl, op_interface, op_interface_impl, pliron_attr, pliron_op,
+    pliron_type, type_interface, type_interface_impl,
 };
 use pliron::location::{self, Located, Source};
 use pliron::parsable::{self, state_stream_from_iterator};
@@ -29,7 +29,6 @@ use pliron::{
     common_traits::Verify,
     context::{Context, Ptr},
     identifier::Identifier,
-    impl_verify_succ,
     location::Location,
     op::{Op, OpObj, op_cast},
     operation::Operation,
@@ -40,7 +39,6 @@ use pliron::{
     utils::trait_cast::any_to_trait,
 };
 use pliron::{input_error, verify_err};
-use pliron_derive::{format_attribute, format_op, format_type};
 use thiserror::Error;
 
 use crate::common::const_ret_in_mod;
@@ -48,7 +46,10 @@ use crate::common::const_ret_in_mod;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen_test::*;
 
-#[def_op("test.zero_result")]
+#[pliron_op(
+    name = "test.zero_result"
+    verifier = "succ"
+)]
 struct ZeroResultOp {}
 
 // This is setup to fail.
@@ -68,8 +69,6 @@ impl Printable for ZeroResultOp {
         write!(f, "zero_results",)
     }
 }
-
-impl_verify_succ!(ZeroResultOp);
 
 impl Parsable for ZeroResultOp {
     type Arg = Vec<(Identifier, Location)>;
@@ -149,11 +148,13 @@ trait TestOpInterface2: TestOpInterface {
     }
 }
 
-#[format_op]
-#[def_op("test.verify_intr_op")]
-#[derive_op_interface_impl(TestOpInterface, TestOpInterface2)]
+#[pliron_op(
+    name = "test.verify_intr_op",
+    format,
+    interfaces = [TestOpInterface, TestOpInterface2],
+    verifier = "succ",
+)]
 struct VerifyIntrOp {}
-impl_verify_succ!(VerifyIntrOp);
 impl VerifyIntrOp {
     fn new(ctx: &mut Context) -> VerifyIntrOp {
         let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
@@ -221,11 +222,13 @@ trait TestOpInterfaceGeneric3<T: Clone>:
     }
 }
 
-#[format_op]
-#[def_op("test.verify_intr_op_generic")]
-#[derive_op_interface_impl(TestOpInterfaceGeneric<i32>, TestOpInterfaceGeneric2<i32>, TestOpInterfaceGeneric3<i32>)]
+#[pliron_op(
+    name = "test.verify_intr_op_generic"
+    format
+    interfaces = [TestOpInterfaceGeneric<i32>, TestOpInterfaceGeneric2<i32>, TestOpInterfaceGeneric3<i32>]
+    verifier = "succ"
+)]
 struct VerifyIntrOpGeneric {}
-impl_verify_succ!(VerifyIntrOpGeneric);
 impl VerifyIntrOpGeneric {
     fn new(ctx: &mut Context) -> VerifyIntrOpGeneric {
         let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
@@ -296,11 +299,13 @@ trait TestOpInterfaceConstGeneric3<const N: usize>:
     }
 }
 
-#[format_op]
-#[def_op("test.verify_intr_op_const_generic")]
-#[derive_op_interface_impl(TestOpInterfaceConstGeneric<42>, TestOpInterfaceConstGeneric2<42>, TestOpInterfaceConstGeneric3<42>)]
+#[pliron_op(
+    name = "test.verify_intr_op_const_generic",
+    format
+    interfaces = [TestOpInterfaceConstGeneric<42>, TestOpInterfaceConstGeneric2<42>, TestOpInterfaceConstGeneric3<42>]
+    verifier = "succ"
+)]
 struct VerifyIntrOpConstGeneric {}
-impl_verify_succ!(VerifyIntrOpConstGeneric);
 impl VerifyIntrOpConstGeneric {
     fn new(ctx: &mut Context) -> VerifyIntrOpConstGeneric {
         let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
@@ -345,13 +350,11 @@ impl TestAttrInterfaceX for StringAttr {}
 #[attr_interface_impl]
 impl TestAttrInterfaceX for IntegerAttr {}
 
-#[def_attribute("test.my_attr")]
-#[format_attribute("`<` $ty `>`")]
+#[pliron_attr(name = "test.my_attr", format = "`<` $ty `>`", verifier = "succ")]
 #[derive(PartialEq, Clone, Debug, Hash)]
 struct MyAttr {
     ty: Ptr<TypeObj>,
 }
-impl_verify_succ!(MyAttr);
 
 #[attr_interface_impl]
 impl TypedAttrInterface for MyAttr {
@@ -363,11 +366,13 @@ impl TypedAttrInterface for MyAttr {
 static TEST_ATTR_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
     LazyLock::new(|| Mutex::new("".into()));
 
-#[def_attribute("test.verify_intr_attr")]
+#[pliron_attr(
+    name = "test.verify_intr_attr"
+    format
+    verifier = "succ"
+)]
 #[derive(PartialEq, Clone, Debug, Hash)]
-#[format_attribute]
 struct VerifyIntrAttr {}
-impl_verify_succ!(VerifyIntrAttr);
 
 #[attr_interface_impl]
 impl TestAttrInterface for VerifyIntrAttr {}
@@ -458,11 +463,13 @@ trait TestAttrInterfaceGeneric3<T: Clone>:
     }
 }
 
-#[def_attribute("test.verify_intr_attr_generic")]
+#[pliron_attr(
+    name = "test.verify_intr_attr_generic"
+    format
+    verifier = "succ"
+)]
 #[derive(PartialEq, Clone, Debug, Hash)]
-#[format_attribute]
 struct VerifyIntrAttrGeneric {}
-impl_verify_succ!(VerifyIntrAttrGeneric);
 
 #[attr_interface_impl]
 impl TestAttrInterfaceGeneric<i32> for VerifyIntrAttrGeneric {}
@@ -511,11 +518,13 @@ impl TestTypeInterfaceX for IntegerType {}
 static TEST_TYPE_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
     LazyLock::new(|| Mutex::new("".into()));
 
-#[def_type("test.verify_intr_type")]
+#[pliron_type(
+    name = "test.verify_intr_type"
+    format
+    verifier = "succ"
+)]
 #[derive(PartialEq, Clone, Debug, Hash)]
-#[format_type]
 struct VerifyIntrType {}
-impl_verify_succ!(VerifyIntrType);
 #[type_interface_impl]
 impl TestTypeInterface for VerifyIntrType {}
 #[type_interface_impl]
@@ -605,11 +614,13 @@ trait TestTypeInterfaceGeneric3<T: Clone>:
     }
 }
 
-#[def_type("test.verify_intr_type_generic")]
+#[pliron_type(
+    name = "test.verify_intr_type_generic"
+    format
+    verifier = "succ"
+)]
 #[derive(PartialEq, Clone, Debug, Hash)]
-#[format_type]
 struct VerifyIntrTypeGeneric {}
-impl_verify_succ!(VerifyIntrTypeGeneric);
 
 #[type_interface_impl]
 impl TestTypeInterfaceGeneric<i32> for VerifyIntrTypeGeneric {}
@@ -647,10 +658,8 @@ trait TestNoInbuiltVerifyInterface {
         Self: Sized;
 }
 
-#[format_op]
-#[def_op("test.no_inbuilt_verify_op")]
+#[pliron_op(name = "test.no_inbuilt_verify_op", format, verifier = "succ")]
 struct NoInbuiltVerifyOp {}
-impl_verify_succ!(NoInbuiltVerifyOp);
 impl NoInbuiltVerifyOp {
     fn new(ctx: &mut Context) -> NoInbuiltVerifyOp {
         let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
@@ -677,10 +686,8 @@ fn test_no_inbuilt_verify() -> Result<()> {
     Ok(())
 }
 
-#[format_op]
-#[def_op("test.no_inbuilt_verify_op2")]
+#[pliron_op(name = "test.no_inbuilt_verify_op2", format, verifier = "succ")]
 struct NoInbuiltVerifyOp2 {}
-impl_verify_succ!(NoInbuiltVerifyOp2);
 impl NoInbuiltVerifyOp2 {
     fn new(ctx: &mut Context) -> NoInbuiltVerifyOp2 {
         let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
@@ -719,14 +726,15 @@ fn test_no_inbuilt_verify2() -> Result<()> {
     Ok(())
 }
 
-#[def_attribute("test.outline_test_attr")]
-#[format_attribute("`<` $ty `>`")]
+#[pliron_attr(
+    name = "test.outline_test_attr"
+    format = "`<` $ty `>`"
+    verifier = "succ"
+)]
 #[derive(PartialEq, Clone, Debug, Hash)]
 pub struct OutlineTestAttr {
     pub ty: Ptr<TypeObj>,
 }
-
-impl_verify_succ!(OutlineTestAttr);
 
 #[attr_interface_impl]
 impl OutlinedAttr for OutlineTestAttr {}
@@ -760,14 +768,15 @@ fn test_outline_attr() -> Result<()> {
     Ok(())
 }
 
-#[def_attribute("test.outline_print_once_test_attr")]
-#[format_attribute("`<` $ty `>`")]
+#[pliron_attr(
+    name = "test.outline_print_once_test_attr"
+    format = "`<` $ty `>`"
+    verifier = "succ"
+)]
 #[derive(PartialEq, Clone, Debug, Hash)]
 pub struct OulinePrintOnceTestAttr {
     pub ty: Ptr<TypeObj>,
 }
-
-impl_verify_succ!(OulinePrintOnceTestAttr);
 
 #[attr_interface_impl]
 impl OutlinedAttr for OulinePrintOnceTestAttr {}
@@ -880,10 +889,8 @@ fn test_outline_printonce_attr() -> Result<()> {
     Ok(())
 }
 
-#[def_op("test.canonical_op")]
-#[format_op]
+#[pliron_op(name = "test.canonical_op", format, verifier = "succ")]
 pub struct CanonicalOp;
-impl_verify_succ!(CanonicalOp);
 
 impl CanonicalOp {
     pub fn new(ctx: &mut Context) -> CanonicalOp {
