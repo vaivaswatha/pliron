@@ -16,7 +16,6 @@ use pliron::{
     common_traits::Verify,
     context::{Context, Ptr},
     identifier::Identifier,
-    impl_verify_succ,
     irbuild::{
         inserter::{BlockInsertionPoint, Inserter, OpInsertionPoint},
         match_rewrite::{MatchRewrite, MatchRewriter, collect_rewrite},
@@ -30,10 +29,7 @@ use pliron::{
     value::Value,
 };
 
-use pliron_derive::{
-    def_op, def_type, derive_attr_get_set, derive_op_interface_impl, derive_type_get, format_op,
-    format_type,
-};
+use pliron::derive::{pliron_op, pliron_type};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen_test::*;
 
@@ -119,19 +115,21 @@ fn replace_c0_with_c1() -> Result<()> {
 }
 
 /// A test global operation.
-#[def_op("test.global")]
-#[format_op]
-#[derive_op_interface_impl(
-    IsolatedFromAboveInterface,
-    NOpdsInterface<0>,
-    NResultsInterface<1>,
-    OneResultInterface,
-    SymbolOpInterface,
-    SingleBlockRegionInterface,
+#[pliron_op(
+    name = "test.global",
+    format,
+    interfaces = [
+        IsolatedFromAboveInterface,
+        NOpdsInterface<0>,
+        NResultsInterface<1>,
+        OneResultInterface,
+        SymbolOpInterface,
+        SingleBlockRegionInterface,
+    ],
+    attributes = (test_global_op_const_val: IntegerAttr),
+    verifier = "succ",
 )]
-#[derive_attr_get_set(test_global_op_const_val: IntegerAttr)]
 pub struct GlobalOp;
-impl_verify_succ!(GlobalOp);
 
 impl GlobalOp {
     /// Create a new [GlobalOp].
@@ -152,18 +150,17 @@ impl GlobalOp {
 }
 
 /// An opaque pointer
-#[def_type("test.ptr")]
-#[derive_type_get]
+#[pliron_type(name = "test.ptr", format, generate_get = true, verifier = "succ")]
 #[derive(Hash, PartialEq, Eq, Debug)]
-#[format_type]
 pub struct PointerType;
-impl_verify_succ!(PointerType);
 
-#[def_op("test.load")]
-#[format_op("$0 ` ` : ` type($0)")]
-#[derive_op_interface_impl(OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>)]
+#[pliron_op(
+    name = "test.load",
+    format = "$0 ` ` : ` type($0)",
+    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>],
+    verifier = "succ",
+)]
 pub struct LoadOp;
-impl_verify_succ!(LoadOp);
 
 impl LoadOp {
     /// Create a new [LoadOp]

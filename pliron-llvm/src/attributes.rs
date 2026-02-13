@@ -8,12 +8,12 @@ use thiserror::Error;
 use pliron::builtin::attributes::IntegerAttr;
 use pliron::common_traits::Verify;
 use pliron::context::Context;
-use pliron::derive::{def_attribute, format, format_attribute};
+use pliron::derive::{format, pliron_attr};
 use pliron::location::Located;
 use pliron::parsable::{IntoParseResult, Parsable};
 use pliron::printable::Printable;
 use pliron::result::Result;
-use pliron::{impl_printable_for_display, impl_verify_succ, input_error, verify_err_noloc};
+use pliron::{impl_printable_for_display, input_error, verify_err_noloc};
 
 use crate::llvm_sys::core::FastmathFlags;
 
@@ -24,17 +24,14 @@ use crate::llvm_sys::core::FastmathFlags;
 /// "nsw" and "nuw" bits indicate that the operation is guaranteed to not overflow
 /// (in the signed or unsigned case, respectively). This gives the optimizer more information
 ///  and can be used for things like C signed integer values, which are undefined on overflow.
-#[def_attribute("llvm.integer_overlflow_flags")]
-#[format_attribute]
+#[pliron_attr(name = "llvm.integer_overlflow_flags", format, verifier = "succ")]
 #[derive(PartialEq, Eq, Clone, Debug, Default, Hash)]
 pub struct IntegerOverflowFlagsAttr {
     pub nsw: bool,
     pub nuw: bool,
 }
 
-impl_verify_succ!(IntegerOverflowFlagsAttr);
-
-#[def_attribute("llvm.fast_math_flags")]
+#[pliron_attr(name = "llvm.fast_math_flags", verifier = "succ")]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct FastmathFlagsAttr(pub FastmathFlags);
 
@@ -55,8 +52,6 @@ impl From<FastmathFlagsAttr> for FastmathFlags {
         attr.0
     }
 }
-
-impl_verify_succ!(FastmathFlagsAttr);
 
 impl Display for FastmathFlagsAttr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -105,8 +100,7 @@ impl Parsable for FastmathFlagsAttr {
     }
 }
 
-#[def_attribute("llvm.icmp_predicate")]
-#[format_attribute]
+#[pliron_attr(name = "llvm.icmp_predicate", verifier = "succ", format)]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub enum ICmpPredicateAttr {
     EQ,
@@ -121,10 +115,7 @@ pub enum ICmpPredicateAttr {
     UGE,
 }
 
-impl_verify_succ!(ICmpPredicateAttr);
-
-#[def_attribute("llvm.fcmp_predicate")]
-#[format_attribute]
+#[pliron_attr(name = "llvm.fcmp_predicate", format, verifier = "succ")]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub enum FCmpPredicateAttr {
     False,
@@ -144,7 +135,6 @@ pub enum FCmpPredicateAttr {
     UNO,
     True,
 }
-impl_verify_succ!(FCmpPredicateAttr);
 
 /// An index for a GEP can be either a constant or an SSA operand.
 /// Contrary to its name, this isn't an [Attribute][pliron::attribute::Attribute].
@@ -158,16 +148,17 @@ pub enum GepIndexAttr {
     OperandIdx(usize),
 }
 
-#[def_attribute("llvm.gep_indices")]
-#[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
+#[pliron_attr(
+    name = "llvm.gep_indices",
+    format = "`[` vec($0, CharSpace(`,`)) `]`",
+    verifier = "succ"
+)]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct GepIndicesAttr(pub Vec<GepIndexAttr>);
-impl_verify_succ!(GepIndicesAttr);
 
 /// An attribute that contains a list of case values for a switch operation.
-#[def_attribute("llvm.case_values")]
+#[pliron_attr(name = "llvm.case_values", format = "`[` vec($0, CharSpace(`,`)) `]`")]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
-#[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
 pub struct CaseValuesAttr(pub Vec<IntegerAttr>);
 
 #[derive(Debug, Error)]
@@ -190,8 +181,7 @@ impl Verify for CaseValuesAttr {
     }
 }
 
-#[def_attribute("llvm.linkage")]
-#[format_attribute]
+#[pliron_attr(name = "llvm.linkage", format, verifier = "succ")]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub enum LinkageAttr {
     ExternalLinkage,
@@ -212,25 +202,26 @@ pub enum LinkageAttr {
     LinkerPrivateLinkage,
     LinkerPrivateWeakLinkage,
 }
-impl_verify_succ!(LinkageAttr);
 
-#[def_attribute("llvm.insert_extract_value_indices")]
-#[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
+#[pliron_attr(
+    name = "llvm.insert_extract_value_indices",
+    format = "`[` vec($0, CharSpace(`,`)) `]`",
+    verifier = "succ"
+)]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct InsertExtractValueIndicesAttr(pub Vec<u32>);
-impl_verify_succ!(InsertExtractValueIndicesAttr);
 
-#[def_attribute("llvm.align")]
-#[format_attribute("$0")]
+#[pliron_attr(name = "llvm.align", format = "$0", verifier = "succ")]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct AlignmentAttr(pub u32);
-impl_verify_succ!(AlignmentAttr);
 
-#[def_attribute("llvm.shuffle_vector_mask")]
-#[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
+#[pliron_attr(
+    name = "llvm.shuffle_vector_mask",
+    format = "`[` vec($0, CharSpace(`,`)) `]`",
+    verifier = "succ"
+)]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct ShuffleVectorMaskAttr(pub Vec<i32>);
-impl_verify_succ!(ShuffleVectorMaskAttr);
 
 #[cfg(test)]
 mod tests {

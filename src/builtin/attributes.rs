@@ -5,13 +5,12 @@ use combine::{
     parser::char::{char, digit, spaces},
     token,
 };
-use pliron::derive::{attr_interface_impl, def_attribute};
-use pliron_derive::format_attribute;
+use pliron::derive::{attr_interface_impl, pliron_attr};
 use rustc_apfloat::Float;
 use thiserror::Error;
 
 use crate::{
-    attribute::{AttrObj, Attribute, AttributeDict},
+    attribute::{AttrObj, AttributeDict},
     builtin::{
         attr_interfaces::FloatAttr,
         types::{FP32Type, FP64Type},
@@ -19,7 +18,7 @@ use crate::{
     common_traits::Verify,
     context::{Context, Ptr},
     identifier::Identifier,
-    impl_verify_succ, input_err,
+    input_err,
     irfmt::{
         parsers::{quoted_string_parser, spaced},
         printers::quoted,
@@ -41,9 +40,8 @@ use super::{
     types::{IntegerType, Signedness},
 };
 
-#[def_attribute("builtin.identifier")]
+#[pliron_attr(name = "builtin.identifier", format = "$0", verifier = "succ")]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
-#[format_attribute("$0")]
 pub struct IdentifierAttr(Identifier);
 
 impl IdentifierAttr {
@@ -53,8 +51,6 @@ impl IdentifierAttr {
     }
 }
 
-impl_verify_succ!(IdentifierAttr);
-
 impl From<IdentifierAttr> for Identifier {
     fn from(value: IdentifierAttr) -> Self {
         value.0
@@ -63,7 +59,7 @@ impl From<IdentifierAttr> for Identifier {
 
 /// An attribute containing a string.
 /// Similar to MLIR's [StringAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#stringattr).
-#[def_attribute("builtin.string")]
+#[pliron_attr(name = "builtin.string", verifier = "succ")]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct StringAttr(String);
 
@@ -97,8 +93,6 @@ impl Printable for StringAttr {
     }
 }
 
-impl_verify_succ!(StringAttr);
-
 impl Parsable for StringAttr {
     type Arg = ();
     type Parsed = Self;
@@ -115,12 +109,10 @@ impl Parsable for StringAttr {
 }
 
 /// A boolean attribute
-#[def_attribute("builtin.bool")]
-#[format_attribute("$0")]
+#[pliron_attr(name = "builtin.bool", format = "$0", verifier = "succ")]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct BoolAttr(bool);
 
-impl_verify_succ!(BoolAttr);
 impl BoolAttr {
     /// Create a new [BoolAttr].
     pub fn new(value: bool) -> Self {
@@ -142,7 +134,7 @@ impl From<bool> for BoolAttr {
 
 /// An attribute containing an integer.
 /// Similar to MLIR's [IntegerAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#integerattr).
-#[def_attribute("builtin.integer")]
+#[pliron_attr(name = "builtin.integer")]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct IntegerAttr {
     ty: TypePtr<IntegerType>,
@@ -247,12 +239,10 @@ impl TypedAttrInterface for IntegerAttr {
     }
 }
 
-#[def_attribute("builtin.single")]
+#[pliron_attr(name = "builtin.single", format = "$0", verifier = "succ")]
 #[derive(PartialEq, Clone, Debug)]
-#[format_attribute("$0")]
 /// An attribute that is a single-precision floating-point number.
 pub struct FPSingleAttr(pub apfloat::Single);
-impl_verify_succ!(FPSingleAttr);
 
 impl From<f32> for FPSingleAttr {
     fn from(value: f32) -> Self {
@@ -304,12 +294,10 @@ impl FloatAttr for FPSingleAttr {
     }
 }
 
-#[def_attribute("builtin.double")]
+#[pliron_attr(name = "builtin.double", format = "$0", verifier = "succ")]
 #[derive(PartialEq, Clone, Debug)]
-#[format_attribute("$0")]
 /// An attribute that is a double-precision floating-point number.
 pub struct FPDoubleAttr(pub apfloat::Double);
-impl_verify_succ!(FPDoubleAttr);
 
 impl From<f64> for FPDoubleAttr {
     fn from(value: f64) -> Self {
@@ -363,7 +351,7 @@ impl FloatAttr for FPDoubleAttr {
 
 /// An attribute that is a dictionary of other attributes.
 /// Similar to MLIR's [DictionaryAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#dictionaryattr),
-#[def_attribute("builtin.dict")]
+#[pliron_attr(name = "builtin.dict", verifier = "succ")]
 #[derive(PartialEq, Clone, Eq, Debug, Hash)]
 pub struct DictAttr(AttributeDict);
 
@@ -377,8 +365,6 @@ impl Printable for DictAttr {
         write!(f, "{}", self.0.disp(ctx))
     }
 }
-
-impl_verify_succ!(DictAttr);
 
 impl Parsable for DictAttr {
     type Arg = ();
@@ -427,9 +413,8 @@ impl DictAttr {
 }
 
 /// A vector of other attributes.
-#[def_attribute("builtin.vec")]
+#[pliron_attr(name = "builtin.vec", format = "`[` vec($0, CharSpace(`,`)) `]`")]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
-#[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
 pub struct VecAttr(pub Vec<AttrObj>);
 
 impl VecAttr {
@@ -446,8 +431,7 @@ impl Verify for VecAttr {
 
 /// Represent attributes that only have meaning from their existence.
 /// See [UnitAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#unitattr) in MLIR.
-#[def_attribute("builtin.unit")]
-#[format_attribute]
+#[pliron_attr(name = "builtin.unit", format, verifier = "succ")]
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Default, Hash)]
 pub struct UnitAttr;
 
@@ -457,13 +441,10 @@ impl UnitAttr {
     }
 }
 
-impl_verify_succ!(UnitAttr);
-
 /// An attribute that does nothing but hold a Type.
 /// Same as MLIR's [TypeAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#typeattr).
-#[def_attribute("builtin.type")]
+#[pliron_attr(name = "builtin.type", format = "$0", verifier = "succ")]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
-#[format_attribute("$0")]
 pub struct TypeAttr(Ptr<TypeObj>);
 
 impl TypeAttr {
@@ -471,8 +452,6 @@ impl TypeAttr {
         TypeAttr(ty)
     }
 }
-
-impl_verify_succ!(TypeAttr);
 
 impl Typed for TypeAttr {
     fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
@@ -487,11 +466,13 @@ impl TypedAttrInterface for TypeAttr {
     }
 }
 
-#[def_attribute("builtin.operand_segment_sizes")]
-#[format_attribute("`[` vec($0, CharSpace(`,`)) `]`")]
+#[pliron_attr(
+    name = "builtin.operand_segment_sizes",
+    format = "`[` vec($0, CharSpace(`,`)) `]`",
+    verifier = "succ"
+)]
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct OperandSegmentSizesAttr(pub Vec<u32>);
-impl_verify_succ!(OperandSegmentSizesAttr);
 
 #[cfg(test)]
 mod tests {

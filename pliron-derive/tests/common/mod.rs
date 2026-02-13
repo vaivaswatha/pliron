@@ -1,4 +1,4 @@
-use pliron::{builtin::op_interfaces::IsTerminatorInterface, impl_verify_succ, op::Op};
+use pliron::{builtin::op_interfaces::IsTerminatorInterface, impl_verify_succ};
 use pliron_derive::{def_op, derive_op_interface_impl, format_op};
 
 #[def_op("test.return")]

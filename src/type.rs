@@ -6,7 +6,7 @@
 //!
 //! See [MLIR Types](https://mlir.llvm.org/docs/DefiningDialects/TypesAndTypes/#types)
 //!
-//! The [def_type](pliron::derive::def_type) proc macro from [pliron-derive]
+//! The [pliron_type](pliron::derive::pliron_type) proc macro from [pliron-derive]
 //! can be used to implement [Type] for a rust type.
 //!
 //! Common semantics, API and behaviour of [Type]s are
@@ -66,11 +66,12 @@ use thiserror::Error;
 ///
 /// So, for example, if we have
 /// ```rust
-///     # use pliron::impl_verify_succ;
-///     # use pliron::derive::{def_type, format_type};
-///     # impl_verify_succ!(IntType);
-///     #[def_type("test.intty")]
-///     #[format_type]
+///     # use pliron::derive::pliron_type;
+///     #[pliron_type(
+///         name = "test.intty",
+///         format,
+///         verifier = "succ"
+///     )]
 ///     #[derive(Debug, PartialEq, Eq, Hash)]
 ///     struct IntType {
 ///         width: u64
