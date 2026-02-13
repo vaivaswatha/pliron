@@ -128,6 +128,38 @@ impl Parse for EntityConfig {
     }
 }
 
+/// Helper function to add verifier implementation for structs and enums
+fn add_verifier_impl(
+    expanded: TokenStream,
+    verifier: &Option<LitStr>,
+    input: TokenStream,
+) -> syn::Result<TokenStream> {
+    if let Some(verifier) = verifier
+        && verifier.value() == "succ"
+    {
+        let item: syn::Item = syn::parse2(input)?;
+        match item {
+            syn::Item::Struct(struct_item) => {
+                let struct_name = &struct_item.ident;
+                Ok(quote! {
+                    #expanded
+                    ::pliron::impl_verify_succ!(#struct_name);
+                })
+            }
+            syn::Item::Enum(enum_item) => {
+                let enum_name = &enum_item.ident;
+                Ok(quote! {
+                    #expanded
+                    ::pliron::impl_verify_succ!(#enum_name);
+                })
+            }
+            _ => Ok(expanded),
+        }
+    } else {
+        Ok(expanded)
+    }
+}
+
 /// Generate the expanded tokens for a pliron type definition
 pub fn pliron_type(
     args: impl Into<TokenStream>,
@@ -193,18 +225,7 @@ pub fn pliron_type(
     }
 
     // Add verifier implementation
-    if let Some(verifier) = &config.verifier
-        && verifier.value() == "succ"
-    {
-        let item: syn::Item = syn::parse2(input)?;
-        if let syn::Item::Struct(struct_item) = item {
-            let struct_name = &struct_item.ident;
-            expanded = quote! {
-                #expanded
-                ::pliron::impl_verify_succ!(#struct_name);
-            };
-        }
-    }
+    expanded = add_verifier_impl(expanded, &config.verifier, input)?;
 
     Ok(expanded)
 }
@@ -274,18 +295,7 @@ pub fn pliron_attr(
     }
 
     // Add verifier implementation
-    if let Some(verifier) = &config.verifier
-        && verifier.value() == "succ"
-    {
-        let item: syn::Item = syn::parse2(input)?;
-        if let syn::Item::Struct(struct_item) = item {
-            let struct_name = &struct_item.ident;
-            expanded = quote! {
-                #expanded
-                ::pliron::impl_verify_succ!(#struct_name);
-            };
-        }
-    }
+    expanded = add_verifier_impl(expanded, &config.verifier, input)?;
 
     Ok(expanded)
 }
@@ -365,18 +375,7 @@ pub fn pliron_op(
     }
 
     // Add verifier implementation
-    if let Some(verifier) = &config.verifier
-        && verifier.value() == "succ"
-    {
-        let item: syn::Item = syn::parse2(input)?;
-        if let syn::Item::Struct(struct_item) = item {
-            let struct_name = &struct_item.ident;
-            expanded = quote! {
-                #expanded
-                ::pliron::impl_verify_succ!(#struct_name);
-            };
-        }
-    }
+    expanded = add_verifier_impl(expanded, &config.verifier, input)?;
 
     Ok(expanded)
 }
@@ -541,6 +540,37 @@ mod tests {
                 value: String,
             }
             ::pliron::impl_verify_succ!(StringAttr);
+        "##]]
+        .assert_eq(&got);
+    }
+
+    #[test]
+    fn pliron_attr_with_enum_and_format_default() {
+        let args = quote! {
+            name = "test.enum_attr",
+            format,
+            verifier = "succ"
+        };
+        let input = quote! {
+            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+            enum PredicateAttr {
+                EQ,
+                NE,
+            }
+        };
+        let result = pliron_attr(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(result).unwrap();
+        let got = prettyplease::unparse(&f);
+
+        expect![[r##"
+            #[::pliron::derive::def_attribute("test.enum_attr")]
+            #[::pliron::derive::format_attribute]
+            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+            enum PredicateAttr {
+                EQ,
+                NE,
+            }
+            ::pliron::impl_verify_succ!(PredicateAttr);
         "##]]
         .assert_eq(&got);
     }
