@@ -2,7 +2,7 @@ use common::{ConstantOp, ReturnOp};
 use expect_test::{Expect, expect};
 use pliron::builtin::attributes::StringAttr;
 use pliron::context::Ptr;
-use pliron::derive::def_op;
+use pliron::derive::pliron_op;
 use pliron::dict_key;
 use pliron::{
     basic_block::BasicBlock,
@@ -18,7 +18,6 @@ use pliron::{
         WALKCONFIG_PREORDER_FORWARD,
         interruptible::{self, walk_advance, walk_break},
     },
-    impl_verify_succ,
     irfmt::parsers::spaced,
     location,
     op::Op,
@@ -27,7 +26,6 @@ use pliron::{
     printable::Printable,
     result::Result,
 };
-use pliron_derive::format_op;
 
 use crate::common::const_ret_in_mod;
 use combine::parser::Parser;
@@ -139,10 +137,8 @@ fn replace_c0_with_c1_operand() -> Result<()> {
     Ok(())
 }
 
-#[format_op]
-#[def_op("test.dual_def")]
+#[pliron_op(name = "test.dual_def", format, verifier = "succ")]
 struct DualDefOp {}
-impl_verify_succ!(DualDefOp);
 
 /// If an Op has multiple results, or a block multiple args,
 /// replacing all uses of one with the other should work.
