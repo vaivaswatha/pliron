@@ -10,14 +10,18 @@ use syn::{
 #[derive(Clone)]
 struct AttributeSpec {
     name: Ident,
-    ty: Type,
+    ty: Option<Type>,
 }
 
 impl Parse for AttributeSpec {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let name = input.parse()?;
-        input.parse::<Token![:]>()?;
-        let ty = input.parse()?;
+        let ty = if input.peek(Token![:]) {
+            input.parse::<Token![:]>()?;
+            Some(input.parse()?)
+        } else {
+            None
+        };
         Ok(AttributeSpec { name, ty })
     }
 }
@@ -323,8 +327,11 @@ pub fn pliron_op(
     {
         let attr_list = attributes.iter().map(|attr| {
             let name = &attr.name;
-            let ty = &attr.ty;
-            quote! { #name : #ty }
+            if let Some(ty) = &attr.ty {
+                quote! { #name : #ty }
+            } else {
+                quote! { #name }
+            }
         });
         expanded = quote! {
             #[::pliron::derive::derive_attr_get_set(#(#attr_list),*)]
@@ -708,11 +715,34 @@ mod tests {
         expect![[r##"
             #[::pliron::derive::def_op("test.call_op")]
             #[::pliron::derive::derive_attr_get_set(
-                llvm_call_callee:IdentifierAttr,
-                llvm_call_fastmath_flags:FastmathFlagsAttr
+                llvm_call_callee: IdentifierAttr,
+                llvm_call_fastmath_flags: FastmathFlagsAttr
             )]
             struct CallOp;
             ::pliron::impl_verify_succ!(CallOp);
+        "##]]
+        .assert_eq(&got);
+    }
+
+    #[test]
+    fn pliron_op_with_optional_type_attributes() {
+        let args = quote! {
+            name = "test.constant_op",
+            attributes = (constant_value, typed_attr: TypeAttr),
+            verifier = "succ"
+        };
+        let input = quote! {
+            struct ConstantOp;
+        };
+        let result = pliron_op(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(result).unwrap();
+        let got = prettyplease::unparse(&f);
+
+        expect![[r##"
+            #[::pliron::derive::def_op("test.constant_op")]
+            #[::pliron::derive::derive_attr_get_set(constant_value, typed_attr: TypeAttr)]
+            struct ConstantOp;
+            ::pliron::impl_verify_succ!(ConstantOp);
         "##]]
         .assert_eq(&got);
     }
