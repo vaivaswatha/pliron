@@ -178,18 +178,15 @@ pub fn pliron_type(
         ));
     }
 
-    let mut expanded = quote! { #input_tokens };
-
-    // Add interface implementations if specified
-    if let Some(interfaces) = &config.interfaces
-        && !interfaces.is_empty()
-    {
-        let interface_list = quote! { #(#interfaces),* };
-        expanded = quote! {
-            #[::pliron::derive::derive_op_interface_impl(#interface_list)]
-            #expanded
-        };
+    // Validate that interfaces is not specified for types
+    if config.interfaces.is_some() {
+        return Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "interfaces is not supported for types",
+        ));
     }
+
+    let mut expanded = quote! { #input_tokens };
 
     // Add derive_type_get if requested
     if let Some(true) = config.generate_get {
@@ -256,18 +253,15 @@ pub fn pliron_attr(
         ));
     }
 
-    let mut expanded = quote! { #input_tokens };
-
-    // Add interface implementations if specified
-    if let Some(interfaces) = &config.interfaces
-        && !interfaces.is_empty()
-    {
-        let interface_list = quote! { #(#interfaces),* };
-        expanded = quote! {
-            #[::pliron::derive::derive_op_interface_impl(#interface_list)]
-            #expanded
-        };
+    // Validate that interfaces is not specified for attributes
+    if config.interfaces.is_some() {
+        return Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "interfaces is not supported for attributes",
+        ));
     }
+
+    let mut expanded = quote! { #input_tokens };
 
     // Add format_attribute attribute
     match &config.format {
@@ -467,7 +461,7 @@ mod tests {
     }
 
     #[test]
-    fn pliron_type_with_interfaces() {
+    fn pliron_type_interfaces_not_supported() {
         let args = quote! {
             name = "test.interface_type",
             interfaces = [Interface1, Interface2],
@@ -477,18 +471,14 @@ mod tests {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct InterfaceType;
         };
-        let result = pliron_type(args, input).unwrap();
-        let f = syn::parse2::<syn::File>(result).unwrap();
-        let got = prettyplease::unparse(&f);
-
-        expect![[r##"
-            #[::pliron::derive::def_type("test.interface_type")]
-            #[::pliron::derive::derive_op_interface_impl(Interface1, Interface2)]
-            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-            struct InterfaceType;
-            ::pliron::impl_verify_succ!(InterfaceType);
-        "##]]
-        .assert_eq(&got);
+        let result = pliron_type(args, input);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("interfaces is not supported for types")
+        );
     }
 
     #[test]
@@ -642,7 +632,7 @@ mod tests {
     }
 
     #[test]
-    fn pliron_attr_with_interfaces() {
+    fn pliron_attr_interfaces_not_supported() {
         let args = quote! {
             name = "test.interface_attr",
             interfaces = [AttrInterface1, AttrInterface2]
@@ -651,17 +641,14 @@ mod tests {
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct InterfaceAttr;
         };
-        let result = pliron_attr(args, input).unwrap();
-        let f = syn::parse2::<syn::File>(result).unwrap();
-        let got = prettyplease::unparse(&f);
-
-        expect![[r##"
-            #[::pliron::derive::def_attribute("test.interface_attr")]
-            #[::pliron::derive::derive_op_interface_impl(AttrInterface1, AttrInterface2)]
-            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-            struct InterfaceAttr;
-        "##]]
-        .assert_eq(&got);
+        let result = pliron_attr(args, input);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("interfaces is not supported for attributes")
+        );
     }
 
     #[test]
@@ -704,26 +691,24 @@ mod tests {
     }
 
     #[test]
-    fn pliron_type_with_generic_interfaces() {
+    fn pliron_op_with_generic_interfaces() {
         let args = quote! {
-            name = "test.generic_type",
+            name = "test.generic_op",
             interfaces = [NRegionsInterface<1>, ZeroResultInterface],
             verifier = "succ"
         };
         let input = quote! {
-            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-            struct GenericType;
+            struct GenericOp;
         };
-        let result = pliron_type(args, input).unwrap();
+        let result = pliron_op(args, input).unwrap();
         let f = syn::parse2::<syn::File>(result).unwrap();
         let got = prettyplease::unparse(&f);
 
         expect![[r##"
-            #[::pliron::derive::def_type("test.generic_type")]
+            #[::pliron::derive::def_op("test.generic_op")]
             #[::pliron::derive::derive_op_interface_impl(NRegionsInterface<1>, ZeroResultInterface)]
-            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-            struct GenericType;
-            ::pliron::impl_verify_succ!(GenericType);
+            struct GenericOp;
+            ::pliron::impl_verify_succ!(GenericOp);
         "##]]
         .assert_eq(&got);
     }
@@ -782,7 +767,6 @@ mod tests {
         let args = quote! {
             name = "test.full_type",
             format = "`full` `<` $field `>`",
-            interfaces = [Iface1, Iface2],
             verifier = "succ",
             generate_get = true
         };
@@ -800,7 +784,6 @@ mod tests {
             #[::pliron::derive::def_type("test.full_type")]
             #[::pliron::derive::format_type("`full` `<` $field `>`")]
             #[::pliron::derive::derive_type_get]
-            #[::pliron::derive::derive_op_interface_impl(Iface1, Iface2)]
             #[derive(Debug, Clone, PartialEq, Eq, Hash)]
             struct FullType {
                 field: u32,
