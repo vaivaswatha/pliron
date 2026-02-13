@@ -1,6 +1,6 @@
 use awint::bw;
 use pliron::builtin::op_interfaces::NResultsVerifyErr;
-use pliron::derive::{def_op, derive_op_interface_impl};
+use pliron::derive::pliron_op;
 use pliron::utils::apint::APInt;
 use pliron::{
     attribute::AttrObj,
@@ -17,7 +17,7 @@ use pliron::{
     context::Context,
     debug_info::set_operation_result_name,
     identifier::Identifier,
-    impl_verify_succ, input_err,
+    input_err,
     irfmt::parsers::{attr_parser, process_parsed_ssa_defs},
     location::{Located, Location},
     op::{Op, OpObj},
@@ -27,11 +27,13 @@ use pliron::{
     result::Result,
     value::Value,
 };
-use pliron_derive::format_op;
 
-#[def_op("test.return")]
-#[format_op("$0")]
-#[derive_op_interface_impl(IsTerminatorInterface)]
+#[pliron_op(
+    name = "test.return"
+    format = "$0"
+    interfaces = [IsTerminatorInterface]
+    verifier = "succ"
+)]
 pub struct ReturnOp;
 impl ReturnOp {
     pub fn new(ctx: &mut Context, value: Value) -> Self {
@@ -47,17 +49,17 @@ impl ReturnOp {
     }
 }
 
-impl_verify_succ!(ReturnOp);
-
 mod constant_op {
     use pliron::dict_key;
     dict_key!(ATTR_KEY_VALUE, "constant_value");
 }
 
-#[def_op("test.constant")]
-#[derive_op_interface_impl(NOpdsInterface<0>, OneResultInterface, NResultsInterface<1>)]
+#[pliron_op(
+    name = "test.constant"
+    interfaces = [NOpdsInterface<0>, OneResultInterface, NResultsInterface<1>]
+    verifier = "succ"
+)]
 pub struct ConstantOp;
-impl_verify_succ!(ConstantOp);
 impl ConstantOp {
     pub fn new(ctx: &mut Context, value: u64) -> Self {
         let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
