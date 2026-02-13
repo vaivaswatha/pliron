@@ -133,8 +133,7 @@ pub fn get_block_arg_name(
 
 #[cfg(test)]
 mod tests {
-    use pliron::derive::{def_op, derive_op_interface_impl};
-    use pliron_derive::format_op;
+    use pliron::derive::pliron_op;
 
     use crate::{
         basic_block::BasicBlock,
@@ -145,17 +144,20 @@ mod tests {
         common_traits::Verify,
         context::Context,
         debug_info::{get_block_arg_name, set_block_arg_name},
-        impl_verify_succ,
         op::Op,
         operation::Operation,
         result::Result,
     };
 
-    #[def_op("test.zero")]
-    #[format_op]
-    #[derive_op_interface_impl(OneResultInterface, NResultsInterface<1>, NOpdsInterface<0>)]
+    #[pliron_op(
+        name = "test.zero"
+        format
+        interfaces = [
+            OneResultInterface, NResultsInterface<1>, NOpdsInterface<0>
+        ]
+        verifier = "succ"
+    )]
     struct ZeroOp;
-    impl_verify_succ!(ZeroOp);
     impl ZeroOp {
         pub fn new(ctx: &mut Context) -> Self {
             let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
