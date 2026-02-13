@@ -23,9 +23,8 @@ use pliron::{
     },
     common_traits::{Named, Verify},
     context::{Context, Ptr},
-    derive::{derive_attr_get_set, format_op},
     identifier::Identifier,
-    impl_verify_succ, indented_block, input_err,
+    indented_block, input_err,
     irfmt::{
         self,
         parsers::{
@@ -73,7 +72,7 @@ use pliron::combine::{
     token,
 };
 
-use pliron::derive::{def_op, derive_op_interface_impl, op_interface_impl};
+use pliron::derive::{op_interface_impl, pliron_op};
 use thiserror::Error;
 
 use super::{
@@ -88,9 +87,12 @@ use super::{
 /// | operand | description |
 /// |-----|-------|
 /// | `arg` | any type |
-#[def_op("llvm.return")]
-#[format_op("operands(CharSpace(`,`))")]
-#[derive_op_interface_impl(IsTerminatorInterface, NResultsInterface<0>, AtMostNOpdsInterface<1>, OptionalOpdInterface)]
+#[pliron_op(
+    name = "llvm.return",
+    format = "operands(CharSpace(`,`))",
+    interfaces = [IsTerminatorInterface, NResultsInterface<0>, AtMostNOpdsInterface<1>, OptionalOpdInterface],
+    verifier = "succ"
+)]
 pub struct ReturnOp;
 impl ReturnOp {
     /// Create a new [ReturnOp]
@@ -111,15 +113,16 @@ impl ReturnOp {
         self.get_operand(ctx)
     }
 }
-impl_verify_succ!(ReturnOp);
 
 /// Equivalent to LLVM's unreachable opcode.
 /// No operands or results.
-#[def_op("llvm.unreachable")]
-#[derive_op_interface_impl(IsTerminatorInterface, NOpdsInterface<0>, NResultsInterface<0>)]
-#[format_op("")]
+#[pliron_op(
+    name = "llvm.unreachable",
+    format = "",
+    interfaces = [IsTerminatorInterface, NOpdsInterface<0>, NResultsInterface<0>],
+    verifier = "succ"
+)]
 pub struct UnreachableOp;
-impl_verify_succ!(UnreachableOp);
 
 impl UnreachableOp {
     /// Create a new [UnreachableOp]
@@ -129,11 +132,10 @@ impl UnreachableOp {
     }
 }
 
-macro_rules! new_int_bin_op_without_format {
+macro_rules! new_int_bin_op_with_format {
     (   $(#[$outer:meta])*
-        $op_name:ident, $op_id:literal
+        $op_name:ident, $op_id:literal, $format:literal
     ) => {
-        #[def_op($op_id)]
         $(#[$outer])*
         /// ### Operands:
         ///
@@ -147,14 +149,17 @@ macro_rules! new_int_bin_op_without_format {
         /// | result | description |
         /// |-----|-------|
         /// | `res` | Signless integer |
-        #[pliron::derive::derive_op_interface_impl(
-            OneResultInterface, NResultsInterface<1>, SameOperandsType, SameResultsType,
-            AtLeastNOpdsInterface<1>, AtLeastNResultsInterface<1>,
-            SameOperandsAndResultType, BinArithOp, IntBinArithOp, NOpdsInterface<2>,
+        #[pliron_op(
+            name = $op_id,
+            format = $format,
+            interfaces = [
+                OneResultInterface, NResultsInterface<1>, SameOperandsType, SameResultsType,
+                AtLeastNOpdsInterface<1>, AtLeastNResultsInterface<1>,
+                SameOperandsAndResultType, BinArithOp, IntBinArithOp, NOpdsInterface<2>
+            ],
+            verifier = "succ"
         )]
         pub struct $op_name;
-
-        impl_verify_succ!($op_name);
     }
 }
 
@@ -162,11 +167,11 @@ macro_rules! new_int_bin_op {
     (   $(#[$outer:meta])*
         $op_name:ident, $op_id:literal
     ) => {
-        new_int_bin_op_without_format!(
+        new_int_bin_op_with_format!(
             $(#[$outer])*
-            #[format_op("$0 `, ` $1 ` : ` type($0)")]
             $op_name,
-            $op_id
+            $op_id,
+            "$0 `, ` $1 ` : ` type($0)"
         );
     }
 }
@@ -175,16 +180,16 @@ macro_rules! new_int_bin_op_with_overflow {
     (   $(#[$outer:meta])*
         $op_name:ident, $op_id:literal
     ) => {
-        new_int_bin_op_without_format!(
+        new_int_bin_op_with_format!(
             $(#[$outer])*
             /// ### Attributes:
             ///
             /// | key | value | via Interface |
             /// |-----|-------| --------------
             /// | [ATTR_KEY_INTEGER_OVERFLOW_FLAGS](super::op_interfaces::ATTR_KEY_INTEGER_OVERFLOW_FLAGS) | [IntegerOverflowFlagsAttr](super::attributes::IntegerOverflowFlagsAttr) | [IntBinArithOpWithOverflowFlag] |
-            #[format_op("$0 `, ` $1 ` <` attr($llvm_integer_overflow_flags, `super::attributes::IntegerOverflowFlagsAttr`) `>` `: ` type($0)")]
             $op_name,
-            $op_id
+            $op_id,
+            "$0 `, ` $1 ` <` attr($llvm_integer_overflow_flags, `super::attributes::IntegerOverflowFlagsAttr`) `>` `: ` type($0)"
         );
         #[pliron::derive::op_interface_impl]
         impl IntBinArithOpWithOverflowFlag for $op_name {}
@@ -293,10 +298,12 @@ pub enum ICmpOpVerifyErr {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | 1-bit signless integer |
-#[def_op("llvm.icmp")]
-#[format_op("$0 ` <` attr($icmp_predicate, $ICmpPredicateAttr) `> ` $1 ` : ` type($0)")]
-#[derive_op_interface_impl(SameOperandsType, AtLeastNOpdsInterface<1>, OneResultInterface, NResultsInterface<1>)]
-#[derive_attr_get_set(icmp_predicate : ICmpPredicateAttr)]
+#[pliron_op(
+    name = "llvm.icmp",
+    format = "$0 ` <` attr($icmp_predicate, $ICmpPredicateAttr) `> ` $1 ` : ` type($0)",
+    interfaces = [SameOperandsType, AtLeastNOpdsInterface<1>, OneResultInterface, NResultsInterface<1>],
+    attributes = (icmp_predicate: ICmpPredicateAttr)
+)]
 pub struct ICmpOp;
 
 impl ICmpOp {
@@ -398,15 +405,14 @@ pub enum AllocaOpVerifyErr {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | [PointerType] |
-#[def_op("llvm.alloca")]
-#[format_op(
-    "`[` attr($alloca_element_type, $TypeAttr) ` x ` $0 `]` ` ` \
+#[pliron_op(
+    name = "llvm.alloca",
+    format = "`[` attr($alloca_element_type, $TypeAttr) ` x ` $0 `]` ` ` \
     opt_attr($llvm_alignment, $AlignmentAttr, label($align), delimiters(`[`, `]`)) \
-    ` : ` type($0)"
+    ` : ` type($0)",
+    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>, AlignableOpInterface],
+    attributes = (alloca_element_type: TypeAttr)
 )]
-#[derive_op_interface_impl(OneResultInterface, OneOpdInterface,
-    NResultsInterface<1>, NOpdsInterface<1>, AlignableOpInterface)]
-#[derive_attr_get_set(alloca_element_type : TypeAttr)]
 pub struct AllocaOp;
 impl Verify for AllocaOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
@@ -462,11 +468,13 @@ impl AllocaOp {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | non-aggregate LLVM type |
-#[def_op("llvm.bitcast")]
-#[format_op("$0 ` to ` type($0)")]
-#[derive_op_interface_impl(OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>, CastOpInterface)]
+#[pliron_op(
+    name = "llvm.bitcast",
+    format = "$0 ` to ` type($0)",
+    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>, CastOpInterface],
+    verifier = "succ"
+)]
 pub struct BitcastOp;
-impl_verify_succ!(BitcastOp);
 
 #[derive(Error, Debug)]
 pub enum IntToPtrOpErr {
@@ -488,9 +496,11 @@ pub enum IntToPtrOpErr {
 /// |-----|-------|
 /// | `res` | [PointerType] |
 ///
-#[def_op("llvm.inttoptr")]
-#[format_op("$0 ` to ` type($0)")]
-#[derive_op_interface_impl(OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>, CastOpInterface)]
+#[pliron_op(
+    name = "llvm.inttoptr",
+    format = "$0 ` to ` type($0)",
+    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>, CastOpInterface]
+)]
 pub struct IntToPtrOp;
 
 impl Verify for IntToPtrOp {
@@ -526,14 +536,10 @@ pub enum PtrToIntOpErr {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | Signless integer |
-#[def_op("llvm.ptrtoint")]
-#[format_op("$0 ` to ` type($0)")]
-#[derive_op_interface_impl(
-    OneResultInterface,
-    OneOpdInterface,
-    NResultsInterface<1>,
-    NOpdsInterface<1>,
-    CastOpInterface
+#[pliron_op(
+    name = "llvm.ptrtoint",
+    format = "$0 ` to ` type($0)",
+    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>, CastOpInterface]
 )]
 pub struct PtrToIntOp;
 
@@ -563,11 +569,13 @@ impl Verify for PtrToIntOp {
 /// | Successor | description |
 /// |-----|-------|
 /// | `dest` | Any successor |
-#[def_op("llvm.br")]
-#[format_op("succ($0) `(` operands(CharSpace(`,`)) `)`")]
-#[derive_op_interface_impl(IsTerminatorInterface, NResultsInterface<0>)]
+#[pliron_op(
+    name = "llvm.br",
+    format = "succ($0) `(` operands(CharSpace(`,`)) `)`",
+    interfaces = [IsTerminatorInterface, NResultsInterface<0>],
+    verifier = "succ"
+)]
 pub struct BrOp;
-impl_verify_succ!(BrOp);
 
 #[op_interface_impl]
 impl BranchOpInterface for BrOp {
@@ -607,8 +615,11 @@ impl BrOp {
 /// |-----|-------|
 /// | `true_dest` | Any successor |
 /// | `false_dest` | Any successor |
-#[def_op("llvm.cond_br")]
-#[derive_op_interface_impl(IsTerminatorInterface, NResultsInterface<0>)]
+#[pliron_op(
+    name = "llvm.cond_br",
+    interfaces = [IsTerminatorInterface, NResultsInterface<0>],
+    verifier = "succ"
+)]
 pub struct CondBrOp;
 impl CondBrOp {
     /// Create a new [CondBrOp].
@@ -738,8 +749,6 @@ impl Parsable for CondBrOp {
     }
 }
 
-impl_verify_succ!(CondBrOp);
-
 #[op_interface_impl]
 impl BranchOpInterface for CondBrOp {
     fn successor_operands(&self, ctx: &Context, succ_idx: usize) -> Vec<Value> {
@@ -767,9 +776,11 @@ impl BranchOpInterface for CondBrOp {
 /// |-----|-------|
 /// | `default_dest` | any successor |
 /// | `case_dests` | any successor(s) |
-#[def_op("llvm.switch")]
-#[derive_attr_get_set(switch_case_values: CaseValuesAttr)]
-#[derive_op_interface_impl(IsTerminatorInterface, NResultsInterface<0>)]
+#[pliron_op(
+    name = "llvm.switch",
+    interfaces = [IsTerminatorInterface, NResultsInterface<0>],
+    attributes = (switch_case_values: CaseValuesAttr)
+)]
 pub struct SwitchOp;
 
 /// One case of a switch statement.
@@ -1112,12 +1123,12 @@ pub enum GetElementPtrOpErr {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | LLVM pointer type |
-#[def_op("llvm.gep")]
-#[format_op(
-    "`<` attr($gep_src_elem_type, $TypeAttr) `>` ` (` operands(CharSpace(`,`)) `)` attr($gep_indices, $GepIndicesAttr) ` : ` type($0)"
+#[pliron_op(
+    name = "llvm.gep",
+    format = "`<` attr($gep_src_elem_type, $TypeAttr) `>` ` (` operands(CharSpace(`,`)) `)` attr($gep_indices, $GepIndicesAttr) ` : ` type($0)",
+    interfaces = [OneResultInterface, NResultsInterface<1>],
+    attributes = (gep_src_elem_type: TypeAttr, gep_indices: GepIndicesAttr)
 )]
-#[derive_op_interface_impl(OneResultInterface, NResultsInterface<1>)]
-#[derive_attr_get_set(gep_src_elem_type : TypeAttr, gep_indices : GepIndicesAttr)]
 pub struct GetElementPtrOp;
 
 #[op_interface_impl]
@@ -1266,11 +1277,11 @@ pub enum LoadOpVerifyErr {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | sized LLVM type |
-#[def_op("llvm.load")]
-#[format_op(
-    "$0 ` ` opt_attr($llvm_alignment, $AlignmentAttr, label($align), delimiters(`[`, `]`)) ` : ` type($0)"
+#[pliron_op(
+    name = "llvm.load",
+    format = "$0 ` ` opt_attr($llvm_alignment, $AlignmentAttr, label($align), delimiters(`[`, `]`)) ` : ` type($0)",
+    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>, AlignableOpInterface]
 )]
-#[derive_op_interface_impl(OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>, AlignableOpInterface)]
 pub struct LoadOp;
 impl LoadOp {
     /// Create a new [LoadOp]
@@ -1313,11 +1324,11 @@ pub enum StoreOpVerifyErr {
 /// |-----|-------|
 /// | `addr` | [PointerType] |
 /// | `value` | Sized type |
-#[def_op("llvm.store")]
-#[format_op(
-    "`*` $1 ` <- ` $0 ` ` opt_attr($llvm_alignment, $AlignmentAttr, label($align), delimiters(`[`, `]`))"
+#[pliron_op(
+    name = "llvm.store",
+    format = "`*` $1 ` <- ` $0 ` ` opt_attr($llvm_alignment, $AlignmentAttr, label($align), delimiters(`[`, `]`))",
+    interfaces = [NResultsInterface<0>, AlignableOpInterface]
 )]
-#[derive_op_interface_impl(NResultsInterface<0>, AlignableOpInterface)]
 pub struct StoreOp;
 impl StoreOp {
     /// Create a new [StoreOp]
@@ -1380,9 +1391,11 @@ impl Verify for StoreOp {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | LLVM type |
-#[def_op("llvm.call")]
-#[derive_op_interface_impl(OneResultInterface, NResultsInterface<1>)]
-#[derive_attr_get_set(llvm_call_callee : IdentifierAttr, llvm_call_fastmath_flags : FastmathFlagsAttr)]
+#[pliron_op(
+    name = "llvm.call",
+    interfaces = [OneResultInterface, NResultsInterface<1>],
+    attributes = (llvm_call_callee: IdentifierAttr, llvm_call_fastmath_flags: FastmathFlagsAttr)
+)]
 pub struct CallOp;
 
 impl CallOp {
@@ -1659,11 +1672,13 @@ impl Verify for CallOp {
 /// | result | description |
 /// |-----|-------|
 /// | `result` | any type |
-#[def_op("llvm.undef")]
-#[derive_op_interface_impl(OneResultInterface, NResultsInterface<1>)]
-#[format_op("`: ` type($0)")]
+#[pliron_op(
+    name = "llvm.undef",
+    format = "`: ` type($0)",
+    interfaces = [OneResultInterface, NResultsInterface<1>],
+    verifier = "succ"
+)]
 pub struct UndefOp;
-impl_verify_succ!(UndefOp);
 
 impl UndefOp {
     /// Create a new [UndefOp].
@@ -1687,11 +1702,13 @@ impl UndefOp {
 /// | result | description |
 /// |-----|-------|
 /// | `result` | any type |
-#[def_op("llvm.poison")]
-#[derive_op_interface_impl(OneResultInterface, NResultsInterface<1>)]
-#[format_op("`: ` type($0)")]
+#[pliron_op(
+    name = "llvm.poison",
+    format = "`: ` type($0)",
+    interfaces = [OneResultInterface, NResultsInterface<1>],
+    verifier = "succ"
+)]
 pub struct PoisonOp;
-impl_verify_succ!(PoisonOp);
 
 impl PoisonOp {
     /// Create a new [PoisonOp].
@@ -1720,11 +1737,13 @@ impl PoisonOp {
 /// | operand | description |
 /// |-----|-------|
 /// | `value` | any type |
-#[def_op("llvm.freeze")]
-#[derive_op_interface_impl(OneOpdInterface, OneResultInterface, NOpdsInterface<1>, NResultsInterface<1>)]
-#[format_op("$0 ` : ` type($0)")]
+#[pliron_op(
+    name = "llvm.freeze",
+    format = "$0 ` : ` type($0)",
+    interfaces = [OneOpdInterface, OneResultInterface, NOpdsInterface<1>, NResultsInterface<1>],
+    verifier = "succ"
+)]
 pub struct FreezeOp;
-impl_verify_succ!(FreezeOp);
 
 impl FreezeOp {
     /// Create a new [FreezeOp].
@@ -1751,10 +1770,12 @@ impl FreezeOp {
 /// | result | description |
 /// |-----|-------|
 /// | `result` | any type |
-#[def_op("llvm.constant")]
-#[derive_op_interface_impl(NOpdsInterface<0>, OneResultInterface, NResultsInterface<1>)]
-#[format_op("`<` $constant_value `>` ` : ` type($0)")]
-#[derive_attr_get_set(constant_value)]
+#[pliron_op(
+    name = "llvm.constant",
+    format = "`<` $constant_value `>` ` : ` type($0)",
+    interfaces = [NOpdsInterface<0>, OneResultInterface, NResultsInterface<1>],
+    attributes = (constant_value)
+)]
 pub struct ConstantOp;
 
 impl ConstantOp {
@@ -1807,11 +1828,13 @@ impl Verify for ConstantOp {
 /// | result | description |
 /// |-----|-------|
 /// | `result` | any type |
-#[def_op("llvm.zero")]
-#[derive_op_interface_impl(NOpdsInterface<0>, OneResultInterface, NResultsInterface<1>)]
-#[format_op("`: ` type($0)")]
+#[pliron_op(
+    name = "llvm.zero",
+    format = "`: ` type($0)",
+    interfaces = [NOpdsInterface<0>, OneResultInterface, NResultsInterface<1>],
+    verifier = "succ"
+)]
 pub struct ZeroOp;
-impl_verify_succ!(ZeroOp);
 
 impl ZeroOp {
     /// Create a new [ZeroOp].
@@ -1838,17 +1861,19 @@ pub enum GlobalOpVerifyErr {
 /// It creates a global variable of the specified LLVM IR dialect type.
 /// An initializer can be specified either as an attribute or in the
 /// operation's initializer region, ending with a return.
-#[def_op("llvm.global")]
-#[derive_op_interface_impl(
-    IsolatedFromAboveInterface,
-    NOpdsInterface<0>,
-    NResultsInterface<0>,
-    SymbolOpInterface,
-    SingleBlockRegionInterface,
-    LlvmSymbolName,
-    AlignableOpInterface
+#[pliron_op(
+    name = "llvm.global",
+    interfaces = [
+        IsolatedFromAboveInterface,
+        NOpdsInterface<0>,
+        NResultsInterface<0>,
+        SymbolOpInterface,
+        SingleBlockRegionInterface,
+        LlvmSymbolName,
+        AlignableOpInterface
+    ],
+    attributes = (llvm_global_type: TypeAttr, global_initializer, llvm_global_linkage: LinkageAttr)
 )]
-#[derive_attr_get_set(llvm_global_type : TypeAttr, global_initializer, llvm_global_linkage : LinkageAttr)]
 pub struct GlobalOp;
 
 impl GlobalOp {
@@ -2047,13 +2072,14 @@ impl Parsable for GlobalOp {
 /// |-----|-------|
 /// | `result` | LLVM pointer type |
 ///
-#[def_op("llvm.addressof")]
-#[derive_op_interface_impl(OneResultInterface, NResultsInterface<1>)]
-#[format_op("`@` attr($global_name, $IdentifierAttr) ` : ` type($0)")]
-#[derive_attr_get_set(global_name : IdentifierAttr)]
+#[pliron_op(
+    name = "llvm.addressof",
+    format = "`@` attr($global_name, $IdentifierAttr) ` : ` type($0)",
+    interfaces = [OneResultInterface, NResultsInterface<1>],
+    attributes = (global_name: IdentifierAttr),
+    verifier = "succ"
+)]
 pub struct AddressOfOp;
-
-impl_verify_succ!(AddressOfOp);
 
 impl AddressOfOp {
     /// Create a new [AddressOfOp].
@@ -2225,9 +2251,11 @@ fn integer_cast_verify(op: &Operation, ctx: &Context, cmp: ICmpPredicateAttr) ->
 /// | result | description |
 /// |-----|-------|
 /// | `res` | Signless integer |
-#[def_op("llvm.sext")]
-#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>)]
-#[format_op("$0 ` to ` type($0)")]
+#[pliron_op(
+    name = "llvm.sext",
+    format = "$0 ` to ` type($0)",
+    interfaces = [CastOpInterface, OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>]
+)]
 pub struct SExtOp;
 impl Verify for SExtOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
@@ -2248,18 +2276,18 @@ impl Verify for SExtOp {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | Signless integer |
-#[def_op("llvm.zext")]
-#[derive_op_interface_impl(
-    CastOpInterface,
-    OneResultInterface,
-    OneOpdInterface,
-    NNegFlag,
-    CastOpWithNNegInterface,
-    NResultsInterface<1>,
-    NOpdsInterface<1>
-)]
-#[format_op(
-    "`<nneg=` attr($llvm_nneg_flag, `pliron::builtin::attributes::BoolAttr`) `> ` $0 ` to ` type($0)"
+#[pliron_op(
+    name = "llvm.zext",
+    format = "`<nneg=` attr($llvm_nneg_flag, `pliron::builtin::attributes::BoolAttr`) `> ` $0 ` to ` type($0)",
+    interfaces = [
+        CastOpInterface,
+        OneResultInterface,
+        OneOpdInterface,
+        NNegFlag,
+        CastOpWithNNegInterface,
+        NResultsInterface<1>,
+        NOpdsInterface<1>
+    ]
 )]
 pub struct ZExtOp;
 
@@ -2284,9 +2312,11 @@ impl Verify for ZExtOp {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | Floating-point number |
-#[def_op("llvm.fpext")]
-#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface, FastMathFlags, NResultsInterface<1>, NOpdsInterface<1>)]
-#[format_op("attr($llvm_fast_math_flags, $FastmathFlagsAttr) ` ` $0 ` to ` type($0)")]
+#[pliron_op(
+    name = "llvm.fpext",
+    format = "attr($llvm_fast_math_flags, $FastmathFlagsAttr) ` ` $0 ` to ` type($0)",
+    interfaces = [CastOpInterface, OneResultInterface, OneOpdInterface, FastMathFlags, NResultsInterface<1>, NOpdsInterface<1>]
+)]
 pub struct FPExtOp;
 
 impl Verify for FPExtOp {
@@ -2334,9 +2364,11 @@ pub enum FloatCastVerifyErr {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | Signless integer |
-#[def_op("llvm.trunc")]
-#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>)]
-#[format_op("$0 ` to ` type($0)")]
+#[pliron_op(
+    name = "llvm.trunc",
+    format = "$0 ` to ` type($0)",
+    interfaces = [CastOpInterface, OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>]
+)]
 pub struct TruncOp;
 
 impl Verify for TruncOp {
@@ -2358,9 +2390,11 @@ impl Verify for TruncOp {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | Floating-point number |
-#[def_op("llvm.fptrunc")]
-#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface, FastMathFlags, NResultsInterface<1>, NOpdsInterface<1>)]
-#[format_op("attr($llvm_fast_math_flags, $FastmathFlagsAttr) ` ` $0 ` to ` type($0)")]
+#[pliron_op(
+    name = "llvm.fptrunc",
+    format = "attr($llvm_fast_math_flags, $FastmathFlagsAttr) ` ` $0 ` to ` type($0)",
+    interfaces = [CastOpInterface, OneResultInterface, OneOpdInterface, FastMathFlags, NResultsInterface<1>, NOpdsInterface<1>]
+)]
 pub struct FPTruncOp;
 
 impl Verify for FPTruncOp {
@@ -2398,9 +2432,11 @@ impl Verify for FPTruncOp {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | Signed integer |
-#[def_op("llvm.fptosi")]
-#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>)]
-#[format_op("$0 ` to ` type($0)")]
+#[pliron_op(
+    name = "llvm.fptosi",
+    format = "$0 ` to ` type($0)",
+    interfaces = [CastOpInterface, OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>]
+)]
 pub struct FPToSIOp;
 
 impl Verify for FPToSIOp {
@@ -2432,9 +2468,11 @@ impl Verify for FPToSIOp {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | Unsigned integer |
-#[def_op("llvm.fptoui")]
-#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>)]
-#[format_op("$0 ` to ` type($0)")]
+#[pliron_op(
+    name = "llvm.fptoui",
+    format = "$0 ` to ` type($0)",
+    interfaces = [CastOpInterface, OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>]
+)]
 pub struct FPToUIOp;
 
 impl Verify for FPToUIOp {
@@ -2466,9 +2504,11 @@ impl Verify for FPToUIOp {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | Floating-point number |
-#[def_op("llvm.sitofp")]
-#[derive_op_interface_impl(CastOpInterface, OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>)]
-#[format_op("$0 ` to ` type($0)")]
+#[pliron_op(
+    name = "llvm.sitofp",
+    format = "$0 ` to ` type($0)",
+    interfaces = [CastOpInterface, OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>]
+)]
 pub struct SIToFPOp;
 
 impl Verify for SIToFPOp {
@@ -2500,18 +2540,18 @@ impl Verify for SIToFPOp {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | Floating-point number |
-#[def_op("llvm.uitofp")]
-#[derive_op_interface_impl(
-    CastOpInterface,
-    OneResultInterface,
-    OneOpdInterface,
-    CastOpWithNNegInterface,
-    NNegFlag,
-    NResultsInterface<1>,
-    NOpdsInterface<1>
-)]
-#[format_op(
-    "`<nneg=` attr($llvm_nneg_flag, `pliron::builtin::attributes::BoolAttr`) `> `$0 ` to ` type($0)"
+#[pliron_op(
+    name = "llvm.uitofp",
+    format = "`<nneg=` attr($llvm_nneg_flag, `pliron::builtin::attributes::BoolAttr`) `> `$0 ` to ` type($0)",
+    interfaces = [
+        CastOpInterface,
+        OneResultInterface,
+        OneOpdInterface,
+        CastOpWithNNegInterface,
+        NNegFlag,
+        NResultsInterface<1>,
+        NOpdsInterface<1>
+    ]
 )]
 pub struct UIToFPOp;
 
@@ -2545,12 +2585,12 @@ impl Verify for UIToFPOp {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | LLVM aggregate type |
-#[def_op("llvm.insert_value")]
-#[format_op(
-    "$0 attr($insert_value_indices, $InsertExtractValueIndicesAttr) `, ` $1 ` : ` type($0)"
+#[pliron_op(
+    name = "llvm.insert_value",
+    format = "$0 attr($insert_value_indices, $InsertExtractValueIndicesAttr) `, ` $1 ` : ` type($0)",
+    interfaces = [OneResultInterface, NResultsInterface<1>, NOpdsInterface<2>],
+    attributes = (insert_value_indices: InsertExtractValueIndicesAttr)
 )]
-#[derive_attr_get_set(insert_value_indices : InsertExtractValueIndicesAttr)]
-#[derive_op_interface_impl(OneResultInterface, NResultsInterface<1>, NOpdsInterface<2>)]
 pub struct InsertValueOp;
 
 impl InsertValueOp {
@@ -2625,10 +2665,12 @@ impl Verify for InsertValueOp {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | LLVM type |
-#[def_op("llvm.extract_value")]
-#[format_op("$0 attr($extract_value_indices, $InsertExtractValueIndicesAttr) ` : ` type($0)")]
-#[derive_op_interface_impl(OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>)]
-#[derive_attr_get_set(extract_value_indices : InsertExtractValueIndicesAttr)]
+#[pliron_op(
+    name = "llvm.extract_value",
+    format = "$0 attr($extract_value_indices, $InsertExtractValueIndicesAttr) ` : ` type($0)",
+    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>],
+    attributes = (extract_value_indices: InsertExtractValueIndicesAttr)
+)]
 pub struct ExtractValueOp;
 
 impl Verify for ExtractValueOp {
@@ -2745,9 +2787,11 @@ pub enum InsertExtractValueErr {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | LLVM vector type |
-#[def_op("llvm.insert_element")]
-#[derive_op_interface_impl(OneResultInterface, NResultsInterface<1>, NOpdsInterface<3>)]
-#[format_op("$0 `, ` $1 `, ` $2 ` : ` type($0)")]
+#[pliron_op(
+    name = "llvm.insert_element",
+    format = "$0 `, ` $1 `, ` $2 ` : ` type($0)",
+    interfaces = [OneResultInterface, NResultsInterface<1>, NOpdsInterface<3>]
+)]
 pub struct InsertElementOp;
 impl Verify for InsertElementOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
@@ -2832,9 +2876,11 @@ pub enum InsertExtractElementOpVerifyErr {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | LLVM type |
-#[def_op("llvm.extract_element")]
-#[derive_op_interface_impl(OneResultInterface, NResultsInterface<1>, NOpdsInterface<2>)]
-#[format_op("$0 `, ` $1 ` : ` type($0)")]
+#[pliron_op(
+    name = "llvm.extract_element",
+    format = "$0 `, ` $1 ` : ` type($0)",
+    interfaces = [OneResultInterface, NResultsInterface<1>, NOpdsInterface<2>]
+)]
 pub struct ExtractElementOp;
 
 impl Verify for ExtractElementOp {
@@ -2912,11 +2958,11 @@ impl ExtractElementOp {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | LLVM vector type |
-#[def_op("llvm.shuffle_vector")]
-#[derive_op_interface_impl(OneResultInterface, NResultsInterface<1>, NOpdsInterface<2>)]
-#[derive_attr_get_set(llvm_shuffle_vector_mask : ShuffleVectorMaskAttr)]
-#[format_op(
-    "$0 `, ` $1 `, ` attr($llvm_shuffle_vector_mask, $ShuffleVectorMaskAttr) ` : ` type($0)"
+#[pliron_op(
+    name = "llvm.shuffle_vector",
+    format = "$0 `, ` $1 `, ` attr($llvm_shuffle_vector_mask, $ShuffleVectorMaskAttr) ` : ` type($0)",
+    interfaces = [OneResultInterface, NResultsInterface<1>, NOpdsInterface<2>],
+    attributes = (llvm_shuffle_vector_mask: ShuffleVectorMaskAttr)
 )]
 pub struct ShuffleVectorOp;
 impl Verify for ShuffleVectorOp {
@@ -3019,9 +3065,11 @@ pub enum ShuffleVectorOpVerifyErr {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | any type |
-#[def_op("llvm.select")]
-#[derive_op_interface_impl(OneResultInterface, NResultsInterface<1>, NOpdsInterface<3>)]
-#[format_op("$0 ` ? ` $1 ` : ` $2 ` : ` type($0)")]
+#[pliron_op(
+    name = "llvm.select",
+    format = "$0 ` ? ` $1 ` : ` $2 ` : ` type($0)",
+    interfaces = [OneResultInterface, NResultsInterface<1>, NOpdsInterface<3>]
+)]
 pub struct SelectOp;
 
 impl SelectOp {
@@ -3096,20 +3144,22 @@ pub enum SelectOpVerifyErr {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | float |
-#[def_op("llvm.fneg")]
-#[derive_op_interface_impl(
-    OneResultInterface,
-    OneOpdInterface,
-    SameResultsType,
-    SameOperandsType,
-    SameOperandsAndResultType,
-    FastMathFlags,
-    NResultsInterface<1>,
-    NOpdsInterface<1>,
-    AtLeastNOpdsInterface<1>,
-    AtLeastNResultsInterface<1>,
+#[pliron_op(
+    name = "llvm.fneg",
+    format = "attr($llvm_fast_math_flags, $FastmathFlagsAttr) $0 ` : ` type($0)",
+    interfaces = [
+        OneResultInterface,
+        OneOpdInterface,
+        SameResultsType,
+        SameOperandsType,
+        SameOperandsAndResultType,
+        FastMathFlags,
+        NResultsInterface<1>,
+        NOpdsInterface<1>,
+        AtLeastNOpdsInterface<1>,
+        AtLeastNResultsInterface<1>
+    ]
 )]
-#[format_op("attr($llvm_fast_math_flags, $FastmathFlagsAttr) $0 ` : ` type($0)")]
 pub struct FNegOp;
 
 impl Verify for FNegOp {
@@ -3160,7 +3210,6 @@ macro_rules! new_float_bin_op {
     (   $(#[$outer:meta])*
         $op_name:ident, $op_id:literal
     ) => {
-        #[def_op($op_id)]
         $(#[$outer])*
         /// ### Operands:
         ///
@@ -3174,16 +3223,18 @@ macro_rules! new_float_bin_op {
         /// | result | description |
         /// |-----|-------|
         /// | `res` | float |
-        #[pliron::derive::derive_op_interface_impl(
-            OneResultInterface, SameOperandsType, SameResultsType,
-            AtLeastNOpdsInterface<1>, AtLeastNResultsInterface<1>,
-            SameOperandsAndResultType, BinArithOp, FloatBinArithOp,
-            FloatBinArithOpWithFastMathFlags, FastMathFlags, NResultsInterface<1>, NOpdsInterface<2>
+        #[pliron_op(
+            name = $op_id,
+            format = "attr($llvm_fast_math_flags, $FastmathFlagsAttr) ` ` $0 `, ` $1 ` : ` type($0)",
+            interfaces = [
+                OneResultInterface, SameOperandsType, SameResultsType,
+                AtLeastNOpdsInterface<1>, AtLeastNResultsInterface<1>,
+                SameOperandsAndResultType, BinArithOp, FloatBinArithOp,
+                FloatBinArithOpWithFastMathFlags, FastMathFlags, NResultsInterface<1>, NOpdsInterface<2>
+            ],
+            verifier = "succ"
         )]
-        #[format_op("attr($llvm_fast_math_flags, $FastmathFlagsAttr) ` ` $0 `, ` $1 ` : ` type($0)")]
         pub struct $op_name;
-
-        impl_verify_succ!($op_name);
     }
 }
 
@@ -3230,18 +3281,18 @@ new_float_bin_op! {
 /// | result | description |
 /// |-----|-------|
 /// | `res` | 1-bit signless integer |
-#[def_op("llvm.fcmp")]
-#[derive_op_interface_impl(
-    OneResultInterface,
-    SameOperandsType,
-    AtLeastNOpdsInterface<1>,
-    FastMathFlags,
-    NResultsInterface<1>,
-    NOpdsInterface<2>
-)]
-#[derive_attr_get_set(fcmp_predicate : FCmpPredicateAttr)]
-#[format_op(
-    "attr($llvm_fast_math_flags, $FastmathFlagsAttr) ` ` $0 ` <` attr($fcmp_predicate, $FCmpPredicateAttr) `> ` $1 ` : ` type($0)"
+#[pliron_op(
+    name = "llvm.fcmp",
+    format = "attr($llvm_fast_math_flags, $FastmathFlagsAttr) ` ` $0 ` <` attr($fcmp_predicate, $FCmpPredicateAttr) `> ` $1 ` : ` type($0)",
+    interfaces = [
+        OneResultInterface,
+        SameOperandsType,
+        AtLeastNOpdsInterface<1>,
+        FastMathFlags,
+        NResultsInterface<1>,
+        NOpdsInterface<2>
+    ],
+    attributes = (fcmp_predicate: FCmpPredicateAttr)
 )]
 pub struct FCmpOp;
 
@@ -3309,13 +3360,15 @@ pub enum FCmpOpVerifyErr {
 
 /// All LLVM intrinsic calls are represented by this [Op].
 /// Same as MLIR's [llvm.call_intrinsic](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmcall_intrinsic-llvmcallintrinsicop).
-#[def_op("llvm.call_intrinsic")]
-#[derive_attr_get_set(
-    llvm_intrinsic_name : StringAttr,
-    llvm_intrinsic_type: TypeAttr,
-    llvm_intrinsic_fastmath_flags : FastmathFlagsAttr,
+#[pliron_op(
+    name = "llvm.call_intrinsic",
+    interfaces = [OneResultInterface, NResultsInterface<1>],
+    attributes = (
+        llvm_intrinsic_name: StringAttr,
+        llvm_intrinsic_type: TypeAttr,
+        llvm_intrinsic_fastmath_flags: FastmathFlagsAttr
+    )
 )]
-#[derive_op_interface_impl(OneResultInterface, NResultsInterface<1>)]
 pub struct CallIntrinsicOp;
 
 impl CallIntrinsicOp {
@@ -3486,9 +3539,11 @@ impl Verify for CallIntrinsicOp {
 }
 
 /// Equivalent to LLVM's `va_arg` operation.
-#[def_op("llvm.va_arg")]
-#[derive_op_interface_impl(OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>)]
-#[format_op("$0 ` : ` type($0)")]
+#[pliron_op(
+    name = "llvm.va_arg",
+    format = "$0 ` : ` type($0)",
+    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>]
+)]
 pub struct VAArgOp;
 
 #[derive(Error, Debug)]
@@ -3528,17 +3583,19 @@ impl VAArgOp {
 
 /// Equivalent to LLVM's `func` operation.
 /// See [llvm.func](https://mlir.llvm.org/docs/Dialects/LLVM/#llvmfunc-llvmllvmfuncop).
-#[def_op("llvm.func")]
-#[derive_op_interface_impl(
-    SymbolOpInterface,
-    IsolatedFromAboveInterface,
-    AtMostNRegionsInterface<1>,
-    AtMostOneRegionInterface,
-    NResultsInterface<0>,
-    NOpdsInterface<0>,
-    LlvmSymbolName
+#[pliron_op(
+    name = "llvm.func",
+    interfaces = [
+        SymbolOpInterface,
+        IsolatedFromAboveInterface,
+        AtMostNRegionsInterface<1>,
+        AtMostOneRegionInterface,
+        NResultsInterface<0>,
+        NOpdsInterface<0>,
+        LlvmSymbolName
+    ],
+    attributes = (llvm_func_type: TypeAttr, llvm_function_linkage: LinkageAttr)
 )]
-#[derive_attr_get_set(llvm_func_type : TypeAttr, llvm_function_linkage : LinkageAttr)]
 pub struct FuncOp;
 
 impl FuncOp {
