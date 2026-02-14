@@ -558,7 +558,7 @@ impl Verify for PtrToIntOp {
     }
 }
 
-// Equivalent to LLVM's Unconditional Branch.
+/// Equivalent to LLVM's Unconditional Branch.
 /// ### Operands
 /// | operand | description |
 /// |-----|-------|
@@ -601,7 +601,7 @@ impl BrOp {
     }
 }
 
-// Equivalent to LLVM's Conditional Branch.
+/// Equivalent to LLVM's Conditional Branch.
 /// ### Operands
 /// | operand | description |
 /// |-----|-------|
@@ -1111,7 +1111,7 @@ pub enum GetElementPtrOpErr {
     IndicesErr,
 }
 
-// Equivalent to LLVM's GetElementPtr.
+/// Equivalent to LLVM's GetElementPtr.
 /// ### Operands
 /// | operand | description |
 /// |-----|-------|

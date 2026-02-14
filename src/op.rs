@@ -163,6 +163,7 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
     /// Get the underlying IR Operation
     fn get_operation(&self) -> Ptr<Operation>;
 
+    #[doc(hidden)]
     /// Create a new [OpObj], by boxing [Op].
     ///
     /// **WARNING**: Does not check that the operation is of the correct OpId.
@@ -170,6 +171,7 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
     where
         Self: Sized;
 
+    #[doc(hidden)]
     /// Create a concrete [Op] from an [Operation].
     ///
     /// **WARNING**: Does not check that the operation is of the correct OpId.
@@ -177,6 +179,7 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
     where
         Self: Sized;
 
+    #[doc(hidden)]
     /// Get details about the concrete Op type.
     fn get_concrete_op_info() -> ConcreteOpInfo
     where
@@ -192,6 +195,7 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
     where
         Self: Sized;
 
+    #[doc(hidden)]
     /// Verify all interfaces implemented by this op.
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 

@@ -212,6 +212,7 @@ pub trait Attribute: Printable + Verify + Downcast + Sync + Send + DynClone + De
     where
         Self: Sized;
 
+    #[doc(hidden)]
     /// Verify all interfaces implemented by this attribute.
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 

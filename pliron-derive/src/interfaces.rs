@@ -43,6 +43,7 @@ pub(crate) fn interface_define(
 
     // Create a method for getting super verifiers + self verifier
     let all_verifiers = quote! {
+        #[doc(hidden)]
         fn __all_verifiers() -> Vec<#verifier_type> where Self: Sized {
             let mut all_verifiers: Vec<#verifier_type> = Vec::new();
             #(
@@ -62,6 +63,9 @@ pub(crate) fn interface_define(
             // This helps reduce multiple executions of the same verifier when
             // called from different sub-interfaces.
             meth.attrs.push(parse_quote! { #[inline(never)] });
+            // Add a #[doc(hidden)] to hide it from documentation,
+            // since users should call `verify_op`, `verify_attr`, or `verify_type` instead.
+            meth.attrs.push(parse_quote! { #[doc(hidden)] });
         }
     }
 

@@ -121,6 +121,11 @@ impl OpInsertionPoint {
             OpInsertionPoint::Unset => None,
         }
     }
+
+    /// Is the insertion point set?
+    pub fn is_set(&self) -> bool {
+        !matches!(self, OpInsertionPoint::Unset)
+    }
 }
 
 impl BlockInsertionPoint {
@@ -143,6 +148,11 @@ impl BlockInsertionPoint {
             ),
             BlockInsertionPoint::Unset => None,
         }
+    }
+
+    /// Is the insertion point set?
+    pub fn is_set(&self) -> bool {
+        !matches!(self, BlockInsertionPoint::Unset)
     }
 }
 
@@ -188,11 +198,13 @@ pub trait Inserter<L: InsertionListener>: Default {
 
     /// Is insertion point set?
     fn is_insertion_point_set(&self) -> bool {
-        !matches!(self.get_insertion_point(), OpInsertionPoint::Unset)
+        self.get_insertion_point().is_set()
     }
 
-    /// Get the current insertion block, if set.
-    fn get_insertion_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>>;
+    /// Get the [BasicBlock], if known, in which the next [Op] insertion will occur.
+    fn get_insertion_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
+        self.get_insertion_point().get_insertion_block(ctx)
+    }
 
     /// Set the insertion point.
     fn set_insertion_point(&mut self, point: OpInsertionPoint);
@@ -385,10 +397,6 @@ impl<L: InsertionListener> Inserter<L> for IRInserter<L> {
 
     fn get_insertion_point(&self) -> OpInsertionPoint {
         self.op_insertion_point
-    }
-
-    fn get_insertion_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
-        self.op_insertion_point.get_insertion_block(ctx)
     }
 
     fn set_insertion_point(&mut self, point: OpInsertionPoint) {

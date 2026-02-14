@@ -154,6 +154,7 @@ pub trait Type: Printable + Verify + Downcast + Sync + Send + Debug {
     where
         Self: Sized;
 
+    #[doc(hidden)]
     /// Verify all interfaces implemented by this Type.
     fn verify_interfaces(&self, ctx: &Context) -> Result<()>;
 

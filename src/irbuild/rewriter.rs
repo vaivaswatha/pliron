@@ -367,6 +367,24 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
 /// A scoped rewriter that sets the insertion point for the duration of its lifetime.
 /// On drop, it restores the previous insertion point.
 /// The rewriter can be used as a normal rewriter via [Deref](std::ops::Deref).
+/// ```rust
+/// # use pliron::{context::Context,
+/// #   builtin::{ops::ModuleOp, op_interfaces::SingleBlockRegionInterface}};
+/// # use pliron::irbuild::{rewriter::{IRRewriter, ScopedRewriter},
+/// #   listener::DummyListener,
+/// #   inserter::{Inserter, OpInsertionPoint}};
+/// let ctx = &mut Context::new();
+/// let module = ModuleOp::new(ctx, "test_module".try_into().unwrap());
+/// let mut rewriter = IRRewriter::<DummyListener>::default();
+/// rewriter.set_insertion_point(OpInsertionPoint::AtBlockEnd(module.get_body(ctx, 0)));
+/// {
+///     let mut scoped_rewriter = ScopedRewriter::new(&mut rewriter, OpInsertionPoint::Unset);
+///     // Use `scoped_rewriter` to perform rewrites with the insertion point set to `Unset`.
+///     // The original insertion point of `rewriter` will be restored after this block.
+///     assert!(!scoped_rewriter.get_insertion_point().is_set());
+/// }
+/// assert!(rewriter.get_insertion_point().is_set());
+/// ```
 pub struct ScopedRewriter<'a, L: RewriteListener, I: Inserter<L>> {
     rewriter: &'a mut IRRewriter<L, I>,
     prev_insertion_point: OpInsertionPoint,
