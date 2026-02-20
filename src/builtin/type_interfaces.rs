@@ -26,7 +26,7 @@ pub trait FunctionTypeInterface {
     fn arg_types(&self) -> Vec<Ptr<TypeObj>>;
     /// Returns the result types of the function type.
     fn res_types(&self) -> Vec<Ptr<TypeObj>>;
-    fn verify(_attr: &dyn Type, _ctx: &Context) -> Result<()>
+    fn verify(_ty: &dyn Type, _ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {

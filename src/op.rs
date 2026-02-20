@@ -179,7 +179,6 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
     where
         Self: Sized;
 
-    #[doc(hidden)]
     /// Get details about the concrete Op type.
     fn get_concrete_op_info() -> ConcreteOpInfo
     where
@@ -187,6 +186,7 @@ pub trait Op: Downcast + Verify + Printable + DynClone {
     {
         (Self::wrap_operation, std::any::TypeId::of::<Self>())
     }
+
     /// Get this Op's OpId
     fn get_opid(&self) -> OpId;
 

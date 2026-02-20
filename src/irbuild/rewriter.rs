@@ -378,9 +378,9 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
 /// let mut rewriter = IRRewriter::<DummyListener>::default();
 /// rewriter.set_insertion_point(OpInsertionPoint::AtBlockEnd(module.get_body(ctx, 0)));
 /// {
+///     // We can create a scoped rewriter with a different insertion point,
+///     // and it will restore the original insertion point after this block.
 ///     let mut scoped_rewriter = ScopedRewriter::new(&mut rewriter, OpInsertionPoint::Unset);
-///     // Use `scoped_rewriter` to perform rewrites with the insertion point set to `Unset`.
-///     // The original insertion point of `rewriter` will be restored after this block.
 ///     assert!(!scoped_rewriter.get_insertion_point().is_set());
 /// }
 /// assert!(rewriter.get_insertion_point().is_set());

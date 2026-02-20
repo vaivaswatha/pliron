@@ -418,3 +418,60 @@ impl<L: InsertionListener> Inserter<L> for IRInserter<L> {
         self.listener.as_mut()
     }
 }
+
+/// A scoped inserter that sets the insertion point for the duration of its lifetime.
+/// On drop, it restores the previous insertion point.
+/// The inserter can be used as a normal inserter via [Deref](std::ops::Deref).
+/// ```rust
+/// # use pliron::{context::Context,
+/// #   builtin::{ops::ModuleOp, op_interfaces::SingleBlockRegionInterface}};
+/// # use pliron::irbuild::{listener::DummyListener,
+/// #   inserter::{Inserter, IRInserter, ScopedInserter, OpInsertionPoint}};
+/// let ctx = &mut Context::new();
+/// let module = ModuleOp::new(ctx, "test_module".try_into().unwrap());
+/// let mut inserter = IRInserter::<DummyListener>::default();
+/// inserter.set_insertion_point(OpInsertionPoint::AtBlockEnd(module.get_body(ctx, 0)));
+/// {
+///     // We can create a scoped inserter with a different insertion point,
+///     // and it will restore the original insertion point after this block.
+///     let mut scoped_inserter = ScopedInserter::new(&mut inserter, OpInsertionPoint::Unset);
+///     assert!(!scoped_inserter.get_insertion_point().is_set());
+/// }
+/// assert!(inserter.get_insertion_point().is_set());
+/// ```
+pub struct ScopedInserter<'a, L: InsertionListener, I: Inserter<L>> {
+    inserter: &'a mut I,
+    prev_insertion_point: OpInsertionPoint,
+    _phantom: std::marker::PhantomData<L>,
+}
+
+impl<'a, L: InsertionListener, I: Inserter<L>> ScopedInserter<'a, L, I> {
+    pub fn new(inserter: &'a mut I, insertion_point: OpInsertionPoint) -> Self {
+        let prev_insertion_point = inserter.get_insertion_point();
+        inserter.set_insertion_point(insertion_point);
+        Self {
+            inserter,
+            prev_insertion_point,
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a, L: InsertionListener, I: Inserter<L>> Drop for ScopedInserter<'a, L, I> {
+    fn drop(&mut self) {
+        self.inserter.set_insertion_point(self.prev_insertion_point);
+    }
+}
+
+impl<'a, L: InsertionListener, I: Inserter<L>> std::ops::Deref for ScopedInserter<'a, L, I> {
+    type Target = I;
+
+    fn deref(&self) -> &Self::Target {
+        self.inserter
+    }
+}
+impl<'a, L: InsertionListener, I: Inserter<L>> std::ops::DerefMut for ScopedInserter<'a, L, I> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.inserter
+    }
+}
