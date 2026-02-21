@@ -176,6 +176,16 @@ pub trait OperandSegmentInterface {
         sizes[idx]
     }
 
+    /// Get the number of segments.
+    fn num_segments(&self, ctx: &Context) -> usize {
+        let self_op = self.get_operation().deref(ctx);
+        let sizes_attr = self_op
+            .attributes
+            .get::<OperandSegmentSizesAttr>(&ATTR_KEY_OPERAND_SEGMENT_SIZES)
+            .unwrap();
+        sizes_attr.0.len()
+    }
+
     /// Set the `operand_segment_sizes` attribute for this operation.
     fn set_operand_segment_sizes(&self, ctx: &Context, sizes: OperandSegmentSizesAttr) {
         let mut self_op = self.get_operation().deref_mut(ctx);
