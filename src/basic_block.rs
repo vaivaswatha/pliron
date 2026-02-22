@@ -386,6 +386,8 @@ impl Verify for BasicBlock {
 pub enum BasicBlockVerifyErr {
     #[error("Basic block \"{0}\" is missing a terminator")]
     MissingTerminator(String),
+    #[error("Basic block \"{0}\" has a terminator that is not the last operation in the block")]
+    TerminatorNotLast(String),
     #[error("Basic block \"{0}\" has no parent operation")]
     NoParent(String),
 }

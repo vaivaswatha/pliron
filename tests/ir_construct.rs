@@ -1,9 +1,11 @@
 use common::{ConstantOp, ReturnOp};
 use expect_test::{Expect, expect};
+use pliron::basic_block::BasicBlockVerifyErr;
 use pliron::builtin::attributes::StringAttr;
 use pliron::context::Ptr;
 use pliron::derive::pliron_op;
 use pliron::dict_key;
+use pliron::op::verify_op;
 use pliron::{
     basic_block::BasicBlock,
     builtin::{
@@ -651,4 +653,41 @@ fn test_walker_find_op() {
         finder,
     );
     assert!(matches!(res2, interruptible::WalkResult::Break(c) if c == const1_op));
+}
+
+#[test]
+fn test_verify_missing_terminator() -> Result<()> {
+    let ctx = &mut Context::new();
+    let (module_op, _, _, ret_op) = const_ret_in_mod(ctx)?;
+
+    verify_op(&module_op, ctx)?;
+
+    Operation::erase(ret_op.get_operation(), ctx);
+
+    let verify_res = verify_op(&module_op, ctx);
+    let err = verify_res.unwrap_err();
+    let err = err.err.downcast_ref::<BasicBlockVerifyErr>().unwrap();
+    assert!(matches!(err, BasicBlockVerifyErr::MissingTerminator(_)));
+
+    Ok(())
+}
+
+#[test]
+fn test_verify_multiple_terminator() -> Result<()> {
+    let ctx = &mut Context::new();
+    let (module_op, _, const_op, ret_op) = const_ret_in_mod(ctx)?;
+
+    verify_op(&module_op, ctx)?;
+
+    let ret2_op = ReturnOp::new(ctx, const_op.get_result(ctx));
+    ret2_op
+        .get_operation()
+        .insert_before(ctx, ret_op.get_operation());
+
+    let verify_res = verify_op(&module_op, ctx);
+    let err = verify_res.unwrap_err();
+    let err = err.err.downcast_ref::<BasicBlockVerifyErr>().unwrap();
+    assert!(matches!(err, BasicBlockVerifyErr::TerminatorNotLast(_)));
+
+    Ok(())
 }

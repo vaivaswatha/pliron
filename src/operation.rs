@@ -9,7 +9,8 @@ use thiserror::Error;
 
 use crate::{
     attribute::{AttributeDict, verify_attr},
-    basic_block::BasicBlock,
+    basic_block::{BasicBlock, BasicBlockVerifyErr},
+    builtin::op_interfaces::IsTerminatorInterface,
     common_traits::{Named, RcShare, Verify},
     context::{Arena, Context, Ptr, private::ArenaObj},
     debug_info,
@@ -21,7 +22,7 @@ use crate::{
     },
     linked_list::{LinkedList, private},
     location::{Located, Location},
-    op::{ConcreteOpInfo, Op, OpId, OpObj},
+    op::{ConcreteOpInfo, Op, OpId, OpObj, op_impls},
     parsable::{self, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     region::Region,
@@ -628,6 +629,13 @@ impl Verify for Operation {
             .try_for_each(|region| region.verify(ctx))?;
         self.results.iter().try_for_each(|res| res.verify(ctx))?;
         let op = &*Self::get_op_dyn(self.self_ptr, ctx);
+        if op_impls::<dyn IsTerminatorInterface>(op) && self.get_next().is_some() {
+            let loc = self.loc.clone();
+            verify_err!(
+                loc,
+                BasicBlockVerifyErr::TerminatorNotLast(self.disp(ctx).to_string())
+            )?
+        }
         op.verify_interfaces(ctx)?;
         op.verify(ctx)
     }
