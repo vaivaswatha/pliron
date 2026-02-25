@@ -7,6 +7,8 @@ use crate::builtin::op_interfaces::{SymbolOpInterface, SymbolTableInterface};
 use crate::graph::walkers::interruptible::immutable::walk_region;
 use crate::graph::walkers::interruptible::{WalkResult, walk_advance, walk_skip};
 use crate::graph::walkers::{IRNode, WALKCONFIG_PREORDER_FORWARD};
+use crate::irbuild::inserter::{IRInserter, Inserter, OpInsertionPoint};
+use crate::irbuild::listener::DummyListener;
 use crate::location::Located;
 use crate::printable::Printable;
 use crate::{arg_err, arg_error};
@@ -84,7 +86,7 @@ impl SymbolTable {
         &mut self,
         ctx: &Context,
         symbol_op: Box<dyn SymbolOpInterface>,
-        insert_pt: Option<Ptr<Operation>>,
+        insert_pt: Option<OpInsertionPoint>,
     ) -> Result<()> {
         let symbol_name = symbol_op.get_symbol_name(ctx);
         if let Some(prev_op) = self
@@ -112,11 +114,15 @@ impl SymbolTable {
             }
             // Nothing more to do.
         } else if let Some(insert_pt) = insert_pt {
-            let insert_pt_parent = insert_pt.deref(ctx).get_parent_op(ctx);
+            let insert_pt_parent = insert_pt
+                .get_insertion_block(ctx)
+                .expect("Invalid insertion point")
+                .deref(ctx)
+                .get_parent_op(ctx);
             match insert_pt_parent {
                 Some(parent) if parent == symbol_table_op => {
-                    // Insert symbol_op right before the insert point.
-                    symbol_op.insert_before(ctx, insert_pt);
+                    let mut inserter = IRInserter::<DummyListener>::new(insert_pt);
+                    inserter.insert_operation(ctx, symbol_op);
                 }
                 _ => {
                     return arg_err!(
@@ -176,7 +182,7 @@ impl SymbolTable {
 pub type SymbolTableWalkerCallback<State> =
     fn(&Context, &mut State, Ptr<Operation>) -> WalkResult<()>;
 
-/// Walk all operations within the region of `symbol_table_op`,
+/// Walk all (nested) operations within the region of `symbol_table_op`,
 /// without traversing into any nested symbol tables.
 pub fn walk_symbol_table<State>(
     symbol_table_op: Box<dyn SymbolTableInterface>,
@@ -310,7 +316,11 @@ mod tests {
         assert!(f1_lookedup.get_operation() == f1.get_operation());
 
         let f2 = FuncOp::new(ctx, "f2".try_into().unwrap(), fty);
-        symbol_table.insert(ctx, Box::new(f2), Some(f1.get_operation()))?;
+        symbol_table.insert(
+            ctx,
+            Box::new(f2),
+            Some(OpInsertionPoint::BeforeOperation(f1.get_operation())),
+        )?;
         assert!(
             f2.get_operation().deref(ctx).get_parent_op(ctx) == Some(module_op.get_operation())
         );

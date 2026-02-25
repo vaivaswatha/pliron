@@ -34,7 +34,7 @@ use std::hash::Hash;
 ///   4. Named structs may be opaque, i.e., no body specificed.
 ///      Recursive types may be created by first creating an opaque struct
 ///      and later setting its fields (body).
-#[pliron_type(name = "llvm.struct", generate_get = true)]
+#[pliron_type(name = "llvm.struct")]
 #[derive(Debug)]
 pub struct StructType {
     name: Option<Identifier>,

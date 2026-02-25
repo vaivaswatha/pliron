@@ -11,6 +11,7 @@ use pliron::{
 
 pub mod attributes;
 pub mod from_llvm_ir;
+pub mod function_call_utils;
 pub mod llvm_sys;
 pub mod op_interfaces;
 pub mod ops;

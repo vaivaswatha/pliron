@@ -256,6 +256,14 @@ impl<L: InsertionListener> Default for IRInserter<L> {
 }
 
 impl<L: InsertionListener> IRInserter<L> {
+    /// Creates a new [Inserter] with insert point set to the provided argument.
+    pub fn new(insertion_point: OpInsertionPoint) -> Self {
+        Self {
+            op_insertion_point: insertion_point,
+            listener: None,
+        }
+    }
+
     /// Creates a new [Inserter] that inserts the next operation
     /// at the start of the given [BasicBlock].
     pub fn new_at_block_start(block: Ptr<BasicBlock>) -> Self {
