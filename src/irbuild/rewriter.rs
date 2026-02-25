@@ -385,36 +385,38 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
 /// }
 /// assert!(rewriter.get_insertion_point().is_set());
 /// ```
-pub struct ScopedRewriter<'a, L: RewriteListener, I: Inserter<L>> {
-    rewriter: &'a mut IRRewriter<L, I>,
+pub struct ScopedRewriter<'a, L: RewriteListener, R: Rewriter<L>> {
+    rewriter: &'a mut R,
     prev_insertion_point: OpInsertionPoint,
+    _phantom: std::marker::PhantomData<L>,
 }
 
-impl<'a, L: RewriteListener, I: Inserter<L>> ScopedRewriter<'a, L, I> {
-    pub fn new(rewriter: &'a mut IRRewriter<L, I>, insertion_point: OpInsertionPoint) -> Self {
+impl<'a, L: RewriteListener, R: Rewriter<L>> ScopedRewriter<'a, L, R> {
+    pub fn new(rewriter: &'a mut R, insertion_point: OpInsertionPoint) -> Self {
         let prev_insertion_point = rewriter.get_insertion_point();
         rewriter.set_insertion_point(insertion_point);
         Self {
             rewriter,
             prev_insertion_point,
+            _phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<'a, L: RewriteListener, I: Inserter<L>> Drop for ScopedRewriter<'a, L, I> {
+impl<'a, L: RewriteListener, R: Rewriter<L>> Drop for ScopedRewriter<'a, L, R> {
     fn drop(&mut self) {
         self.rewriter.set_insertion_point(self.prev_insertion_point);
     }
 }
 
-impl<'a, L: RewriteListener, I: Inserter<L>> std::ops::Deref for ScopedRewriter<'a, L, I> {
-    type Target = IRRewriter<L, I>;
+impl<'a, L: RewriteListener, R: Rewriter<L>> std::ops::Deref for ScopedRewriter<'a, L, R> {
+    type Target = R;
 
     fn deref(&self) -> &Self::Target {
         self.rewriter
     }
 }
-impl<'a, L: RewriteListener, I: Inserter<L>> std::ops::DerefMut for ScopedRewriter<'a, L, I> {
+impl<'a, L: RewriteListener, R: Rewriter<L>> std::ops::DerefMut for ScopedRewriter<'a, L, R> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.rewriter
     }
