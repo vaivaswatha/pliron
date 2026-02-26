@@ -8,10 +8,7 @@ use pliron::{
     },
     context::{Context, Ptr},
     identifier::Identifier,
-    irbuild::{
-        inserter::{Inserter, ScopedInserter},
-        listener::InsertionListener,
-    },
+    irbuild::{inserter::Inserter, listener::InsertionListener},
     result::Result,
     symbol_table::SymbolTableCollection,
     r#type::TypeObj,
@@ -113,7 +110,6 @@ pub fn compute_type_size_in_bytes<L: InsertionListener, I: Inserter<L>>(
     inserter: &mut I,
     ty: Ptr<TypeObj>,
 ) -> Value {
-    let mut inserter = ScopedInserter::new(inserter, inserter.get_insertion_point());
     // This is LLVM's expansion for sizeof
     // (as per a comment in MLIR's `ConvertToLLVMPattern::getSizeInBytes`)
     //   %0 = getelementptr %ty* null, %sizeType 1
