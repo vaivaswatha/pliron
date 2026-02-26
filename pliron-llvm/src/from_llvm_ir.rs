@@ -599,7 +599,7 @@ fn process_constant(ctx: &mut Context, cctx: &mut ConversionContext, val: LLVMVa
                     }
                     let src_elm_type =
                         convert_type(ctx, cctx, llvm_get_gep_source_element_type(val))?;
-                    let gep_op = GetElementPtrOp::new(ctx, m_base, indices, src_elm_type)?;
+                    let gep_op = GetElementPtrOp::new(ctx, m_base, indices, src_elm_type);
                     insert_const_inst(ctx, cctx, gep_op.get_operation());
                     cctx.value_map.insert(val, gep_op.get_result(ctx));
                 }
@@ -1066,7 +1066,7 @@ fn convert_instruction(
                 })
                 .collect::<Vec<_>>();
             let src_elm_type = convert_type(ctx, cctx, llvm_get_gep_source_element_type(inst))?;
-            Ok(GetElementPtrOp::new(ctx, *base, indices, src_elm_type)?.get_operation())
+            Ok(GetElementPtrOp::new(ctx, *base, indices, src_elm_type).get_operation())
         }
         LLVMOpcode::LLVMICmp => {
             let pred = convert_ipredicate(llvm_get_icmp_predicate(inst));

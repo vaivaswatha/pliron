@@ -1169,7 +1169,7 @@ impl GetElementPtrOp {
         base: Value,
         indices: Vec<GepIndex>,
         src_elem_type: Ptr<TypeObj>,
-    ) -> Result<Self> {
+    ) -> Self {
         let result_type = PointerType::get(ctx).into();
         let mut attr: Vec<GepIndexAttr> = Vec::new();
         let mut opds: Vec<Value> = vec![base];
@@ -1196,7 +1196,7 @@ impl GetElementPtrOp {
 
         op.set_attr_gep_indices(ctx, GepIndicesAttr(attr));
         op.set_attr_gep_src_elem_type(ctx, src_elem_type);
-        Ok(op)
+        op
     }
 
     /// Get the source pointer's element type.

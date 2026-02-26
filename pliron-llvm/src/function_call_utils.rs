@@ -3,18 +3,24 @@
 use pliron::{
     arg_err,
     builtin::{
-        op_interfaces::SymbolTableInterface,
+        op_interfaces::{OneResultInterface, SymbolTableInterface},
         types::{IntegerType, Signedness},
     },
     context::{Context, Ptr},
     identifier::Identifier,
+    irbuild::{
+        inserter::{Inserter, ScopedInserter},
+        listener::InsertionListener,
+    },
     result::Result,
     symbol_table::SymbolTableCollection,
     r#type::TypeObj,
+    value::Value,
 };
 
 use crate::{
-    ops::FuncOp,
+    op_interfaces::CastOpInterface,
+    ops::{FuncOp, GepIndex, GetElementPtrOp, PtrToIntOp, ZeroOp},
     types::{FuncType, PointerType, VoidType},
 };
 
@@ -58,6 +64,11 @@ pub fn lookup_or_insert_function(
     }
 }
 
+/// Get the type used to represet size
+pub fn get_size_type(ctx: &mut Context) -> Ptr<TypeObj> {
+    IntegerType::get(ctx, 64, Signedness::Signless).into()
+}
+
 /// Get a declaration to the `malloc` function,
 /// inserting it if it doesn't already exist in the symbol table.
 pub fn lookup_or_create_malloc_fn(
@@ -65,7 +76,7 @@ pub fn lookup_or_create_malloc_fn(
     symbol_table_collection: &mut SymbolTableCollection,
     symbol_table_op: Box<dyn SymbolTableInterface>,
 ) -> Result<FuncOp> {
-    let size_ty = IntegerType::get(ctx, 64, Signedness::Signless).into();
+    let size_ty = get_size_type(ctx);
     lookup_or_insert_function(
         ctx,
         symbol_table_collection,
@@ -96,30 +107,62 @@ pub fn lookup_or_create_free_fn(
     )
 }
 
+/// Compute size of a type in bytes
+pub fn compute_type_size_in_bytes<L: InsertionListener, I: Inserter<L>>(
+    ctx: &mut Context,
+    inserter: &mut I,
+    ty: Ptr<TypeObj>,
+) -> Value {
+    let mut inserter = ScopedInserter::new(inserter, inserter.get_insertion_point());
+    // This is LLVM's expansion for sizeof
+    // (as per a comment in MLIR's `ConvertToLLVMPattern::getSizeInBytes`)
+    //   %0 = getelementptr %ty* null, %sizeType 1
+    //   %1 = ptrtoint %ty* %0 to %sizeType
+    let size_ty = get_size_type(ctx);
+    let pointer_ty = PointerType::get(ctx).into();
+    let zero_op = ZeroOp::new(ctx, pointer_ty);
+    inserter.append_op(ctx, zero_op);
+    let gep_op = GetElementPtrOp::new(
+        ctx,
+        zero_op.get_result(ctx),
+        vec![GepIndex::Constant(1)],
+        ty,
+    );
+    inserter.append_op(ctx, gep_op);
+    let ptr_to_int_op = PtrToIntOp::new(ctx, gep_op.get_result(ctx), size_ty);
+    inserter.append_op(ctx, ptr_to_int_op);
+    ptr_to_int_op.get_result(ctx)
+}
+
 #[cfg(test)]
 mod tests {
     use expect_test::expect;
     use pliron::{
         builtin::{
-            attributes::IntegerAttr,
             op_interfaces::{
                 CallOpCallable, OneResultInterface, SingleBlockRegionInterface, SymbolOpInterface,
             },
             ops::ModuleOp,
-            types::{IntegerType, Signedness},
+            types::FP64Type,
         },
         context::Context,
+        irbuild::{
+            inserter::{IRInserter, Inserter, OpInsertionPoint},
+            listener::DummyListener,
+        },
         op::{Op, verify_op},
         result::ExpectOk,
-        utils::apint::APInt,
     };
 
     use crate::{
-        function_call_utils::{lookup_or_create_free_fn, lookup_or_create_malloc_fn},
+        function_call_utils::{
+            compute_type_size_in_bytes, get_size_type, lookup_or_create_free_fn,
+            lookup_or_create_malloc_fn,
+        },
         llvm_sys::{core::LLVMContext, lljit::LLVMLLJIT, target},
-        ops::{CallOp, ConstantOp, FuncOp, ReturnOp},
+        ops::{CallOp, FuncOp, ReturnOp},
         to_llvm_ir::convert_module,
-        types::{FuncType, VoidType},
+        types::FuncType,
     };
 
     #[test]
@@ -159,39 +202,35 @@ mod tests {
         );
 
         // Create a main function
-        let return_type = VoidType::get(&ctx).into();
+        let return_type = get_size_type(&mut ctx);
         let func_ty = FuncType::get(&mut ctx, return_type, vec![], false);
         let main_fn = FuncOp::new(&mut ctx, "main".try_into().unwrap(), func_ty);
         main_fn
             .get_operation()
             .insert_at_front(module.get_body(&ctx, 0), &ctx);
 
+        // Insert calls to malloc and free in the entry block of main
         let entry = main_fn.get_or_create_entry_block(&mut ctx);
-        // Here we would insert calls to malloc and free in the entry block of main
-        let size_attr = IntegerAttr::new(
-            IntegerType::get(&mut ctx, 64, Signedness::Signless),
-            APInt::from_u64(42, 64.try_into().unwrap()),
-        );
+        let mut inserter = IRInserter::<DummyListener>::new(OpInsertionPoint::AtBlockEnd(entry));
 
-        let const_op = ConstantOp::new(&mut ctx, size_attr.into());
-        const_op.get_operation().insert_at_back(entry, &ctx);
+        let fp_ty = FP64Type::get(&ctx);
+        let fp_ty_size = compute_type_size_in_bytes(&mut ctx, &mut inserter, fp_ty.into());
 
-        let size_arg = const_op.get_result(&ctx);
         let callee = CallOpCallable::Direct(malloc_fn.get_symbol_name(&ctx));
         let callee_ty = malloc_fn.get_type(&ctx);
-        let args = vec![size_arg];
+        let args = vec![fp_ty_size];
         let malloc_call = CallOp::new(&mut ctx, callee, callee_ty, args);
-        malloc_call.get_operation().insert_at_back(entry, &ctx);
+        inserter.append_op(&ctx, malloc_call);
 
         let ptr_result = malloc_call.get_result(&ctx);
         let free_callee = CallOpCallable::Direct(free_fn.get_symbol_name(&ctx));
         let free_callee_ty = free_fn.get_type(&ctx);
         let free_args = vec![ptr_result];
         let free_call = CallOp::new(&mut ctx, free_callee, free_callee_ty, free_args);
-        free_call.get_operation().insert_at_back(entry, &ctx);
+        inserter.append_op(&ctx, free_call);
 
-        let ret_op = ReturnOp::new(&mut ctx, None);
-        ret_op.get_operation().insert_at_back(entry, &ctx);
+        let ret_op = ReturnOp::new(&mut ctx, Some(fp_ty_size));
+        inserter.append_op(&ctx, ret_op);
 
         verify_op(&module, &ctx).expect_ok(&ctx);
 
@@ -203,11 +242,11 @@ mod tests {
             ; ModuleID = 'test_module'
             source_filename = "test_module"
 
-            define void @main() {
+            define i64 @main() {
             entry_block2v1:
-              %op6v1_res0 = call ptr @malloc(i64 42)
-              call void @free(ptr %op6v1_res0)
-              ret void
+              %op8v1_res0 = call ptr @malloc(i64 ptrtoint (ptr getelementptr (double, ptr null, i32 1) to i64))
+              call void @free(ptr %op8v1_res0)
+              ret i64 ptrtoint (ptr getelementptr (double, ptr null, i32 1) to i64)
             }
 
             declare ptr @malloc(i64)
@@ -225,7 +264,12 @@ mod tests {
         let main_addr = jit
             .lookup_symbol("main")
             .expect("Failed to lookup 'main' symbol");
-        let main_fn = unsafe { std::mem::transmute::<u64, fn()>(main_addr) };
-        main_fn();
+        let main_fn = unsafe { std::mem::transmute::<u64, fn() -> u64>(main_addr) };
+        let fp_ty_size = main_fn();
+        assert_eq!(
+            fp_ty_size, 8,
+            "Expected size of double type to be 8 bytes, got {}",
+            fp_ty_size
+        );
     }
 }
