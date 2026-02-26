@@ -158,7 +158,7 @@ impl BlockInsertionPoint {
 
 /// An interface for insertion of IR entities.
 /// Use [DummyListener](super::listener::DummyListener) if no listener is needed.
-pub trait Inserter<L: InsertionListener>: Default {
+pub trait Inserter<L: InsertionListener> {
     /// Appends an [Operation] at the current insertion point.
     /// The insertion point is updated to be after this newly inserted [Operation].
     fn append_operation(&mut self, ctx: &Context, operation: Ptr<Operation>);
@@ -429,7 +429,7 @@ impl<L: InsertionListener> Inserter<L> for IRInserter<L> {
 
 /// A scoped inserter that sets the insertion point for the duration of its lifetime.
 /// On drop, it restores the previous insertion point.
-/// The inserter can be used as a normal inserter via [Deref](std::ops::Deref).
+/// Implements [Inserter] by forwarding calls to the wrapped inserter.
 /// ```rust
 /// # use pliron::{context::Context,
 /// #   builtin::{ops::ModuleOp, op_interfaces::SingleBlockRegionInterface}};
@@ -471,15 +471,60 @@ impl<'a, L: InsertionListener, I: Inserter<L>> Drop for ScopedInserter<'a, L, I>
     }
 }
 
-impl<'a, L: InsertionListener, I: Inserter<L>> std::ops::Deref for ScopedInserter<'a, L, I> {
-    type Target = I;
-
-    fn deref(&self) -> &Self::Target {
-        self.inserter
+impl<'a, L: InsertionListener, I: Inserter<L>> Inserter<L> for ScopedInserter<'a, L, I> {
+    fn append_operation(&mut self, ctx: &Context, operation: Ptr<Operation>) {
+        self.inserter.append_operation(ctx, operation);
     }
-}
-impl<'a, L: InsertionListener, I: Inserter<L>> std::ops::DerefMut for ScopedInserter<'a, L, I> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
+
+    fn append_op(&mut self, ctx: &Context, op: impl Op) {
+        self.inserter.append_op(ctx, op);
+    }
+
+    fn insert_operation(&mut self, ctx: &Context, operation: Ptr<Operation>) {
+        self.inserter.insert_operation(ctx, operation);
+    }
+
+    fn insert_op(&mut self, ctx: &Context, op: impl Op) {
+        self.inserter.insert_op(ctx, op);
+    }
+
+    fn insert_block(
+        &mut self,
+        ctx: &Context,
+        insertion_point: BlockInsertionPoint,
+        block: Ptr<BasicBlock>,
+    ) {
+        self.inserter.insert_block(ctx, insertion_point, block);
+    }
+
+    fn create_block(
+        &mut self,
+        ctx: &mut Context,
+        insertion_point: BlockInsertionPoint,
+        label: Option<Identifier>,
+        arg_types: Vec<Ptr<TypeObj>>,
+    ) -> Ptr<BasicBlock> {
         self.inserter
+            .create_block(ctx, insertion_point, label, arg_types)
+    }
+
+    fn get_insertion_point(&self) -> OpInsertionPoint {
+        self.inserter.get_insertion_point()
+    }
+
+    fn set_insertion_point(&mut self, point: OpInsertionPoint) {
+        self.inserter.set_insertion_point(point);
+    }
+
+    fn set_listener(&mut self, listener: L) {
+        self.inserter.set_listener(listener);
+    }
+
+    fn get_listener(&self) -> Option<&L> {
+        self.inserter.get_listener()
+    }
+
+    fn get_listener_mut(&mut self) -> Option<&mut L> {
+        self.inserter.get_listener_mut()
     }
 }

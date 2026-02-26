@@ -366,7 +366,7 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
 
 /// A scoped rewriter that sets the insertion point for the duration of its lifetime.
 /// On drop, it restores the previous insertion point.
-/// The rewriter can be used as a normal rewriter via [Deref](std::ops::Deref).
+/// Implements [Inserter] and [Rewriter] by forwarding calls to the wrapped rewriter.
 /// ```rust
 /// # use pliron::{context::Context,
 /// #   builtin::{ops::ModuleOp, op_interfaces::SingleBlockRegionInterface}};
@@ -409,15 +409,144 @@ impl<'a, L: RewriteListener, R: Rewriter<L>> Drop for ScopedRewriter<'a, L, R> {
     }
 }
 
-impl<'a, L: RewriteListener, R: Rewriter<L>> std::ops::Deref for ScopedRewriter<'a, L, R> {
-    type Target = R;
+impl<'a, L: RewriteListener, R: Rewriter<L>> Inserter<L> for ScopedRewriter<'a, L, R> {
+    fn append_operation(&mut self, ctx: &Context, operation: Ptr<Operation>) {
+        self.rewriter.append_operation(ctx, operation)
+    }
 
-    fn deref(&self) -> &Self::Target {
+    fn append_op(&mut self, ctx: &Context, op: impl Op) {
+        self.rewriter.append_op(ctx, op)
+    }
+
+    fn insert_operation(&mut self, ctx: &Context, operation: Ptr<Operation>) {
+        self.rewriter.insert_operation(ctx, operation)
+    }
+
+    fn insert_op(&mut self, ctx: &Context, op: impl Op) {
+        self.rewriter.insert_op(ctx, op)
+    }
+
+    fn insert_block(
+        &mut self,
+        ctx: &Context,
+        insertion_point: BlockInsertionPoint,
+        block: Ptr<BasicBlock>,
+    ) {
+        self.rewriter.insert_block(ctx, insertion_point, block)
+    }
+
+    fn create_block(
+        &mut self,
+        ctx: &mut Context,
+        insertion_point: BlockInsertionPoint,
+        label: Option<Identifier>,
+        arg_types: Vec<Ptr<TypeObj>>,
+    ) -> Ptr<BasicBlock> {
         self.rewriter
+            .create_block(ctx, insertion_point, label, arg_types)
+    }
+
+    fn get_insertion_point(&self) -> OpInsertionPoint {
+        self.rewriter.get_insertion_point()
+    }
+
+    fn get_insertion_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
+        self.rewriter.get_insertion_block(ctx)
+    }
+
+    fn set_insertion_point(&mut self, point: OpInsertionPoint) {
+        self.rewriter.set_insertion_point(point)
+    }
+
+    fn set_listener(&mut self, listener: L) {
+        self.rewriter.set_listener(listener)
+    }
+
+    fn get_listener(&self) -> Option<&L> {
+        self.rewriter.get_listener()
+    }
+
+    fn get_listener_mut(&mut self) -> Option<&mut L> {
+        self.rewriter.get_listener_mut()
     }
 }
-impl<'a, L: RewriteListener, R: Rewriter<L>> std::ops::DerefMut for ScopedRewriter<'a, L, R> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
+
+impl<'a, L: RewriteListener, R: Rewriter<L>> Rewriter<L> for ScopedRewriter<'a, L, R> {
+    fn replace_operation(&mut self, ctx: &mut Context, op: Ptr<Operation>, new_op: Ptr<Operation>) {
+        self.rewriter.replace_operation(ctx, op, new_op)
+    }
+
+    fn replace_operation_with_values(
+        &mut self,
+        ctx: &mut Context,
+        op: Ptr<Operation>,
+        new_values: Vec<Value>,
+    ) {
         self.rewriter
+            .replace_operation_with_values(ctx, op, new_values)
+    }
+
+    fn erase_operation(&mut self, ctx: &mut Context, op: Ptr<Operation>) {
+        self.rewriter.erase_operation(ctx, op)
+    }
+
+    fn erase_block(&mut self, ctx: &mut Context, block: Ptr<BasicBlock>) {
+        self.rewriter.erase_block(ctx, block)
+    }
+
+    fn erase_region(&mut self, ctx: &mut Context, region: Ptr<Region>) {
+        self.rewriter.erase_region(ctx, region)
+    }
+
+    fn unlink_operation(&mut self, ctx: &Context, op: Ptr<Operation>) {
+        self.rewriter.unlink_operation(ctx, op)
+    }
+
+    fn unlink_block(&mut self, ctx: &Context, block: Ptr<BasicBlock>) {
+        self.rewriter.unlink_block(ctx, block)
+    }
+
+    fn move_operation(&mut self, ctx: &Context, op: Ptr<Operation>, new_point: OpInsertionPoint) {
+        self.rewriter.move_operation(ctx, op, new_point)
+    }
+
+    fn move_block(
+        &mut self,
+        ctx: &Context,
+        block: Ptr<BasicBlock>,
+        new_point: BlockInsertionPoint,
+    ) {
+        self.rewriter.move_block(ctx, block, new_point)
+    }
+
+    fn split_block(
+        &mut self,
+        ctx: &mut Context,
+        block: Ptr<BasicBlock>,
+        position: OpInsertionPoint,
+    ) -> Ptr<BasicBlock> {
+        self.rewriter.split_block(ctx, block, position)
+    }
+
+    fn inline_region(
+        &mut self,
+        ctx: &Context,
+        src_region: Ptr<Region>,
+        dest_insertion_point: BlockInsertionPoint,
+    ) {
+        self.rewriter
+            .inline_region(ctx, src_region, dest_insertion_point)
+    }
+
+    fn is_modified(&self) -> bool {
+        self.rewriter.is_modified()
+    }
+
+    fn set_modified(&mut self) {
+        self.rewriter.set_modified()
+    }
+
+    fn clear_modified(&mut self) {
+        self.rewriter.clear_modified()
     }
 }
