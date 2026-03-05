@@ -117,7 +117,7 @@ pub(crate) trait DefTrait: DefUseParticipant {
 }
 
 /// Describes a value definition.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Value {
     OpResult {
         op: Ptr<Operation>,

@@ -157,10 +157,15 @@ pub(crate) mod private {
 use private::ArenaObj;
 
 /// Pointer to an IR Object owned by Context.
-#[derive(Debug)]
 pub struct Ptr<T: ArenaObj> {
     pub(crate) idx: ArenaIndex,
     pub(crate) _dummy: PhantomData<T>,
+}
+
+impl<T: ArenaObj> std::fmt::Debug for Ptr<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Ptr<{}>[{}]", std::any::type_name::<T>(), self.idx)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
