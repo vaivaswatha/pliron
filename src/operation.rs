@@ -631,9 +631,14 @@ impl Verify for Operation {
         let op = &*Self::get_op_dyn(self.self_ptr, ctx);
         if op_impls::<dyn IsTerminatorInterface>(op) && self.get_next().is_some() {
             let loc = self.loc.clone();
+            let parent_block = self
+                .get_parent_block()
+                .expect("There's a next operation, so there must be a parent block");
             verify_err!(
                 loc,
-                BasicBlockVerifyErr::TerminatorNotLast(self.disp(ctx).to_string())
+                BasicBlockVerifyErr::TerminatorNotLast(
+                    parent_block.unique_name(ctx).disp(ctx).to_string()
+                )
             )?
         }
         op.verify_interfaces(ctx)?;
