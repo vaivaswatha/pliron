@@ -7,6 +7,7 @@ use crate::{
     linked_list::{ContainsLinkedList as _, LinkedList},
     operation::Operation,
     region::Region,
+    r#type::TypeObj,
     value::Value,
 };
 
@@ -28,6 +29,14 @@ pub trait RewriteListener: InsertionListener {
         ctx: &Context,
         old_op: Ptr<Operation>,
         new_values: Vec<Value>,
+    );
+    /// Notify that a value type changed.
+    fn notify_value_type_change(
+        &mut self,
+        ctx: &Context,
+        value: Value,
+        old_type: Ptr<TypeObj>,
+        new_type: Ptr<TypeObj>,
     );
     /// Notify that a block is about to be erased.
     fn notify_block_erasure(&mut self, ctx: &Context, block: Ptr<BasicBlock>);
@@ -58,6 +67,14 @@ impl RewriteListener for DummyListener {
     fn notify_region_erasure(&mut self, _ctx: &Context, _region: Ptr<Region>) {}
     fn notify_operation_unlinking(&mut self, _ctx: &Context, _op: Ptr<Operation>) {}
     fn notify_block_unlinking(&mut self, _ctx: &Context, _block: Ptr<BasicBlock>) {}
+    fn notify_value_type_change(
+        &mut self,
+        _ctx: &Context,
+        _value: Value,
+        _old_type: Ptr<TypeObj>,
+        _new_type: Ptr<TypeObj>,
+    ) {
+    }
 }
 
 /// Events recorded by the [Recorder] listener.
@@ -65,7 +82,16 @@ pub enum RecorderEvent {
     InsertedOperation(Ptr<Operation>),
     InsertedBlock(Ptr<BasicBlock>),
     ErasedOperation(Ptr<Operation>),
-    ReplacedOperation(Ptr<Operation>, Vec<Value>),
+    ReplacedOperation {
+        old_values: Vec<Value>,
+        old_types: Vec<Ptr<crate::r#type::TypeObj>>,
+        new_values: Vec<Value>,
+    },
+    ValueTypeChanged {
+        value: Value,
+        old_type: Ptr<TypeObj>,
+        new_type: Ptr<TypeObj>,
+    },
     ErasedBlock(Ptr<BasicBlock>),
     ErasedRegion(Ptr<Region>),
     UnlinkedOperation(Ptr<Operation>, OpInsertionPoint),
@@ -96,16 +122,35 @@ impl RewriteListener for Recorder {
 
     fn notify_operation_replacement(
         &mut self,
-        _ctx: &Context,
+        ctx: &Context,
         old_op: Ptr<Operation>,
         new_values: Vec<Value>,
     ) {
-        self.events
-            .push(RecorderEvent::ReplacedOperation(old_op, new_values));
+        let old_values = old_op.deref(ctx).results().collect();
+        let old_types = old_op.deref(ctx).result_types().collect();
+        self.events.push(RecorderEvent::ReplacedOperation {
+            old_values,
+            old_types,
+            new_values,
+        });
     }
 
     fn notify_block_erasure(&mut self, _ctx: &Context, block: Ptr<BasicBlock>) {
         self.events.push(RecorderEvent::ErasedBlock(block));
+    }
+
+    fn notify_value_type_change(
+        &mut self,
+        _ctx: &Context,
+        value: Value,
+        old_type: Ptr<TypeObj>,
+        new_type: Ptr<TypeObj>,
+    ) {
+        self.events.push(RecorderEvent::ValueTypeChanged {
+            value,
+            old_type,
+            new_type,
+        });
     }
 
     fn notify_region_erasure(&mut self, _ctx: &Context, region: Ptr<Region>) {

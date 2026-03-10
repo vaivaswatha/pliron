@@ -3,7 +3,7 @@
 use pliron::{
     context::{Context, Ptr},
     derive::{op_interface, type_interface},
-    irbuild::match_rewrite::MatchRewriter,
+    irbuild::dialect_conversion::{DialectConversionRewriter, OperandConversionInfo},
     op::Op,
     result::Result,
     r#type::{Type, TypeObj},
@@ -22,7 +22,12 @@ pub mod types;
 #[op_interface]
 pub trait ToLLVMDialect {
     /// Rewrite [self] to LLVM dialect.
-    fn rewrite(&self, ctx: &mut Context, rewriter: &mut MatchRewriter) -> Result<()>;
+    fn rewrite(
+        &self,
+        ctx: &mut Context,
+        rewriter: &mut DialectConversionRewriter,
+        operand_info: &[OperandConversionInfo],
+    ) -> Result<()>;
 
     fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
     where

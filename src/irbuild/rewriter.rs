@@ -16,7 +16,7 @@ use crate::{
     op::Op,
     operation::Operation,
     region::Region,
-    r#type::TypeObj,
+    r#type::{TypeObj, Typed},
     value::Value,
 };
 
@@ -75,6 +75,9 @@ pub trait Rewriter<L: RewriteListener>: Inserter<L> {
         src_region: Ptr<Region>,
         dest_insertion_point: BlockInsertionPoint,
     );
+
+    /// Change the type of a [Value].
+    fn set_value_type(&mut self, ctx: &Context, value: Value, new_type: Ptr<TypeObj>);
 
     /// Has the IR been modified via this rewriter?
     fn is_modified(&self) -> bool;
@@ -351,6 +354,18 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
         }
     }
 
+    fn set_value_type(&mut self, ctx: &Context, value: Value, new_type: Ptr<TypeObj>) {
+        let old_type = value.get_type(ctx);
+        if old_type == new_type {
+            return;
+        }
+        if let Some(listener) = self.get_listener_mut() {
+            listener.notify_value_type_change(ctx, value, old_type, new_type);
+        }
+        value.set_type(ctx, new_type);
+        self.set_modified();
+    }
+
     fn is_modified(&self) -> bool {
         self.modified
     }
@@ -536,6 +551,10 @@ impl<'a, L: RewriteListener, R: Rewriter<L>> Rewriter<L> for ScopedRewriter<'a, 
     ) {
         self.rewriter
             .inline_region(ctx, src_region, dest_insertion_point)
+    }
+
+    fn set_value_type(&mut self, ctx: &Context, value: Value, new_type: Ptr<TypeObj>) {
+        self.rewriter.set_value_type(ctx, value, new_type)
     }
 
     fn is_modified(&self) -> bool {

@@ -118,6 +118,9 @@ pub fn collect_rewrite<M: MatchRewrite>(
                     // Operations inside the region will have triggered operation erasure events.
                     // and we only care about operations here.
                 }
+                RecorderEvent::ValueTypeChanged { .. } => {
+                    // No action needed for type changes.
+                }
                 RecorderEvent::UnlinkedOperation(_op, _prev_position) => {
                     // No action needed for operation unlinking.
                 }
