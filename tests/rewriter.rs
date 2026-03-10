@@ -18,7 +18,7 @@ use pliron::{
     identifier::Identifier,
     irbuild::{
         inserter::{BlockInsertionPoint, Inserter, OpInsertionPoint},
-        match_rewrite::{MatchRewrite, MatchRewriter, collect_rewrite},
+        match_rewrite::{MatchRewrite, MatchRewriter, apply_match_rewrite},
         rewriter::{Rewriter, ScopedRewriter},
     },
     op::Op,
@@ -94,7 +94,7 @@ fn replace_c0_with_c1() -> Result<()> {
 
     // Collect and rewrite must replace constant 0 with constant 1,
     // and then constant 1 with constant 2.
-    collect_rewrite(ctx, ReplaceC0WithC1, module_op.get_operation())?;
+    apply_match_rewrite(ctx, ReplaceC0WithC1, module_op.get_operation())?;
     module_op.get_operation().verify(ctx)?;
 
     let printed = format!("{}", module_op.disp(ctx));
@@ -229,7 +229,7 @@ fn scoped_rewriter_test() -> Result<()> {
         }
     }
 
-    collect_rewrite(ctx, ConstToGlobal, module_op.get_operation())?;
+    apply_match_rewrite(ctx, ConstToGlobal, module_op.get_operation())?;
     module_op.get_operation().verify(ctx)?;
 
     let printed = format!("{}", module_op.disp(ctx));
@@ -287,7 +287,7 @@ fn erase_func_with_const_zero() -> Result<()> {
         }
     }
 
-    collect_rewrite(ctx, EraseFunc, module_op.get_operation())?;
+    apply_match_rewrite(ctx, EraseFunc, module_op.get_operation())?;
     module_op.get_operation().verify(ctx)?;
 
     let printed = format!("{}", module_op.disp(ctx));
@@ -354,7 +354,7 @@ fn split_block_after_const_zero() -> Result<()> {
         }
     }
 
-    collect_rewrite(ctx, SplitBlockAfterConstZero, module_op.get_operation())?;
+    apply_match_rewrite(ctx, SplitBlockAfterConstZero, module_op.get_operation())?;
     module_op.get_operation().verify(ctx)?;
 
     let printed = format!("{}", module_op.disp(ctx));
@@ -419,7 +419,7 @@ fn inline_region_on_const_zero() -> Result<()> {
         }
     }
 
-    collect_rewrite(
+    apply_match_rewrite(
         ctx,
         InlineRegionOnConstZero(func_op1),
         module_op2.get_operation(),

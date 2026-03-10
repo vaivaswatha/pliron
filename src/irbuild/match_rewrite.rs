@@ -36,7 +36,7 @@ pub trait MatchRewrite {
 
 /// Collects all operations (recursively) that match a given pattern
 /// and then applies a rewrite to them.
-pub fn collect_rewrite<M: MatchRewrite>(
+pub fn apply_match_rewrite<M: MatchRewrite>(
     ctx: &mut Context,
     mut match_rewrite: M,
     op: Ptr<Operation>,
