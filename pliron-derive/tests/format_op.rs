@@ -9,20 +9,20 @@ use pliron::{
     },
     common_traits::Verify,
     context::Context,
-    impl_verify_succ, location,
+    location,
     op::Op,
     operation::Operation,
     parsable::{self, state_stream_from_iterator},
     printable::Printable,
 };
-use pliron_derive::{def_op, derive_op_interface_impl, format_op};
+use pliron_derive::{def_op, derive_op_interface_impl, format_op, verify_succ};
 mod common;
 
 #[format_op("")]
 #[def_op("test.zero_results_zero_operands")]
 #[derive_op_interface_impl(NOpdsInterface<0>, NResultsInterface<0>)]
+#[verify_succ]
 struct ZeroResultsZeroOperandsOp {}
-impl_verify_succ!(ZeroResultsZeroOperandsOp);
 
 #[test]
 fn zero_results_zero_operands() {
@@ -60,8 +60,8 @@ fn zero_results_zero_operands() {
 #[format_op("`: ` type($0)")]
 #[def_op("test.one_result_zero_operands")]
 #[derive_op_interface_impl(NOpdsInterface<0>, NResultsInterface<1>, OneResultInterface)]
+#[verify_succ]
 struct OneResultZeroOperandsOp {}
-impl_verify_succ!(OneResultZeroOperandsOp);
 
 #[test]
 fn one_result_zero_operands() {
@@ -103,8 +103,8 @@ fn one_result_zero_operands() {
 #[format_op("$0 `:` type($0)")]
 #[def_op("test.one_result_one_operand")]
 #[derive_op_interface_impl(NOpdsInterface<1>, NResultsInterface<1>, OneOpdInterface, OneResultInterface)]
+#[verify_succ]
 struct OneResultOneOperandOp {}
-impl_verify_succ!(OneResultOneOperandOp);
 
 #[test]
 fn one_result_one_operand() {
@@ -148,8 +148,8 @@ fn one_result_one_operand() {
 
 #[format_op("$0 `,` $1 `:` `(` type($0) `,` type($1) `)`")]
 #[def_op("test.two_results_two_operands")]
+#[verify_succ]
 struct TwoResultsTwoOperandsOp {}
-impl_verify_succ!(TwoResultsTwoOperandsOp);
 
 #[test]
 fn two_result_two_operands() {
@@ -193,8 +193,8 @@ fn two_result_two_operands() {
 
 #[format_op("$0 `: ` `(` types(CharSpace(`,`)) `)`")]
 #[def_op("test.two_results_one_operand")]
+#[verify_succ]
 struct TwoResultsOneOperandOp {}
-impl_verify_succ!(TwoResultsOneOperandOp);
 
 #[test]
 fn two_results_one_operand() {
@@ -240,8 +240,8 @@ use pliron::builtin::attributes::IntegerAttr;
 
 #[format_op("attr($attr, $IntegerAttr) `:` type($0)")]
 #[def_op("test.attr_op")]
+#[verify_succ]
 struct AttrOp {}
-impl_verify_succ!(AttrOp);
 
 #[test]
 fn attr_op() {
@@ -285,8 +285,8 @@ fn attr_op() {
     opt_attr($opt_attr, `pliron::builtin::attributes::IntegerAttr`) `:` type($0)"
 )]
 #[def_op("test.attr_op2")]
+#[verify_succ]
 struct AttrOp2 {}
-impl_verify_succ!(AttrOp2);
 
 #[test]
 fn attr_op2() {
@@ -362,8 +362,8 @@ fn attr_op2() {
     opt_attr($opt_attr, `pliron::builtin::attributes::IntegerAttr`, label($value)) `:` type($0)"
 )]
 #[def_op("test.attr_op2_labeled")]
+#[verify_succ]
 struct AttrOp2Labeled {}
-impl_verify_succ!(AttrOp2Labeled);
 
 #[test]
 fn attr_op2_labeled() {
@@ -439,8 +439,8 @@ fn attr_op2_labeled() {
     opt_attr($opt_attr, `pliron::builtin::attributes::IntegerAttr`, label($value), delimiters(`<<`, `>>`)) `:` type($0)"
 )]
 #[def_op("test.attr_op2_labeled_delimited")]
+#[verify_succ]
 struct AttrOp2Labeleddelimited {}
-impl_verify_succ!(AttrOp2Labeleddelimited);
 
 #[test]
 fn attr_op2_labeled_delimited() {
@@ -516,8 +516,8 @@ fn attr_op2_labeled_delimited() {
     opt_attr($opt_attr, `pliron::builtin::attributes::IntegerAttr`, delimiters(`[[`, `]]`)) `:` type($0)"
 )]
 #[def_op("test.attr_op2_delimited")]
+#[verify_succ]
 struct AttrOp2delimited {}
-impl_verify_succ!(AttrOp2delimited);
 
 #[test]
 fn attr_op2_delimited() {
@@ -590,8 +590,8 @@ fn attr_op2_delimited() {
 
 #[format_op("$attr `:` type($0)")]
 #[def_op("test.attr_op3")]
+#[verify_succ]
 struct AttrOp3 {}
-impl_verify_succ!(AttrOp3);
 
 #[test]
 fn attr_op3() {
@@ -633,8 +633,8 @@ fn attr_op3() {
 #[format_op("`(`$0`)` region($0)")]
 #[def_op("test.if_op")]
 #[derive_op_interface_impl(NOpdsInterface<1>, OneOpdInterface, NResultsInterface<0>, NRegionsInterface<1>, OneRegionInterface)]
+#[verify_succ]
 struct IfOp {}
-impl_verify_succ!(IfOp);
 
 #[test]
 fn if_op() {
@@ -690,8 +690,8 @@ fn if_op() {
 #[format_op("`(`$0`)` region($0) `else` region($1)")]
 #[def_op("test.if_else_op")]
 #[derive_op_interface_impl(NOpdsInterface<1>, OneOpdInterface, NResultsInterface<0>, NRegionsInterface<2>)]
+#[verify_succ]
 struct IfElseOp {}
-impl_verify_succ!(IfElseOp);
 
 #[test]
 fn if_else_op() {
@@ -758,8 +758,8 @@ fn if_else_op() {
 #[def_op("test.br")]
 #[format_op("succ($0) `(` operands(CharSpace(`,`)) `)`")]
 #[derive_op_interface_impl(IsTerminatorInterface)]
+#[verify_succ]
 pub struct BrOp;
-impl_verify_succ!(BrOp);
 
 #[test]
 fn br_op() {
@@ -807,8 +807,8 @@ fn br_op() {
 #[def_op("test.multiple_successors")]
 #[format_op("`[` successors(CharSpace(`,`)) `]`")]
 #[derive_op_interface_impl(IsTerminatorInterface)]
+#[verify_succ]
 pub struct MultipleSuccessorsOp;
-impl_verify_succ!(MultipleSuccessorsOp);
 
 #[test]
 fn multiple_successors_op() {
@@ -861,8 +861,8 @@ fn multiple_successors_op() {
 
 #[def_op("test.multiple_regions")]
 #[format_op("`[` regions(CharSpace(`,`)) `]`")]
+#[verify_succ]
 pub struct MultipleRegionsOp;
-impl_verify_succ!(MultipleRegionsOp);
 
 #[test]
 fn multiple_regions_op() {
@@ -931,8 +931,8 @@ fn multiple_regions_op() {
 
 #[def_op("test.attr_dict")]
 #[format_op("attr_dict")]
+#[verify_succ]
 struct AttrDictOp;
-impl_verify_succ!(AttrDictOp);
 
 #[test]
 fn attr_dict_op() {
@@ -979,8 +979,8 @@ fn attr_dict_op() {
 
 #[def_op("test.multiple_regions2")]
 #[format_op]
+#[verify_succ]
 pub struct MultipleRegions2Op;
-impl_verify_succ!(MultipleRegions2Op);
 
 #[test]
 fn multiple_regions2_op() {
@@ -1016,8 +1016,8 @@ fn multiple_regions2_op() {
 
 #[def_op("test.multiple_regions3")]
 #[format_op("`[` regions(CharSpace(`,`)) `]`")]
+#[verify_succ]
 pub struct MultipleRegions3Op;
-impl_verify_succ!(MultipleRegions3Op);
 
 #[test]
 fn multiple_regions3_op() {
@@ -1055,8 +1055,8 @@ fn multiple_regions3_op() {
 #[def_op("test.multiple_regions4")]
 #[format_op("`[` regions(CharSpace(`,`)) `]`")]
 #[derive_op_interface_impl(IsolatedFromAboveInterface)]
+#[verify_succ]
 pub struct MultipleRegions4Op;
-impl_verify_succ!(MultipleRegions4Op);
 
 #[test]
 fn multiple_regions4_op() {

@@ -5,6 +5,7 @@ mod derive_op;
 mod derive_type;
 mod interfaces;
 mod irfmt;
+mod verify_succ;
 
 use proc_macro::TokenStream;
 use quote::format_ident;
@@ -27,14 +28,14 @@ use derive_format::DeriveIRObject;
 /// Usage:
 ///
 /// ```
-/// use pliron::derive::{def_attribute, format_attribute};
+/// use pliron::derive::{def_attribute, format_attribute, verify_succ};
 ///
+/// #[verify_succ]
 /// #[def_attribute("my_dialect.attribute")]
 /// #[format_attribute]
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// pub struct StringAttr(String);
-/// # use pliron::{impl_verify_succ, printable::{State, Printable}, context::Context};
-/// # impl_verify_succ!(StringAttr);
+/// # use pliron::{printable::{State, Printable}, context::Context};
 /// ```
 #[proc_macro_attribute]
 pub fn def_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -56,13 +57,12 @@ pub fn def_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Usage:
 ///
 /// ```
-/// use pliron::derive::{def_type, format_type};
+/// use pliron::derive::{def_type, format_type, verify_succ};
+/// #[verify_succ]
 /// #[def_type("my_dialect.unit")]
 /// #[format_type]
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// pub struct UnitType;
-/// # use pliron::impl_verify_succ;
-/// # impl_verify_succ!(UnitType);
 /// ```
 #[proc_macro_attribute]
 pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -79,9 +79,10 @@ pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// ### Named fields struct:
 /// ```
-/// use pliron::derive::{def_type, derive_type_get, format_type};
+/// use pliron::derive::{def_type, derive_type_get, format_type, verify_succ};
 /// use pliron::context::Context;
 ///
+/// #[verify_succ]
 /// #[def_type("my_dialect.vector_type")]
 /// #[format_type]
 /// #[derive_type_get]  // Auto-generates get method
@@ -90,8 +91,6 @@ pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
 ///     elem_ty: u32,
 ///     num_elems: u32,
 /// }
-/// # use pliron::impl_verify_succ;
-/// # impl_verify_succ!(VectorType);
 ///
 /// // Usage of the auto-generated get method:
 /// # fn example(ctx: &mut Context) {
@@ -101,16 +100,15 @@ pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// ### Tuple struct:
 /// ```
-/// use pliron::derive::{def_type, derive_type_get, format_type};
+/// use pliron::derive::{def_type, derive_type_get, format_type, verify_succ};
 /// use pliron::context::Context;
 ///
+/// #[verify_succ]
 /// #[def_type("my_dialect.tuple_type")]
 /// #[format_type]
 /// #[derive_type_get]  // Auto-generates get method
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// pub struct TupleType(u32, String, bool);
-/// # use pliron::impl_verify_succ;
-/// # impl_verify_succ!(TupleType);
 ///
 /// // Usage of the auto-generated get method:
 /// # fn example(ctx: &mut Context) {
@@ -120,16 +118,15 @@ pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// ### Unit struct:
 /// ```
-/// use pliron::derive::{def_type, derive_type_get, format_type};
+/// use pliron::derive::{def_type, derive_type_get, format_type, verify_succ};
 /// use pliron::context::Context;
 ///
+/// #[verify_succ]
 /// #[def_type("my_dialect.unit_type")]
 /// #[format_type]
 /// #[derive_type_get]  // Auto-generates singleton get method
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// pub struct UnitType;
-/// # use pliron::impl_verify_succ;
-/// # impl_verify_succ!(UnitType);
 ///
 /// // Usage of the auto-generated singleton get method:
 /// # fn example(ctx: &Context) {
@@ -139,6 +136,29 @@ pub fn def_type(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn derive_type_get(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_type::derive_type_get(args, input))
+}
+
+/// `#[verify_succ]`: Implement [Verify](../pliron/common_traits/trait.Verify.html)
+/// for a Rust struct or enum with a verifier that always succeeds.
+///
+/// This leaves the original item unchanged and adds:
+/// `impl Verify for T { fn verify(...) -> Result<()> { Ok(()) } }`.
+///
+/// Usage:
+///
+/// ```
+/// use pliron::derive::verify_succ;
+/// use pliron::{common_traits::Verify, context::Context};
+///
+/// #[verify_succ]
+/// struct AlwaysValid;
+///
+/// let ctx = Context::new();
+/// assert!(AlwaysValid.verify(&ctx).is_ok());
+/// ```
+#[proc_macro_attribute]
+pub fn verify_succ(args: TokenStream, input: TokenStream) -> TokenStream {
+    to_token_stream(verify_succ::verify_succ_impl(args.into(), input.into()))
 }
 
 /// `#[def_op(...)]`: Create a new IR operation.
@@ -157,13 +177,12 @@ pub fn derive_type_get(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Usage:
 ///
 /// ```
-/// use pliron::derive::{format_op, def_op};
-/// use pliron::impl_verify_succ;
+/// use pliron::derive::{def_op, format_op, verify_succ};
 ///
+/// #[verify_succ]
 /// #[def_op("my_dialect.op")]
 /// #[format_op]
 /// pub struct MyOp;
-/// impl_verify_succ!(MyOp);
 /// ```
 /// The example will create a struct definition equivalent to:
 ///
@@ -186,23 +205,24 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
 /// denoting the [Attribute](../pliron/attribute/trait.Attribute.html)'s concrete type.
 ///
 /// ```
-/// # use pliron::derive::{def_op, derive_attr_get_set, format_op};
-/// # use pliron::impl_verify_succ;
+/// # use pliron::derive::{def_op, derive_attr_get_set, format_op, verify_succ};
 /// // A test for the `derive_attr_get_set` macro.
+/// #[verify_succ]
 /// #[def_op("llvm.with_attrs")]
 /// #[format_op]
 /// #[derive_attr_get_set(name1_any_attr, name2_ty_attr : pliron::builtin::attributes::TypeAttr)]
 /// pub struct WithAttrsOp {}
-/// # impl_verify_succ!(WithAttrsOp);
 /// ```
 ///
 /// This expands to add the following getter / setter items:
-/// ```
+/// ```Rust
 /// # use pliron::derive::{def_op, format_op, derive_attr_get_set};
 /// # use std::cell::Ref;
-/// # use pliron::{dict_key, impl_verify_succ};
+/// # use pliron::dict_key;
 /// # use pliron::{attribute::AttrObj, context::Context};
 /// # use pliron::{builtin::attributes::TypeAttr};
+/// # use pliron::derive::verify_succ;
+/// # #[verify_succ]
 /// #[format_op]
 /// #[def_op("llvm.with_attrs")]
 /// pub struct WithAttrsOp {}
@@ -216,7 +236,6 @@ pub fn def_op(args: TokenStream, input: TokenStream) -> TokenStream {
 ///     (&self, ctx: &'a Context) -> Option<Ref<'a, TypeAttr>> { todo!() }
 ///   pub fn set_attr_name2_ty_attr(&self, ctx: &Context, value: TypeAttr) { todo!() }
 /// }
-/// # impl_verify_succ!(WithAttrsOp);
 /// ```
 #[proc_macro_attribute]
 pub fn derive_attr_get_set(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -359,25 +378,23 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Examples:
 /// 1. Derive for a struct, with no format string (default format):
 /// ```
-/// use pliron::derive::{def_op, format_op};
-/// use pliron::impl_verify_succ;
+/// use pliron::derive::{def_op, format_op, verify_succ};
+/// #[verify_succ]
 /// #[format_op]
 /// #[def_op("test.myop")]
 /// struct MyOp;
-/// impl_verify_succ!(MyOp);
 /// ```
 /// 2. An example with a custom format string:
 /// ```
-/// use pliron::derive::{def_op, format_op, derive_op_interface_impl};
-/// use pliron::impl_verify_succ;
+/// use pliron::derive::{def_op, derive_op_interface_impl, format_op, verify_succ};
 /// use pliron::{op::Op, builtin::op_interfaces::
 ///     {OneOpdInterface, OneResultInterface, NOpdsInterface, NResultsInterface}};
+/// #[verify_succ]
 /// #[format_op("$0 `<` $attr `>` `:` type($0)")]
 /// #[def_op("test.one_result_one_operand")]
 /// #[derive_op_interface_impl
 ///     (OneOpdInterface, OneResultInterface, NOpdsInterface<1>, NResultsInterface<1>)]
 /// struct OneResultOneOperandOp;
-/// impl_verify_succ!(OneResultOneOperandOp);
 /// ```
 /// More examples can be seen in the tests for this macro in `pliron-derive/tests/format_op.rs`.
 #[proc_macro_attribute]
@@ -464,8 +481,9 @@ pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Usage:
 /// ```
-/// # use pliron::derive::{def_op, format_op, op_interface, op_interface_impl};
+/// # use pliron::derive::{def_op, format_op, op_interface, op_interface_impl, verify_succ};
 ///
+/// #[verify_succ]
 /// #[def_op("dialect.name")]
 /// #[format_op]
 /// struct MyOp;
@@ -487,7 +505,6 @@ pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// # use pliron::{
 /// #     op::Op, context::Context, result::Result, common_traits::Verify
 /// # };
-/// # pliron::impl_verify_succ!(MyOp);
 /// ```
 #[proc_macro_attribute]
 pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -667,8 +684,9 @@ pub fn pliron_op(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// Usage:
 /// ```
-/// # use pliron::derive::{op_interface, format_op, derive_op_interface_impl};
+/// # use pliron::derive::{derive_op_interface_impl, format_op, op_interface, verify_succ};
 ///
+/// #[verify_succ]
 /// #[def_op("dialect.name")]
 /// #[format_op]
 /// #[derive_op_interface_impl(MyOpInterface)]
@@ -688,7 +706,6 @@ pub fn pliron_op(args: TokenStream, input: TokenStream) -> TokenStream {
 /// #     op::Op, context::Context, result::Result,
 /// #     common_traits::Verify
 /// # };
-/// # pliron::impl_verify_succ!(MyOp);
 /// ```
 #[proc_macro_attribute]
 pub fn derive_op_interface_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -759,8 +776,9 @@ pub fn attr_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Usage:
 /// ```
-/// use pliron::derive::{attr_interface, attr_interface_impl, format_attribute};
+/// use pliron::derive::{attr_interface, attr_interface_impl, def_attribute, format_attribute, verify_succ};
 ///
+/// #[verify_succ]
 /// #[def_attribute("dialect.name")]
 /// #[format_attribute]
 /// #[derive(PartialEq, Eq, Clone, Debug, Hash)]
@@ -787,9 +805,6 @@ pub fn attr_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #     context::Context, result::Result, common_traits::Verify,
 /// #     attribute::Attribute
 /// # };
-/// # use pliron::derive::def_attribute;
-/// #
-/// # pliron::impl_verify_succ!(MyAttr);
 #[proc_macro_attribute]
 pub fn attr_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let interface_verifiers_slice = parse_quote! { ::pliron::attribute::ATTR_INTERFACE_VERIFIERS };
@@ -869,8 +884,9 @@ pub fn type_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Usage:
 /// ```
-/// use pliron::derive::{type_interface, type_interface_impl, format_type};
+/// use pliron::derive::{def_type, format_type, type_interface, type_interface_impl, verify_succ};
 ///
+/// #[verify_succ]
 /// #[def_type("dialect.name")]
 /// #[format_type]
 /// #[derive(PartialEq, Eq, Clone, Debug, Hash)]
@@ -897,9 +913,6 @@ pub fn type_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #     context::Context, result::Result, common_traits::Verify,
 /// #     r#type::Type
 /// # };
-/// # use pliron::derive::def_type;
-/// #
-/// # pliron::impl_verify_succ!(MyType);
 #[proc_macro_attribute]
 pub fn type_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let interface_verifiers_slice = parse_quote! { ::pliron::r#type::TYPE_INTERFACE_VERIFIERS };

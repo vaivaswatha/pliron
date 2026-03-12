@@ -419,14 +419,13 @@ mod tests {
 
     use expect_test::expect;
     use pliron::combine::{self, Parser, eof, token};
-    use pliron::derive::pliron_type;
+    use pliron::derive::{pliron_type, verify_succ};
 
     use crate::types::{FuncType, StructType, VoidType};
     use pliron::{
         builtin::types::{IntegerType, Signedness},
         context::{Context, Ptr},
         identifier::Identifier,
-        impl_verify_succ,
         irfmt::parsers::{spaced, type_parser},
         location,
         parsable::{self, Parsable, ParseResult, StateStream, state_stream_from_iterator},
@@ -487,6 +486,7 @@ mod tests {
     /// A pointer type that knows the type it points to.
     /// This used to be in LLVM earlier, but the latest version
     /// is now type-erased (https://llvm.org/docs/OpaquePointers.html)
+    #[verify_succ]
     #[pliron_type(name = "llvm.typed_ptr", generate_get = true)]
     #[derive(Hash, PartialEq, Eq, Debug)]
     pub struct TypedPointerType {
@@ -533,8 +533,6 @@ mod tests {
                 .into()
         }
     }
-
-    impl_verify_succ!(TypedPointerType);
 
     #[test]
     fn test_pointer_types() {

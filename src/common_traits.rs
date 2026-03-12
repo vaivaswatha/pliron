@@ -14,13 +14,17 @@ pub trait Verify {
 /// Sugar to implement a verifier that always succeeds.
 /// Usage:
 /// ```
-/// # use pliron::{impl_verify_succ, context::Context, common_traits::Verify};
+/// use pliron::{context::Context, impl_verify_succ, common_traits::Verify};
 /// struct A;
-/// impl_verify_succ!(A);
 /// let a = A;
 /// let ctx = Context::new();
 /// assert!(a.verify(&ctx).is_ok());
+/// impl_verify_succ!(A);
 /// ```
+#[deprecated(
+    since = "0.14.0",
+    note = "Consider using `pliron::derive::verify_succ` instead"
+)]
 #[macro_export]
 macro_rules! impl_verify_succ {
     ($op_name:path) => {
