@@ -735,7 +735,7 @@ trait ParsableBuilder<State: Default> {
                     #match_arms
                     _ => {
                         return input_err!(
-                            cur_loc,
+                            cur_loc.clone(),
                             "Invalid variant name: {}", variant_name_parsed
                         )?;
                     }
@@ -939,8 +939,14 @@ trait ParsableBuilder<State: Default> {
 
             let inner_ty = get_inner_type_option_vec(ty)?;
             Ok(quote! {
-                let #name: Vec<_> = ::pliron::irfmt::parsers::list_parser(#sep, <#inner_ty>::parser(()))
+                let parsed_vec: Vec<_> = ::pliron::irfmt::parsers::list_parser(#sep, <#inner_ty>::parser(()))
                     .parse_stream(state_stream).into_result()?.0;
+                let #name: #ty = parsed_vec.try_into().map_err(|_vec| {
+                    ::pliron::input_error!(
+                        cur_loc.clone(),
+                        "Failed to parse into {}: incorrect length", stringify!(#ty)
+                    )
+                })?;
             })
         } else {
             unimplemented!("Unknown directive {}", d.name)
@@ -1695,14 +1701,18 @@ use syn::{
     TypePath,
 };
 
-/// For [Option] and [Vec] types, get the inner type.
+/// For [Option], [Vec], and array types, get the inner type.
 /// This is based on the guidance in
 /// [the procedural macro workshop](https://github.com/dtolnay/proc-macro-workshop/blob/master/builder/tests/06-optional-field.rs).
 fn get_inner_type_option_vec(ty: &Type) -> Result<Type> {
     let err = Err(syn::Error::new_spanned(
         ty.clone(),
-        "Expected Option or Vec".to_string(),
+        "Expected an array or an Option or Vec type".to_string(),
     ));
+
+    if let Type::Array(arr) = ty {
+        return Ok(*arr.elem.clone());
+    }
 
     if let Type::Path(TypePath {
         qself: None,

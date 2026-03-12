@@ -248,11 +248,12 @@ pub fn derive_attr_get_set(args: TokenStream, input: TokenStream) -> TokenStream
 ///   1. A named variable `$name` specifies a named struct field.
 ///   2. An unnamed variable `$i` specifies the i'th field of a tuple struct.
 ///
-/// Struct (or tuple) fields that are either [Option] or [Vec] must to be specified
+/// Struct (or tuple) fields that are either [Option] or [Vec] (or an array) must to be specified
 /// using the `opt` and `vec` directives respectively. The `opt` directive takes one argument,
 /// a variable specifying the field name with type `Option`. The `vec` directive takes two
-/// arguments, the first is a variable specifying the field name with type `Vec` and the second
-/// is another directive to specify a [ListSeparator](../pliron/printable/enum.ListSeparator.html).
+/// arguments, the first is a variable specifying the field name with type `Vec` (or array)
+/// and the second is another directive to specify a
+/// [ListSeparator](../pliron/printable/enum.ListSeparator.html).
 /// The following directives are supported:
 ///   1. `NewLine`: takes no argument, and specifies a newline to be used as list separator.
 ///   2. ``CharNewline(`c`)``: takes a single character argument that will be followed by a newline.

@@ -432,3 +432,44 @@ fn opt_and_vec_tuple() {
         .expect("OptAndVecTuple parser failed");
     assert_eq!(res.disp(ctx).to_string(), printed);
 }
+
+#[format("vec($a, Char(`,`))")]
+pub struct ArrayWrapper {
+    a: [u64; 3],
+}
+
+#[test]
+fn array_wrapper() {
+    let ctx = &mut Context::new();
+    let test_ty = ArrayWrapper { a: [1, 2, 3] };
+
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("1,2,3", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = ArrayWrapper::parser(())
+        .parse(state_stream)
+        .expect("ArrayWrapper parser failed");
+    assert_eq!(res.disp(ctx).to_string(), printed);
+}
+
+#[test]
+#[should_panic(expected = "Failed to parse into [u64; 3]: incorrect length")]
+fn array_wrapper_len_fail() {
+    let ctx = &mut Context::new();
+    let test_ty = ArrayWrapper { a: [1, 2, 3] };
+
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("1,2,3", &printed);
+
+    // Test with wrong number of elements
+    let wrong_printed = "1,2";
+    let state_stream = state_stream_from_iterator(
+        wrong_printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    ArrayWrapper::parser(()).parse(state_stream).unwrap();
+}
