@@ -1,7 +1,7 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, format_ident, quote};
 use rustc_hash::{FxHashMap, FxHashSet};
-use syn::{Data, DeriveInput, LitStr, Result, spanned::Spanned};
+use syn::{Data, DeriveInput, Generics, LitStr, Result, spanned::Spanned};
 
 use crate::irfmt::{
     Directive, Elem, FieldIdent, FmtData, Format, Lit, UnnamedVar, Var, canonical_format_for_enums,
@@ -11,6 +11,7 @@ use crate::irfmt::{
 /// Data parsed from the macro to derive formatting for Rust types
 pub(crate) struct FmtInput {
     pub ident: syn::Ident,
+    pub generics: Generics,
     pub data: FmtData,
     pub format: Format,
 }
@@ -73,6 +74,7 @@ pub(crate) fn derive(
     // Prepare data for the deriver.
     let format_input = FmtInput {
         ident: input.ident.clone(),
+        generics: input.generics.clone(),
         data: format_data,
         format,
     };
@@ -124,10 +126,11 @@ trait PrintableBuilder<State: Default> {
     // Entry function. Builds the outer function outline.
     fn build(input: &FmtInput) -> Result<TokenStream> {
         let name = input.ident.clone();
+        let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
         let body = Self::build_body(input, &mut State::default())?;
 
         let derived = quote! {
-            impl ::pliron::printable::Printable for #name {
+            impl #impl_generics ::pliron::printable::Printable for #name #ty_generics #where_clause {
                 fn fmt(
                     &self,
                     ctx: & ::pliron::context::Context,
@@ -150,6 +153,7 @@ trait PrintableBuilder<State: Default> {
                 let variant_name = r#struct.name.clone();
                 let variant_input = FmtInput {
                     ident: variant_name.clone(),
+                    generics: Generics::default(),
                     data: FmtData::Struct(r#struct.clone()),
                     format: format.clone(),
                 };
@@ -623,19 +627,20 @@ trait ParsableBuilder<State: Default> {
     /// Entry point to build a parser.
     fn build(input: &FmtInput, state: &mut State) -> Result<TokenStream> {
         let name = input.ident.clone();
+        let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
         let body = Self::build_body(input, state)?;
         let final_ret_value = Self::build_final_ret_value(input, state);
 
         let arg = Self::build_assoc_type_arg(input, state)?;
         let parsed = Self::build_assoc_type_parsed(input, state)?;
         let derived = quote! {
-            impl ::pliron::parsable::Parsable for #name {
+            impl #impl_generics ::pliron::parsable::Parsable for #name #ty_generics #where_clause {
                 type Arg = #arg;
                 type Parsed = #parsed;
-                fn parse<'a>(
-                    state_stream: &mut ::pliron::parsable::StateStream<'a>,
+                fn parse<'__pliron_parse>(
+                    state_stream: &mut ::pliron::parsable::StateStream<'__pliron_parse>,
                     arg: Self::Arg,
-                ) -> ::pliron::parsable::ParseResult<'a, Self::Parsed> {
+                ) -> ::pliron::parsable::ParseResult<'__pliron_parse, Self::Parsed> {
                     use ::pliron::parsable::IntoParseResult;
                     use ::pliron::combine::Parser;
                     use ::pliron::input_err;
@@ -714,6 +719,7 @@ trait ParsableBuilder<State: Default> {
                 } else {
                     let variant_input = FmtInput {
                         ident: r#struct.name.clone(),
+                        generics: Generics::default(),
                         data: FmtData::Struct(r#struct.clone()),
                         format: format.clone(),
                     };
@@ -1780,4 +1786,69 @@ fn directive_to_list_separator(
     }
 
     err
+}
+
+#[cfg(test)]
+mod tests {
+    use quote::quote;
+
+    use super::{DeriveIRObject, derive};
+
+    #[test]
+    fn format_preserves_generics_in_impl_headers() {
+        let input = quote! {
+            struct Wrapper<'a, T, const N: usize>
+            where
+                T: ::pliron::printable::Printable + ::pliron::parsable::Parsable,
+            {
+                value: T,
+                marker: &'a [u64; N],
+            }
+        };
+        let result = derive(
+            proc_macro2::TokenStream::new(),
+            input,
+            DeriveIRObject::AnyOtherRustType,
+        )
+        .unwrap();
+        let file = syn::parse2::<syn::File>(result).unwrap();
+        let got = prettyplease::unparse(&file);
+
+        assert!(got.contains(
+            "impl<'a, T, const N: usize> ::pliron::printable::Printable for Wrapper<'a, T, N>"
+        ));
+        assert!(got.contains(
+            "impl<'a, T, const N: usize> ::pliron::parsable::Parsable for Wrapper<'a, T, N>"
+        ));
+        assert!(got.contains("fn parse<'__pliron_parse>("));
+        assert!(got.contains("StateStream<'__pliron_parse>"));
+        assert!(got.contains("ParseResult<'__pliron_parse, Self::Parsed>"));
+        assert!(got.contains("struct Wrapper<'a, T, const N: usize>"));
+    }
+
+    #[test]
+    fn format_enum_preserves_generics_in_impl_headers() {
+        let input = quote! {
+            enum Wrapper<T>
+            where
+                T: ::pliron::printable::Printable + ::pliron::parsable::Parsable,
+            {
+                Value(T),
+            }
+        };
+        let result = derive(
+            proc_macro2::TokenStream::new(),
+            input,
+            DeriveIRObject::AnyOtherRustType,
+        )
+        .unwrap();
+        let file = syn::parse2::<syn::File>(result).unwrap();
+        let got = prettyplease::unparse(&file);
+
+        assert!(got.contains("impl<T> ::pliron::printable::Printable for Wrapper<T>"));
+        assert!(got.contains("impl<T> ::pliron::parsable::Parsable for Wrapper<T>"));
+        assert!(got.contains(
+            "where\n    T: ::pliron::printable::Printable + ::pliron::parsable::Parsable,"
+        ));
+    }
 }

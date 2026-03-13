@@ -237,6 +237,26 @@ struct U64Wrapper {
     a: u64,
 }
 
+#[format]
+struct GenericWrapper<T>
+where
+    T: Printable + Parsable<Arg = (), Parsed = T>,
+{
+    inner: T,
+}
+
+#[format]
+enum GenericEnum<T>
+where
+    T: Printable + Parsable<Arg = (), Parsed = T>,
+{
+    Value(T),
+    #[format("`<` $value `>`")]
+    Named {
+        value: T,
+    },
+}
+
 #[test]
 fn u64_wrapper() {
     let ctx = &mut Context::new();
@@ -252,6 +272,55 @@ fn u64_wrapper() {
     let (res, _) = U64Wrapper::parser(())
         .parse(state_stream)
         .expect("U64Wrapper parser failed");
+    assert_eq!(res.disp(ctx).to_string(), printed);
+}
+
+#[test]
+fn generic_wrapper() {
+    let ctx = &mut Context::new();
+    let test_ty = GenericWrapper { inner: 42_u64 };
+
+    let printed = test_ty.disp(ctx).to_string();
+    assert_eq!("{inner=42}", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = GenericWrapper::<u64>::parser(())
+        .parse(state_stream)
+        .expect("GenericWrapper parser failed");
+    assert_eq!(res.disp(ctx).to_string(), printed);
+}
+
+#[test]
+fn generic_enum() {
+    let ctx = &mut Context::new();
+
+    let tuple_variant = GenericEnum::Value(42_u64);
+    let printed = tuple_variant.disp(ctx).to_string();
+    assert_eq!("Value(42)", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = GenericEnum::<u64>::parser(())
+        .parse(state_stream)
+        .expect("GenericEnum parser failed");
+    assert_eq!(res.disp(ctx).to_string(), printed);
+
+    let named_variant = GenericEnum::Named { value: 7_u64 };
+    let printed = named_variant.disp(ctx).to_string();
+    assert_eq!("Named<7>", &printed);
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+    let (res, _) = GenericEnum::<u64>::parser(())
+        .parse(state_stream)
+        .expect("GenericEnum parser failed");
     assert_eq!(res.disp(ctx).to_string(), printed);
 }
 

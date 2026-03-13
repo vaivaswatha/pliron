@@ -254,11 +254,18 @@ pub fn derive_attr_get_set(args: TokenStream, input: TokenStream) -> TokenStream
 /// arguments, the first is a variable specifying the field name with type `Vec` (or array)
 /// and the second is another directive to specify a
 /// [ListSeparator](../pliron/printable/enum.ListSeparator.html).
+///
 /// The following directives are supported:
 ///   1. `NewLine`: takes no argument, and specifies a newline to be used as list separator.
 ///   2. ``CharNewline(`c`)``: takes a single character argument that will be followed by a newline.
 ///   3. ``Char(`c`)``: takes a single character argument that will be used as separator.
 ///   4. ``CharSpace(`c`)``: takes a single character argument that will be followed by a space.
+///
+/// Generic structs and enums are supported. The macro preserves generic parameters on the
+/// generated `Printable` and `Parsable` impls, but it does not synthesize trait bounds.
+/// Any generic field that is parsed or printed through the format must therefore carry explicit
+/// bounds on the type itself. In practice, this usually means a bound like
+/// `T: Printable + Parsable<Arg = (), Parsed = T>`.
 ///
 /// Examples:
 /// 1. Derive for a struct, with no format string (default format):
@@ -305,6 +312,19 @@ pub fn derive_attr_get_set(args: TokenStream, input: TokenStream) -> TokenStream
 ///    a: Option<u64>,
 ///    b: Vec<u64>,
 ///}
+/// ```
+/// 5. An example with a generic field and explicit bounds:
+/// ```
+/// use pliron::derive::format;
+/// use pliron::{parsable::Parsable, printable::Printable};
+///
+/// #[format]
+/// struct Wrapper<T>
+/// where
+///     T: Printable + Parsable<Arg = (), Parsed = T>,
+/// {
+///     value: T,
+/// }
 /// ```
 #[proc_macro_attribute]
 pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
