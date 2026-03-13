@@ -25,6 +25,11 @@ use derive_format::DeriveIRObject;
 /// **Note**: pre-requisite traits for `Attribute` must already be implemented.
 ///         Additionaly, [Eq] and [Hash](core::hash::Hash) must be implemented by the type.
 ///
+/// Generic attributes are supported, but they are not auto-registered.
+/// Each concrete monomorphized attribute used in the IR must be explicitly
+/// registered by calling [`Attribute::register`](../pliron/attribute/trait.Attribute.html#method.register),
+/// e.g. `MyAttr::<ConcreteArg>::register(ctx)`.
+///
 /// Usage:
 ///
 /// ```
@@ -53,6 +58,11 @@ pub fn def_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// **Note**: pre-requisite traits for `Type` must already be implemented.
 ///         Additionaly, [Hash](core::hash::Hash) and [Eq] must be implemented by the rust type.
+///
+/// Generic types are supported, but they are not auto-registered.
+/// Each concrete monomorphized type in the IR must be explicitly
+/// registered by calling [`Type::register`](../pliron/type/trait.Type.html#method.register),
+/// e.g. `MyType::<ConcreteArg>::register(ctx)`.
 ///
 /// Usage:
 ///
@@ -554,6 +564,11 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// - `verifier = "succ"`: Verifier implementation, currently only "succ" is supported (optional)
 /// - `generate_get = true/false`: Whether to generate a get method for the type (optional, default: false)
 ///
+/// Generic types are supported, but they are not auto-registered.
+/// Each concrete monomorphized type in the IR must be explicitly
+/// registered by calling [`Type::register`](../pliron/type/trait.Type.html#method.register),
+///  e.g. `MyType::<ConcreteArg>::register(ctx)`.
+///
 /// ## Examples
 ///
 /// ### Basic type definition:
@@ -580,9 +595,10 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// }
 /// ```
 ///
-/// ### Type with get method generation:
+/// ### Type with generics and get method generation:
 /// ```
 /// use pliron::derive::pliron_type;
+/// use pliron::{printable::Printable, parsable::Parsable};
 ///
 /// #[pliron_type(
 ///     name = "test.vector_type",
@@ -591,11 +607,20 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     verifier = "succ"
 /// )]
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-/// struct VectorType {
-///     elem_ty: u32,
+/// struct VectorType<ElemTy: core::fmt::Debug
+///         + core::hash::Hash
+///         + core::cmp::Eq
+///         + Clone
+///         + Send
+///         + Sync
+///         + Printable
+///         + Parsable<Arg = (), Parsed = ElemTy>
+///         + 'static> {
+///     elem_ty: ElemTy,
 ///     num_elems: u32,
 /// }
 /// ```
+///
 #[proc_macro_attribute]
 pub fn pliron_type(args: TokenStream, input: TokenStream) -> TokenStream {
     to_token_stream(derive_entity::pliron_type(args, input))
@@ -610,6 +635,11 @@ pub fn pliron_type(args: TokenStream, input: TokenStream) -> TokenStream {
 /// - `format = "format_string"`: Custom format string for printing/parsing (optional)
 /// - `interfaces = [Interface1, Interface2, ...]`: List of interfaces to implement (optional)
 /// - `verifier = "succ"`: Verifier implementation, currently only "succ" is supported (optional)
+///
+/// Generic attributes are supported, but they are not auto-registered.
+/// Each concrete monomorphized attribute used in the IR must be explicitly
+/// registered by calling [`Attribute::register`](../pliron/attribute/trait.Attribute.html#method.register),
+/// e.g. `MyAttr::<ConcreteArg>::register(ctx)`.
 ///
 /// ## Examples
 ///
@@ -636,6 +666,29 @@ pub fn pliron_type(args: TokenStream, input: TokenStream) -> TokenStream {
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// struct StringAttr {
 ///     value: String,
+/// }
+/// ```
+///
+/// ### Generic attribute:
+/// ```
+/// use pliron::derive::pliron_attr;
+/// use pliron::{parsable::Parsable, printable::Printable};
+///
+/// #[pliron_attr(name = "test.wrapper_attr", format, verifier = "succ")]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// struct WrapperAttr<T>
+/// where
+///     T: core::fmt::Debug
+///         + core::hash::Hash
+///         + core::cmp::Eq
+///         + Clone
+///         + Send
+///         + Sync
+///         + Printable
+///         + Parsable<Arg = (), Parsed = T>
+///         + 'static,
+/// {
+///     value: T,
 /// }
 /// ```
 #[proc_macro_attribute]

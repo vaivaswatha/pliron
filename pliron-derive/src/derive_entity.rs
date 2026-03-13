@@ -452,6 +452,41 @@ mod tests {
     }
 
     #[test]
+    fn pliron_type_generic_with_format() {
+        let args = quote! {
+            name = "test.generic_type",
+            format,
+            verifier = "succ"
+        };
+        let input = quote! {
+            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+            struct Wrapper<T>
+            where
+                T: Clone,
+            {
+                value: T,
+            }
+        };
+        let result = pliron_type(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(result).unwrap();
+        let got = prettyplease::unparse(&f);
+
+        expect![[r##"
+            #[::pliron::derive::verify_succ]
+            #[::pliron::derive::def_type("test.generic_type")]
+            #[::pliron::derive::format_type]
+            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+            struct Wrapper<T>
+            where
+                T: Clone,
+            {
+                value: T,
+            }
+        "##]]
+        .assert_eq(&got);
+    }
+
+    #[test]
     fn pliron_type_interfaces_not_supported() {
         let args = quote! {
             name = "test.interface_type",
@@ -551,6 +586,41 @@ mod tests {
             enum PredicateAttr {
                 EQ,
                 NE,
+            }
+        "##]]
+        .assert_eq(&got);
+    }
+
+    #[test]
+    fn pliron_attr_generic_with_format() {
+        let args = quote! {
+            name = "test.generic_attr",
+            format,
+            verifier = "succ"
+        };
+        let input = quote! {
+            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+            struct Wrapper<T>
+            where
+                T: Clone,
+            {
+                value: T,
+            }
+        };
+        let result = pliron_attr(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(result).unwrap();
+        let got = prettyplease::unparse(&f);
+
+        expect![[r##"
+            #[::pliron::derive::verify_succ]
+            #[::pliron::derive::def_attribute("test.generic_attr")]
+            #[::pliron::derive::format_attribute]
+            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+            struct Wrapper<T>
+            where
+                T: Clone,
+            {
+                value: T,
             }
         "##]]
         .assert_eq(&got);

@@ -40,13 +40,6 @@ impl DefAttribute {
             }
         }
 
-        if !input.generics.params.is_empty() {
-            return Err(syn::Error::new_spanned(
-                &input,
-                "Attribute cannot be derived for generic structs",
-            ));
-        }
-
         let attrs = input
             .attrs
             .into_iter()
@@ -57,6 +50,7 @@ impl DefAttribute {
 
         let impl_attr = ImplAttribute {
             ident: input.ident.clone(),
+            generics: input.generics.clone(),
             dialect_name: dialect_name.to_string(),
             attr_name: attr_name.to_string(),
         };
@@ -79,6 +73,7 @@ impl ToTokens for DefAttribute {
 
 struct ImplAttribute {
     ident: syn::Ident,
+    generics: syn::Generics,
     attr_name: String,
     dialect_name: String,
 }
@@ -86,10 +81,32 @@ struct ImplAttribute {
 impl ToTokens for ImplAttribute {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let name = &self.ident;
+        let generics = &self.generics;
+        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
         let attr_name = &self.attr_name;
         let dialect = &self.dialect_name;
+
+        let registration = if self.generics.params.is_empty() {
+            quote! {
+                const _: () = {
+                    #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS), linkme(crate = ::pliron::linkme))]
+                    static ATTRIBUTE_REGISTRATION: std::sync::LazyLock<::pliron::context::ContextRegistration> =
+                        std::sync::LazyLock::new(||
+                            <#name as ::pliron::attribute::Attribute>::register
+                        );
+
+                    #[cfg(target_family = "wasm")]
+                    ::pliron::inventory::submit! {
+                        ::pliron::utils::inventory::LazyLockWrapper(&ATTRIBUTE_REGISTRATION)
+                    }
+                };
+            }
+        } else {
+            quote! {}
+        };
+
         tokens.extend(quote! {
-            impl ::pliron::attribute::Attribute for #name {
+            impl #impl_generics ::pliron::attribute::Attribute for #name #ty_generics #where_clause {
                 fn hash_attr(&self) -> ::pliron::storage_uniquer::TypeValueHash {
                     ::pliron::storage_uniquer::TypeValueHash::new(self)
                 }
@@ -123,18 +140,7 @@ impl ToTokens for ImplAttribute {
                 }
             }
 
-            const _: () = {
-                #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS), linkme(crate = ::pliron::linkme))]
-                static ATTRIBUTE_REGISTRATION: std::sync::LazyLock<::pliron::context::ContextRegistration> =
-                    std::sync::LazyLock::new(||
-                        <#name as ::pliron::attribute::Attribute>::register
-                    );
-
-                #[cfg(target_family = "wasm")]
-                ::pliron::inventory::submit! {
-                    ::pliron::utils::inventory::LazyLockWrapper(&ATTRIBUTE_REGISTRATION)
-                }
-            };
+            #registration
         });
     }
 }
@@ -206,5 +212,38 @@ mod tests {
             };
         "##]]
         .assert_eq(&got);
+    }
+
+    #[test]
+    fn generic_struct() {
+        let args = quote! { "testing.generic_attr" };
+        let input = quote! {
+            #[derive(PartialEq, Eq, Debug, Clone, Hash)]
+            pub struct GenericAttr<T>(T);
+        };
+        let attr = def_attribute(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(attr).unwrap();
+        let got = prettyplease::unparse(&f);
+
+        assert!(got.contains("impl<T> ::pliron::attribute::Attribute for GenericAttr<T>"));
+        assert!(!got.contains("static ATTRIBUTE_REGISTRATION"));
+    }
+
+    #[test]
+    fn generic_enum() {
+        let args = quote! { "testing.generic_enum_attr" };
+        let input = quote! {
+            #[derive(PartialEq, Eq, Debug, Clone, Hash)]
+            pub enum GenericEnumAttr<T> {
+                Value(T),
+                Empty,
+            }
+        };
+        let attr = def_attribute(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(attr).unwrap();
+        let got = prettyplease::unparse(&f);
+
+        assert!(got.contains("impl<T> ::pliron::attribute::Attribute for GenericEnumAttr<T>"));
+        assert!(!got.contains("static ATTRIBUTE_REGISTRATION"));
     }
 }
