@@ -88,18 +88,7 @@ impl ToTokens for ImplAttribute {
 
         let registration = if self.generics.params.is_empty() {
             quote! {
-                const _: () = {
-                    #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS), linkme(crate = ::pliron::linkme))]
-                    static ATTRIBUTE_REGISTRATION: std::sync::LazyLock<::pliron::context::ContextRegistration> =
-                        std::sync::LazyLock::new(||
-                            <#name as ::pliron::attribute::Attribute>::register
-                        );
-
-                    #[cfg(target_family = "wasm")]
-                    ::pliron::inventory::submit! {
-                        ::pliron::utils::inventory::LazyLockWrapper(&ATTRIBUTE_REGISTRATION)
-                    }
-                };
+                ::pliron::context_registration!(<#name as ::pliron::attribute::Attribute>::register);
             }
         } else {
             quote! {}
@@ -194,22 +183,9 @@ mod tests {
                     Ok(())
                 }
             }
-            const _: () = {
-                #[cfg_attr(
-                    not(target_family = "wasm"),
-                    ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS),
-                    linkme(crate = ::pliron::linkme)
-                )]
-                static ATTRIBUTE_REGISTRATION: std::sync::LazyLock<
-                    ::pliron::context::ContextRegistration,
-                > = std::sync::LazyLock::new(|| {
-                    <UnitAttr as ::pliron::attribute::Attribute>::register
-                });
-                #[cfg(target_family = "wasm")]
-                ::pliron::inventory::submit! {
-                    ::pliron::utils::inventory::LazyLockWrapper(& ATTRIBUTE_REGISTRATION)
-                }
-            };
+            ::pliron::context_registration!(
+                < UnitAttr as ::pliron::attribute::Attribute > ::register
+            );
         "##]]
         .assert_eq(&got);
     }
@@ -226,7 +202,7 @@ mod tests {
         let got = prettyplease::unparse(&f);
 
         assert!(got.contains("impl<T> ::pliron::attribute::Attribute for GenericAttr<T>"));
-        assert!(!got.contains("static ATTRIBUTE_REGISTRATION"));
+        assert!(!got.contains("context_registration!("));
     }
 
     #[test]
@@ -244,6 +220,6 @@ mod tests {
         let got = prettyplease::unparse(&f);
 
         assert!(got.contains("impl<T> ::pliron::attribute::Attribute for GenericEnumAttr<T>"));
-        assert!(!got.contains("static ATTRIBUTE_REGISTRATION"));
+        assert!(!got.contains("context_registration!("));
     }
 }

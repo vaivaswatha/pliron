@@ -411,3 +411,34 @@ macro_rules! dict_key {
             std::sync::LazyLock::new(|| $name.try_into().unwrap());
     };
 }
+
+/// A macro to register a [ContextRegistration]. The argument function
+/// will be called with a mutable reference to the [Context] when a [Context] is created.
+/// Use this outside of any function (e.g. in the module scope).
+///
+/// Usage:
+/// ```
+/// use pliron::context_registration;
+/// context_registration!(my_registration_fn);
+/// fn my_registration_fn(_: &mut pliron::context::Context) {}
+/// ```
+/// Here, `my_registration_fn` is a function or closure matching [ContextRegistration].
+#[macro_export]
+macro_rules! context_registration {
+    (   $(#[$outer:meta])*
+        $registration:expr
+    ) => {
+        const _: () = {
+            $(#[$outer])*
+            #[cfg_attr(not(target_family = "wasm"),
+                ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS), linkme(crate = ::pliron::linkme))]
+            static CONTEXT_REGISTRATION: std::sync::LazyLock<::pliron::context::ContextRegistration> =
+                std::sync::LazyLock::new(|| $registration);
+
+            #[cfg(target_family = "wasm")]
+            ::pliron::inventory::submit! {
+                ::pliron::utils::inventory::LazyLockWrapper(&CONTEXT_REGISTRATION)
+            }
+        };
+    };
+}

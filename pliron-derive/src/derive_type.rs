@@ -102,18 +102,7 @@ impl ToTokens for ImplType {
         // Generic types cannot form a single monomorphic global registration.
         let registration = if self.generics.params.is_empty() {
             quote! {
-                const _: () = {
-                    #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS), linkme(crate = ::pliron::linkme))]
-                    static TYPE_REGISTRATION: std::sync::LazyLock<::pliron::context::ContextRegistration> =
-                        std::sync::LazyLock::new(||
-                            #register
-                        );
-
-                    #[cfg(target_family = "wasm")]
-                    ::pliron::inventory::submit! {
-                        ::pliron::utils::inventory::LazyLockWrapper(&TYPE_REGISTRATION)
-                    }
-                };
+                ::pliron::context_registration!(#register);
             }
         } else {
             quote! {}
@@ -375,23 +364,10 @@ mod tests {
                     Ok(())
                 }
             }
-            const _: () = {
-                #[cfg_attr(
-                    not(target_family = "wasm"),
-                    ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS),
-                    linkme(crate = ::pliron::linkme)
-                )]
-                static TYPE_REGISTRATION: std::sync::LazyLock<
-                    ::pliron::context::ContextRegistration,
-                > = std::sync::LazyLock::new(|| |ctx: &mut ::pliron::context::Context| {
-                    <SimpleType as ::pliron::r#type::Type>::register(ctx);
-                    ::pliron::r#type::Type::register_instance(SimpleType {}, ctx);
-                });
-                #[cfg(target_family = "wasm")]
-                ::pliron::inventory::submit! {
-                    ::pliron::utils::inventory::LazyLockWrapper(& TYPE_REGISTRATION)
-                }
-            };
+            ::pliron::context_registration!(
+                | ctx : & mut ::pliron::context::Context | { < SimpleType as ::pliron::r#type::Type >
+                ::register(ctx); ::pliron::r#type::Type::register_instance(SimpleType {}, ctx); }
+            );
         "##]]
         .assert_eq(&got);
     }
@@ -446,20 +422,7 @@ mod tests {
                     Ok(())
                 }
             }
-            const _: () = {
-                #[cfg_attr(
-                    not(target_family = "wasm"),
-                    ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS),
-                    linkme(crate = ::pliron::linkme)
-                )]
-                static TYPE_REGISTRATION: std::sync::LazyLock<
-                    ::pliron::context::ContextRegistration,
-                > = std::sync::LazyLock::new(|| <CompoundType as ::pliron::r#type::Type>::register);
-                #[cfg(target_family = "wasm")]
-                ::pliron::inventory::submit! {
-                    ::pliron::utils::inventory::LazyLockWrapper(& TYPE_REGISTRATION)
-                }
-            };
+            ::pliron::context_registration!(< CompoundType as ::pliron::r#type::Type > ::register);
         "##]].assert_eq(&got);
     }
 
@@ -572,7 +535,7 @@ mod tests {
         // Generic impl should be emitted ...
         assert!(got.contains("impl<T> ::pliron::r#type::Type for GenericType<T>"));
         // ... but no static auto-registration (can't monomorphise at macro time).
-        assert!(!got.contains("static TYPE_REGISTRATION"));
+        assert!(!got.contains("context_registration!("));
     }
 
     #[test]

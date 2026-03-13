@@ -5,7 +5,6 @@ use pliron::basic_block::BasicBlockVerifyErr;
 use pliron::builtin::attributes::StringAttr;
 use pliron::context::Ptr;
 use pliron::derive::{pliron_op, pliron_type};
-use pliron::dict_key;
 use pliron::op::verify_op;
 use pliron::parsable::Parsable;
 use pliron::r#type::{Type, TypeObj};
@@ -31,6 +30,7 @@ use pliron::{
     printable::Printable,
     result::Result,
 };
+use pliron::{context_registration, dict_key};
 use pliron_derive::pliron_attr;
 
 use crate::common::const_ret_in_mod;
@@ -167,13 +167,12 @@ where
 {
     pointee: T,
 }
+context_registration!(TypedPointerType::<Ptr<TypeObj>>::register);
 
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn generic_pliron_type_get_uniques_and_verifies() -> Result<()> {
     let ctx = &mut Context::new();
-    // This is crucial for generic types.
-    TypedPointerType::<Ptr<TypeObj>>::register(ctx);
 
     let i64_ty: Ptr<TypeObj> = IntegerType::get(ctx, 64, Signedness::Signed).into();
     let i32_ty: Ptr<TypeObj> = IntegerType::get(ctx, 32, Signedness::Signed).into();
@@ -216,12 +215,12 @@ pub struct StaticRankedTensorType<const RANK: usize> {
     element_type: Ptr<TypeObj>,
     shape: [usize; RANK],
 }
+context_registration!(StaticRankedTensorType::<3>::register);
 
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn generic_pliron_type_with_const_param() -> Result<()> {
     let ctx = &mut Context::new();
-    StaticRankedTensorType::<3>::register(ctx);
 
     let i64_ty: Ptr<TypeObj> = IntegerType::get(ctx, 64, Signedness::Signed).into();
     let tensor_ty_1 = StaticRankedTensorType::<3>::get(ctx, i64_ty, [1, 2, 3]);
@@ -270,12 +269,12 @@ where
 {
     value: T,
 }
+context_registration!(GenericAttrTest::<i32>::register);
 
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn generic_pliron_attr_register_print_parse_verify() -> Result<()> {
     let ctx = &mut Context::new();
-    GenericAttrTest::<i32>::register::<GenericAttrTest<i32>>(ctx);
 
     let attr = GenericAttrTest { value: 42 };
     verify_attr(&attr, ctx)?;

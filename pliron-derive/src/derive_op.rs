@@ -139,18 +139,7 @@ impl ToTokens for ImplOp {
                 }
             }
 
-            const _: () = {
-                #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS), linkme(crate = ::pliron::linkme))]
-                static OP_REGISTRATION: std::sync::LazyLock<::pliron::context::ContextRegistration> =
-                    std::sync::LazyLock::new(||
-                        <#name as ::pliron::op::Op>::register
-                    );
-
-                #[cfg(target_family = "wasm")]
-                ::pliron::inventory::submit! {
-                    ::pliron::utils::inventory::LazyLockWrapper(&OP_REGISTRATION)
-                }
-            };
+            ::pliron::context_registration!(<#name as ::pliron::op::Op>::register);
         });
     }
 }
@@ -394,20 +383,7 @@ mod tests {
                     Ok(())
                 }
             }
-            const _: () = {
-                #[cfg_attr(
-                    not(target_family = "wasm"),
-                    ::pliron::linkme::distributed_slice(::pliron::context::CONTEXT_REGISTRATIONS),
-                    linkme(crate = ::pliron::linkme)
-                )]
-                static OP_REGISTRATION: std::sync::LazyLock<
-                    ::pliron::context::ContextRegistration,
-                > = std::sync::LazyLock::new(|| <TestOp as ::pliron::op::Op>::register);
-                #[cfg(target_family = "wasm")]
-                ::pliron::inventory::submit! {
-                    ::pliron::utils::inventory::LazyLockWrapper(& OP_REGISTRATION)
-                }
-            };
+            ::pliron::context_registration!(< TestOp as ::pliron::op::Op > ::register);
         "##]]
         .assert_eq(&got);
     }

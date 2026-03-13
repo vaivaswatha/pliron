@@ -27,8 +27,9 @@ use derive_format::DeriveIRObject;
 ///
 /// Generic attributes are supported, but they are not auto-registered.
 /// Each concrete monomorphized attribute used in the IR must be explicitly
-/// registered by calling [`Attribute::register`](../pliron/attribute/trait.Attribute.html#method.register),
-/// e.g. `MyAttr::<ConcreteArg>::register(ctx)`.
+/// registered by calling [context_registration!](../pliron/macro.context_registration.html)
+/// outside of any function (e.g. in the module scope), with the concrete type as argument,
+/// e.g. `context_registration!(MyAttr::<ConcreteArg>::register);`.
 ///
 /// Usage:
 ///
@@ -61,8 +62,9 @@ pub fn def_attribute(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// Generic types are supported, but they are not auto-registered.
 /// Each concrete monomorphized type in the IR must be explicitly
-/// registered by calling [`Type::register`](../pliron/type/trait.Type.html#method.register),
-/// e.g. `MyType::<ConcreteArg>::register(ctx)`.
+/// registered by calling [context_registration!](../pliron/macro.context_registration.html)
+/// outside of any function (e.g. in the module scope), with the concrete type as argument,
+/// e.g. `context_registration!(MyType::<ConcreteArg>::register);`.
 ///
 /// Usage:
 ///
@@ -566,8 +568,9 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Generic types are supported, but they are not auto-registered.
 /// Each concrete monomorphized type in the IR must be explicitly
-/// registered by calling [`Type::register`](../pliron/type/trait.Type.html#method.register),
-///  e.g. `MyType::<ConcreteArg>::register(ctx)`.
+/// registered by calling [context_registration!](../pliron/macro.context_registration.html)
+/// outside of any function (e.g. in the module scope), with the concrete type as argument,
+/// e.g. `context_registration!(MyType::<ConcreteArg>::register);`.
 ///
 /// ## Examples
 ///
@@ -638,8 +641,9 @@ pub fn pliron_type(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// Generic attributes are supported, but they are not auto-registered.
 /// Each concrete monomorphized attribute used in the IR must be explicitly
-/// registered by calling [`Attribute::register`](../pliron/attribute/trait.Attribute.html#method.register),
-/// e.g. `MyAttr::<ConcreteArg>::register(ctx)`.
+/// registered by calling [context_registration!](../pliron/macro.context_registration.html)
+/// outside of any function (e.g. in the module scope), with the concrete type as argument,
+/// e.g. `context_registration!(MyAttr::<ConcreteArg>::register);`.
 ///
 /// ## Examples
 ///
