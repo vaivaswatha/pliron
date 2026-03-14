@@ -8,7 +8,6 @@ mod irfmt;
 mod verify_succ;
 
 use proc_macro::TokenStream;
-use quote::format_ident;
 use syn::parse_quote;
 
 use derive_format::DeriveIRObject;
@@ -530,16 +529,11 @@ pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let interface_verifiers_slice = parse_quote! { ::pliron::op::OP_INTERFACE_VERIFIERS };
-    let id = parse_quote! { ::pliron::op::OpId };
-    let get_id_static_method = format_ident!("{}", "get_opid_static");
-    let get_id_static_trait = parse_quote! { ::pliron::op::Op };
     let all_verifiers_fn_type = parse_quote! { ::pliron::op::OpInterfaceAllVerifiers };
     to_token_stream(interfaces::interface_impl(
         item,
         interface_verifiers_slice,
-        id,
         all_verifiers_fn_type,
-        (get_id_static_trait, get_id_static_method),
     ))
 }
 
@@ -829,16 +823,11 @@ pub fn attr_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn attr_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let interface_verifiers_slice = parse_quote! { ::pliron::attribute::ATTR_INTERFACE_VERIFIERS };
-    let id = parse_quote! { ::pliron::attribute::AttrId };
-    let get_id_static_method = format_ident!("{}", "get_attr_id_static");
-    let get_id_static_trait = parse_quote! { ::pliron::attribute::Attribute };
     let all_verifiers_fn_type = parse_quote! { ::pliron::attribute::AttrInterfaceAllVerifiers };
     to_token_stream(interfaces::interface_impl(
         item,
         interface_verifiers_slice,
-        id,
         all_verifiers_fn_type,
-        (get_id_static_trait, get_id_static_method),
     ))
 }
 
@@ -937,15 +926,10 @@ pub fn type_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn type_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let interface_verifiers_slice = parse_quote! { ::pliron::r#type::TYPE_INTERFACE_VERIFIERS };
-    let id = parse_quote! { ::pliron::r#type::TypeId };
-    let get_id_static_method = format_ident!("{}", "get_type_id_static");
-    let get_id_static_trait = parse_quote! { ::pliron::r#type::Type };
     let all_verifiers_fn_type = parse_quote! { ::pliron::r#type::TypeInterfaceAllVerifiers };
     to_token_stream(interfaces::interface_impl(
         item,
         interface_verifiers_slice,
-        id,
         all_verifiers_fn_type,
-        (get_id_static_trait, get_id_static_method),
     ))
 }

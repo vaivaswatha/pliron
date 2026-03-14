@@ -3,7 +3,6 @@
 use quote::ToTokens;
 use quote::quote;
 use syn::DeriveInput;
-use syn::Ident;
 use syn::ItemImpl;
 use syn::Path;
 use syn::Token;
@@ -92,9 +91,7 @@ pub(crate) fn interface_define(
 pub(crate) fn interface_impl(
     input: proc_macro::TokenStream,
     interface_verifiers_slice: Path,
-    id: Path,
     all_verifiers_fn_type: Path,
-    get_id_static: (Path, Ident),
 ) -> Result<proc_macro2::TokenStream> {
     let r#impl = syn::parse2::<ItemImpl>(input.into())?;
 
@@ -116,14 +113,12 @@ pub(crate) fn interface_impl(
     let trait_cast = quote! {
         ::pliron::type_to_trait!(#rust_ty, #intr_name);
     };
-    let (get_id_static_trait, get_id_static_method) = get_id_static;
-
     let verifiers_entry = quote! {
         const _: () = {
             #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(#interface_verifiers_slice), linkme(crate = ::pliron::linkme))]
-            static INTERFACE_VERIFIER: std::sync::LazyLock<(#id, (#all_verifiers_fn_type))> =
+            static INTERFACE_VERIFIER: std::sync::LazyLock<(std::any::TypeId, (#all_verifiers_fn_type))> =
                 std::sync::LazyLock::new(||
-                    (<#rust_ty as #get_id_static_trait>::#get_id_static_method(),
+                    (std::any::TypeId::of::<#rust_ty>(),
                         <#rust_ty as #intr_name>::__all_verifiers)
                 );
 

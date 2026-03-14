@@ -129,7 +129,7 @@ impl ToTokens for ImplOp {
 
                 fn verify_interfaces(&self, ctx: &::pliron::context::Context) -> ::pliron::result::Result<()> {
                     if let Some(interface_verifiers) =
-                        ::pliron::op::OP_INTERFACE_VERIFIERS_MAP.get(&Self::get_opid_static())
+                        ::pliron::op::OP_INTERFACE_VERIFIERS_MAP.get(&std::any::TypeId::of::<Self>())
                     {
                         for verifier in interface_verifiers {
                             verifier(self, ctx)?;
@@ -374,7 +374,7 @@ mod tests {
                     ctx: &::pliron::context::Context,
                 ) -> ::pliron::result::Result<()> {
                     if let Some(interface_verifiers) = ::pliron::op::OP_INTERFACE_VERIFIERS_MAP
-                        .get(&Self::get_opid_static())
+                        .get(&std::any::TypeId::of::<Self>())
                     {
                         for verifier in interface_verifiers {
                             verifier(self, ctx)?;

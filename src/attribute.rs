@@ -427,7 +427,7 @@ pub type AttrInterfaceAllVerifiers = fn() -> Vec<AttrInterfaceVerifier>;
 #[doc(hidden)]
 /// An [Attribute] paired with an interface it implements
 /// (specifically the verifiers (including super verifiers) for that interface).
-type AttrInterfaceVerifierInfo = (AttrId, AttrInterfaceAllVerifiers);
+type AttrInterfaceVerifierInfo = (std::any::TypeId, AttrInterfaceAllVerifiers);
 
 #[cfg(not(target_family = "wasm"))]
 pub mod statics {
@@ -460,36 +460,37 @@ pub use statics::*;
 #[doc(hidden)]
 /// A map from every [Attribute] to its ordered (as per interface deps) list of interface verifiers.
 /// An interface's super-interfaces are to be verified before it itself is.
-pub static ATTR_INTERFACE_VERIFIERS_MAP: LazyLock<FxHashMap<AttrId, Vec<AttrInterfaceVerifier>>> =
-    LazyLock::new(|| {
-        // Collect ATTR_INTERFACE_VERIFIERS into an [AttrId] indexed map.
-        let mut attr_intr_verifiers = FxHashMap::default();
-        for lazy in get_attr_interface_verifiers() {
-            let (attr_id, all_verifiers_for_interface) = (**lazy).clone();
-            attr_intr_verifiers
-                .entry(attr_id)
-                .and_modify(|verifiers: &mut Vec<AttrInterfaceAllVerifiers>| {
-                    verifiers.push(all_verifiers_for_interface)
-                })
-                .or_insert(vec![all_verifiers_for_interface]);
-        }
-
-        // Remove duplicates (best effort as rustc may inline functions, resulting in different pointers).
-        // Relies on `__all_verifiers` returning the super-verifiers followed by self verifier
-        // to ensure that super-interfaces are verified first.
+pub static ATTR_INTERFACE_VERIFIERS_MAP: LazyLock<
+    FxHashMap<std::any::TypeId, Vec<AttrInterfaceVerifier>>,
+> = LazyLock::new(|| {
+    // Collect ATTR_INTERFACE_VERIFIERS into a [std::any::TypeId] indexed map.
+    let mut attr_intr_verifiers = FxHashMap::default();
+    for lazy in get_attr_interface_verifiers() {
+        let (attr_id, all_verifiers_for_interface) = **lazy;
         attr_intr_verifiers
-            .into_iter()
-            .map(|(attr_id, verifiers)| {
-                let mut dedupd_verifiers = Vec::new();
-                let mut seen = FxHashSet::default();
-                for verifier_fn_list in verifiers {
-                    for verifier in verifier_fn_list() {
-                        if seen.insert(verifier) {
-                            dedupd_verifiers.push(verifier);
-                        }
+            .entry(attr_id)
+            .and_modify(|verifiers: &mut Vec<AttrInterfaceAllVerifiers>| {
+                verifiers.push(all_verifiers_for_interface)
+            })
+            .or_insert(vec![all_verifiers_for_interface]);
+    }
+
+    // Remove duplicates (best effort as rustc may inline functions, resulting in different pointers).
+    // Relies on `__all_verifiers` returning the super-verifiers followed by self verifier
+    // to ensure that super-interfaces are verified first.
+    attr_intr_verifiers
+        .into_iter()
+        .map(|(attr_id, verifiers)| {
+            let mut dedupd_verifiers = Vec::new();
+            let mut seen = FxHashSet::default();
+            for verifier_fn_list in verifiers {
+                for verifier in verifier_fn_list() {
+                    if seen.insert(verifier) {
+                        dedupd_verifiers.push(verifier);
                     }
                 }
-                (attr_id, dedupd_verifiers)
-            })
-            .collect()
-    });
+            }
+            (attr_id, dedupd_verifiers)
+        })
+        .collect()
+});
