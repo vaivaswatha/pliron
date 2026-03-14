@@ -105,6 +105,13 @@ pub(crate) fn interface_impl(
         ));
     };
 
+    if !r#impl.generics.params.is_empty() {
+        return Err(syn::Error::new_spanned(
+            r#impl,
+            "#[*_interface_impl] cannot be specified on a trait impl with generic parameters",
+        ));
+    }
+
     let rust_ty = (*r#impl.self_ty).clone();
     let trait_cast = quote! {
         ::pliron::type_to_trait!(#rust_ty, #intr_name);

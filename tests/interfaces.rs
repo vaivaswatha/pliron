@@ -567,8 +567,10 @@ trait TestTypeInterfaceGeneric<T: Clone> {
     where
         Self: Sized,
     {
-        *TEST_TYPE_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() +=
-            "TestTypeInterfaceGeneric verified\n";
+        *TEST_TYPE_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() += &format!(
+            "TestTypeInterfaceGeneric<{}> verified\n",
+            std::any::type_name::<T>()
+        );
         Ok(())
     }
 }
@@ -579,8 +581,10 @@ trait TestTypeInterfaceGeneric2<T: Clone>: TestTypeInterfaceGeneric<T> {
     where
         Self: Sized,
     {
-        *TEST_TYPE_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() +=
-            "TestTypeInterfaceGeneric2 verified\n";
+        *TEST_TYPE_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() += &format!(
+            "TestTypeInterfaceGeneric2<{}> verified\n",
+            std::any::type_name::<T>()
+        );
         Ok(())
     }
 }
@@ -593,8 +597,10 @@ trait TestTypeInterfaceGeneric3<T: Clone>:
     where
         Self: Sized,
     {
-        *TEST_TYPE_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() +=
-            "TestTypeInterfaceGeneric3 verified\n";
+        *TEST_TYPE_VERIFIERS_OUTPUT_GENERIC.lock().unwrap() += &format!(
+            "TestTypeInterfaceGeneric3<{}> verified\n",
+            std::any::type_name::<T>()
+        );
         Ok(())
     }
 }
@@ -619,9 +625,9 @@ fn test_type_intr_verify_order_generic() -> Result<()> {
     verify_type(&vio, ctx)?;
 
     expect![[r#"
-        TestTypeInterfaceGeneric verified
-        TestTypeInterfaceGeneric2 verified
-        TestTypeInterfaceGeneric3 verified
+        TestTypeInterfaceGeneric<i32> verified
+        TestTypeInterfaceGeneric2<i32> verified
+        TestTypeInterfaceGeneric3<i32> verified
     "#]]
     .assert_eq(&TEST_TYPE_VERIFIERS_OUTPUT_GENERIC.lock().unwrap());
 
