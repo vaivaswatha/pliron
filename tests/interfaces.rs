@@ -489,6 +489,92 @@ fn test_attr_intr_verify_order_generic() -> Result<()> {
     Ok(())
 }
 
+static TEST_ATTR_ENUM_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
+    LazyLock::new(|| Mutex::new("".into()));
+
+#[attr_interface]
+trait TestAttrEnumInterface {
+    fn verify(_op: &dyn Attribute, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_ATTR_ENUM_VERIFIERS_OUTPUT.lock().unwrap() += "TestAttrEnumInterface verified\n";
+        Ok(())
+    }
+}
+
+#[pliron_attr(name = "test.verify_intr_attr_enum", format, verifier = "succ")]
+#[derive(PartialEq, Clone, Debug, Hash)]
+enum VerifyIntrAttrEnum {
+    Unit,
+    Payload(i32),
+}
+
+#[attr_interface_impl]
+impl TestAttrEnumInterface for VerifyIntrAttrEnum {}
+
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_attr_intr_verify_order_enum() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let vio = VerifyIntrAttrEnum::Payload(7);
+    verify_attr(&vio, ctx)?;
+
+    expect![[r#"
+        TestAttrEnumInterface verified
+    "#]]
+    .assert_eq(&TEST_ATTR_ENUM_VERIFIERS_OUTPUT.lock().unwrap());
+
+    let _ = attr_cast::<dyn TestAttrEnumInterface>(&vio).unwrap();
+
+    Ok(())
+}
+
+static TEST_ATTR_ENUM_GENERIC_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
+    LazyLock::new(|| Mutex::new("".into()));
+
+#[attr_interface]
+trait TestAttrEnumGenericInterface<T: Clone> {
+    fn verify(_op: &dyn Attribute, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_ATTR_ENUM_GENERIC_VERIFIERS_OUTPUT.lock().unwrap() += &format!(
+            "TestAttrEnumGenericInterface<{}> verified\n",
+            std::any::type_name::<T>()
+        );
+        Ok(())
+    }
+}
+
+#[pliron_attr(name = "test.verify_intr_attr_enum_generic", format, verifier = "succ")]
+#[derive(PartialEq, Clone, Debug, Hash)]
+enum VerifyIntrAttrEnumGeneric {
+    Unit,
+}
+
+#[attr_interface_impl]
+impl TestAttrEnumGenericInterface<i64> for VerifyIntrAttrEnumGeneric {}
+
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_attr_intr_verify_order_enum_generic() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let vio = VerifyIntrAttrEnumGeneric::Unit;
+    verify_attr(&vio, ctx)?;
+
+    expect![[r#"
+        TestAttrEnumGenericInterface<i64> verified
+    "#]]
+    .assert_eq(&TEST_ATTR_ENUM_GENERIC_VERIFIERS_OUTPUT.lock().unwrap());
+
+    let _ = attr_cast::<dyn TestAttrEnumGenericInterface<i64>>(&vio).unwrap();
+
+    Ok(())
+}
+
 #[type_interface]
 trait TestTypeInterfaceX {
     fn verify(_op: &dyn Type, _ctx: &Context) -> Result<()>
@@ -634,6 +720,92 @@ fn test_type_intr_verify_order_generic() -> Result<()> {
     // Ad-hoc type interface conversions test.
     let x = type_cast::<dyn TestTypeInterfaceGeneric<i32>>(&vio).unwrap();
     any_to_trait::<dyn TestTypeInterfaceGeneric2<i32>>(x.as_any()).unwrap();
+
+    Ok(())
+}
+
+static TEST_TYPE_ENUM_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
+    LazyLock::new(|| Mutex::new("".into()));
+
+#[type_interface]
+trait TestTypeEnumInterface {
+    fn verify(_op: &dyn Type, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_TYPE_ENUM_VERIFIERS_OUTPUT.lock().unwrap() += "TestTypeEnumInterface verified\n";
+        Ok(())
+    }
+}
+
+#[pliron_type(name = "test.verify_intr_type_enum", format, verifier = "succ")]
+#[derive(PartialEq, Clone, Debug, Hash)]
+enum VerifyIntrTypeEnum {
+    Unit,
+    Payload(i32),
+}
+
+#[type_interface_impl]
+impl TestTypeEnumInterface for VerifyIntrTypeEnum {}
+
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_type_intr_verify_order_enum() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let vio = VerifyIntrTypeEnum::Payload(7);
+    verify_type(&vio, ctx)?;
+
+    expect![[r#"
+        TestTypeEnumInterface verified
+    "#]]
+    .assert_eq(&TEST_TYPE_ENUM_VERIFIERS_OUTPUT.lock().unwrap());
+
+    let _ = type_cast::<dyn TestTypeEnumInterface>(&vio).unwrap();
+
+    Ok(())
+}
+
+static TEST_TYPE_ENUM_GENERIC_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
+    LazyLock::new(|| Mutex::new("".into()));
+
+#[type_interface]
+trait TestTypeEnumGenericInterface<T: Clone> {
+    fn verify(_op: &dyn Type, _ctx: &Context) -> Result<()>
+    where
+        Self: Sized,
+    {
+        *TEST_TYPE_ENUM_GENERIC_VERIFIERS_OUTPUT.lock().unwrap() += &format!(
+            "TestTypeEnumGenericInterface<{}> verified\n",
+            std::any::type_name::<T>()
+        );
+        Ok(())
+    }
+}
+
+#[pliron_type(name = "test.verify_intr_type_enum_generic", format, verifier = "succ")]
+#[derive(PartialEq, Clone, Debug, Hash)]
+enum VerifyIntrTypeEnumGeneric {
+    Unit,
+}
+
+#[type_interface_impl]
+impl TestTypeEnumGenericInterface<i64> for VerifyIntrTypeEnumGeneric {}
+
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_type_intr_verify_order_enum_generic() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let vio = VerifyIntrTypeEnumGeneric::Unit;
+    verify_type(&vio, ctx)?;
+
+    expect![[r#"
+        TestTypeEnumGenericInterface<i64> verified
+    "#]]
+    .assert_eq(&TEST_TYPE_ENUM_GENERIC_VERIFIERS_OUTPUT.lock().unwrap());
+
+    let _ = type_cast::<dyn TestTypeEnumGenericInterface<i64>>(&vio).unwrap();
 
     Ok(())
 }

@@ -30,12 +30,13 @@ impl DefType {
             ));
         };
 
-        let fields = match input.data {
-            syn::Data::Struct(ref data_struct) => data_struct.fields.clone(),
+        let is_singleton = match input.data {
+            syn::Data::Struct(ref data_struct) => data_struct.fields.is_empty(),
+            syn::Data::Enum(_) => false,
             _ => {
                 return Err(syn::Error::new_spanned(
                     &input,
-                    "Type can only be derived for structs",
+                    "Type can only be derived for structs or enums",
                 ));
             }
         };
@@ -43,7 +44,7 @@ impl DefType {
         if !input.generics.params.is_empty() {
             return Err(syn::Error::new_spanned(
                 &input,
-                "Type cannot be derived for generic structs",
+                "Type cannot be derived for generic structs or enums",
             ));
         }
 
@@ -59,7 +60,7 @@ impl DefType {
             ident: input.ident.clone(),
             dialect_name: dialect_name.to_string(),
             type_name: type_name.to_string(),
-            fields,
+            is_singleton,
         };
         Ok(Self { input, impl_type })
     }
@@ -81,7 +82,7 @@ struct ImplType {
     ident: syn::Ident,
     dialect_name: String,
     type_name: String,
-    fields: syn::Fields,
+    is_singleton: bool,
 }
 
 impl ToTokens for ImplType {
@@ -89,7 +90,7 @@ impl ToTokens for ImplType {
         let name = &self.ident;
         let dialect = &self.dialect_name;
         let type_name = &self.type_name;
-        let register = if self.fields.is_empty() {
+        let register = if self.is_singleton {
             quote! {
                 |ctx: &mut ::pliron::context::Context| {
                     <#name as ::pliron::r#type::Type>::register(ctx);
@@ -418,6 +419,61 @@ mod tests {
             }
             ::pliron::context_registration!(< CompoundType as ::pliron::r#type::Type > ::register);
         "##]].assert_eq(&got);
+    }
+
+    #[test]
+    fn enum_type() {
+        let args = quote! { "testing.enum_type" };
+        let input = quote! {
+            #[derive(Hash, PartialEq, Eq, Debug)]
+            pub enum EnumType {
+                None,
+                One(u32),
+            }
+        };
+        let t = def_type(args, input).unwrap();
+        let f = syn::parse2::<syn::File>(t).unwrap();
+        let got = prettyplease::unparse(&f);
+
+        expect![[r##"
+            #[derive(Hash, PartialEq, Eq, Debug)]
+            pub enum EnumType {
+                None,
+                One(u32),
+            }
+            impl ::pliron::r#type::Type for EnumType {
+                fn hash_type(&self) -> ::pliron::storage_uniquer::TypeValueHash {
+                    ::pliron::storage_uniquer::TypeValueHash::new(self)
+                }
+                fn eq_type(&self, other: &dyn ::pliron::r#type::Type) -> bool {
+                    other.downcast_ref::<Self>().map_or(false, |other| other == self)
+                }
+                fn get_type_id(&self) -> ::pliron::r#type::TypeId {
+                    Self::get_type_id_static()
+                }
+                fn get_type_id_static() -> ::pliron::r#type::TypeId {
+                    ::pliron::r#type::TypeId {
+                        name: ::pliron::r#type::TypeName::new("enum_type"),
+                        dialect: ::pliron::dialect::DialectName::new("testing"),
+                    }
+                }
+                fn verify_interfaces(
+                    &self,
+                    ctx: &::pliron::context::Context,
+                ) -> ::pliron::result::Result<()> {
+                    if let Some(interface_verifiers) = ::pliron::r#type::TYPE_INTERFACE_VERIFIERS_MAP
+                        .get(&Self::get_type_id_static())
+                    {
+                        for verifier in interface_verifiers {
+                            verifier(self, ctx)?;
+                        }
+                    }
+                    Ok(())
+                }
+            }
+            ::pliron::context_registration!(< EnumType as ::pliron::r#type::Type > ::register);
+        "##]]
+        .assert_eq(&got);
     }
 
     #[test]
