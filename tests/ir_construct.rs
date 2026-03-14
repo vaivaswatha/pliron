@@ -1,13 +1,11 @@
 use common::{ConstantOp, ReturnOp};
 use expect_test::{Expect, expect};
-use pliron::attribute::{Attribute, verify_attr};
 use pliron::basic_block::BasicBlockVerifyErr;
 use pliron::builtin::attributes::StringAttr;
 use pliron::context::Ptr;
-use pliron::derive::{pliron_op, pliron_type};
+use pliron::derive::pliron_op;
+use pliron::dict_key;
 use pliron::op::verify_op;
-use pliron::parsable::Parsable;
-use pliron::r#type::{Type, TypeObj};
 use pliron::{
     basic_block::BasicBlock,
     builtin::{
@@ -30,8 +28,6 @@ use pliron::{
     printable::Printable,
     result::Result,
 };
-use pliron::{context_registration, dict_key};
-use pliron_derive::pliron_attr;
 
 use crate::common::const_ret_in_mod;
 use combine::parser::Parser;
@@ -145,157 +141,6 @@ fn replace_c0_with_c1_operand() -> Result<()> {
 
 #[pliron_op(name = "test.dual_def", format, verifier = "succ")]
 struct DualDefOp {}
-
-#[pliron_type(
-    name = "test.typed_pointer",
-    format,
-    generate_get = true,
-    verifier = "succ"
-)]
-#[derive(Hash, PartialEq, Eq, Debug, Clone)]
-struct TypedPointerType<T>
-where
-    T: core::fmt::Debug
-        + core::hash::Hash
-        + core::cmp::Eq
-        + Clone
-        + Send
-        + Sync
-        + Printable
-        + Parsable<Arg = (), Parsed = T>
-        + 'static,
-{
-    pointee: T,
-}
-context_registration!(TypedPointerType::<Ptr<TypeObj>>::register);
-
-#[test]
-#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
-fn generic_pliron_type_get_uniques_and_verifies() -> Result<()> {
-    let ctx = &mut Context::new();
-
-    let i64_ty: Ptr<TypeObj> = IntegerType::get(ctx, 64, Signedness::Signed).into();
-    let i32_ty: Ptr<TypeObj> = IntegerType::get(ctx, 32, Signedness::Signed).into();
-
-    let g64_1 = TypedPointerType::<Ptr<TypeObj>>::get(ctx, i64_ty);
-    let g64_2 = TypedPointerType::<Ptr<TypeObj>>::get(ctx, i64_ty);
-    let g32 = TypedPointerType::<Ptr<TypeObj>>::get(ctx, i32_ty);
-
-    assert_eq!(g64_1, g64_2);
-    assert_ne!(g64_1, g32);
-    assert_eq!(g64_1.deref(ctx).pointee, i64_ty);
-
-    g64_1.verify(ctx)?;
-    g32.verify(ctx)?;
-
-    let printed = format!("{}", g64_1.disp(ctx));
-    assert_eq!(printed, "test.typed_pointer {pointee=builtin.integer si64}");
-
-    let state_stream = state_stream_from_iterator(
-        printed.chars(),
-        parsable::State::new(ctx, location::Source::InMemory),
-    );
-    let parsed = spaced(Ptr::<TypeObj>::parser(()))
-        .parse(state_stream)
-        .unwrap()
-        .0;
-    assert_eq!(Into::<Ptr<TypeObj>>::into(g64_1), parsed);
-
-    Ok(())
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[pliron_type(
-    name = "test.static_ranked",
-    format = "`<` vec($shape, Char(`x`)) ` : ` $element_type `>`",
-    verifier = "succ",
-    generate_get = true
-)]
-pub struct StaticRankedTensorType<const RANK: usize> {
-    element_type: Ptr<TypeObj>,
-    shape: [usize; RANK],
-}
-context_registration!(StaticRankedTensorType::<3>::register);
-
-#[test]
-#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
-fn generic_pliron_type_with_const_param() -> Result<()> {
-    let ctx = &mut Context::new();
-
-    let i64_ty: Ptr<TypeObj> = IntegerType::get(ctx, 64, Signedness::Signed).into();
-    let tensor_ty_1 = StaticRankedTensorType::<3>::get(ctx, i64_ty, [1, 2, 3]);
-    let tensor_ty_2 = StaticRankedTensorType::<3>::get(ctx, i64_ty, [1, 2, 3]);
-    let tensor_ty_3 = StaticRankedTensorType::<3>::get(ctx, i64_ty, [4, 5, 6]);
-
-    assert_eq!(tensor_ty_1, tensor_ty_2);
-    assert_ne!(tensor_ty_1, tensor_ty_3);
-    assert_eq!(tensor_ty_1.deref(ctx).element_type, i64_ty);
-    assert_eq!(tensor_ty_1.deref(ctx).shape, [1, 2, 3]);
-
-    tensor_ty_1.verify(ctx)?;
-    tensor_ty_3.verify(ctx)?;
-
-    let printed = format!("{}", tensor_ty_1.disp(ctx));
-    assert_eq!(printed, "test.static_ranked <1x2x3 : builtin.integer si64>");
-
-    let state_stream = state_stream_from_iterator(
-        printed.chars(),
-        parsable::State::new(ctx, location::Source::InMemory),
-    );
-
-    let parsed = spaced(Ptr::<TypeObj>::parser(()))
-        .parse(state_stream)
-        .unwrap()
-        .0;
-
-    assert_eq!(Into::<Ptr<TypeObj>>::into(tensor_ty_1), parsed);
-
-    Ok(())
-}
-
-#[pliron_attr(name = "test.typed_attr", format, verifier = "succ")]
-#[derive(PartialEq, Eq, Clone, Debug, Hash)]
-struct GenericAttrTest<T>
-where
-    T: core::fmt::Debug
-        + core::hash::Hash
-        + core::cmp::Eq
-        + Clone
-        + Send
-        + Sync
-        + Printable
-        + Parsable<Arg = (), Parsed = T>
-        + 'static,
-{
-    value: T,
-}
-context_registration!(GenericAttrTest::<i32>::register);
-
-#[test]
-#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
-fn generic_pliron_attr_register_print_parse_verify() -> Result<()> {
-    let ctx = &mut Context::new();
-
-    let attr = GenericAttrTest { value: 42 };
-    verify_attr(&attr, ctx)?;
-
-    let attr_obj: Box<dyn Attribute> = Box::new(attr.clone());
-    let printed = format!("{}", attr_obj.disp(ctx));
-    assert_eq!(printed, "test.typed_attr {value=42}");
-
-    let state_stream = state_stream_from_iterator(
-        printed.chars(),
-        parsable::State::new(ctx, location::Source::InMemory),
-    );
-    let parsed = <Box<dyn Attribute>>::parser(())
-        .parse(state_stream)
-        .unwrap()
-        .0;
-    let parsed = parsed.downcast_ref::<GenericAttrTest<i32>>().unwrap();
-    assert_eq!(parsed, &attr);
-
-    Ok(())
-}
 
 /// If an Op has multiple results, or a block multiple args,
 /// replacing all uses of one with the other should work.

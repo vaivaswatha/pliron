@@ -40,6 +40,13 @@ impl DefType {
             }
         };
 
+        if !input.generics.params.is_empty() {
+            return Err(syn::Error::new_spanned(
+                &input,
+                "Type cannot be derived for generic structs",
+            ));
+        }
+
         let attrs = input
             .attrs
             .into_iter()
@@ -50,7 +57,6 @@ impl DefType {
 
         let impl_type = ImplType {
             ident: input.ident.clone(),
-            generics: input.generics.clone(),
             dialect_name: dialect_name.to_string(),
             type_name: type_name.to_string(),
             fields,
@@ -73,7 +79,6 @@ impl ToTokens for DefType {
 
 struct ImplType {
     ident: syn::Ident,
-    generics: syn::Generics,
     dialect_name: String,
     type_name: String,
     fields: syn::Fields,
@@ -82,34 +87,23 @@ struct ImplType {
 impl ToTokens for ImplType {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let name = &self.ident;
-        let generics = &self.generics;
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
         let dialect = &self.dialect_name;
         let type_name = &self.type_name;
         let register = if self.fields.is_empty() {
             quote! {
                 |ctx: &mut ::pliron::context::Context| {
-                    <#name #ty_generics as ::pliron::r#type::Type>::register(ctx);
+                    <#name as ::pliron::r#type::Type>::register(ctx);
                     ::pliron::r#type::Type::register_instance(#name {}, ctx);
                 }
             }
         } else {
             quote! {
-                <#name #ty_generics as ::pliron::r#type::Type>::register
+                <#name as ::pliron::r#type::Type>::register
             }
-        };
-
-        // Generic types cannot form a single monomorphic global registration.
-        let registration = if self.generics.params.is_empty() {
-            quote! {
-                ::pliron::context_registration!(#register);
-            }
-        } else {
-            quote! {}
         };
 
         tokens.extend(quote! {
-            impl #impl_generics ::pliron::r#type::Type for #name #ty_generics #where_clause {
+            impl ::pliron::r#type::Type for #name {
                 fn hash_type(&self) -> ::pliron::storage_uniquer::TypeValueHash {
                     ::pliron::storage_uniquer::TypeValueHash::new(self)
                 }
@@ -143,7 +137,7 @@ impl ToTokens for ImplType {
                 }
             }
 
-            #registration
+            ::pliron::context_registration!(#register);
         });
     }
 }
@@ -169,7 +163,6 @@ pub(crate) fn derive_type_get(
 struct DeriveTypeGet {
     input: DeriveInput,
     ident: syn::Ident,
-    generics: syn::Generics,
     fields: syn::Fields,
 }
 
@@ -185,9 +178,15 @@ impl DeriveTypeGet {
             }
         };
 
+        if !input.generics.params.is_empty() {
+            return Err(syn::Error::new_spanned(
+                &input,
+                "DeriveTypeGet cannot be derived for generic structs",
+            ));
+        }
+
         Ok(Self {
             ident: input.ident.clone(),
-            generics: input.generics.clone(),
             input,
             fields,
         })
@@ -197,7 +196,7 @@ impl DeriveTypeGet {
 impl ToTokens for DeriveTypeGet {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let input = &self.input;
-        let impl_get = derive_type_get_impl(&self.ident, &self.generics, &self.fields);
+        let impl_get = derive_type_get_impl(&self.ident, &self.fields);
         tokens.extend(quote! {
             #input
 
@@ -207,12 +206,7 @@ impl ToTokens for DeriveTypeGet {
 }
 
 /// Generate get methods for types based on their fields
-fn derive_type_get_impl(
-    ident: &syn::Ident,
-    generics: &syn::Generics,
-    fields: &syn::Fields,
-) -> TokenStream {
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+fn derive_type_get_impl(ident: &syn::Ident, fields: &syn::Fields) -> TokenStream {
     let type_name = ident.to_string();
 
     if fields.is_empty() {
@@ -221,7 +215,7 @@ fn derive_type_get_impl(
             Span::call_site(),
         );
         quote! {
-            impl #impl_generics #ident #ty_generics #where_clause {
+            impl #ident {
                 /// Get the singleton instance.
                 pub fn get(
                     ctx: &::pliron::context::Context
@@ -238,7 +232,7 @@ fn derive_type_get_impl(
         let struct_construction = generate_struct_construction(ident, fields);
 
         quote! {
-            impl #impl_generics #ident #ty_generics #where_clause {
+            impl #ident {
                 /// Get or create a new instance.
                 pub fn get(
                     ctx: &mut ::pliron::context::Context,
@@ -519,39 +513,5 @@ mod tests {
             }
         "#]]
         .assert_eq(&got);
-    }
-
-    #[test]
-    fn def_type_generic_struct() {
-        let args = quote! { "testing.generic_type" };
-        let input = quote! {
-            #[derive(Hash, PartialEq, Eq, Debug)]
-            pub struct GenericType<T>(T);
-        };
-        let t = def_type(args, input).unwrap();
-        let f = syn::parse2::<syn::File>(t).unwrap();
-        let got = prettyplease::unparse(&f);
-
-        // Generic impl should be emitted ...
-        assert!(got.contains("impl<T> ::pliron::r#type::Type for GenericType<T>"));
-        // ... but no static auto-registration (can't monomorphise at macro time).
-        assert!(!got.contains("context_registration!("));
-    }
-
-    #[test]
-    fn derive_type_get_generic_struct() {
-        let args = quote! {};
-        let input = quote! {
-            pub struct VecTy<T> {
-                elem: T,
-                n: u32,
-            }
-        };
-        let t = derive_type_get(args, input).unwrap();
-        let f = syn::parse2::<syn::File>(t).unwrap();
-        let got = prettyplease::unparse(&f);
-
-        assert!(got.contains("impl<T> VecTy<T>"));
-        assert!(got.contains("pub fn get("));
     }
 }
