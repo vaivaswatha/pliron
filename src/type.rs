@@ -36,7 +36,7 @@
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
 
 use crate::common_traits::Verify;
-use crate::context::{Arena, Context, Ptr, private::ArenaObj};
+use crate::context::{Arena, Context, Ptr, collect_deduped_interface_verifiers, private::ArenaObj};
 use crate::dialect::{Dialect, DialectName};
 use crate::identifier::Identifier;
 use crate::irfmt::parsers::spaced;
@@ -49,7 +49,7 @@ use crate::{arg_err_noloc, impl_printable_for_display, input_err};
 
 use combine::{Parser, parser};
 use downcast_rs::{Downcast, impl_downcast};
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use std::cell::Ref;
 use std::fmt::Debug;
 use std::fmt::Display;
@@ -565,35 +565,4 @@ pub use statics::*;
 /// An interface's super-interfaces are to be verified before it itself is.
 pub static TYPE_INTERFACE_VERIFIERS_MAP: LazyLock<
     FxHashMap<std::any::TypeId, Vec<TypeInterfaceVerifier>>,
-> = LazyLock::new(|| {
-    // Collect TYPE_INTERFACE_VERIFIERS into a [std::any::TypeId] indexed map.
-    let mut type_intr_verifiers = FxHashMap::default();
-    for lazy in get_type_interface_verifiers() {
-        let (ty_id, all_verifiers_for_interface) = **lazy;
-        type_intr_verifiers
-            .entry(ty_id)
-            .and_modify(|verifiers: &mut Vec<TypeInterfaceAllVerifiers>| {
-                verifiers.push(all_verifiers_for_interface)
-            })
-            .or_insert(vec![all_verifiers_for_interface]);
-    }
-
-    // Remove duplicates (best effort as rustc may inline functions, resulting in different pointers).
-    // Relies on `__all_verifiers` returning the super-verifiers followed by self verifier
-    // to ensure that super-interfaces are verified first.
-    type_intr_verifiers
-        .into_iter()
-        .map(|(tyid, verifiers)| {
-            let mut dedupd_verifiers = Vec::new();
-            let mut seen = FxHashSet::default();
-            for verifier_fn_list in verifiers {
-                for verifier in verifier_fn_list() {
-                    if seen.insert(verifier) {
-                        dedupd_verifiers.push(verifier);
-                    }
-                }
-            }
-            (tyid, dedupd_verifiers)
-        })
-        .collect()
-});
+> = LazyLock::new(|| collect_deduped_interface_verifiers(get_type_interface_verifiers()));

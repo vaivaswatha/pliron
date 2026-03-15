@@ -15,7 +15,7 @@ use crate::{
     uniqued_any::UniquedAny,
     verify_err_noloc,
 };
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use slotmap::{SlotMap, new_key_type};
 use std::{
     any::{Any, TypeId},
@@ -341,6 +341,51 @@ pub use statics::*;
 
 #[doc(hidden)]
 pub static DICT_KEYS_VERIFIER: LazyLock<Result<()>> = LazyLock::new(verify_dict_keys);
+
+#[doc(hidden)]
+/// Collect `(owner, __all_verifiers)` entries into an ordered verifier map.
+///
+/// Each owner (op/type/attribute) can contribute verifiers through multiple interfaces.
+/// This helper preserves interface dependency order (as returned by each `__all_verifiers`
+/// function) while deduplicating verifier function pointers.
+pub(crate) fn collect_deduped_interface_verifiers<Id, AllVerifiers, Verifier>(
+    interface_verifiers: impl Iterator<Item = &'static LazyLock<(Id, AllVerifiers)>>,
+) -> FxHashMap<Id, Vec<Verifier>>
+where
+    Id: Eq + Hash + Clone + 'static,
+    AllVerifiers: Fn() -> Vec<Verifier> + Clone + 'static,
+    Verifier: Eq + Hash + Clone,
+{
+    let mut grouped = FxHashMap::default();
+    for lazy in interface_verifiers {
+        let (id, all_verifiers_for_interface) = &**lazy;
+        grouped
+            .entry(id.clone())
+            .and_modify(|verifiers: &mut Vec<AllVerifiers>| {
+                verifiers.push(all_verifiers_for_interface.clone())
+            })
+            .or_insert(vec![all_verifiers_for_interface.clone()]);
+    }
+
+    // Remove duplicates (best effort as rustc may inline functions, resulting in different pointers).
+    // Relies on `__all_verifiers` returning the super-verifiers followed by self verifier
+    // to ensure that super-interfaces are verified first.
+    grouped
+        .into_iter()
+        .map(|(id, verifiers)| {
+            let mut dedupd_verifiers = Vec::new();
+            let mut seen = FxHashSet::default();
+            for verifier_fn_list in verifiers {
+                for verifier in verifier_fn_list() {
+                    if seen.insert(verifier.clone()) {
+                        dedupd_verifiers.push(verifier);
+                    }
+                }
+            }
+            (id, dedupd_verifiers)
+        })
+        .collect()
+}
 
 #[doc(hidden)]
 /// Verify that all dictionary keys are unique. This is called when a [Context] is created.

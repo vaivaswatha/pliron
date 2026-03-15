@@ -39,7 +39,7 @@ use combine::{
 };
 use downcast_rs::{Downcast, impl_downcast};
 use dyn_clone::DynClone;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use std::{
     fmt::{self, Display},
     hash::Hash,
@@ -52,7 +52,7 @@ use crate::{
     attribute::AttributeDict,
     builtin::{type_interfaces::FunctionTypeInterface, types::FunctionType},
     common_traits::{Named, Verify},
-    context::{Context, Ptr},
+    context::{Context, Ptr, collect_deduped_interface_verifiers},
     dialect::{Dialect, DialectName},
     identifier::Identifier,
     impl_printable_for_display, input_err,
@@ -303,38 +303,7 @@ pub use statics::*;
 /// An interface's super-interfaces are to be verified before it itself is.
 pub static OP_INTERFACE_VERIFIERS_MAP: LazyLock<
     FxHashMap<std::any::TypeId, Vec<OpInterfaceVerifier>>,
-> = LazyLock::new(|| {
-    // Collect OP_INTERFACE_VERIFIERS into a [std::any::TypeId] indexed map.
-    let mut op_intr_verifiers = FxHashMap::default();
-    for lazy in get_op_interface_verifiers() {
-        let (op_id, all_verifiers_for_interface) = **lazy;
-        op_intr_verifiers
-            .entry(op_id)
-            .and_modify(|verifiers: &mut Vec<OpInterfaceAllVerifiers>| {
-                verifiers.push(all_verifiers_for_interface)
-            })
-            .or_insert(vec![all_verifiers_for_interface]);
-    }
-
-    // Remove duplicates (best effort as rustc may inline functions, resulting in different pointers).
-    // Relies on `__all_verifiers` returning the super-verifiers followed by self verifier
-    // to ensure that super-interfaces are verified first.
-    op_intr_verifiers
-        .into_iter()
-        .map(|(opid, verifiers)| {
-            let mut dedupd_verifiers = Vec::new();
-            let mut seen = FxHashSet::default();
-            for verifier_fn_list in verifiers {
-                for verifier in verifier_fn_list() {
-                    if seen.insert(verifier) {
-                        dedupd_verifiers.push(verifier);
-                    }
-                }
-            }
-            (opid, dedupd_verifiers)
-        })
-        .collect()
-});
+> = LazyLock::new(|| collect_deduped_interface_verifiers(get_op_interface_verifiers()));
 
 /// Printer for an [Op] in canonical syntax.
 /// `res_1, res_2, ... res_n =
