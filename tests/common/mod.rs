@@ -28,6 +28,11 @@ use pliron::{
     value::Value,
 };
 
+/// Initialize the logger for tests
+pub fn init_env_logger() {
+    let _ = env_logger::builder().is_test(true).try_init();
+}
+
 #[pliron_op(
     name = "test.return",
     format = "$0",
@@ -138,6 +143,7 @@ impl Parsable for ConstantOp {
 // Create a print a module "bar", with a function "foo"
 // containing a single `return 0`.
 pub fn const_ret_in_mod(ctx: &mut Context) -> Result<(ModuleOp, FuncOp, ConstantOp, ReturnOp)> {
+    init_env_logger();
     let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
     let module = ModuleOp::new(ctx, "bar".try_into().unwrap());
     // Our function is going to have type () -> ().

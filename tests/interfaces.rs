@@ -729,7 +729,7 @@ static TEST_TYPE_ENUM_VERIFIERS_OUTPUT: LazyLock<Mutex<String>> =
 
 #[type_interface]
 trait TestTypeEnumInterface {
-    fn verify(_op: &dyn Type, _ctx: &Context) -> Result<()>
+    fn verify(_ty: &dyn Type, _ctx: &Context) -> Result<()>
     where
         Self: Sized,
     {

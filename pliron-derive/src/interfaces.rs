@@ -117,10 +117,18 @@ pub(crate) fn interface_impl(
         const _: () = {
             #[cfg_attr(not(target_family = "wasm"), ::pliron::linkme::distributed_slice(#interface_verifiers_slice), linkme(crate = ::pliron::linkme))]
             static INTERFACE_VERIFIER: std::sync::LazyLock<(std::any::TypeId, (#all_verifiers_fn_type))> =
-                std::sync::LazyLock::new(||
+                std::sync::LazyLock::new(|| {
+                    ::pliron::log::debug!(
+                        target: "interface_registration",
+                        "{}({:?}) for type {}({:?})",
+                        std::any::type_name::<dyn #intr_name>(),
+                        std::any::TypeId::of::<dyn #intr_name>(),
+                        std::any::type_name::<#rust_ty>(),
+                        std::any::TypeId::of::<#rust_ty>(),
+                    );
                     (std::any::TypeId::of::<#rust_ty>(),
                         <#rust_ty as #intr_name>::__all_verifiers)
-                );
+                });
 
             #[cfg(target_family = "wasm")]
             ::pliron::inventory::submit! {

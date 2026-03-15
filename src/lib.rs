@@ -16,6 +16,8 @@ pub use pliron_derive as derive;
 pub use linkme;
 // Export combine as pliron::combine for procedural macros.
 pub use combine;
+// Export log as pliron::log for procedural macros.
+pub use log;
 // Export dyn_clone as pliron::dyn_clone for procedural macros.
 pub use dyn_clone;
 // Export inventory as pliron::inventory for procedural macros.
