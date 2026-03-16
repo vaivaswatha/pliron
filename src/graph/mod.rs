@@ -3,6 +3,7 @@
 pub mod traversals;
 pub mod visualize;
 pub mod walkers;
+pub mod dominance;
 
 use crate::{
     basic_block::BasicBlock,
