@@ -3,14 +3,14 @@ use rustc_hash::FxHashMap;
 use crate::graph::{ControlFlowGraph, traversals};
 
 /// A node in the dominator tree.
-pub struct DomTreeNode<G, GraphContext>
+struct DomTreeNode<G, GraphContext>
 where
   G: ControlFlowGraph<GraphContext>
 {
     /// The immediate dominator of self.
-    pub parent: Option<G::Node>,
-    /// The blocks that self immediately dominates.
-    pub children: Vec<G::Node>,
+    parent: Option<G::Node>,
+    /// The nodes that self immediately dominates.
+    children: Vec<G::Node>,
 }
 
 pub struct DomTree<G, GraphContext>(FxHashMap<G::Node, DomTreeNode<G, GraphContext>>)
@@ -23,7 +23,7 @@ impl<G: ControlFlowGraph<GraphContext>, GraphContext> Default for DomTree<G, Gra
     }
 }
 
-/// Computes a dominator tree from each of `region`'s basic block to its immediate dominator
+/// Computes a dominator tree for `graph`
 pub fn compute_dominator_tree<G, GraphContext>(ctx: &GraphContext, graph: &G) -> DomTree<G, GraphContext>
 where
   G: ControlFlowGraph<GraphContext>
@@ -39,37 +39,51 @@ where
         .map(|(i, node)| (node.clone(), i))
         .collect();
 
-    let mut dom : Vec<Option<usize>> = vec![None; rpo.len()];
+    let mut dom: Vec<Option<usize>> = vec![None; rpo.len()];
     dom[0] = Some(0);
 
-    fn intersect(a: usize, b: usize, dom: &[Option<usize>]) -> usize {
-        if a == b { return a };
-        if a > b { return intersect(dom[a].unwrap(),b,&dom) };
-        return intersect(a, dom[b].unwrap(), &dom);
-    }
-
-    loop {
-        let mut changed = false;
-
-        for (i, node) in rpo.iter().enumerate().skip(1) {
-            let mut new_dom = None;
-            // only consider predecessors reachable from entry (exactly the predecessors in rpo_index)
-            for pred in graph.predecessors(ctx, node).iter().filter(|p| rpo_index.contains_key(&p)) {
-                let pred_idx = rpo_index[&pred];
-                match (dom[pred_idx], new_dom) {
-                    (None, _) => {},
-                    (Some(_), None) => { new_dom = Some(pred_idx) },
-                    (Some(_), Some(new_dom_ind)) => { new_dom = Some(intersect(pred_idx, new_dom_ind, &dom)); }
-                }
+    fn intersect(mut finger1: usize, mut finger2: usize, dom: &[Option<usize>]) -> usize {
+        while finger1 != finger2 {
+            while finger1 > finger2 {
+                finger1 = dom[finger1].unwrap();
             }
-            if dom[i] != new_dom {
-                dom[i] = new_dom;
-                changed = true;
+            while finger2 > finger1 {
+                finger2 = dom[finger2].unwrap();
             }
         }
+        finger1
+    }
 
-        if !changed {
-            break;
+    let mut changed = true;
+    while changed {
+        changed = false;
+
+        for (i, node) in rpo.iter().enumerate().skip(1) {
+
+            let preds = graph.predecessors(ctx, node);
+            // only consider predecessors reachable from entry (exactly the predecessors in rpo_index)
+            let reachable_preds = preds.iter().filter(|p| rpo_index.contains_key(&p));
+
+            // new_idom <- first (processed) predecessor of b (pick one)
+            let picked_pred = reachable_preds
+                .clone()
+                .find(|p| dom[rpo_index[&p]].is_some())
+                .unwrap();
+            let mut new_idom = rpo_index[&picked_pred];
+
+            // for all other (reachable) predecessors, p, of b:
+            for pred in reachable_preds.filter(|p| *p != picked_pred) {
+                let pred_idx = rpo_index[&pred];
+                match dom[pred_idx] {
+                    None => {},
+                    Some(_) => { new_idom = intersect(pred_idx, new_idom, &dom); }
+                }
+            }
+
+            if dom[i] != Some(new_idom) {
+                dom[i] = Some(new_idom);
+                changed = true;
+            }
         }
     }
 
