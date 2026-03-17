@@ -1,9 +1,7 @@
 //! Regions are containers for [BasicBlock]s within an [Operation].
 use combine::{Parser, parser::char::spaces, token};
-use rustc_hash::FxHashMap;
-
 use crate::{
-    basic_block::BasicBlock, common_traits::Verify, context::{Context, Ptr, private::ArenaObj}, graph, indented_block, linked_list::{ContainsLinkedList, private}, location::Located, operation::Operation, parsable::{self, IntoParseResult, Parsable, ParseResult}, printable::{self, ListSeparator, Printable, fmt_indented_newline, fmt_iter}, result::Result
+    basic_block::BasicBlock, common_traits::Verify, context::{Context, Ptr, private::ArenaObj}, indented_block, linked_list::{ContainsLinkedList, private}, location::Located, operation::Operation, parsable::{self, IntoParseResult, Parsable, ParseResult}, printable::{self, ListSeparator, Printable, fmt_indented_newline, fmt_iter}, result::Result
 };
 
 /// [BasicBlock]s contained in this [Region].

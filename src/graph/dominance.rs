@@ -1,31 +1,42 @@
 use rustc_hash::FxHashMap;
 
-use crate::{
-    basic_block::BasicBlock, context::{Context, Ptr}, graph::{traversals}, linked_list::{ContainsLinkedList}, region::Region
-};
+use crate::graph::{ControlFlowGraph, traversals};
+
 /// A node in the dominator tree.
-pub struct DomTreeNode {
+pub struct DomTreeNode<G, GraphContext>
+where
+  G: ControlFlowGraph<GraphContext>
+{
     /// The immediate dominator of self.
-    pub parent: Option<Ptr<BasicBlock>>,
+    pub parent: Option<G::Node>,
     /// The blocks that self immediately dominates.
-    pub children: Vec<Ptr<BasicBlock>>,
+    pub children: Vec<G::Node>,
 }
 
-#[derive(Default)]
-pub struct DomTree(FxHashMap<Ptr<BasicBlock>, DomTreeNode>);
+pub struct DomTree<G, GraphContext>(FxHashMap<G::Node, DomTreeNode<G, GraphContext>>)
+where
+  G: ControlFlowGraph<GraphContext>;
+
+impl<G: ControlFlowGraph<GraphContext>, GraphContext> Default for DomTree<G, GraphContext> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
 
 /// Computes a dominator tree from each of `region`'s basic block to its immediate dominator
-pub fn compute_dominator_tree(region: &Region, ctx: &Context) -> DomTree {
+pub fn compute_dominator_tree<G, GraphContext>(ctx: &GraphContext, graph: &G) -> DomTree<G, GraphContext>
+where
+  G: ControlFlowGraph<GraphContext>
+{
     // An implementation of the algorithm from page 7 of "A Simple, Fast Dominance Algorithm" by Cooper et. al.
-
-    if region.get_head() == None {
+    if graph.nodes(ctx).count() == 0 {
         return DomTree(FxHashMap::default())
     };
 
-    let rpo = traversals::region::topological_order(ctx, region.self_ptr);
-    let rpo_index: FxHashMap<Ptr<BasicBlock>, usize> = rpo.iter()
+    let rpo = traversals::region::topological_order(ctx, graph);
+    let rpo_index: FxHashMap<G::Node, usize> = rpo.iter()
         .enumerate()
-        .map(|(i, &block)| (block, i))
+        .map(|(i, node)| (node.clone(), i))
         .collect();
 
     let mut dom : Vec<Option<usize>> = vec![None; rpo.len()];
@@ -40,15 +51,15 @@ pub fn compute_dominator_tree(region: &Region, ctx: &Context) -> DomTree {
     loop {
         let mut changed = false;
 
-        for (i, &block) in rpo.iter().enumerate().skip(1) {
+        for (i, node) in rpo.iter().enumerate().skip(1) {
             let mut new_dom = None;
-            // only consider predecessors reachable from entry (i.e. those in rpo_index)
-            for pred in block.preds(ctx).iter().filter(|p| rpo_index.contains_key(&p)) {
+            // only consider predecessors reachable from entry (exactly the predecessors in rpo_index)
+            for pred in graph.predecessors(ctx, node).iter().filter(|p| rpo_index.contains_key(&p)) {
                 let pred_idx = rpo_index[&pred];
                 match (dom[pred_idx], new_dom) {
                     (None, _) => {},
-                    (Some(n), None) => { new_dom = Some(n) },
-                    (Some(n), Some(m)) => { new_dom = Some(intersect(n,m, &dom)); }
+                    (Some(_), None) => { new_dom = Some(pred_idx) },
+                    (Some(_), Some(new_dom_ind)) => { new_dom = Some(intersect(pred_idx, new_dom_ind, &dom)); }
                 }
             }
             if dom[i] != new_dom {
@@ -62,21 +73,234 @@ pub fn compute_dominator_tree(region: &Region, ctx: &Context) -> DomTree {
         }
     }
 
-    let mut dom_tree = DomTree::default();
+    let mut dom_tree = DomTree::<G, GraphContext>::default();
     let entry = DomTreeNode { parent: None, children: vec![] };
-    dom_tree.0.insert(rpo[0], entry);
+    dom_tree.0.insert(rpo[0].clone(), entry);
 
     let child_parent = dom.iter()
         .enumerate()
         .skip(1)
-        .map(|(i,parent)| (rpo[i], rpo[parent.unwrap()]));
+        .map(|(i,parent)| (rpo[i].clone(), rpo[parent.unwrap()].clone()));
 
-    for (child_block,parent_block) in child_parent {
-        let child_node = DomTreeNode { parent: Some(parent_block), children: vec![] };
-        dom_tree.0.insert(child_block, child_node);
-        let parent_node = dom_tree.0.get_mut(&parent_block).unwrap();
-        parent_node.children.push(child_block)
+    for (child_node,parent_node) in child_parent {
+        let child_dom_node = DomTreeNode { parent: Some(parent_node.clone()), children: vec![] };
+        dom_tree.0.insert(child_node.clone(), child_dom_node);
+        let parent_dom_node = dom_tree.0.get_mut(&parent_node).unwrap();
+        parent_dom_node.children.push(child_node.clone())
     }
 
     dom_tree
+}
+
+impl<G, GraphContext> DomTree<G, GraphContext>
+where
+    G: ControlFlowGraph<GraphContext>
+{
+    /// Returns true if `a` dominates `b`
+    pub fn dominates(&self, a: &G::Node, b: &G::Node) -> bool {
+        let mut current = b.clone();
+        loop {
+            if current == *a {
+                return true;
+            }
+            match &self.0[&current].parent {
+                Some(parent) => current = parent.clone(),
+                None => return false,
+            }
+        }
+    }
+
+    /// Get an iterator over the children nodes
+    pub fn children(&self, node: &G::Node) -> impl Iterator<Item = G::Node> + '_ {
+        self.0[&node].children.iter().cloned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+    use super::compute_dominator_tree;
+    use crate::graph::ControlFlowGraph;
+
+    #[derive(Clone, Debug)]
+    struct Node {
+        succs: Vec<usize>,
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    struct ArenaGraph;
+
+    impl ControlFlowGraph<Vec<Node>> for ArenaGraph {
+        type Node = usize;
+
+        fn successors(&self, ctx: &Vec<Node>, node: &Self::Node) -> Vec<Self::Node> {
+            ctx[*node].succs.clone()
+        }
+
+        fn predecessors(&self, ctx: &Vec<Node>, node: &Self::Node) -> Vec<Self::Node> {
+            ctx.iter()
+                .enumerate()
+                .filter_map(|(idx, n)| n.succs.contains(node).then_some(idx))
+                .collect()
+        }
+
+        fn entry_node(&self, _ctx: &Vec<Node>) -> Option<Self::Node> {
+            Some(0)
+        }
+
+        fn nodes<'a>(&'a self, ctx: &'a Vec<Node>) -> Box<dyn Iterator<Item = Self::Node> + 'a> {
+            Box::new(0..ctx.len())
+        }
+    }
+
+    fn n(succs: &[usize]) -> Node {
+        Node {
+            succs: succs.to_vec(),
+        }
+    }
+
+    #[test]
+    fn dominator_tree_empty_graph() {
+        let ctx: Vec<Node> = vec![];
+        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
+        assert_eq!(dom.0.len(), 0);
+    }
+
+    #[test]
+    fn dominator_tree_single_node() {
+        let ctx = vec![n(&[])];
+        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
+        assert_eq!(dom.0[&0].parent, None);
+    }
+
+    #[test]
+    fn dominator_tree_linear_chain() {
+        // 0 -> 1 -> 2
+        let ctx = vec![
+            /* 0 */ n(&[1]),
+            /* 1 */ n(&[2]),
+            /* 2 */ n(&[]),
+        ];
+        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
+        assert_eq!(dom.0.len(), 3);
+        assert_eq!(dom.0[&0].parent, None);
+        assert_eq!(dom.0[&1].parent, Some(0));
+        assert_eq!(dom.0[&2].parent, Some(1));
+    }
+
+    #[test]
+    fn dominator_tree_diamond() {
+        //      0
+        //     / \
+        //    1   2
+        //     \ /
+        //      3
+        let ctx = vec![
+            /* 0 */ n(&[1, 2]),
+            /* 1 */ n(&[3]),
+            /* 2 */ n(&[3]),
+            /* 3 */ n(&[]),
+        ];
+        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
+        assert_eq!(dom.0.len(), 4);
+        assert_eq!(dom.0[&0].parent, None);
+        assert_eq!(dom.0[&1].parent, Some(0));
+        assert_eq!(dom.0[&2].parent, Some(0));
+        assert_eq!(dom.0[&3].parent, Some(0));
+
+        assert_eq!(dom.children(&0).collect::<HashSet<_>>(), [1,2,3].into());
+    }
+
+    #[test]
+    fn dominator_tree_loop() {
+        //            +--------+
+        //            v        |
+        //  0 -> 1 (header) -> 2 (body)
+        //            |
+        //            v
+        //            3 (exit)
+        let ctx = vec![
+            /* 0 */ n(&[1]),
+            /* 1 */ n(&[2, 3]),
+            /* 2 */ n(&[1]),
+            /* 3 */ n(&[]),
+        ];
+        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
+        assert_eq!(dom.0.len(), 4);
+        assert_eq!(dom.0[&0].parent, None);
+        assert_eq!(dom.0[&1].parent, Some(0));
+        assert_eq!(dom.0[&2].parent, Some(1));
+        assert_eq!(dom.0[&3].parent, Some(1));
+
+        assert!(dom.dominates(&1, &3));
+        assert!(!dom.dominates(&2, &3));
+
+        assert_eq!(dom.children(&0).collect::<HashSet<_>>(), [1].into());
+        assert_eq!(dom.children(&1).collect::<HashSet<_>>(), [2, 3].into());
+        assert_eq!(dom.children(&2).collect::<HashSet<_>>(), [].into());
+        assert_eq!(dom.children(&3).collect::<HashSet<_>>(), [].into());
+    }
+
+    #[test]
+    fn dominator_tree_cooper_fig4() {
+        // From "A Simple, Fast Dominance Algorithm" by Cooper et al.
+        //
+        //         0 (entry)
+        //        / \
+        //       v   v
+        //      1     2
+        //      |    / \
+        //      v   v   v
+        //      3 ⇄ 4 ⇄ 5
+        let ctx = vec![
+            /* 0 */ n(&[1, 2]),
+            /* 1 */ n(&[3]),
+            /* 2 */ n(&[4, 5]),
+            /* 3 */ n(&[4]),
+            /* 4 */ n(&[3, 5]),
+            /* 5 */ n(&[4]),
+        ];
+        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
+        assert_eq!(dom.0.len(), 6);
+        assert_eq!(dom.0[&0].parent, None);
+        assert_eq!(dom.0[&1].parent, Some(0));
+        assert_eq!(dom.0[&2].parent, Some(0));
+        assert_eq!(dom.0[&3].parent, Some(0));
+        assert_eq!(dom.0[&4].parent, Some(0));
+        assert_eq!(dom.0[&5].parent, Some(0));
+
+        assert!(dom.dominates(&0, &1));
+        assert!(!dom.dominates(&2, &4));
+    }
+
+    #[test]
+    fn dominator_tree_dragon() {
+        // From the Dragon Book, second edition, pg 657
+        let ctx = vec![
+            /* 0 */ n(&[1, 2]),
+            /* 1 */ n(&[2]),
+            /* 2 */ n(&[3]),
+            /* 3 */ n(&[4, 5, 2]),
+            /* 4 */ n(&[6]),
+            /* 5 */ n(&[6]),
+            /* 6 */ n(&[3, 7]),
+            /* 7 */ n(&[8, 9, 2]),
+            /* 8 */ n(&[0]),
+            /* 9 */ n(&[6]),
+        ];
+        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
+        assert_eq!(dom.0.len(), 10);
+        assert_eq!(dom.0[&0].parent, None);
+        assert_eq!(dom.0[&1].parent, Some(0));
+        assert_eq!(dom.0[&2].parent, Some(0));
+        assert_eq!(dom.0[&3].parent, Some(2));
+        assert_eq!(dom.0[&4].parent, Some(3));
+        assert_eq!(dom.0[&5].parent, Some(3));
+        assert_eq!(dom.0[&6].parent, Some(3));
+        assert_eq!(dom.0[&7].parent, Some(6));
+        assert_eq!(dom.0[&8].parent, Some(7));
+        assert_eq!(dom.0[&9].parent, Some(7));
+
+        assert_eq!(dom.children(&3).collect::<HashSet<_>>(), [4, 5, 6].into());
+    }
 }
