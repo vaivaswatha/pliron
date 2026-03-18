@@ -1,4 +1,6 @@
 //! Regions are containers for [BasicBlock]s within an [Operation].
+use combine::{Parser, parser::char::spaces, token};
+
 use crate::{
     basic_block::BasicBlock,
     common_traits::Verify,
@@ -11,7 +13,6 @@ use crate::{
     printable::{self, ListSeparator, Printable, fmt_indented_newline, fmt_iter},
     result::Result,
 };
-use combine::{Parser, parser::char::spaces, token};
 
 /// [BasicBlock]s contained in this [Region].
 #[derive(Default)]
