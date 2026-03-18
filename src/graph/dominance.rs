@@ -5,7 +5,7 @@ use crate::graph::{ControlFlowGraph, traversals};
 /// A node in the dominator tree.
 struct DomTreeNode<G, GraphContext>
 where
-  G: ControlFlowGraph<GraphContext>
+    G: ControlFlowGraph<GraphContext>,
 {
     /// The immediate dominator of self.
     parent: Option<G::Node>,
@@ -15,7 +15,7 @@ where
 
 pub struct DomTree<G, GraphContext>(FxHashMap<G::Node, DomTreeNode<G, GraphContext>>)
 where
-  G: ControlFlowGraph<GraphContext>;
+    G: ControlFlowGraph<GraphContext>;
 
 impl<G: ControlFlowGraph<GraphContext>, GraphContext> Default for DomTree<G, GraphContext> {
     fn default() -> Self {
@@ -24,22 +24,30 @@ impl<G: ControlFlowGraph<GraphContext>, GraphContext> Default for DomTree<G, Gra
 }
 
 /// Computes a dominator tree for `graph`
-pub fn compute_dominator_tree<G, GraphContext>(ctx: &GraphContext, graph: &G) -> DomTree<G, GraphContext>
+pub fn compute_dominator_tree<G, GraphContext>(
+    ctx: &GraphContext,
+    graph: &G,
+) -> DomTree<G, GraphContext>
 where
-  G: ControlFlowGraph<GraphContext>
+    G: ControlFlowGraph<GraphContext>,
 {
     // An implementation of the algorithm from page 7 of "A Simple, Fast Dominance Algorithm" by Cooper et. al.
-    if graph.nodes(ctx).count() == 0 {
-        return DomTree(FxHashMap::default())
+    let Some(entry_node) = graph.entry_node(ctx) else {
+        return DomTree(FxHashMap::default());
     };
 
     let rpo = traversals::region::topological_order(ctx, graph);
-    let rpo_index: FxHashMap<G::Node, usize> = rpo.iter()
+    let rpo_index: FxHashMap<G::Node, usize> = rpo
+        .iter()
         .enumerate()
         .map(|(i, node)| (node.clone(), i))
         .collect();
 
     let mut dom: Vec<Option<usize>> = vec![None; rpo.len()];
+    assert!(
+        rpo_index[&entry_node] == 0,
+        "Entry node is not the first block in our CFG"
+    );
     dom[0] = Some(0);
 
     fn intersect(mut finger1: usize, mut finger2: usize, dom: &[Option<usize>]) -> usize {
@@ -59,7 +67,6 @@ where
         changed = false;
 
         for (i, node) in rpo.iter().enumerate().skip(1) {
-
             let preds = graph.predecessors(ctx, node);
             // only consider predecessors reachable from entry (exactly the predecessors in rpo_index)
             let reachable_preds = preds.iter().filter(|p| rpo_index.contains_key(&p));
@@ -75,8 +82,10 @@ where
             for pred in reachable_preds.filter(|p| *p != picked_pred) {
                 let pred_idx = rpo_index[&pred];
                 match dom[pred_idx] {
-                    None => {},
-                    Some(_) => { new_idom = intersect(pred_idx, new_idom, &dom); }
+                    None => {}
+                    Some(_) => {
+                        new_idom = intersect(pred_idx, new_idom, &dom);
+                    }
                 }
             }
 
@@ -88,16 +97,23 @@ where
     }
 
     let mut dom_tree = DomTree::<G, GraphContext>::default();
-    let entry = DomTreeNode { parent: None, children: vec![] };
+    let entry = DomTreeNode {
+        parent: None,
+        children: vec![],
+    };
     dom_tree.0.insert(rpo[0].clone(), entry);
 
-    let child_parent = dom.iter()
+    let child_parent = dom
+        .iter()
         .enumerate()
         .skip(1)
-        .map(|(i,parent)| (rpo[i].clone(), rpo[parent.unwrap()].clone()));
+        .map(|(i, parent)| (rpo[i].clone(), rpo[parent.unwrap()].clone()));
 
-    for (child_node,parent_node) in child_parent {
-        let child_dom_node = DomTreeNode { parent: Some(parent_node.clone()), children: vec![] };
+    for (child_node, parent_node) in child_parent {
+        let child_dom_node = DomTreeNode {
+            parent: Some(parent_node.clone()),
+            children: vec![],
+        };
         dom_tree.0.insert(child_node.clone(), child_dom_node);
         let parent_dom_node = dom_tree.0.get_mut(&parent_node).unwrap();
         parent_dom_node.children.push(child_node.clone())
@@ -108,20 +124,18 @@ where
 
 impl<G, GraphContext> DomTree<G, GraphContext>
 where
-    G: ControlFlowGraph<GraphContext>
+    G: ControlFlowGraph<GraphContext>,
 {
-    /// Returns true if `a` dominates `b`
-    pub fn dominates(&self, a: &G::Node, b: &G::Node) -> bool {
-        let mut current = b.clone();
-        loop {
-            if current == *a {
+    /// Does `dominator` dominates `dominatee`?
+    pub fn dominates(&self, dominator: &G::Node, dominatee: &G::Node) -> bool {
+        let mut node_opt = Some(dominatee.clone());
+        while let Some(node) = node_opt {
+            if node == *dominator {
                 return true;
             }
-            match &self.0[&current].parent {
-                Some(parent) => current = parent.clone(),
-                None => return false,
-            }
+            node_opt = self.0[&node].parent.clone();
         }
+        false
     }
 
     /// Get an iterator over the children nodes
@@ -132,9 +146,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
     use super::compute_dominator_tree;
     use crate::graph::ControlFlowGraph;
+    use std::collections::HashSet;
 
     #[derive(Clone, Debug)]
     struct Node {
@@ -158,8 +172,8 @@ mod tests {
                 .collect()
         }
 
-        fn entry_node(&self, _ctx: &Vec<Node>) -> Option<Self::Node> {
-            Some(0)
+        fn entry_node(&self, ctx: &Vec<Node>) -> Option<Self::Node> {
+            if ctx.is_empty() { None } else { Some(0) }
         }
 
         fn nodes<'a>(&'a self, ctx: &'a Vec<Node>) -> Box<dyn Iterator<Item = Self::Node> + 'a> {
@@ -222,7 +236,7 @@ mod tests {
         assert_eq!(dom.0[&2].parent, Some(0));
         assert_eq!(dom.0[&3].parent, Some(0));
 
-        assert_eq!(dom.children(&0).collect::<HashSet<_>>(), [1,2,3].into());
+        assert_eq!(dom.children(&0).collect::<HashSet<_>>(), [1, 2, 3].into());
     }
 
     #[test]
