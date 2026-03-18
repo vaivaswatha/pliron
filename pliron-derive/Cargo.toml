@@ -20,7 +20,7 @@ quote.workspace = true
 syn = { version = "2", features = ["derive", "full", "parsing"] }
 combine.workspace = true
 rustc-hash.workspace = true
-convert_case = "0"
+convert_case = "0.11"
 
 [dev-dependencies]
 prettyplease.workspace = true
