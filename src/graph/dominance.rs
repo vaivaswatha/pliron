@@ -13,15 +13,10 @@ where
     children: Vec<G::Node>,
 }
 
+/// Represents dominator tree for a control-flow-graph
 pub struct DomTree<G, GraphContext>(FxHashMap<G::Node, DomTreeNode<G, GraphContext>>)
 where
     G: ControlFlowGraph<GraphContext>;
-
-impl<G: ControlFlowGraph<GraphContext>, GraphContext> Default for DomTree<G, GraphContext> {
-    fn default() -> Self {
-        Self(Default::default())
-    }
-}
 
 /// Computes a dominator tree for `graph`
 pub fn compute_dominator_tree<G, GraphContext>(
@@ -96,7 +91,7 @@ where
         }
     }
 
-    let mut dom_tree = DomTree::<G, GraphContext>::default();
+    let mut dom_tree = DomTree(FxHashMap::default());
     let entry = DomTreeNode {
         parent: None,
         children: vec![],
