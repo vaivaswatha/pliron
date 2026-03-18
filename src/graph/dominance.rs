@@ -64,18 +64,18 @@ where
         for (i, node) in rpo.iter().enumerate().skip(1) {
             let preds = graph.predecessors(ctx, node);
             // only consider predecessors reachable from entry (exactly the predecessors in rpo_index)
-            let reachable_preds = preds.iter().filter(|p| rpo_index.contains_key(&p));
+            let reachable_preds = preds.iter().filter(|p| rpo_index.contains_key(p));
 
             // new_idom <- first (processed) predecessor of b (pick one)
             let picked_pred = reachable_preds
                 .clone()
-                .find(|p| dom[rpo_index[&p]].is_some())
+                .find(|p| dom[rpo_index[p]].is_some())
                 .unwrap();
-            let mut new_idom = rpo_index[&picked_pred];
+            let mut new_idom = rpo_index[picked_pred];
 
             // for all other (reachable) predecessors, p, of b:
             for pred in reachable_preds.filter(|p| *p != picked_pred) {
-                let pred_idx = rpo_index[&pred];
+                let pred_idx = rpo_index[pred];
                 match dom[pred_idx] {
                     None => {}
                     Some(_) => {
@@ -135,7 +135,7 @@ where
 
     /// Get an iterator over the children nodes
     pub fn children(&self, node: &G::Node) -> impl Iterator<Item = G::Node> + '_ {
-        self.0[&node].children.iter().cloned()
+        self.0[node].children.iter().cloned()
     }
 }
 
