@@ -8,7 +8,7 @@ pub mod region {
     use super::*;
 
     /// Compute post-order of the nodes in a graph.
-    pub fn post_order<G, GraphContext>(ctx: &GraphContext, graph: G) -> Vec<G::Node>
+    pub fn post_order<G, GraphContext>(ctx: &GraphContext, graph: &G) -> Vec<G::Node>
     where
         G: ControlFlowGraph<GraphContext>,
     {
@@ -40,14 +40,14 @@ pub mod region {
 
         // Walk every node (not just entry) since we may have unreachable nodes.
         for node in graph.nodes(ctx) {
-            walk(ctx, &graph, node, on_stack, &mut po);
+            walk(ctx, graph, node, on_stack, &mut po);
         }
 
         po
     }
 
     /// Compute reverse-post-order of the nodes in a graph.
-    pub fn topological_order<G, GraphContext>(ctx: &GraphContext, graph: G) -> Vec<G::Node>
+    pub fn topological_order<G, GraphContext>(ctx: &GraphContext, graph: &G) -> Vec<G::Node>
     where
         G: ControlFlowGraph<GraphContext>,
     {
@@ -150,8 +150,8 @@ mod tests {
     fn post_order_linear_chain() {
         let ctx = vec![n(10, &[1]), n(20, &[2]), n(30, &[])];
 
-        let po = post_order(&ctx, ArenaGraph);
-        let rpo = topological_order(&ctx, ArenaGraph);
+        let po = post_order(&ctx, &ArenaGraph);
+        let rpo = topological_order(&ctx, &ArenaGraph);
 
         assert_eq!(data_order(&ctx, &po), vec![30, 20, 10]);
         assert_eq!(data_order(&ctx, &rpo), vec![10, 20, 30]);
@@ -164,8 +164,8 @@ mod tests {
     fn post_order_diamond_dag() {
         let ctx = vec![n(0, &[1, 2]), n(1, &[3]), n(2, &[3]), n(3, &[])];
 
-        let po = post_order(&ctx, ArenaGraph);
-        let rpo = topological_order(&ctx, ArenaGraph);
+        let po = post_order(&ctx, &ArenaGraph);
+        let rpo = topological_order(&ctx, &ArenaGraph);
 
         assert_eq!(data_order(&ctx, &po), vec![3, 1, 2, 0]);
         assert_eq!(data_order(&ctx, &rpo), vec![0, 2, 1, 3]);
@@ -178,8 +178,8 @@ mod tests {
     fn post_order_handles_cycle_and_isolated_node() {
         let ctx = vec![n(0, &[1]), n(1, &[2]), n(2, &[0]), n(99, &[])];
 
-        let po = post_order(&ctx, ArenaGraph);
-        let rpo = topological_order(&ctx, ArenaGraph);
+        let po = post_order(&ctx, &ArenaGraph);
+        let rpo = topological_order(&ctx, &ArenaGraph);
 
         assert_eq!(data_order(&ctx, &po), vec![2, 1, 0, 99]);
         assert_eq!(data_order(&ctx, &rpo), vec![99, 0, 1, 2]);
@@ -190,8 +190,8 @@ mod tests {
     fn post_order_covers_disconnected_components() {
         let ctx = vec![n(0, &[1]), n(1, &[]), n(2, &[3]), n(3, &[]), n(4, &[])];
 
-        let po = post_order(&ctx, ArenaGraph);
-        let rpo = topological_order(&ctx, ArenaGraph);
+        let po = post_order(&ctx, &ArenaGraph);
+        let rpo = topological_order(&ctx, &ArenaGraph);
 
         assert_eq!(data_order(&ctx, &po), vec![1, 0, 3, 2, 4]);
         assert_eq!(data_order(&ctx, &rpo), vec![4, 2, 3, 0, 1]);

@@ -242,7 +242,7 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
         // Otherwise `Region::erase` later on will take care of it.
         if self.get_listener().is_some() {
             // We erase blocks in post-order so that uses are erased before defs.
-            let blocks = post_order(ctx, region);
+            let blocks = post_order(ctx, &region);
             for block in blocks.iter().rev() {
                 // We do not erase the block already because its predecessors
                 // (which are its uses) haven't already been erased. We erase

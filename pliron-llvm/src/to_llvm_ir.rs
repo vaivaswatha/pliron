@@ -1649,7 +1649,7 @@ fn convert_function(
     }
 
     // Convert within every block.
-    for block in topological_order(ctx, f_region) {
+    for block in topological_order(ctx, &f_region) {
         convert_block(ctx, llvm_ctx, cctx, block)?;
     }
 
