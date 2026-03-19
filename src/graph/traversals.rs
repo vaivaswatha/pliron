@@ -7,43 +7,61 @@ use rustc_hash::FxHashSet;
 pub mod region {
     use super::*;
 
+    fn post_order_walk_component<G, GraphContext>(
+        ctx: &GraphContext,
+        graph: &G,
+        node: G::Node,
+        seen_nodes: &mut FxHashSet<G::Node>,
+        po: &mut Vec<G::Node>,
+    ) where
+        G: ControlFlowGraph<GraphContext>,
+    {
+        if seen_nodes.contains(&node) {
+            // node already visited.
+            return;
+        }
+        seen_nodes.insert(node.clone());
+
+        // Visit successors before visiting this node.
+        for succ in graph.successors(ctx, &node) {
+            post_order_walk_component(ctx, graph, succ, seen_nodes, po);
+        }
+        // Visit this node.
+        po.push(node);
+    }
+
     /// Compute post-order of the nodes in a graph.
     pub fn post_order<G, GraphContext>(ctx: &GraphContext, graph: &G) -> Vec<G::Node>
     where
         G: ControlFlowGraph<GraphContext>,
     {
-        let on_stack = &mut FxHashSet::<G::Node>::default();
-        let mut po = Vec::<G::Node>::new();
+        post_order_by_component(ctx, graph)
+            .into_iter()
+            .flatten()
+            .collect::<Vec<G::Node>>()
+    }
 
-        fn walk<G, GraphContext>(
-            ctx: &GraphContext,
-            graph: &G,
-            node: G::Node,
-            on_stack: &mut FxHashSet<G::Node>,
-            po: &mut Vec<G::Node>,
-        ) where
-            G: ControlFlowGraph<GraphContext>,
-        {
-            if on_stack.contains(&node) {
-                // node already visited.
-                return;
-            }
-            on_stack.insert(node.clone());
-
-            // Visit successors before visiting this node.
-            for succ in graph.successors(ctx, &node) {
-                walk(ctx, graph, succ, on_stack, po);
-            }
-            // Visit this node.
-            po.push(node);
-        }
+    /// Compute the post-order of the nodes in a graph,
+    /// providing result for each connected component separately.
+    pub fn post_order_by_component<G, GraphContext>(
+        ctx: &GraphContext,
+        graph: &G,
+    ) -> Vec<Vec<G::Node>>
+    where
+        G: ControlFlowGraph<GraphContext>,
+    {
+        let seen_nodes = &mut FxHashSet::<G::Node>::default();
+        let mut po_by_component = Vec::<Vec<G::Node>>::new();
 
         // Walk every node (not just entry) since we may have unreachable nodes.
         for node in graph.nodes(ctx) {
-            walk(ctx, graph, node, on_stack, &mut po);
+            let mut po = Vec::<G::Node>::new();
+            post_order_walk_component(ctx, graph, node, seen_nodes, &mut po);
+            if !po.is_empty() {
+                po_by_component.push(po);
+            }
         }
-
-        po
+        po_by_component
     }
 
     /// Compute reverse-post-order of the nodes in a graph.
@@ -51,9 +69,34 @@ pub mod region {
     where
         G: ControlFlowGraph<GraphContext>,
     {
-        let mut po = post_order(ctx, graph);
-        po.reverse();
-        po
+        topological_order_by_component(ctx, graph)
+            .into_iter()
+            .flatten()
+            .collect::<Vec<G::Node>>()
+    }
+
+    /// Compute the reverse-post-order of the nodes in a graph,
+    /// providing result for each connected component separately.
+    /// Note: Component wise order remains the same as the input.
+    pub fn topological_order_by_component<G, GraphContext>(
+        ctx: &GraphContext,
+        graph: &G,
+    ) -> Vec<Vec<G::Node>>
+    where
+        G: ControlFlowGraph<GraphContext>,
+    {
+        let seen_nodes = &mut FxHashSet::<G::Node>::default();
+        let mut rpo_by_component = Vec::<Vec<G::Node>>::new();
+
+        // Walk every node (not just entry) since we may have unreachable nodes.
+        for node in graph.nodes(ctx) {
+            let mut po = Vec::<G::Node>::new();
+            post_order_walk_component(ctx, graph, node, seen_nodes, &mut po);
+            if !po.is_empty() {
+                rpo_by_component.push(po.into_iter().rev().collect());
+            }
+        }
+        rpo_by_component
     }
 }
 
@@ -182,7 +225,7 @@ mod tests {
         let rpo = topological_order(&ctx, &ArenaGraph);
 
         assert_eq!(data_order(&ctx, &po), vec![2, 1, 0, 99]);
-        assert_eq!(data_order(&ctx, &rpo), vec![99, 0, 1, 2]);
+        assert_eq!(data_order(&ctx, &rpo), vec![0, 1, 2, 99]);
         assert_is_permutation_of_all_nodes(&ctx, &po);
     }
 
@@ -194,7 +237,7 @@ mod tests {
         let rpo = topological_order(&ctx, &ArenaGraph);
 
         assert_eq!(data_order(&ctx, &po), vec![1, 0, 3, 2, 4]);
-        assert_eq!(data_order(&ctx, &rpo), vec![4, 2, 3, 0, 1]);
+        assert_eq!(data_order(&ctx, &rpo), vec![0, 1, 2, 3, 4]);
         assert_is_permutation_of_all_nodes(&ctx, &po);
         assert_post_order_edge_property_for_dag(&ctx, &po);
         assert_topological_edge_property_for_dag(&ctx, &rpo);

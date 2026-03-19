@@ -18,7 +18,10 @@ pub struct DomTree<G, GraphContext>(FxHashMap<G::Node, DomTreeNode<G, GraphConte
 where
     G: ControlFlowGraph<GraphContext>;
 
-/// Computes a dominator tree for `graph`
+/// Computes a dominator tree for `graph`.
+/// Only considers nodes reachable from the entry node of the graph.
+// An implementation of the algorithm from page 7 of
+// "A Simple, Fast Dominance Algorithm" by Cooper et. al.
 pub fn compute_dominator_tree<G, GraphContext>(
     ctx: &GraphContext,
     graph: &G,
@@ -26,12 +29,19 @@ pub fn compute_dominator_tree<G, GraphContext>(
 where
     G: ControlFlowGraph<GraphContext>,
 {
-    // An implementation of the algorithm from page 7 of "A Simple, Fast Dominance Algorithm" by Cooper et. al.
     let Some(entry_node) = graph.entry_node(ctx) else {
         return DomTree(FxHashMap::default());
     };
 
-    let rpo = traversals::region::topological_order(ctx, graph);
+    // We consider only the first connected component for the dominator tree,
+    // since the entry node is guaranteed to be in the first component,
+    // and all nodes not reachable from the entry node are not dominated by the entry.
+    // (i.e. they are roots of their own dominator trees - which we don't care about).
+    let rpo = traversals::region::topological_order_by_component(ctx, graph)
+        .into_iter()
+        .next()
+        .expect("Graph has no components, but has an entry node");
+
     let rpo_index: FxHashMap<G::Node, usize> = rpo
         .iter()
         .enumerate()
@@ -121,7 +131,7 @@ impl<G, GraphContext> DomTree<G, GraphContext>
 where
     G: ControlFlowGraph<GraphContext>,
 {
-    /// Does `dominator` dominates `dominatee`?
+    /// Does `dominator` dominate `dominatee`?
     pub fn dominates(&self, dominator: &G::Node, dominatee: &G::Node) -> bool {
         let mut node_opt = Some(dominatee.clone());
         while let Some(node) = node_opt {
@@ -325,5 +335,22 @@ mod tests {
         assert_eq!(dom.0[&9].parent, Some(7));
 
         assert_eq!(dom.children(&3).collect::<HashSet<_>>(), [4, 5, 6].into());
+    }
+
+    #[test]
+    fn dominator_tree_disconnected_components() {
+        // 0 -> 1    2 -> 3
+        let ctx = vec![
+            /* 0 */ n(&[1]),
+            /* 1 */ n(&[]),
+            /* 2 */ n(&[3]),
+            /* 3 */ n(&[]),
+        ];
+        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
+        assert_eq!(dom.0.len(), 2);
+        assert_eq!(dom.0[&0].parent, None);
+        assert_eq!(dom.0[&1].parent, Some(0));
+
+        assert_eq!(dom.children(&0).collect::<HashSet<_>>(), [1].into());
     }
 }
