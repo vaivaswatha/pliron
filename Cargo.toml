@@ -67,7 +67,7 @@ rustc-hash = "2"
 combine = "4"
 thiserror = "2"
 tempfile = "3"
-log = "0"
+log = { version = "0", features = ["release_max_level_warn"]  }
 env_logger = "0"
 cargo-manifest = "0"
 which = "8"

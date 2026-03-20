@@ -25,7 +25,6 @@ bitflags = { workspace = true, features = ["std"] }
 expect-test.workspace = true
 tempfile.workspace = true
 assert_cmd.workspace = true
-log = { workspace = true, features = ["release_max_level_warn"] }
 env_logger.workspace = true
 cargo-manifest.workspace = true
 which.workspace = true
