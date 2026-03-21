@@ -49,3 +49,22 @@ pub mod r#type;
 pub mod uniqued_any;
 pub mod utils;
 pub mod value;
+
+/// A macro to initialize `env_logger`: Default logger level is "off".
+///
+/// This is a macro because we don't want [pliron] to depend on `env_logger` directly,
+/// and we want to allow users to choose their own logging framework if they want.
+#[macro_export]
+macro_rules! init_env_logger {
+    () => {{
+        // The default logger level is "off".
+        let mut builder =
+            env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("off"));
+        // WASM target doesn't support timestamps.
+        if cfg!(target_family = "wasm") {
+            let _ = builder.is_test(true).format_timestamp(None).try_init();
+        } else {
+            let _ = builder.is_test(true).try_init();
+        }
+    }};
+}

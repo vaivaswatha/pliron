@@ -1,6 +1,7 @@
 use awint::bw;
 use pliron::builtin::op_interfaces::NResultsVerifyErr;
 use pliron::derive::pliron_op;
+use pliron::init_env_logger;
 use pliron::utils::apint::APInt;
 use pliron::{
     attribute::AttrObj,
@@ -27,18 +28,6 @@ use pliron::{
     result::Result,
     value::Value,
 };
-
-/// Initialize the logger for tests
-pub fn init_env_logger() {
-    if cfg!(target_family = "wasm") {
-        let _ = env_logger::builder()
-            .is_test(true)
-            .format_timestamp(None)
-            .try_init();
-    } else {
-        let _ = env_logger::builder().is_test(true).try_init();
-    }
-}
 
 #[pliron_op(
     name = "test.return",
@@ -150,7 +139,7 @@ impl Parsable for ConstantOp {
 // Create a print a module "bar", with a function "foo"
 // containing a single `return 0`.
 pub fn const_ret_in_mod(ctx: &mut Context) -> Result<(ModuleOp, FuncOp, ConstantOp, ReturnOp)> {
-    init_env_logger();
+    init_env_logger!();
     let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
     let module = ModuleOp::new(ctx, "bar".try_into().unwrap());
     // Our function is going to have type () -> ().
