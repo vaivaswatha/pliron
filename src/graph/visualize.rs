@@ -6,12 +6,8 @@ use pliron::{
         self, IRNode, WALKCONFIG_PREORDER_FORWARD,
         interruptible::{WalkResult, walk_advance, walk_break},
     },
-    irfmt::printers::iter_with_sep,
     linked_list::ContainsLinkedList,
-    op::OpObj,
-    operation::Operation,
-    printable,
-    printable::Printable,
+    operation::{self, Operation},
     region::Region,
 };
 use rustc_hash::FxHashMap;
@@ -124,33 +120,6 @@ impl ToResult for WalkResult<std::fmt::Error> {
     }
 }
 
-/// Print basic [Operation] information, since calling [Printable::disp]
-/// will print the whole nested structure, which we don't want here.
-fn operation_print(ctx: &Context, op: OpObj, f: &mut std::fmt::Formatter<'_>) -> core::fmt::Result {
-    let sep = printable::ListSeparator::CharSpace(',');
-    let opid = op.as_ref().get_opid();
-    let op = op.as_ref().get_operation().deref(ctx);
-    let operands = iter_with_sep(op.operands(), sep);
-
-    if op.get_num_results() != 0 {
-        let results = iter_with_sep(op.results(), sep);
-        write!(f, "{} = ", results.disp(ctx))?;
-    }
-
-    write!(f, "{} ({})", opid.disp(ctx), operands.disp(ctx))?;
-
-    if op.get_num_successors() > 0 {
-        let successors = iter_with_sep(
-            op.successors()
-                .map(|succ| format!("^{}", succ.unique_name(ctx))),
-            sep,
-        );
-        write!(f, " [{}]", successors.disp(ctx))?;
-    }
-
-    Ok(())
-}
-
 fn operation_entry_point(
     ctx: &Context,
     op: Ptr<Operation>,
@@ -226,8 +195,7 @@ fn graphviz_callback(
                         oper_index
                     )
                     .to_walk_result()?;
-                    operation_print(ctx, Operation::get_op_dyn(op, ctx), graph_state.f)
-                        .to_walk_result()?;
+                    operation::print_dbg(ctx, op, graph_state.f).to_walk_result()?;
                     writeln!(graph_state.f, "\"];").to_walk_result()?;
                     format!("operation_{}", oper_index)
                 };
@@ -260,8 +228,7 @@ fn graphviz_callback(
             .to_walk_result()?;
             write!(graph_state.f, "{} : \\n", block_identifier).to_walk_result()?;
             for oper in block.deref(ctx).iter(ctx) {
-                operation_print(ctx, Operation::get_op_dyn(oper, ctx), graph_state.f)
-                    .to_walk_result()?;
+                operation::print_dbg(ctx, oper, graph_state.f).to_walk_result()?;
                 write!(graph_state.f, "\\n").to_walk_result()?;
             }
             writeln!(graph_state.f, "\"];").to_walk_result()?;

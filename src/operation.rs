@@ -10,7 +10,7 @@ use thiserror::Error;
 use crate::{
     attribute::{AttributeDict, verify_attr},
     basic_block::{BasicBlock, BasicBlockVerifyErr},
-    builtin::op_interfaces::IsTerminatorInterface,
+    builtin::op_interfaces::{IsTerminatorInterface, SymbolOpInterface},
     common_traits::{Named, RcShare, Verify},
     context::{Arena, Context, Ptr, private::ArenaObj},
     debug_info,
@@ -19,10 +19,11 @@ use crate::{
     irfmt::{
         outlined::{self, parse_outlines, postparse_outline},
         parsers::{list_parser, location, spaced},
+        printers::iter_with_sep,
     },
     linked_list::{LinkedList, private},
     location::{Located, Location},
-    op::{ConcreteOpInfo, Op, OpId, OpObj, op_impls},
+    op::{ConcreteOpInfo, Op, OpId, OpObj, op_cast, op_impls},
     parsable::{self, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     region::Region,
@@ -618,31 +619,45 @@ impl<T: DefUseParticipant + DefTrait> Verify for Operand<T> {
 
 impl Verify for Operation {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        self.attributes
-            .0
-            .values()
-            .try_for_each(|attr| verify_attr(&**attr, ctx))?;
-        self.operands.iter().try_for_each(|opd| opd.verify(ctx))?;
-        self.successors.iter().try_for_each(|opd| opd.verify(ctx))?;
-        self.regions
-            .iter()
-            .try_for_each(|region| region.verify(ctx))?;
-        self.results.iter().try_for_each(|res| res.verify(ctx))?;
-        let op = &*Self::get_op_dyn(self.self_ptr, ctx);
-        if op_impls::<dyn IsTerminatorInterface>(op) && self.get_next().is_some() {
-            let loc = self.loc.clone();
-            let parent_block = self
-                .get_parent_block()
-                .expect("There's a next operation, so there must be a parent block");
-            verify_err!(
-                loc,
-                BasicBlockVerifyErr::TerminatorNotLast(
-                    parent_block.unique_name(ctx).disp(ctx).to_string()
-                )
-            )?
+        fn verify_inner(opr: &Operation, ctx: &Context) -> Result<()> {
+            opr.attributes
+                .0
+                .values()
+                .try_for_each(|attr| verify_attr(&**attr, ctx))?;
+            opr.operands.iter().try_for_each(|opd| opd.verify(ctx))?;
+            opr.successors.iter().try_for_each(|opd| opd.verify(ctx))?;
+            opr.regions
+                .iter()
+                .try_for_each(|region| region.verify(ctx))?;
+            opr.results.iter().try_for_each(|res| res.verify(ctx))?;
+            let op = &*Operation::get_op_dyn(opr.self_ptr, ctx);
+            if op_impls::<dyn IsTerminatorInterface>(op) && opr.get_next().is_some() {
+                let loc = opr.loc.clone();
+                let parent_block = opr
+                    .get_parent_block()
+                    .expect("There's a next operation, so there must be a parent block");
+                verify_err!(
+                    loc,
+                    BasicBlockVerifyErr::TerminatorNotLast(
+                        parent_block.unique_name(ctx).disp(ctx).to_string()
+                    )
+                )?
+            }
+            op.verify_interfaces(ctx)?;
+            op.verify(ctx)
         }
-        op.verify_interfaces(ctx)?;
-        op.verify(ctx)
+        verify_inner(self, ctx).inspect_err(
+            |err| {
+                struct Helper(Ptr<Operation>);
+                impl Printable for Helper {
+                    fn fmt(&self, ctx: &Context, _state: &printable::State, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                        print_dbg(ctx, self.0, f)
+                    }
+                }
+                let op = self.self_ptr;
+                log::error!(target: "verify_error","{} in operation:\n{}", err.disp(ctx), Helper(op).disp(ctx))
+            }
+        )
     }
 }
 
@@ -747,4 +762,53 @@ impl Parsable for Operation {
             .parse_stream(state_stream)
             .into()
     }
+}
+
+/// Print basic [Operation] information, mainly for logging / debugging.
+///
+/// Includes the operation's unique identifier, its operands, and its successors.
+/// Does not include attributes or regions, and is not meant to be a user-facing print.
+pub fn print_dbg(
+    ctx: &Context,
+    opr: Ptr<Operation>,
+    f: &mut std::fmt::Formatter<'_>,
+) -> core::fmt::Result {
+    let sep = printable::ListSeparator::CharSpace(',');
+
+    let op = Operation::get_op_dyn(opr, ctx);
+    let opid = op.get_opid();
+    let opr = opr.deref(ctx);
+    let operands = iter_with_sep(opr.operands(), sep);
+
+    let symbol_opt = match op_cast::<dyn SymbolOpInterface>(&*op) {
+        Some(sym_op) => " @".to_string() + &sym_op.get_symbol_name(ctx).disp(ctx).to_string(),
+        None => "".to_string(),
+    };
+
+    if opr.get_num_results() == 0 {
+        // Print Ptr representing this operation.
+        write!(f, "{:?} ", opr.get_self_ptr(ctx))?;
+    } else {
+        let results = iter_with_sep(opr.results(), sep);
+        write!(f, "{} = ", results.disp(ctx))?;
+    }
+
+    write!(
+        f,
+        "{}{} ({})",
+        opid.disp(ctx),
+        symbol_opt,
+        operands.disp(ctx)
+    )?;
+
+    if opr.get_num_successors() > 0 {
+        let successors = iter_with_sep(
+            opr.successors()
+                .map(|succ| format!("^{}", succ.unique_name(ctx))),
+            sep,
+        );
+        write!(f, " [{}]", successors.disp(ctx))?;
+    }
+
+    Ok(())
 }
