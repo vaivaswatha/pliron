@@ -3,7 +3,7 @@
 use pliron::{
     context::{Context, Ptr},
     derive::{op_interface, type_interface},
-    irbuild::dialect_conversion::{DialectConversionRewriter, OperandConversionInfo},
+    irbuild::dialect_conversion::{DialectConversionRewriter, OperandsInfo},
     op::Op,
     result::Result,
     r#type::{Type, TypeObj},
@@ -26,7 +26,7 @@ pub trait ToLLVMDialect {
         &self,
         ctx: &mut Context,
         rewriter: &mut DialectConversionRewriter,
-        operand_info: &[OperandConversionInfo],
+        operand_info: &OperandsInfo,
     ) -> Result<()>;
 
     fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>

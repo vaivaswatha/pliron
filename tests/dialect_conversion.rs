@@ -12,8 +12,7 @@ use pliron::{
     identifier::Identifier,
     irbuild::{
         dialect_conversion::{
-            DialectConversion, DialectConversionRewriter, OperandConversionInfo,
-            apply_dialect_conversion,
+            DialectConversion, DialectConversionRewriter, OperandsInfo, apply_dialect_conversion,
         },
         inserter::Inserter,
         rewriter::Rewriter,
@@ -124,7 +123,7 @@ impl DialectConversion for WidthConversion {
         ctx: &mut Context,
         rewriter: &mut DialectConversionRewriter,
         op: Ptr<Operation>,
-        operand_info: &[OperandConversionInfo],
+        operands_info: &OperandsInfo,
     ) -> Result<()> {
         if let Some(producer) = Operation::get_op::<ProducerOp>(op, ctx) {
             let current_ty = producer.get_result(ctx).get_type(ctx);
@@ -149,10 +148,9 @@ impl DialectConversion for WidthConversion {
                 .width();
             assert_eq!(final_width, 16);
 
-            assert_eq!(operand_info.len(), 1);
-            assert_eq!(operand_info[0].operand, operand);
-            let previous_widths: Vec<u32> = operand_info[0]
-                .previous_types
+            let operand_type_history = operands_info.lookup_operand_history(operand);
+            assert_eq!(operand_type_history.len(), 2);
+            let previous_widths = operand_type_history
                 .iter()
                 .map(|ty| {
                     ty.deref(ctx)
@@ -160,7 +158,7 @@ impl DialectConversion for WidthConversion {
                         .expect("expected integer type")
                         .width()
                 })
-                .collect();
+                .collect::<Vec<u32>>();
             assert_eq!(previous_widths, vec![64, 32]);
 
             self.saw_consumer = true;
@@ -227,7 +225,7 @@ impl DialectConversion for ConsumerOnlyConversion {
         ctx: &mut Context,
         _rewriter: &mut DialectConversionRewriter,
         op: Ptr<Operation>,
-        operand_info: &[OperandConversionInfo],
+        operands_info: &OperandsInfo,
     ) -> Result<()> {
         let consumer = Operation::get_op::<ConsumerOp>(op, ctx).expect("expected consumer op");
         let operand = consumer.get_operand(ctx);
@@ -240,19 +238,10 @@ impl DialectConversion for ConsumerOnlyConversion {
             .width();
         assert_eq!(final_width, 16);
 
-        assert_eq!(operand_info.len(), 1);
-        assert_eq!(operand_info[0].operand, operand);
-        let previous_widths: Vec<u32> = operand_info[0]
-            .previous_types
-            .iter()
-            .map(|ty| {
-                ty.deref(ctx)
-                    .downcast_ref::<IntegerType>()
-                    .expect("expected integer type")
-                    .width()
-            })
-            .collect();
-        assert_eq!(previous_widths, vec![64, 32]);
+        let previous_width = operands_info
+            .lookup_most_recent_of_type::<IntegerType>(ctx, operand)
+            .expect("Previous integer type missing");
+        assert_eq!(previous_width.width(), 32);
 
         self.saw_consumer = true;
         Ok(())
@@ -293,9 +282,8 @@ impl DialectConversion for ForwardOnlyConversion {
         ctx: &mut Context,
         _rewriter: &mut DialectConversionRewriter,
         op: Ptr<Operation>,
-        operand_info: &[OperandConversionInfo],
+        _operands_info: &OperandsInfo,
     ) -> Result<()> {
-        assert_eq!(operand_info.len(), 1);
         let succ = op.deref(ctx).get_successor(0);
         let succ_arg = succ.deref(ctx).get_argument(0);
         let succ_arg_width = succ_arg

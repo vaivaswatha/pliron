@@ -3,7 +3,7 @@
 //! - no unrealized conversion casts,
 //! - definitions are always converted before their uses.
 
-use std::collections::VecDeque;
+use std::{cell::Ref, collections::VecDeque};
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -19,21 +19,61 @@ use crate::{
     op::op_impls,
     operation::Operation,
     result::Result,
-    r#type::{TypeObj, Typed},
+    r#type::{Type, TypeObj, Typed},
     value::Value,
 };
 
 /// A rewriter that uses the [Recorder] listener.
 pub type DialectConversionRewriter = IRRewriter<Recorder>;
 
-/// Additional type information for an operation operand during conversion.
+/// Additional type information for operation operands during conversion.
 ///
-/// The `previous_types` are the historical types observed for the current
-/// operand value through earlier replacements, ordered from oldest to newest.
-#[derive(Clone)]
-pub struct OperandConversionInfo {
-    pub operand: Value,
-    pub previous_types: Vec<Ptr<TypeObj>>,
+/// For each operand, we track a history of previously observed types during conversion.
+/// This allows conversion patterns access to evolution of operand types,
+/// rather than just the current type. The most recent type before conversion,
+/// for each operand, is the last entry.
+#[derive(Clone, Default)]
+pub struct OperandsInfo(Vec<(Value, Vec<Ptr<TypeObj>>)>);
+
+impl OperandsInfo {
+    pub fn new(operands: Vec<(Value, Vec<Ptr<TypeObj>>)>) -> Self {
+        Self(operands)
+    }
+
+    /// Lookup the most recent (excluding current) `T: Type` recorded for an operand, if any.
+    pub fn lookup_most_recent_of_type<'a, T: Type>(
+        &self,
+        ctx: &'a Context,
+        opd: Value,
+    ) -> Option<Ref<'a, T>> {
+        self.0
+            .iter()
+            .find(|(operand, _)| *operand == opd)
+            .and_then(|(_, previous_types)| {
+                previous_types.iter().rev().find_map(|ty| {
+                    let ty_ref = ty.deref(ctx);
+                    Ref::filter_map(ty_ref, |ty_ref| ty_ref.downcast_ref::<T>()).ok()
+                })
+            })
+    }
+
+    /// Lookup the most recent type (excluding current) recorded for an operand, if any.
+    pub fn lookup_most_recent_type(&self, opd: Value) -> Option<Ptr<TypeObj>> {
+        self.0
+            .iter()
+            .find(|(operand, _)| *operand == opd)
+            .and_then(|(_, previous_types)| previous_types.last().cloned())
+    }
+
+    /// Lookup the full history of types (excluding current) recorded for an operand,
+    /// ordered from oldest to newest.
+    pub fn lookup_operand_history(&self, opd: Value) -> Vec<Ptr<TypeObj>> {
+        self.0
+            .iter()
+            .find(|(operand, _)| *operand == opd)
+            .map(|(_, previous_types)| previous_types.clone())
+            .unwrap_or_default()
+    }
 }
 
 /// Interface for dialect conversion matching and rewriting.
@@ -55,7 +95,7 @@ pub trait DialectConversion {
     ///
     /// Insertion point is set to be before the operation being rewritten.
     /// All operands are already converted before this callback is invoked.
-    /// `operand_info` provides the current operand values along with their
+    /// `operands_info` provides the current operand values along with their
     /// historical types observed during conversion. The last type in the history
     /// is the most recent type before conversion.
     fn rewrite(
@@ -63,7 +103,7 @@ pub trait DialectConversion {
         ctx: &mut Context,
         rewriter: &mut DialectConversionRewriter,
         op: Ptr<Operation>,
-        operand_info: &[OperandConversionInfo],
+        operands_info: &OperandsInfo,
     ) -> Result<()>;
 }
 
@@ -302,22 +342,25 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
                 return Ok(());
             }
 
-            let operand_info: Vec<_> = operands
-                .into_iter()
-                .map(|operand| OperandConversionInfo {
-                    operand,
-                    previous_types: self
-                        .previous_types
-                        .get(&operand)
-                        .cloned()
-                        .unwrap_or_default(),
-                })
-                .collect();
+            let operands_info = OperandsInfo::new(
+                operands
+                    .into_iter()
+                    .map(|operand| {
+                        (
+                            operand,
+                            self.previous_types
+                                .get(&operand)
+                                .cloned()
+                                .unwrap_or_default(),
+                        )
+                    })
+                    .collect(),
+            );
 
             self.rewriter
                 .set_insertion_point(OpInsertionPoint::BeforeOperation(op));
             self.conversion
-                .rewrite(self.ctx, &mut self.rewriter, op, &operand_info)?;
+                .rewrite(self.ctx, &mut self.rewriter, op, &operands_info)?;
             self.process_recorder_events()?;
 
             self.in_progress.remove(&op);
