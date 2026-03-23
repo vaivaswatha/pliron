@@ -142,6 +142,7 @@ mod tests {
             types::FP64Type,
         },
         context::Context,
+        init_env_logger,
         irbuild::{
             inserter::{IRInserter, Inserter, OpInsertionPoint},
             listener::DummyListener,
@@ -163,6 +164,7 @@ mod tests {
 
     #[test]
     fn test_malloc_and_free_integration() {
+        init_env_logger!();
         let mut ctx = Context::new();
         let mut symbol_table_collection = pliron::symbol_table::SymbolTableCollection::new();
 

@@ -25,7 +25,7 @@
 //!    let jit = LLVMLLJIT::new_with_default_builder()?;
 //!    jit.add_module(module)?;
 //!    // Add the Rust function as a symbol mapping
-//!    let rust_adder_addr = my_rust_adder as u64;
+//!    let rust_adder_addr = my_rust_adder as *const () as u64;
 //!    jit.add_symbol_mapping
 //!     ("my_rust_adder", rust_adder_addr,
 //!       JITSymbolGenericFlags::JITSymbolGenericFlagsCallable

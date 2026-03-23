@@ -26,7 +26,7 @@ pub trait ToLLVMDialect {
         &self,
         ctx: &mut Context,
         rewriter: &mut DialectConversionRewriter,
-        operand_info: &OperandsInfo,
+        operands_info: &OperandsInfo,
     ) -> Result<()>;
 
     fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
