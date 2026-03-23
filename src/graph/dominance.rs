@@ -177,22 +177,16 @@ where
 {
     /// Construct `graph`'s dominance frontier map, given that `dom_tree` is the dominance tree
     /// generated from `graph`
-    // This method implements a modified version of the algorithm from
-    // "A Simple, Fast Dominance Algorithm" by Cooper et. al.
-    // Modified to handle entries with incoming edges. Also modified to handle unreachable predecessors.
+    // This method implements the algorithm from "A Simple, Fast Dominance Algorithm" by Cooper et. al.
     pub fn new(ctx: &GraphContext, graph: &G, dom_tree: &DomTree<G, GraphContext>) -> Self {
         let mut res: FxHashMap<G::Node, FxHashSet<G::Node>> = graph
             .nodes(ctx)
             .map(|n| (n, FxHashSet::default()))
             .collect();
-        let join_size = |n: &G::Node| {
-            if Some(n.clone()) == graph.entry_node(ctx) {
-                graph.predecessors(ctx, n).len() + 1
-            } else {
-                graph.predecessors(ctx, n).len()
-            }
-        };
-        for b in graph.nodes(ctx).filter(|n| join_size(n) >= 2) {
+        for b in graph
+            .nodes(ctx)
+            .filter(|n| graph.predecessors(ctx, n).len() >= 2)
+        {
             for p in graph
                 .predecessors(ctx, &b)
                 .into_iter()
@@ -200,7 +194,7 @@ where
             {
                 for runner in dom_tree
                     .dominators(&p)
-                    .take_while(|n| Some(n.clone()) != dom_tree.idom(&b))
+                    .take_while(|n| *n != dom_tree.idom(&b).unwrap())
                 {
                     res.get_mut(&runner).unwrap().insert(b.clone());
                 }
@@ -431,10 +425,10 @@ mod tests {
 
     #[test]
     fn dom_frontier_single() {
-        let ctx = vec![/* 0  */ n(&[0])];
+        let ctx = vec![n(&[])];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
         let df = DomFrontierMap::new(&ctx, &ArenaGraph, &dom);
-        assert_eq!(*df.frontier(&0), FxHashSet::from_iter([0]));
+        assert_eq!(*df.frontier(&0), FxHashSet::from_iter([]));
     }
 
     #[test]
