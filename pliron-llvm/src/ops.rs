@@ -14,8 +14,8 @@ use pliron::{
             AtMostNOpdsInterface, AtMostNRegionsInterface, AtMostOneRegionInterface,
             BranchOpInterface, CallOpCallable, CallOpInterface, IsTerminatorInterface,
             IsolatedFromAboveInterface, NOpdsInterface, NResultsInterface, OneOpdInterface,
-            OneResultInterface, OperandSegmentInterface, OptionalOpdInterface,
-            SameOperandsAndResultType, SameOperandsType, SameResultsType,
+            OneResultInterface, OperandNOfType, OperandSegmentInterface, OptionalOpdInterface,
+            ResultNOfType, SameOperandsAndResultType, SameOperandsType, SameResultsType,
             SingleBlockRegionInterface, SymbolOpInterface, SymbolUserOpInterface,
         },
         type_interfaces::{FloatTypeInterface, FunctionTypeInterface},
@@ -45,7 +45,7 @@ use pliron::{
     r#type::{TypeObj, TypePtr, type_cast, type_impls},
     utils::vec_exns::VecExtns,
     value::Value,
-    verify_err,
+    verify_err, verify_error,
 };
 
 use crate::{
@@ -410,22 +410,25 @@ pub enum AllocaOpVerifyErr {
     format = "`[` attr($alloca_element_type, $TypeAttr) ` x ` $0 `]` ` ` \
     opt_attr($llvm_alignment, $AlignmentAttr, label($align), delimiters(`[`, `]`)) \
     ` : ` type($0)",
-    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>, AlignableOpInterface],
+    interfaces = [
+        OneResultInterface,
+        OneOpdInterface,
+        NResultsInterface<1>,
+        NOpdsInterface<1>,
+        AlignableOpInterface,
+        OperandNOfType<0, IntegerType>,
+        ResultNOfType<0, PointerType>,
+    ],
     attributes = (alloca_element_type: TypeAttr)
 )]
 pub struct AllocaOp;
 impl Verify for AllocaOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         let loc = self.loc(ctx);
-        // Ensure correctness of operand type.
-        if !self.operand_type(ctx).deref(ctx).is::<IntegerType>() {
-            return verify_err!(loc, AllocaOpVerifyErr::OperandType);
-        }
         // Ensure correctness of element type.
         if self.get_attr_alloca_element_type(ctx).is_none() {
             verify_err!(loc, AllocaOpVerifyErr::ElemTypeAttr)?
         }
-
         Ok(())
     }
 }
@@ -471,7 +474,13 @@ impl AllocaOp {
 #[pliron_op(
     name = "llvm.bitcast",
     format = "$0 ` to ` type($0)",
-    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>, CastOpInterface],
+    interfaces = [
+        OneResultInterface,
+        OneOpdInterface,
+        NResultsInterface<1>,
+        NOpdsInterface<1>,
+        CastOpInterface
+    ],
     verifier = "succ"
 )]
 pub struct BitcastOp;
@@ -499,24 +508,18 @@ pub enum IntToPtrOpErr {
 #[pliron_op(
     name = "llvm.inttoptr",
     format = "$0 ` to ` type($0)",
-    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>, CastOpInterface]
+    interfaces = [
+        OneResultInterface,
+        OneOpdInterface,
+        NResultsInterface<1>,
+        NOpdsInterface<1>,
+        CastOpInterface,
+        OperandNOfType<0, IntegerType>,
+        ResultNOfType<0, PointerType>
+     ],
+     verifier = "succ"
 )]
 pub struct IntToPtrOp;
-
-impl Verify for IntToPtrOp {
-    fn verify(&self, ctx: &Context) -> Result<()> {
-        let loc = self.loc(ctx);
-        // Ensure correctness of operand type.
-        if !self.operand_type(ctx).deref(ctx).is::<IntegerType>() {
-            return verify_err!(loc, IntToPtrOpErr::OperandTypeErr);
-        }
-        // Ensure correctness of result type.
-        if !self.result_type(ctx).deref(ctx).is::<PointerType>() {
-            return verify_err!(loc, IntToPtrOpErr::ResultTypeErr);
-        }
-        Ok(())
-    }
-}
 
 #[derive(Error, Debug)]
 pub enum PtrToIntOpErr {
@@ -539,24 +542,18 @@ pub enum PtrToIntOpErr {
 #[pliron_op(
     name = "llvm.ptrtoint",
     format = "$0 ` to ` type($0)",
-    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>, CastOpInterface]
+    interfaces = [
+        OneResultInterface,
+        OneOpdInterface,
+        NResultsInterface<1>,
+        NOpdsInterface<1>,
+        CastOpInterface,
+        OperandNOfType<0, PointerType>,
+        ResultNOfType<0, IntegerType>,
+    ],
+    verifier = "succ"
 )]
 pub struct PtrToIntOp;
-
-impl Verify for PtrToIntOp {
-    fn verify(&self, ctx: &Context) -> Result<()> {
-        let loc = self.loc(ctx);
-        // Ensure correctness of operand type.
-        if !self.operand_type(ctx).deref(ctx).is::<PointerType>() {
-            return verify_err!(loc, PtrToIntOpErr::OperandTypeErr);
-        }
-        // Ensure correctness of result type.
-        if !self.result_type(ctx).deref(ctx).is::<IntegerType>() {
-            return verify_err!(loc, PtrToIntOpErr::ResultTypeErr);
-        }
-        Ok(())
-    }
-}
 
 /// Equivalent to LLVM's Unconditional Branch.
 /// ### Operands
@@ -618,7 +615,6 @@ impl BrOp {
 #[pliron_op(
     name = "llvm.cond_br",
     interfaces = [IsTerminatorInterface, NResultsInterface<0>],
-    verifier = "succ"
 )]
 pub struct CondBrOp;
 impl CondBrOp {
@@ -653,6 +649,28 @@ impl CondBrOp {
     /// Get the condition value for the branch.
     pub fn condition(&self, ctx: &Context) -> Value {
         self.op.deref(ctx).get_operand(0)
+    }
+}
+
+#[derive(Error, Debug)]
+enum CondBrOpVerifyErr {
+    #[error("Condition operand must be a 1-bit signless integer (i1) or vector of i1")]
+    IncorrectConditionType,
+}
+
+impl Verify for CondBrOp {
+    fn verify(&self, ctx: &Context) -> Result<()> {
+        use pliron::r#type::Typed;
+        // Ensure that the condition is a 1-bit signless integer
+        let condition_ty = self.condition(ctx).get_type(ctx);
+        let condition_ty = condition_ty.deref(ctx);
+        let condition_int_ty = condition_ty.downcast_ref::<IntegerType>().ok_or_else(|| {
+            verify_error!(self.loc(ctx), CondBrOpVerifyErr::IncorrectConditionType)
+        })?;
+        if condition_int_ty.width() != 1 || condition_int_ty.signedness() != Signedness::Signless {
+            verify_err!(self.loc(ctx), CondBrOpVerifyErr::IncorrectConditionType)?
+        }
+        Ok(())
     }
 }
 
@@ -1126,7 +1144,7 @@ pub enum GetElementPtrOpErr {
 #[pliron_op(
     name = "llvm.gep",
     format = "`<` attr($gep_src_elem_type, $TypeAttr) `>` ` (` operands(CharSpace(`,`)) `)` attr($gep_indices, $GepIndicesAttr) ` : ` type($0)",
-    interfaces = [OneResultInterface, NResultsInterface<1>],
+    interfaces = [OneResultInterface, NResultsInterface<1>, ResultNOfType<0, PointerType>],
     attributes = (gep_src_elem_type: TypeAttr, gep_indices: GepIndicesAttr)
 )]
 pub struct GetElementPtrOp;
@@ -1280,7 +1298,15 @@ pub enum LoadOpVerifyErr {
 #[pliron_op(
     name = "llvm.load",
     format = "$0 ` ` opt_attr($llvm_alignment, $AlignmentAttr, label($align), delimiters(`[`, `]`)) ` : ` type($0)",
-    interfaces = [OneResultInterface, OneOpdInterface, NResultsInterface<1>, NOpdsInterface<1>, AlignableOpInterface]
+    interfaces = [
+        OneResultInterface,
+        OneOpdInterface,
+        NResultsInterface<1>,
+        NOpdsInterface<1>,
+        AlignableOpInterface,
+        OperandNOfType<0, PointerType>
+    ],
+    verifier = "succ"
 )]
 pub struct LoadOp;
 impl LoadOp {
@@ -1296,17 +1322,6 @@ impl LoadOp {
                 0,
             ),
         }
-    }
-}
-
-impl Verify for LoadOp {
-    fn verify(&self, ctx: &Context) -> Result<()> {
-        let loc = self.loc(ctx);
-        // Ensure correctness of operand type.
-        if !self.operand_type(ctx).deref(ctx).is::<PointerType>() {
-            return verify_err!(loc, LoadOpVerifyErr::OperandTypeErr);
-        }
-        Ok(())
     }
 }
 
@@ -1327,7 +1342,13 @@ pub enum StoreOpVerifyErr {
 #[pliron_op(
     name = "llvm.store",
     format = "`*` $1 ` <- ` $0 ` ` opt_attr($llvm_alignment, $AlignmentAttr, label($align), delimiters(`[`, `]`))",
-    interfaces = [NResultsInterface<0>, AlignableOpInterface]
+    interfaces = [
+        NResultsInterface<0>,
+        AlignableOpInterface,
+        OperandNOfType<1, PointerType>,
+        NOpdsInterface<2>
+    ],
+    verifier = "succ"
 )]
 pub struct StoreOp;
 impl StoreOp {
@@ -1353,29 +1374,6 @@ impl StoreOp {
     /// Get the address operand
     pub fn address_opd(&self, ctx: &Context) -> Value {
         self.op.deref(ctx).get_operand(1)
-    }
-}
-
-impl Verify for StoreOp {
-    fn verify(&self, ctx: &Context) -> Result<()> {
-        let loc = self.loc(ctx);
-        let op = &*self.op.deref(ctx);
-
-        if op.get_num_operands() != 2 {
-            return verify_err!(loc, StoreOpVerifyErr::NumOpdsErr);
-        }
-
-        use pliron::r#type::Typed;
-        // Ensure correctness of the address operand.
-        if !op
-            .get_operand(1)
-            .get_type(ctx)
-            .deref(ctx)
-            .is::<PointerType>()
-        {
-            return verify_err!(loc, StoreOpVerifyErr::AddrOpdTypeErr);
-        }
-        Ok(())
     }
 }
 
@@ -2075,7 +2073,7 @@ impl Parsable for GlobalOp {
 #[pliron_op(
     name = "llvm.addressof",
     format = "`@` attr($global_name, $IdentifierAttr) ` : ` type($0)",
-    interfaces = [OneResultInterface, NResultsInterface<1>],
+    interfaces = [OneResultInterface, NResultsInterface<1>, ResultNOfType<0, PointerType>],
     attributes = (global_name: IdentifierAttr),
     verifier = "succ"
 )]

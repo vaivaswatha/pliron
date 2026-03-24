@@ -3,7 +3,9 @@
 use pliron::{
     builtin::{
         attributes::BoolAttr,
-        op_interfaces::{NOpdsInterface, NResultsInterface, OneOpdInterface, SymbolOpInterface},
+        op_interfaces::{
+            NOpdsInterface, NResultsInterface, OneOpdInterface, ResultNOfType, SymbolOpInterface,
+        },
         type_interfaces::FloatTypeInterface,
     },
     derive::op_interface,
@@ -322,7 +324,7 @@ pub struct PointerTypeResultVerifyErr;
 
 /// An [Op] with a single result whose type is [PointerType]
 #[op_interface]
-pub trait PointerTypeResult: OneResultInterface {
+pub trait PointerTypeResult: OneResultInterface + ResultNOfType<0, PointerType> {
     /// Get the pointee type of the result pointer.
     fn result_pointee_type(&self, ctx: &Context) -> Ptr<TypeObj>;
 
