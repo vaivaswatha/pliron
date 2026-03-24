@@ -183,19 +183,14 @@ where
             .nodes(ctx)
             .map(|n| (n, FxHashSet::default()))
             .collect();
-        for b in graph
-            .nodes(ctx)
-            .filter(|n| graph.predecessors(ctx, n).len() >= 2)
-        {
-            for p in graph
-                .predecessors(ctx, &b)
-                .into_iter()
-                .filter(|n| dom_tree.contains(n))
-            {
-                for runner in dom_tree
-                    .dominators(&p)
-                    .take_while(|n| *n != dom_tree.idom(&b).unwrap())
-                {
+        for b in graph.nodes(ctx) {
+            let preds = graph.predecessors(ctx, &b);
+            if preds.len() < 2 {
+                continue;
+            }
+            let b_idom = dom_tree.idom(&b).unwrap();
+            for p in preds.into_iter().filter(|n| dom_tree.contains(n)) {
+                for runner in dom_tree.dominators(&p).take_while(|n| *n != b_idom) {
                     res.get_mut(&runner).unwrap().insert(b.clone());
                 }
             }
