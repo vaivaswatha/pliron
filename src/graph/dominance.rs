@@ -1,4 +1,4 @@
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::graph::{ControlFlowGraph, traversals};
 
@@ -15,6 +15,11 @@ where
 
 /// Represents dominator tree for a control-flow-graph
 pub struct DomTree<G, GraphContext>(FxHashMap<G::Node, DomTreeNode<G, GraphContext>>)
+where
+    G: ControlFlowGraph<GraphContext>;
+
+/// Maps each node to its dominance frontier
+pub struct DomFrontierMap<G, GraphContext>(FxHashMap<G::Node, FxHashSet<G::Node>>)
 where
     G: ControlFlowGraph<GraphContext>;
 
@@ -143,16 +148,67 @@ where
         false
     }
 
+    /// Does the dominator tree contain `node`?
+    /// That is, is `node` reachable from the entry node?
+    pub fn contains(&self, node: &G::Node) -> bool {
+        self.0.contains_key(node)
+    }
+
+    /// Return the immediate dominator of `node`
+    pub fn idom(&self, node: &G::Node) -> Option<G::Node> {
+        self.0[node].parent.clone()
+    }
+
+    /// Return an iterator over the dominators of `node`, starting with `node` itself,
+    /// then its immediate dominator, and so on up to the root.
+    pub fn dominators(&self, node: &G::Node) -> impl Iterator<Item = G::Node> + '_ {
+        std::iter::successors(Some(node.clone()), |n| self.0[n].parent.clone())
+    }
+
     /// Get an iterator over the children nodes
     pub fn children(&self, node: &G::Node) -> impl Iterator<Item = G::Node> + '_ {
         self.0[node].children.iter().cloned()
     }
 }
 
+impl<G, GraphContext> DomFrontierMap<G, GraphContext>
+where
+    G: ControlFlowGraph<GraphContext>,
+{
+    /// Construct `graph`'s dominance frontier map, given that `dom_tree` is the dominance tree
+    /// generated from `graph`
+    // This method implements the algorithm from "A Simple, Fast Dominance Algorithm" by Cooper et. al.
+    pub fn new(ctx: &GraphContext, graph: &G, dom_tree: &DomTree<G, GraphContext>) -> Self {
+        let mut res: FxHashMap<G::Node, FxHashSet<G::Node>> = graph
+            .nodes(ctx)
+            .map(|n| (n, FxHashSet::default()))
+            .collect();
+        for b in graph.nodes(ctx) {
+            let preds = graph.predecessors(ctx, &b);
+            if preds.len() < 2 {
+                continue;
+            }
+            let b_idom = dom_tree.idom(&b).unwrap();
+            for p in preds.into_iter().filter(|n| dom_tree.contains(n)) {
+                for runner in dom_tree.dominators(&p).take_while(|n| *n != b_idom) {
+                    res.get_mut(&runner).unwrap().insert(b.clone());
+                }
+            }
+        }
+        DomFrontierMap(res)
+    }
+
+    /// Gets the set of all nodes in `n`'s dominance frontier
+    pub fn frontier<'a>(&'a self, n: &G::Node) -> &'a FxHashSet<G::Node> {
+        &self.0[n]
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::compute_dominator_tree;
+    use super::{DomFrontierMap, compute_dominator_tree};
     use crate::graph::ControlFlowGraph;
+    use rustc_hash::FxHashSet;
     use std::collections::HashSet;
 
     #[derive(Clone, Debug)]
@@ -352,5 +408,98 @@ mod tests {
         assert_eq!(dom.0[&1].parent, Some(0));
 
         assert_eq!(dom.children(&0).collect::<HashSet<_>>(), [1].into());
+    }
+
+    #[test]
+    fn dom_frontier_empty() {
+        // test that we can construct a dominance frontier map from an empty graph without crashing
+        let ctx: Vec<Node> = vec![];
+        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
+        let _df = DomFrontierMap::new(&ctx, &ArenaGraph, &dom);
+    }
+
+    #[test]
+    fn dom_frontier_single() {
+        let ctx = vec![n(&[])];
+        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
+        let df = DomFrontierMap::new(&ctx, &ArenaGraph, &dom);
+        assert_eq!(*df.frontier(&0), FxHashSet::from_iter([]));
+    }
+
+    #[test]
+    fn dom_frontier_diamond() {
+        //      0
+        //     / \
+        //    1   2
+        //     \ /
+        //      3
+        let ctx = vec![
+            /* 0 */ n(&[1, 2]),
+            /* 1 */ n(&[3]),
+            /* 2 */ n(&[3]),
+            /* 3 */ n(&[]),
+        ];
+        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
+        let df = DomFrontierMap::new(&ctx, &ArenaGraph, &dom);
+
+        assert_eq!(*df.frontier(&0), FxHashSet::from_iter([]));
+        assert_eq!(*df.frontier(&1), FxHashSet::from_iter([3]));
+        assert_eq!(*df.frontier(&2), FxHashSet::from_iter([3]));
+        assert_eq!(*df.frontier(&3), FxHashSet::from_iter([]));
+    }
+
+    #[test]
+    fn dom_frontier_diamond_unreachable() {
+        //      0      4     6    7
+        //     / \     |          |
+        //    1   2 <- 5          8
+        //     \ /
+        //      3
+        let ctx = vec![
+            /* 0 */ n(&[1, 2]),
+            /* 1 */ n(&[3]),
+            /* 2 */ n(&[3]),
+            /* 3 */ n(&[]),
+            /* 4 */ n(&[5]),
+            /* 5 */ n(&[2]),
+            /* 6 */ n(&[]),
+            /* 7 */ n(&[8]),
+            /* 8 */ n(&[]),
+        ];
+        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
+        let df = DomFrontierMap::new(&ctx, &ArenaGraph, &dom);
+
+        assert_eq!(*df.frontier(&0), FxHashSet::from_iter([]));
+        assert_eq!(*df.frontier(&1), FxHashSet::from_iter([3]));
+        assert_eq!(*df.frontier(&2), FxHashSet::from_iter([3]));
+        assert_eq!(*df.frontier(&3), FxHashSet::from_iter([]));
+        assert_eq!(*df.frontier(&4), FxHashSet::from_iter([]));
+        assert_eq!(*df.frontier(&5), FxHashSet::from_iter([]));
+        assert_eq!(*df.frontier(&6), FxHashSet::from_iter([]));
+        assert_eq!(*df.frontier(&7), FxHashSet::from_iter([]));
+        assert_eq!(*df.frontier(&8), FxHashSet::from_iter([]));
+    }
+
+    #[test]
+    fn dom_frontier_appel() {
+        // Figure 19.5 from Andrew Appel's "Modern Compiler Implementation in ML"
+        let ctx = vec![
+            /* 0  */ n(&[1, 4, 8]),
+            /* 1  */ n(&[2]),
+            /* 2  */ n(&[2, 3]),
+            /* 3  */ n(&[12]),
+            /* 4  */ n(&[5, 6]),
+            /* 5  */ n(&[3, 7]),
+            /* 6  */ n(&[7, 11]),
+            /* 7  */ n(&[4, 12]),
+            /* 8  */ n(&[9, 10]),
+            /* 9  */ n(&[11]),
+            /* 10 */ n(&[11]),
+            /* 11 */ n(&[12]),
+            /* 12 */ n(&[]),
+        ];
+        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
+        let df = DomFrontierMap::new(&ctx, &ArenaGraph, &dom);
+        assert_eq!(*df.frontier(&4), FxHashSet::from_iter([3, 4, 11, 12]));
     }
 }
