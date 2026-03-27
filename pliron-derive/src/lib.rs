@@ -542,11 +542,14 @@ pub fn op_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// This macro provides a simplified, unified syntax for defining IR types by expanding
 /// into the existing type definition macros. It supports the following configuration options:
 ///
-/// - `name = "dialect.type_name"`: The fully qualified name of the type (required)
-/// - `format = "format_string"`: Custom format string for printing/parsing (optional)
-/// - `interfaces = [Interface1, Interface2, ...]`: List of interfaces to implement (optional)
-/// - `verifier = "succ"`: Verifier implementation, currently only "succ" is supported (optional)
-/// - `generate_get = true/false`: Whether to generate a get method for the type (optional, default: false)
+/// - `name = "dialect.type_name"`: The fully qualified name of the type (required).\
+///   Expands to [def_type].
+/// - `format = "format_string"`: Custom format string for printing/parsing (optional).\
+///   Expands to [format_type].
+/// - `verifier = "succ"`: Verifier implementation, currently only "succ" is supported (optional).\
+///   Expands to [verify_succ].
+/// - `generate_get = true/false`: Whether to generate a get method for the type (optional, default: false).\
+///   Expands to [derive_type_get].
 ///
 /// ## Examples
 ///
@@ -600,10 +603,12 @@ pub fn pliron_type(args: TokenStream, input: TokenStream) -> TokenStream {
 /// This macro provides a simplified, unified syntax for defining IR attributes by expanding
 /// into the existing attribute definition macros. It supports the following configuration options:
 ///
-/// - `name = "dialect.attribute_name"`: The fully qualified name of the attribute (required)
-/// - `format = "format_string"`: Custom format string for printing/parsing (optional)
-/// - `interfaces = [Interface1, Interface2, ...]`: List of interfaces to implement (optional)
-/// - `verifier = "succ"`: Verifier implementation, currently only "succ" is supported (optional)
+/// - `name = "dialect.attribute_name"`: The fully qualified name of the attribute (required).\
+///   Expands to [def_attribute].
+/// - `format = "format_string"`: Custom format string for printing/parsing (optional).\
+///   Expands to [format_attribute].
+/// - `verifier = "succ"`: Verifier implementation, currently only "succ" is supported (optional).\
+///   Expands to [verify_succ].
 ///
 /// ## Examples
 ///
@@ -642,11 +647,16 @@ pub fn pliron_attr(args: TokenStream, input: TokenStream) -> TokenStream {
 /// This macro provides a simplified, unified syntax for defining IR operations by expanding
 /// into the existing operation definition macros. It supports the following configuration options:
 ///
-/// - `name = "dialect.op_name"`: The fully qualified name of the operation (required)
-/// - `format = "format_string"`: Custom format string for printing/parsing (optional)
-/// - `interfaces = [Interface1, Interface2, ...]`: List of interfaces to implement (optional)
-/// - `attributes = (attr_name: AttrType, ...)`: List of attributes with their types (optional)
-/// - `verifier = "succ"`: Verifier implementation, currently only "succ" is supported (optional)
+/// - `name = "dialect.op_name"`: The fully qualified name of the operation (required).\
+///   Expands to [def_op].
+/// - `format = "format_string"`: Custom format string for printing/parsing (optional).\
+///   Expands to [format_op].
+/// - `interfaces = [Interface1, Interface2, ...]`: List of interfaces to implement (optional).\
+///   Expands to [derive_op_interface_impl].
+/// - `attributes = (attr_name: AttrType, ...)`: List of attributes with their types (optional).\
+///   Expands to [derive_attr_get_set], generating getter and setter methods.
+/// - `verifier = "succ"`: Verifier implementation, currently only "succ" is supported (optional).\
+///   Expands to [verify_succ].
 ///
 /// ## Examples
 ///
