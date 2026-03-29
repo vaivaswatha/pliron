@@ -31,12 +31,12 @@ that can parse LLVM-IR bitcode into the LLVM dialect and output
 LLVM-IR bitcode.
 
 ### Using the Library
-Add a dependence to the [crate](https://crates.io/crates/pliron) in your Rust project.
+Add a dependence on the [crate](https://crates.io/crates/pliron) in your Rust project.
 
-Note: `pliron`, is under active development. All effort is made to ensure that the code is well tested
+Note: `pliron` is under active development. Every effort is made to ensure that the code is well tested
 and of production quality. The LLVM dialect, although not complete, can be useful practically. It can,
 for example, [compile bzip2](https://github.com/vaivaswatha/pliron/wiki/Compiling-bzip2-through-pliron's-LLVM-dialect).
-We also plan to start work on supporting a cranelift dialect / backend soon.
+We also plan to start work on supporting a cranelift dialect/backend soon.
 
 ### Documentation
 * Introduction and motivation are covered in the [introductory wiki article](https://github.com/vaivaswatha/pliron/wiki/Introduction).
@@ -56,6 +56,6 @@ with other compiler projects, touching upon some design decisions.
 * [Pliron Dialect for Tensors](https://github.com/vaivaswatha/pliron-tensor)
 
 ### Discussions
-Discord: https://discord.gg/d9xTnPWC
+Discord: 
 
 ![pliron-logo](https://github.com/user-attachments/assets/adfaaeed-775f-4290-92fd-93d7c9b4fd12)
