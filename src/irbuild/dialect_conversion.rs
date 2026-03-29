@@ -190,7 +190,7 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
             }
         }
 
-        fn record_replacement(
+        fn record_operation_replacement(
             &mut self,
             old_values: Vec<Value>,
             old_types: Vec<Ptr<TypeObj>>,
@@ -201,11 +201,20 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
                 .zip(old_types.into_iter())
                 .zip(new_values.into_iter())
             {
-                let mut history = self.previous_types.remove(&old_value).unwrap_or_default();
-                history.push(old_type);
-                let existing = self.previous_types.entry(new_value).or_default();
-                Self::append_type_history(existing, history);
+                self.record_value_replacement(old_value, old_type, new_value);
             }
+        }
+
+        fn record_value_replacement(
+            &mut self,
+            old_value: Value,
+            old_type: Ptr<TypeObj>,
+            new_value: Value,
+        ) {
+            let mut history = self.previous_types.remove(&old_value).unwrap_or_default();
+            history.push(old_type);
+            let existing = self.previous_types.entry(new_value).or_default();
+            Self::append_type_history(existing, history);
         }
 
         fn record_type_change(&mut self, value: Value, old_type: Ptr<TypeObj>) {
@@ -268,11 +277,18 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
                         old_types,
                         new_values,
                     } => {
-                        self.record_replacement(
+                        self.record_operation_replacement(
                             old_values.clone(),
                             old_types.clone(),
                             new_values.clone(),
                         );
+                    }
+                    RecorderEvent::ReplacedValueUses {
+                        old_value,
+                        old_type,
+                        new_value,
+                    } => {
+                        self.record_value_replacement(*old_value, *old_type, *new_value);
                     }
                     RecorderEvent::ValueTypeChanged {
                         value,

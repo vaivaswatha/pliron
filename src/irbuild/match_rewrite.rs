@@ -105,6 +105,9 @@ pub fn apply_match_rewrite<M: MatchRewrite>(
                 RecorderEvent::ReplacedOperation { .. } => {
                     // No action needed for replacements.
                 }
+                RecorderEvent::ReplacedValueUses { .. } => {
+                    // No action needed for value use replacements.
+                }
                 RecorderEvent::InsertedBlock(_) => {
                     // No action needed for block insertions.
                 }

@@ -7,7 +7,7 @@ use crate::{
     linked_list::{ContainsLinkedList as _, LinkedList},
     operation::Operation,
     region::Region,
-    r#type::TypeObj,
+    r#type::{TypeObj, Typed},
     value::Value,
 };
 
@@ -30,6 +30,8 @@ pub trait RewriteListener: InsertionListener {
         old_op: Ptr<Operation>,
         new_values: Vec<Value>,
     );
+    /// Notify that all uses of a value are about to be replaced.
+    fn notify_value_use_replacement(&mut self, ctx: &Context, old_value: Value, new_value: Value);
     /// Notify that a value type changed.
     fn notify_value_type_change(
         &mut self,
@@ -63,6 +65,13 @@ impl RewriteListener for DummyListener {
         _new_values: Vec<Value>,
     ) {
     }
+    fn notify_value_use_replacement(
+        &mut self,
+        _ctx: &Context,
+        _old_value: Value,
+        _new_value: Value,
+    ) {
+    }
     fn notify_block_erasure(&mut self, _ctx: &Context, _block: Ptr<BasicBlock>) {}
     fn notify_region_erasure(&mut self, _ctx: &Context, _region: Ptr<Region>) {}
     fn notify_operation_unlinking(&mut self, _ctx: &Context, _op: Ptr<Operation>) {}
@@ -84,8 +93,13 @@ pub enum RecorderEvent {
     ErasedOperation(Ptr<Operation>),
     ReplacedOperation {
         old_values: Vec<Value>,
-        old_types: Vec<Ptr<crate::r#type::TypeObj>>,
+        old_types: Vec<Ptr<TypeObj>>,
         new_values: Vec<Value>,
+    },
+    ReplacedValueUses {
+        old_value: Value,
+        old_type: Ptr<TypeObj>,
+        new_value: Value,
     },
     ValueTypeChanged {
         value: Value,
@@ -132,6 +146,14 @@ impl RewriteListener for Recorder {
             old_values,
             old_types,
             new_values,
+        });
+    }
+
+    fn notify_value_use_replacement(&mut self, ctx: &Context, old_value: Value, new_value: Value) {
+        self.events.push(RecorderEvent::ReplacedValueUses {
+            old_value,
+            old_type: old_value.get_type(ctx),
+            new_value,
         });
     }
 

@@ -192,6 +192,103 @@ fn dialect_conversion_defs_before_uses() -> Result<()> {
 }
 
 #[derive(Default)]
+struct WidthConversionViaValueReplacement {
+    saw_consumer: bool,
+}
+
+impl DialectConversion for WidthConversionViaValueReplacement {
+    fn can_convert_op(&mut self, ctx: &Context, op: Ptr<Operation>) -> bool {
+        if let Some(producer) = Operation::get_op::<ProducerOp>(op, ctx) {
+            let ty = producer.get_result(ctx).get_type(ctx);
+            let width = ty
+                .deref(ctx)
+                .downcast_ref::<IntegerType>()
+                .expect("expected integer type")
+                .width();
+            return width > 16;
+        }
+        Operation::get_op::<ConsumerOp>(op, ctx).is_some()
+    }
+
+    fn rewrite(
+        &mut self,
+        ctx: &mut Context,
+        rewriter: &mut DialectConversionRewriter,
+        op: Ptr<Operation>,
+        operands_info: &OperandsInfo,
+    ) -> Result<()> {
+        if let Some(producer) = Operation::get_op::<ProducerOp>(op, ctx) {
+            let current_ty = producer.get_result(ctx).get_type(ctx);
+            let current_width = current_ty
+                .deref(ctx)
+                .downcast_ref::<IntegerType>()
+                .expect("expected integer type")
+                .width();
+            let converted = ProducerOp::new(ctx, current_width / 2);
+            rewriter.insert_operation(ctx, converted.get_operation());
+            rewriter.replace_value_uses_with(
+                ctx,
+                producer.get_result(ctx),
+                converted.get_result(ctx),
+            );
+            rewriter.erase_operation(ctx, op);
+            return Ok(());
+        }
+
+        if let Some(consumer) = Operation::get_op::<ConsumerOp>(op, ctx) {
+            let operand = consumer.get_operand(ctx);
+            let final_width = operand
+                .get_type(ctx)
+                .deref(ctx)
+                .downcast_ref::<IntegerType>()
+                .expect("expected integer type")
+                .width();
+            assert_eq!(final_width, 16);
+
+            let operand_type_history = operands_info.lookup_operand_history(operand);
+            assert_eq!(operand_type_history.len(), 2);
+            let previous_widths = operand_type_history
+                .iter()
+                .map(|ty| {
+                    ty.deref(ctx)
+                        .downcast_ref::<IntegerType>()
+                        .expect("expected integer type")
+                        .width()
+                })
+                .collect::<Vec<u32>>();
+            assert_eq!(previous_widths, vec![64, 32]);
+
+            self.saw_consumer = true;
+        }
+
+        Ok(())
+    }
+}
+
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn dialect_conversion_value_replacement_preserves_type_history() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let module = ModuleOp::new(
+        ctx,
+        Identifier::try_from("dialect_conversion_value_replacement_test").unwrap(),
+    );
+    let body = module.get_body(ctx, 0);
+
+    let producer = ProducerOp::new(ctx, 64);
+    producer.get_operation().insert_at_back(body, ctx);
+    let consumer = ConsumerOp::new(ctx, producer.get_result(ctx));
+    consumer.get_operation().insert_at_back(body, ctx);
+
+    let mut conversion = WidthConversionViaValueReplacement::default();
+    apply_dialect_conversion(ctx, &mut conversion, module.get_operation())?;
+    assert!(conversion.saw_consumer);
+
+    Ok(())
+}
+
+#[derive(Default)]
 struct ConsumerOnlyConversion {
     saw_consumer: bool,
 }
