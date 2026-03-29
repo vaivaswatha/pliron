@@ -433,7 +433,7 @@ macro_rules! dict_key {
     ) => {
         // Create a static variable linked to the DICT_KEY_IDS slice
         // to ensure that all keys are unique.
-        // The static variable is created in a separate anonmyous module.
+        // The static variable is created in a separate anonymous module.
         const _: () = {
             #[cfg_attr(not(target_family = "wasm"),
                 ::pliron::linkme::distributed_slice(::pliron::context::DICT_KEY_IDS), linkme(crate = ::pliron::linkme))]

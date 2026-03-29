@@ -56,6 +56,6 @@ with other compiler projects, touching upon some design decisions.
 * [Pliron Dialect for Tensors](https://github.com/vaivaswatha/pliron-tensor)
 
 ### Discussions
-Discord: 
+Discord: https://discord.gg/5M3K4Ujv7v
 
 ![pliron-logo](https://github.com/user-attachments/assets/adfaaeed-775f-4290-92fd-93d7c9b4fd12)
