@@ -6,7 +6,8 @@ use combine::{Parser, between, optional, parser::char::spaces, token};
 use rustc_hash::FxHashMap;
 
 use crate::{
-    attribute::{AttrObj, attr_impls},
+    attribute::{AttrObj, AttributeDict, attr_impls},
+    basic_block::BasicBlock,
     builtin::attr_interfaces::{OutlinedAttr, PrintOnceAttr},
     context::{Context, Ptr},
     dict_key,
@@ -22,10 +23,16 @@ use crate::{
 
 use super::parsers::{delimited_list_parser, location, spaced, zero_or_more_parser};
 
+/// An item (operation or block) that has something to record in the outlined section.
+enum OutlinedItem {
+    Op(Ptr<Operation>),
+    Block(Ptr<BasicBlock>),
+}
+
 #[derive(Default)]
 struct OutlinePrintState {
-    /// Operations that have some outline item to be printed
-    outlined_ops: Vec<Ptr<Operation>>,
+    /// Items (operations or blocks) that have some outline item to be printed.
+    outlined_items: Vec<OutlinedItem>,
     /// [PrintOnceAttr]s, mapped to their outindex.
     print_once_attrs: FxHashMap<AttrObj, usize>,
 }
@@ -34,7 +41,7 @@ dict_key!(OUTLINED_STATE, "outlined_state");
 
 /// An [Operation] was just printed, and we now print a future reference to the
 /// outlined attributes (if any) or location (if any) that will be printed later.
-pub(crate) fn preprint_outline(
+pub(crate) fn preprint_outline_operation(
     ctx: &Context,
     opr: Ptr<Operation>,
     print_state: printable::State,
@@ -51,7 +58,7 @@ pub(crate) fn preprint_outline(
 
     // If it has a location, we need to outline the location.
     if !op.loc().is_unknown() {
-        let outindex = print_state.outlined_ops.push_back(opr);
+        let outindex = print_state.outlined_items.push_back(OutlinedItem::Op(opr));
         return write!(f, " !{outindex}");
     }
 
@@ -62,7 +69,48 @@ pub(crate) fn preprint_outline(
         .iter()
         .any(|(_, attr)| attr_impls::<dyn OutlinedAttr>(&**attr))
     {
-        let outindex = print_state.outlined_ops.push_back(opr);
+        let outindex = print_state.outlined_items.push_back(OutlinedItem::Op(opr));
+        return write!(f, " !{outindex}");
+    }
+
+    Ok(())
+}
+
+/// A [BasicBlock] was just printed (label + args), and we now print a future reference to the
+/// outlined attributes (if any) or location (if any) that will be printed later.
+pub(crate) fn preprint_outline_block(
+    ctx: &Context,
+    block: Ptr<BasicBlock>,
+    print_state: printable::State,
+    f: &mut core::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    let mut aux_print_data = print_state.aux_data_mut();
+    let print_state = aux_print_data
+        .entry(OUTLINED_STATE.clone())
+        .or_insert(Box::new(OutlinePrintState::default()))
+        .downcast_mut::<OutlinePrintState>()
+        .expect("failed to downcast outline print state");
+
+    let bl = block.deref(ctx);
+
+    // If it has a location, we need to outline the location.
+    if !bl.loc().is_unknown() {
+        let outindex = print_state
+            .outlined_items
+            .push_back(OutlinedItem::Block(block));
+        return write!(f, " !{outindex}");
+    }
+
+    // Check if there's any attribute that's outlined.
+    if bl
+        .attributes
+        .0
+        .iter()
+        .any(|(_, attr)| attr_impls::<dyn OutlinedAttr>(&**attr))
+    {
+        let outindex = print_state
+            .outlined_items
+            .push_back(OutlinedItem::Block(block));
         return write!(f, " !{outindex}");
     }
 
@@ -84,41 +132,75 @@ pub(crate) fn print_outlines(
         .downcast::<OutlinePrintState>()
         .expect("failed to downcast outline print state");
 
-    if print_state.outlined_ops.is_empty() {
+    if print_state.outlined_items.is_empty() {
         return Ok(());
     }
 
     writeln!(f, "\n\noutlined_attributes:")?;
-    let mut print_once_attr_indices = print_state.outlined_ops.len();
-    for (outidx, op) in print_state.outlined_ops.iter().enumerate() {
-        let loc = op.deref(ctx).loc();
-        write!(f, "!{outidx} = ")?;
+    let mut print_once_attr_indices = print_state.outlined_items.len();
+
+    // A helper function so we don't duplicate the per-attribute printing logic.
+    fn print_outlined_attrs_for(
+        ctx: &Context,
+        f: &mut core::fmt::Formatter<'_>,
+        print_once_attrs: &mut FxHashMap<AttrObj, usize>,
+        print_once_attr_indices: &mut usize,
+        attributes: &AttributeDict,
+        loc: Location,
+    ) -> std::fmt::Result {
         if !loc.is_unknown() {
             write!(f, "@[{}], ", loc.disp(ctx))?;
         }
         write!(f, "[")?;
         let mut first = true;
-        for (attr_name, attr) in op.deref(ctx).attributes.0.iter() {
+        for (attr_name, attr) in attributes.0.iter() {
             if attr_impls::<dyn OutlinedAttr>(&**attr) {
                 if !first {
                     write!(f, ", ")?;
                 }
                 first = false;
                 if attr_impls::<dyn PrintOnceAttr>(&**attr) {
-                    if let Some(outindex) = print_state.print_once_attrs.get(attr) {
+                    if let Some(outindex) = print_once_attrs.get(attr) {
                         write!(f, "{attr_name} = !{outindex}")?;
                     } else {
                         // If this is the first time we see this PrintOnceAttr,
                         // we need to store it for later.
-                        print_state
-                            .print_once_attrs
-                            .insert(attr.clone(), print_once_attr_indices);
+                        print_once_attrs.insert(attr.clone(), *print_once_attr_indices);
                         write!(f, "{attr_name} = !{print_once_attr_indices}")?;
-                        print_once_attr_indices += 1;
+                        *print_once_attr_indices += 1;
                     }
                 } else {
                     write!(f, "{} = {}", attr_name, attr.disp(ctx))?;
                 }
+            }
+        }
+        Ok(())
+    }
+
+    for (outidx, item) in print_state.outlined_items.iter().enumerate() {
+        write!(f, "!{outidx} = ")?;
+        match item {
+            OutlinedItem::Op(op) => {
+                let opr = op.deref(ctx);
+                print_outlined_attrs_for(
+                    ctx,
+                    f,
+                    &mut print_state.print_once_attrs,
+                    &mut print_once_attr_indices,
+                    &opr.attributes,
+                    opr.loc(),
+                )?;
+            }
+            OutlinedItem::Block(block) => {
+                let bl = block.deref(ctx);
+                print_outlined_attrs_for(
+                    ctx,
+                    f,
+                    &mut print_state.print_once_attrs,
+                    &mut print_once_attr_indices,
+                    &bl.attributes,
+                    bl.loc(),
+                )?;
             }
         }
         writeln!(f, "]")?;
@@ -138,7 +220,9 @@ pub(crate) fn print_outlines(
 #[derive(Default)]
 struct OutlineParseState {
     /// Map an outline item number to the [Operation] it refers to.
-    outindex_map: FxHashMap<usize, Ptr<Operation>>,
+    outindex_op_map: FxHashMap<usize, Ptr<Operation>>,
+    /// Map an outline item number to the [BasicBlock] it refers to.
+    outindex_block_map: FxHashMap<usize, Ptr<BasicBlock>>,
 }
 
 /// Each [Operation] is associated with an optional [Location] and
@@ -153,8 +237,9 @@ enum AttrOrOutlineEntryRef {
 enum OutlineEntry {
     /// A [PrintOnceAttr] is an entry by itself.
     PrintOnceAttr(AttrObj),
-    /// The outline entry for an [Operation].
-    OperationData(Option<Location>, Vec<(Identifier, AttrOrOutlineEntryRef)>),
+    /// The outline entry for an [Operation] or [BasicBlock]:
+    /// A location and a list of attributes or references to attributes.
+    LocAndOutlinedAttrs(Option<Location>, Vec<(Identifier, AttrOrOutlineEntryRef)>),
 }
 
 /// An [Operation] was just parsed, see if it has any outlined item number and note that down.
@@ -185,7 +270,35 @@ pub(crate) fn postparse_outline(state_stream: &mut StateStream, op: Ptr<Operatio
         .downcast_mut::<OutlineParseState>()
         .expect("failed to downcast outline parse state");
 
-    if parse_state.outindex_map.insert(outindex, op).is_some() {
+    if parse_state.outindex_op_map.insert(outindex, op).is_some() {
+        return input_err!(loc, "Duplicate outline index: {}", outindex);
+    }
+
+    Ok(())
+}
+
+/// Register a [BasicBlock] with a given outline index in the parse state.
+/// Called from [BasicBlock](crate::basic_block::BasicBlock) parsing after the block is
+/// created, with the outline index that was already parsed from the stream.
+pub(crate) fn register_block_for_outline(
+    state_stream: &mut StateStream,
+    outindex: usize,
+    block: Ptr<BasicBlock>,
+    loc: crate::location::Location,
+) -> Result<()> {
+    let parse_state = state_stream
+        .state
+        .aux_data
+        .entry(OUTLINED_STATE.clone())
+        .or_insert(Box::new(OutlineParseState::default()))
+        .downcast_mut::<OutlineParseState>()
+        .expect("failed to downcast outline parse state");
+
+    if parse_state
+        .outindex_block_map
+        .insert(outindex, block)
+        .is_some()
+    {
         return input_err!(loc, "Duplicate outline index: {}", outindex);
     }
 
@@ -202,13 +315,13 @@ pub(crate) fn parse_outlines(state_stream: &mut StateStream) -> Result<()> {
         .downcast::<OutlineParseState>()
         .expect("failed to downcast outline parse state");
 
-    if parse_state.outindex_map.is_empty() {
+    if parse_state.outindex_op_map.is_empty() && parse_state.outindex_block_map.is_empty() {
         return Ok(());
     }
 
     let outindex_parser = || (location(), token('!').with(usize::parser(())));
 
-    // We'll first try to parse `OutlineEntry::OperationData`
+    // We'll first try to parse `OutlineEntry::LocAndOutlinedAttrs` entries.
     let optional_loc_parser = optional(
         token('@')
             .with(between(
@@ -225,17 +338,14 @@ pub(crate) fn parse_outlines(state_stream: &mut StateStream) -> Result<()> {
             .or(outindex_parser().map(AttrOrOutlineEntryRef::OutlineEntryRef)),
     );
     let name_attrs_parser = delimited_list_parser('[', ']', ',', name_attr_parser);
-    let operation_data_parser = (
-        spaces().with(optional_loc_parser),
-        spaces().with(name_attrs_parser),
-    )
-        .map(|(loc, name_attrs)| OutlineEntry::OperationData(loc, name_attrs));
+    let loc_and_outlined_attrs_parser = (optional_loc_parser, spaces().with(name_attrs_parser))
+        .map(|(loc, name_attrs)| OutlineEntry::LocAndOutlinedAttrs(loc, name_attrs));
 
     let print_once_attr_parser = AttrObj::parser(()).map(OutlineEntry::PrintOnceAttr);
 
     let outline_entry_parser = (
         outindex_parser().skip(spaced(token('='))),
-        operation_data_parser.or(print_once_attr_parser),
+        loc_and_outlined_attrs_parser.or(print_once_attr_parser),
     );
 
     let start_loc = state_stream.loc();
@@ -273,54 +383,84 @@ pub(crate) fn parse_outlines(state_stream: &mut StateStream) -> Result<()> {
         })
         .collect();
 
-    let operation_data_entries = entries
+    let loc_and_outline_entries = entries
         .into_iter()
         .map(|(outindex, entry)| {
-            let OutlineEntry::OperationData(loc, attrs) = entry else {
-                unreachable!("operation_data_entries should only contain OperationData entries");
+            let OutlineEntry::LocAndOutlinedAttrs(loc, attrs) = entry else {
+                unreachable!(
+                    "loc_and_outline_entries should only contain LocAndOutlinedAttrs entries"
+                );
             };
             (outindex, (loc, attrs))
         })
         .collect::<Vec<_>>();
 
-    for ((outindex_loc, outindex), (loc_opt, named_attrs)) in operation_data_entries {
-        let opr = match parse_state.outindex_map.remove(&outindex) {
-            Some(opr) => opr,
-            None => {
-                return input_err!(
-                    outindex_loc,
-                    "No operation found for outline index: {}",
-                    outindex
-                );
+    for ((outindex_loc, outindex), (loc_opt, named_attrs)) in loc_and_outline_entries {
+        // Check if this index refers to an operation or a block.
+        if let Some(opr) = parse_state.outindex_op_map.remove(&outindex) {
+            if let Some(loc) = loc_opt {
+                opr.deref_mut(state_stream.state.ctx).set_loc(loc);
             }
-        };
-
-        if let Some(loc) = loc_opt {
-            opr.deref_mut(state_stream.state.ctx).set_loc(loc);
-        }
-        for (name, attr_or_ref) in named_attrs {
-            match attr_or_ref {
-                AttrOrOutlineEntryRef::Attr(attr) => {
-                    opr.deref_mut(state_stream.state.ctx)
-                        .attributes
-                        .0
-                        .insert(name, attr);
-                }
-                AttrOrOutlineEntryRef::OutlineEntryRef((ref_outindex_loc, ref_outindex)) => {
-                    if let Some(attr) = print_once_entries.get(&ref_outindex) {
+            for (name, attr_or_ref) in named_attrs {
+                match attr_or_ref {
+                    AttrOrOutlineEntryRef::Attr(attr) => {
                         opr.deref_mut(state_stream.state.ctx)
                             .attributes
                             .0
-                            .insert(name, attr.clone());
-                    } else {
-                        return input_err!(
-                            ref_outindex_loc,
-                            "No PrintOnceAttr found for outline index: {}",
-                            ref_outindex
-                        );
+                            .insert(name, attr);
+                    }
+                    AttrOrOutlineEntryRef::OutlineEntryRef((ref_outindex_loc, ref_outindex)) => {
+                        if let Some(attr) = print_once_entries.get(&ref_outindex) {
+                            opr.deref_mut(state_stream.state.ctx)
+                                .attributes
+                                .0
+                                .insert(name, attr.clone());
+                        } else {
+                            return input_err!(
+                                ref_outindex_loc,
+                                "No PrintOnceAttr found for outline index: {}",
+                                ref_outindex
+                            );
+                        }
                     }
                 }
             }
+        } else if let Some(block) = parse_state.outindex_block_map.remove(&outindex) {
+            if let Some(loc) = loc_opt {
+                block.deref_mut(state_stream.state.ctx).set_loc(loc);
+            }
+            for (name, attr_or_ref) in named_attrs {
+                match attr_or_ref {
+                    AttrOrOutlineEntryRef::Attr(attr) => {
+                        block
+                            .deref_mut(state_stream.state.ctx)
+                            .attributes
+                            .0
+                            .insert(name, attr);
+                    }
+                    AttrOrOutlineEntryRef::OutlineEntryRef((ref_outindex_loc, ref_outindex)) => {
+                        if let Some(attr) = print_once_entries.get(&ref_outindex) {
+                            block
+                                .deref_mut(state_stream.state.ctx)
+                                .attributes
+                                .0
+                                .insert(name, attr.clone());
+                        } else {
+                            return input_err!(
+                                ref_outindex_loc,
+                                "No PrintOnceAttr found for outline index: {}",
+                                ref_outindex
+                            );
+                        }
+                    }
+                }
+            }
+        } else {
+            return input_err!(
+                outindex_loc,
+                "No operation or block found for outline index: {}",
+                outindex
+            );
         }
     }
 

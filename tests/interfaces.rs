@@ -1023,25 +1023,27 @@ fn test_outline_printonce_attr() -> Result<()> {
     expect![[r#"
         builtin.module @bar 
         {
-          ^block1v1_block4v1():
+          ^block1v1_block4v1() !0:
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
-              ^entry_block2v1_block3v1():
-                c0_op5v1_res0_op9v1_res0 = test.constant builtin.integer <0: si64> !0;
-                op1v1_res0_op10v1_res0 = test.constant builtin.integer <42: si64> !1;
-                op2v1_res0_op11v1_res0 = test.constant builtin.integer <44: si64> !2;
-                test.return c0_op5v1_res0_op9v1_res0 !3
-            } !4
-        } !5
+              ^entry_block2v1_block3v1() !1:
+                c0_op5v1_res0_op9v1_res0 = test.constant builtin.integer <0: si64> !2;
+                op1v1_res0_op10v1_res0 = test.constant builtin.integer <42: si64> !3;
+                op2v1_res0_op11v1_res0 = test.constant builtin.integer <44: si64> !4;
+                test.return c0_op5v1_res0_op9v1_res0 !5
+            } !6
+        } !7
 
         outlined_attributes:
-        !0 = @[<in-memory>: line: 7, column: 9], []
-        !1 = @["/tmp/test.pliron": line: 1, column: 1], [test_print_once_attr = !6]
-        !2 = @[<in-memory>: line: 9, column: 9], [test_print_once_attr = !6]
-        !3 = @[<in-memory>: line: 10, column: 9], []
-        !4 = @[<in-memory>: line: 4, column: 5], []
-        !5 = @[<in-memory>: line: 1, column: 1], []
-        !6 = test.outline_print_once_test_attr <builtin.integer si32>
+        !0 = @[<in-memory>: line: 3, column: 3], []
+        !1 = @[<in-memory>: line: 6, column: 7], []
+        !2 = @[<in-memory>: line: 7, column: 9], []
+        !3 = @["/tmp/test.pliron": line: 1, column: 1], [test_print_once_attr = !8]
+        !4 = @[<in-memory>: line: 9, column: 9], [test_print_once_attr = !8]
+        !5 = @[<in-memory>: line: 10, column: 9], []
+        !6 = @[<in-memory>: line: 4, column: 5], []
+        !7 = @[<in-memory>: line: 1, column: 1], []
+        !8 = test.outline_print_once_test_attr <builtin.integer si32>
     "#]]
     .assert_eq(&parsed_op.disp(ctx).to_string());
 
@@ -1084,6 +1086,87 @@ fn test_outline_attr_canonical_op() -> Result<()> {
         !0 = [test_attr = test.outline_test_attr <builtin.integer si32>]
     "#]]
     .assert_eq(&printed);
+
+    Ok(())
+}
+
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_outline_attr_on_block() -> Result<()> {
+    // Verify that OutlinedAttr on a BasicBlock is printed in the outlined_attributes section,
+    // not inline, and is correctly restored on re-parse.
+    use pliron::irfmt::parsers::spaced;
+
+    let ctx = &mut Context::new();
+    let (module_op, func_op, _const_op, _ret_op) = const_ret_in_mod(ctx)?;
+
+    let attr = OutlineTestAttr {
+        ty: IntegerType::get(ctx, 32, pliron::builtin::types::Signedness::Signed).into(),
+    };
+
+    // Set the OutlinedAttr on the function's entry block.
+    let entry_block = func_op.get_entry_block(ctx);
+    entry_block
+        .deref_mut(ctx)
+        .attributes
+        .0
+        .insert("test_attr".try_into().unwrap(), Box::new(attr));
+
+    // The outlined attr should NOT appear inline; the block gets an outline index.
+    let printed = module_op.get_operation().deref(ctx).disp(ctx).to_string();
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block1v1():
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+            {
+              ^entry_block2v1() !0:
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                test.return c0_op3v1_res0
+            }
+        }
+
+        outlined_attributes:
+        !0 = [test_attr = test.outline_test_attr <builtin.integer si32>]
+    "#]]
+    .assert_eq(&printed);
+
+    // Parse the printed IR back and verify the outlined attr is restored on the block.
+    let parsed_op = {
+        let state_stream = state_stream_from_iterator(
+            printed.chars(),
+            parsable::State::new(ctx, location::Source::InMemory),
+        );
+        spaced(Operation::top_level_parser())
+            .parse(state_stream)
+            .unwrap()
+            .0
+    };
+    parsed_op.verify(ctx)?;
+
+    // After re-parse the block now has a source location too, so indices shift.
+    let print2 = parsed_op.deref(ctx).disp(ctx).to_string();
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block1v1_block4v1() !0:
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+            {
+              ^entry_block2v1_block3v1() !1:
+                c0_op3v1_res0_op7v1_res0 = test.constant builtin.integer <0: si64> !2;
+                test.return c0_op3v1_res0_op7v1_res0 !3
+            } !4
+        } !5
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 3], []
+        !1 = @[<in-memory>: line: 6, column: 7], [test_attr = test.outline_test_attr <builtin.integer si32>]
+        !2 = @[<in-memory>: line: 7, column: 9], []
+        !3 = @[<in-memory>: line: 8, column: 9], []
+        !4 = @[<in-memory>: line: 4, column: 5], []
+        !5 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
+    .assert_eq(&print2);
 
     Ok(())
 }

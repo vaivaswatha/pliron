@@ -268,6 +268,7 @@ fn parse_simple() -> Result<()> {
 }
 
 dict_key!(ATTR_KEY_TEST_ON_FUNC_VALUE, "test_on_func_value");
+dict_key!(ATTR_KEY_BLOCK_TEST, "block_test_attr");
 
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
@@ -313,21 +314,23 @@ fn parse_function_with_attrs() -> Result<()> {
     expect![[r#"
         builtin.module @bar 
         {
-          ^block1v1_block4v1():
+          ^block1v1_block4v1() !0:
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
               [test_on_func_value: builtin.string "func_attr_value"]
             {
-              ^entry_block2v1_block3v1():
-                c0_op3v1_res0_op7v1_res0 = test.constant builtin.integer <0: si64> !0;
-                test.return c0_op3v1_res0_op7v1_res0 !1
-            } !2
-        } !3
+              ^entry_block2v1_block3v1() !1:
+                c0_op3v1_res0_op7v1_res0 = test.constant builtin.integer <0: si64> !2;
+                test.return c0_op3v1_res0_op7v1_res0 !3
+            } !4
+        } !5
 
         outlined_attributes:
-        !0 = @[<in-memory>: line: 8, column: 9], []
-        !1 = @[<in-memory>: line: 9, column: 9], []
-        !2 = @[<in-memory>: line: 4, column: 5], []
-        !3 = @[<in-memory>: line: 1, column: 1], []
+        !0 = @[<in-memory>: line: 3, column: 3], []
+        !1 = @[<in-memory>: line: 7, column: 7], []
+        !2 = @[<in-memory>: line: 8, column: 9], []
+        !3 = @[<in-memory>: line: 9, column: 9], []
+        !4 = @[<in-memory>: line: 4, column: 5], []
+        !5 = @[<in-memory>: line: 1, column: 1], []
     "#]]
     .assert_eq(&print_parsed);
 
@@ -423,7 +426,7 @@ fn parse_err_block_label_colon() {
     let expected_err = expect![[r#"
         Parse error at line: 9, column: 13
         Unexpected `}`
-        Expected whitespace or `:`
+        Expected whitespaces or `:`
     "#]];
 
     expect_parse_error(input_label_colon_missing, expected_err);
@@ -688,6 +691,208 @@ fn test_verify_multiple_terminator() -> Result<()> {
     let err = verify_res.unwrap_err();
     let err = err.err.downcast_ref::<BasicBlockVerifyErr>().unwrap();
     assert!(matches!(err, BasicBlockVerifyErr::TerminatorNotLast(_)));
+
+    Ok(())
+}
+
+#[test]
+fn block_inline_attrs_print() -> Result<()> {
+    let ctx = &mut Context::new();
+    let (module_op, func_op, _const_op, _ret_op) = const_ret_in_mod(ctx)?;
+
+    let entry_block = func_op.get_entry_block(ctx);
+
+    // Set an inline attribute on the block
+    entry_block.deref_mut(ctx).attributes.set(
+        ATTR_KEY_BLOCK_TEST.clone(),
+        StringAttr::new("test_value".into()),
+    );
+
+    let printed = format!("{}", module_op.disp(ctx));
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block1v1():
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+            {
+              ^entry_block2v1() [block_test_attr: builtin.string "test_value"]:
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                test.return c0_op3v1_res0
+            }
+        }"#]]
+    .assert_eq(&printed);
+
+    Ok(())
+}
+
+#[test]
+fn block_inline_attrs_roundtrip() -> Result<()> {
+    let input = r#"
+        builtin.module @bar {
+        ^block_0_0():
+            builtin.func @foo: builtin.function <() -> (builtin.integer si64)> {
+            ^entry_block_1_0() [block_attr: builtin.string "hello"]:
+                c0_op_2_0_res0 = test.constant builtin.integer <0: si64>;
+                test.return c0_op_2_0_res0
+            }
+        }"#;
+
+    let ctx = &mut Context::new();
+    let op = {
+        let state_stream = state_stream_from_iterator(
+            input.chars(),
+            parsable::State::new(ctx, location::Source::InMemory),
+        );
+        spaced(Operation::top_level_parser())
+            .parse(state_stream)
+            .unwrap()
+            .0
+    };
+
+    op.deref(ctx).verify(ctx)?;
+
+    let printed = format!("{}", op.disp(ctx));
+
+    // Parse again and print to confirm roundtrip
+    let ctx2 = &mut Context::new();
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx2, location::Source::InMemory),
+    );
+    let parsed2 = spaced(Operation::top_level_parser())
+        .parse(state_stream)
+        .unwrap()
+        .0;
+
+    parsed2.deref(ctx2).verify(ctx2)?;
+
+    Ok(())
+}
+
+#[test]
+fn block_multiple_inline_attrs() -> Result<()> {
+    let ctx = &mut Context::new();
+    let (module_op, func_op, _const_op, _ret_op) = const_ret_in_mod(ctx)?;
+
+    // Get the function's entry block and set attributes on it
+    let func_entry_block = func_op.get_entry_block(ctx);
+
+    // Set multiple inline attributes on the function's entry block
+    func_entry_block.deref_mut(ctx).attributes.set(
+        "attr1".try_into().unwrap(),
+        StringAttr::new("value1".into()),
+    );
+    func_entry_block.deref_mut(ctx).attributes.set(
+        "attr2".try_into().unwrap(),
+        StringAttr::new("value2".into()),
+    );
+
+    let printed = format!("{}", module_op.disp(ctx));
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block1v1():
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+            {
+              ^entry_block2v1() [attr1: builtin.string "value1", attr2: builtin.string "value2"]:
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                test.return c0_op3v1_res0
+            }
+        }"#]]
+    .assert_eq(&printed);
+
+    Ok(())
+}
+
+#[test]
+fn block_attrs_parse_roundtrip() -> Result<()> {
+    // Test that block inline attributes survive a parse-print-parse roundtrip.
+    let input = r#"
+        builtin.module @bar {
+        ^block_0_0():
+            builtin.func @foo: builtin.function <() -> (builtin.integer si64)> {
+            ^entry_block_1_0() [block_attr: builtin.string "hello"]:
+                c0_op_2_0_res0 = test.constant builtin.integer <0: si64>;
+                test.return c0_op_2_0_res0
+            }
+        }"#;
+
+    let ctx = &mut Context::new();
+    let op = {
+        let state_stream = state_stream_from_iterator(
+            input.chars(),
+            parsable::State::new(ctx, location::Source::InMemory),
+        );
+        spaced(Operation::top_level_parser())
+            .parse(state_stream)
+            .unwrap()
+            .0
+    };
+
+    op.deref(ctx).verify(ctx)?;
+
+    let printed = format!("{}", op.deref(ctx).disp(ctx));
+
+    // After parsing from source, blocks get locations. Second print has outline indices.
+    // The outlined_attributes section only has locations; inline (non-outlined) attrs stay inline.
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block_0_0_block2v1() !0:
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+            {
+              ^entry_block_1_0_block1v1() [block_attr: builtin.string "hello"] !1:
+                c0_op_2_0_res0_op3v1_res0 = test.constant builtin.integer <0: si64> !2;
+                test.return c0_op_2_0_res0_op3v1_res0 !3
+            } !4
+        } !5
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 9], []
+        !1 = @[<in-memory>: line: 5, column: 13], []
+        !2 = @[<in-memory>: line: 6, column: 17], []
+        !3 = @[<in-memory>: line: 7, column: 17], []
+        !4 = @[<in-memory>: line: 4, column: 13], []
+        !5 = @[<in-memory>: line: 2, column: 9], []
+    "#]]
+    .assert_eq(&printed);
+
+    // Parse again and verify it's still valid
+    let ctx2 = &mut Context::new();
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx2, location::Source::InMemory),
+    );
+    let parsed2 = spaced(Operation::top_level_parser())
+        .parse(state_stream)
+        .unwrap()
+        .0;
+
+    parsed2.deref(ctx2).verify(ctx2)?;
+
+    // The third print should still have the attributes
+    let print3 = format!("{}", parsed2.deref(ctx2).disp(ctx2));
+    expect![[r#"
+        builtin.module @bar 
+        {
+          ^block_0_0_block2v1_block2v1() !0:
+            builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
+            {
+              ^entry_block_1_0_block1v1_block1v1() [block_attr: builtin.string "hello"] !1:
+                c0_op_2_0_res0_op3v1_res0_op3v1_res0 = test.constant builtin.integer <0: si64> !2;
+                test.return c0_op_2_0_res0_op3v1_res0_op3v1_res0 !3
+            } !4
+        } !5
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 3, column: 9], []
+        !1 = @[<in-memory>: line: 5, column: 13], []
+        !2 = @[<in-memory>: line: 6, column: 17], []
+        !3 = @[<in-memory>: line: 7, column: 17], []
+        !4 = @[<in-memory>: line: 4, column: 13], []
+        !5 = @[<in-memory>: line: 2, column: 9], []
+    "#]]
+    .assert_eq(&print3);
 
     Ok(())
 }

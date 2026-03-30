@@ -1,6 +1,7 @@
 //! A [BasicBlock] is a list of [Operation]s.
 
 use combine::{
+    optional,
     parser::{Parser, char::spaces},
     sep_by, token,
 };
@@ -9,12 +10,13 @@ use thiserror::Error;
 use crate::{
     attribute::AttributeDict,
     builtin::op_interfaces::{IsTerminatorInterface, NoTerminatorInterface},
-    common_traits::{Named, Verify},
+    common_traits::{Named, RcShare, Verify},
     context::{Arena, Context, Ptr, private::ArenaObj},
     debug_info::{get_block_arg_name, set_block_arg_name},
     identifier::Identifier,
     indented_block,
     irfmt::{
+        outlined::{preprint_outline_block, register_block_for_outline},
         parsers::{delimited_list_parser, location, spaced, type_parser},
         printers::{iter_with_sep, list_with_sep},
     },
@@ -401,10 +403,22 @@ impl Printable for BasicBlock {
     ) -> core::fmt::Result {
         write!(
             f,
-            "^{}({}):",
+            "^{}({})",
             self.unique_name(ctx),
             list_with_sep(&self.args, ListSeparator::CharSpace(',')).print(ctx, state),
         )?;
+
+        // Print non-outlined attributes inline.
+        let inline_attrs = self.attributes.clone_skip_outlined();
+        if !inline_attrs.0.is_empty() {
+            write!(f, " ")?;
+            inline_attrs.fmt(ctx, state, f)?;
+        }
+
+        // Print the outline index (!N) if there is a location or any outlined attributes.
+        preprint_outline_block(ctx, self.self_ptr, state.share(), f)?;
+
+        write!(f, ":")?;
 
         indented_block!(state, {
             write!(
@@ -423,32 +437,48 @@ impl Parsable for BasicBlock {
     type Arg = ();
     type Parsed = Ptr<BasicBlock>;
 
-    ///  A basic block is
-    ///  label(arg_1: type_1, ..., arg_n: type_n):
-    ///    op_1;
-    ///    ... ;
-    ///    op_n
+    //  A basic block is
+    // ```
+    //  label(arg_1: type_1, ..., arg_n: type_n) [optional_inline_attrs] [!N]:
+    //    op_1;
+    //    ... ;
+    //    op_n
+    // ```
     fn parse<'a>(
         state_stream: &mut parsable::StateStream<'a>,
         _arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
         let loc = state_stream.loc();
 
-        let arg = (
+        let block_arg = (
             (location(), Identifier::parser(())).skip(spaced(token(':'))),
             type_parser().skip(spaces()),
         );
-        let args = spaced(delimited_list_parser('(', ')', ',', arg)).skip(token(':'));
-        let ops = spaces().with(sep_by::<Vec<_>, _, _, _>(
-            Operation::parser(OperationParserConfig {
-                look_for_outlined_attrs: false,
-            })
-            .skip(spaces()),
-            token(';').skip(spaces()),
-        ));
 
-        let label = spaced(token('^').with(Identifier::parser(())));
-        let (label, args, ops) = (label, args, ops)
+        // Parse the entire block header as a single combine chain so that failures
+        // after consuming the label+args are reported as committed errors.
+        // Format: ^label(args) [optional_attrs] [!N]:
+        let outline_loc = state_stream.loc();
+        let (label, args, attrs_opt, outindex_opt) = (
+            spaced(token('^').with(Identifier::parser(()))),
+            spaced(delimited_list_parser('(', ')', ',', block_arg)),
+            spaced(optional(AttributeDict::parser(()))),
+            spaces().with(optional(token('!').with(usize::parser(())))),
+        )
+            .skip(spaced(token(':')))
+            .parse_stream(state_stream)
+            .into_result()?
+            .0;
+
+        // Parse the ops in the block
+        let ops: Vec<_> = spaces()
+            .with(sep_by::<Vec<_>, _, _, _>(
+                Operation::parser(OperationParserConfig {
+                    look_for_outlined_attrs: false,
+                })
+                .skip(spaces()),
+                token(';').skip(spaces()),
+            ))
             .parse_stream(state_stream)
             .into_result()?
             .0;
@@ -456,15 +486,32 @@ impl Parsable for BasicBlock {
         // We've parsed the components. Now construct the result.
         let (arg_names, arg_types): (Vec<_>, Vec<_>) = args.into_iter().unzip();
         let block = BasicBlock::new(state_stream.state.ctx, Some(label.clone()), arg_types);
-        for (arg_idx, (loc, name)) in arg_names.into_iter().enumerate() {
+
+        // Set the location of the block to be from where we just parsed it.
+        // If it has a different one specified as part of its outlined information,
+        // that will be overwritten later.
+        block.deref_mut(state_stream.state.ctx).set_loc(loc.clone());
+
+        // Set seen attributes.
+        if let Some(attrs) = attrs_opt {
+            block.deref_mut(state_stream.state.ctx).attributes = attrs;
+        }
+
+        for (arg_idx, (arg_loc, name)) in arg_names.into_iter().enumerate() {
             let def: Value = (&block.deref(state_stream.state.ctx).args[arg_idx]).into();
             state_stream.state.name_tracker.ssa_def(
                 state_stream.state.ctx,
-                &(name.clone(), loc),
+                &(name.clone(), arg_loc),
                 def,
             )?;
             set_block_arg_name(state_stream.state.ctx, block, arg_idx, name);
         }
+
+        // Register in outline parse state if !N was found.
+        if let Some(outindex) = outindex_opt {
+            register_block_for_outline(state_stream, outindex, block, outline_loc)?;
+        }
+
         for op in ops {
             op.insert_at_back(block, state_stream.state.ctx);
         }

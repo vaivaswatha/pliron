@@ -669,7 +669,7 @@ impl Printable for Operation {
         f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
         Self::get_op_dyn(self.self_ptr, ctx).fmt(ctx, state, f)?;
-        outlined::preprint_outline(ctx, self.self_ptr, state.share(), f)?;
+        outlined::preprint_outline_operation(ctx, self.self_ptr, state.share(), f)?;
 
         if self.get_parent_op(ctx).is_none() {
             outlined::print_outlines(ctx, state.share(), f)?;
