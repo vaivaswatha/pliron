@@ -102,7 +102,7 @@ fn replace_c0_with_c1_operand() -> Result<()> {
         .insert_after(ctx, const_op.get_operation());
     set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".try_into().unwrap());
 
-    let printed = format!("{}", module_op.disp(ctx));
+    let printed = format!("{}", module_op.get_operation().disp(ctx));
     expect![[r#"
         builtin.module @bar 
         {
@@ -110,17 +110,22 @@ fn replace_c0_with_c1_operand() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
-                c1_op5v1_res0 = test.constant builtin.integer <1: si64>;
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
+                c1_op5v1_res0 = test.constant builtin.integer <1: si64> !1;
                 test.return c0_op3v1_res0
             }
-        }"#]]
+        }
+
+        outlined_attributes:
+        !0 = [builtin_debug_info = builtin.debug_info [c0]]
+        !1 = [builtin_debug_info = builtin.debug_info [c1]]
+    "#]]
     .assert_eq(&printed);
 
     Operation::replace_operand(ret_op.get_operation(), ctx, 0, const1_op.get_result(ctx));
     Operation::erase(const_op.get_operation(), ctx);
 
-    let printed = format!("{}", module_op.disp(ctx));
+    let printed = format!("{}", module_op.get_operation().disp(ctx));
     expect![[r#"
         builtin.module @bar 
         {
@@ -128,10 +133,14 @@ fn replace_c0_with_c1_operand() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c1_op5v1_res0 = test.constant builtin.integer <1: si64>;
+                c1_op5v1_res0 = test.constant builtin.integer <1: si64> !0;
                 test.return c1_op5v1_res0
             }
-        }"#]]
+        }
+
+        outlined_attributes:
+        !0 = [builtin_debug_info = builtin.debug_info [c1]]
+    "#]]
     .assert_eq(&printed);
 
     module_op.get_operation().verify(ctx)?;
@@ -171,7 +180,7 @@ fn test_replace_within_same_def_site() {
         .get_result(ctx)
         .replace_some_uses_with(ctx, |_, _| true, &res1);
     res1.replace_some_uses_with(ctx, |_, _| true, &res2);
-    let printed = format!("{}", module_op.disp(ctx));
+    let printed = format!("{}", module_op.get_operation().disp(ctx));
     expect![[r#"
         builtin.module @bar 
         {
@@ -179,11 +188,15 @@ fn test_replace_within_same_def_site() {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op4v1_res0 = test.constant builtin.integer <0: si64>;
+                c0_op4v1_res0 = test.constant builtin.integer <0: si64> !0;
                 op1v1_res0, op1v1_res1 = test.dual_def () [] []: <() -> (builtin.integer si64, builtin.integer si64)>;
                 test.return op1v1_res1
             }
-        }"#]]
+        }
+
+        outlined_attributes:
+        !0 = [builtin_debug_info = builtin.debug_info [c0]]
+    "#]]
     .assert_eq(&printed);
 
     let dual_arg_block = BasicBlock::new(ctx, None, vec![u64_ty, u64_ty]);
@@ -196,7 +209,7 @@ fn test_replace_within_same_def_site() {
     ret_op.get_operation().insert_at_back(dual_arg_block, ctx);
     arg1.replace_some_uses_with(ctx, |_, _| true, &arg2);
 
-    let printed = format!("{}", module_op.disp(ctx));
+    let printed = format!("{}", module_op.get_operation().disp(ctx));
     expect![[r#"
         builtin.module @bar 
         {
@@ -204,14 +217,18 @@ fn test_replace_within_same_def_site() {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op4v1_res0 = test.constant builtin.integer <0: si64>;
+                c0_op4v1_res0 = test.constant builtin.integer <0: si64> !0;
                 op1v1_res0, op1v1_res1 = test.dual_def () [] []: <() -> (builtin.integer si64, builtin.integer si64)>;
                 test.return op1v1_res1
 
               ^block3v1(block3v1_arg0: builtin.integer si64, block3v1_arg1: builtin.integer si64):
                 test.return block3v1_arg1
             }
-        }"#]]
+        }
+
+        outlined_attributes:
+        !0 = [builtin_debug_info = builtin.debug_info [c0]]
+    "#]]
     .assert_eq(&printed);
 }
 
@@ -229,10 +246,14 @@ fn print_simple() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
                 test.return c0_op3v1_res0
             }
-        }"#]]
+        }
+
+        outlined_attributes:
+        !0 = [builtin_debug_info = builtin.debug_info [c0]]
+    "#]]
     .assert_eq(&printed);
     println!("{printed}");
     Ok(())
@@ -286,7 +307,7 @@ fn parse_function_with_attrs() -> Result<()> {
         StringAttr::new("func_attr_value".into()),
     );
 
-    let printed = format!("{}", module_op.disp(ctx));
+    let printed = format!("{}", module_op.get_operation().disp(ctx));
     expect![[r#"
         builtin.module @bar 
         {
@@ -295,10 +316,14 @@ fn parse_function_with_attrs() -> Result<()> {
               [test_on_func_value: builtin.string "func_attr_value"]
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
                 test.return c0_op3v1_res0
             }
-        }"#]]
+        }
+
+        outlined_attributes:
+        !0 = [builtin_debug_info = builtin.debug_info [c0]]
+    "#]]
     .assert_eq(&printed);
 
     let state_stream = state_stream_from_iterator(
@@ -319,15 +344,15 @@ fn parse_function_with_attrs() -> Result<()> {
               [test_on_func_value: builtin.string "func_attr_value"]
             {
               ^entry_block2v1_block3v1() !1:
-                c0_op3v1_res0_op7v1_res0 = test.constant builtin.integer <0: si64> !2;
-                test.return c0_op3v1_res0_op7v1_res0 !3
+                c0_op7v1_res0 = test.constant builtin.integer <0: si64> !2;
+                test.return c0_op7v1_res0 !3
             } !4
         } !5
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 3, column: 3], []
         !1 = @[<in-memory>: line: 7, column: 7], []
-        !2 = @[<in-memory>: line: 8, column: 9], []
+        !2 = @[<in-memory>: line: 8, column: 9], [builtin_debug_info = builtin.debug_info [c0]]
         !3 = @[<in-memory>: line: 9, column: 9], []
         !4 = @[<in-memory>: line: 4, column: 5], []
         !5 = @[<in-memory>: line: 1, column: 1], []
@@ -479,17 +504,21 @@ fn test_preorder_forward_walk() {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
                 test.return c0_op3v1_res0
             }
         }
+
+        outlined_attributes:
+        !0 = [builtin_debug_info = builtin.debug_info [c0]]
+
         builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
         {
           ^entry_block2v1():
-            c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+            c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
             test.return c0_op3v1_res0
         }
-        c0_op3v1_res0 = test.constant builtin.integer <0: si64>
+        c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0
         test.return c0_op3v1_res0
     "#]]
     .assert_eq(&ops);
@@ -555,17 +584,21 @@ fn walker_print() {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
                 test.return c0_op3v1_res0
             }
         }
+
+        outlined_attributes:
+        !0 = [builtin_debug_info = builtin.debug_info [c0]]
+
         builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
         {
           ^entry_block2v1():
-            c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+            c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
             test.return c0_op3v1_res0
         }
-        c0_op3v1_res0 = test.constant builtin.integer <0: si64>
+        c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0
         test.return c0_op3v1_res0
     "#]]
     .assert_eq(&printed);
@@ -595,12 +628,12 @@ fn test_postorder_forward_walk() {
         accum + &op.disp(ctx).to_string() + "\n"
     });
     expect![[r#"
-        c0_op3v1_res0 = test.constant builtin.integer <0: si64>
+        c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0
         test.return c0_op3v1_res0
         builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
         {
           ^entry_block2v1():
-            c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+            c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
             test.return c0_op3v1_res0
         }
         builtin.module @bar 
@@ -609,10 +642,14 @@ fn test_postorder_forward_walk() {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
                 test.return c0_op3v1_res0
             }
         }
+
+        outlined_attributes:
+        !0 = [builtin_debug_info = builtin.debug_info [c0]]
+
     "#]]
     .assert_eq(&ops);
 }
@@ -716,7 +753,7 @@ fn block_inline_attrs_print() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1() [block_test_attr: builtin.string "test_value"]:
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
                 test.return c0_op3v1_res0
             }
         }"#]]
@@ -795,7 +832,7 @@ fn block_multiple_inline_attrs() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1() [attr1: builtin.string "value1", attr2: builtin.string "value2"]:
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
                 test.return c0_op3v1_res0
             }
         }"#]]
@@ -850,7 +887,7 @@ fn block_attrs_parse_roundtrip() -> Result<()> {
         outlined_attributes:
         !0 = @[<in-memory>: line: 3, column: 9], []
         !1 = @[<in-memory>: line: 5, column: 13], []
-        !2 = @[<in-memory>: line: 6, column: 17], []
+        !2 = @[<in-memory>: line: 6, column: 17], [builtin_debug_info = builtin.debug_info [c0_op_2_0_res0]]
         !3 = @[<in-memory>: line: 7, column: 17], []
         !4 = @[<in-memory>: line: 4, column: 13], []
         !5 = @[<in-memory>: line: 2, column: 9], []
@@ -879,15 +916,15 @@ fn block_attrs_parse_roundtrip() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block_1_0_block1v1_block1v1() [block_attr: builtin.string "hello"] !1:
-                c0_op_2_0_res0_op3v1_res0_op3v1_res0 = test.constant builtin.integer <0: si64> !2;
-                test.return c0_op_2_0_res0_op3v1_res0_op3v1_res0 !3
+                c0_op_2_0_res0_op3v1_res0 = test.constant builtin.integer <0: si64> !2;
+                test.return c0_op_2_0_res0_op3v1_res0 !3
             } !4
         } !5
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 3, column: 9], []
         !1 = @[<in-memory>: line: 5, column: 13], []
-        !2 = @[<in-memory>: line: 6, column: 17], []
+        !2 = @[<in-memory>: line: 6, column: 17], [builtin_debug_info = builtin.debug_info [c0_op_2_0_res0]]
         !3 = @[<in-memory>: line: 7, column: 17], []
         !4 = @[<in-memory>: line: 4, column: 13], []
         !5 = @[<in-memory>: line: 2, column: 9], []

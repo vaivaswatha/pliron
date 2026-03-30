@@ -986,17 +986,18 @@ fn test_outline_printonce_attr() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op5v1_res0 = test.constant builtin.integer <0: si64>;
-                op1v1_res0 = test.constant builtin.integer <42: si64> !0;
-                op2v1_res0 = test.constant builtin.integer <44: si64> !1;
+                c0_op5v1_res0 = test.constant builtin.integer <0: si64> !0;
+                op1v1_res0 = test.constant builtin.integer <42: si64> !1;
+                op2v1_res0 = test.constant builtin.integer <44: si64> !2;
                 test.return c0_op5v1_res0
             }
         }
 
         outlined_attributes:
-        !0 = @["/tmp/test.pliron": line: 1, column: 1], [test_print_once_attr = !2]
-        !1 = [test_print_once_attr = !2]
-        !2 = test.outline_print_once_test_attr <builtin.integer si32>
+        !0 = [builtin_debug_info = builtin.debug_info [c0]]
+        !1 = @["/tmp/test.pliron": line: 1, column: 1], [test_print_once_attr = !3]
+        !2 = [test_print_once_attr = !3]
+        !3 = test.outline_print_once_test_attr <builtin.integer si32>
     "#]]
     .assert_eq(&printed);
 
@@ -1027,19 +1028,19 @@ fn test_outline_printonce_attr() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1_block3v1() !1:
-                c0_op5v1_res0_op9v1_res0 = test.constant builtin.integer <0: si64> !2;
+                c0_op9v1_res0 = test.constant builtin.integer <0: si64> !2;
                 op1v1_res0_op10v1_res0 = test.constant builtin.integer <42: si64> !3;
                 op2v1_res0_op11v1_res0 = test.constant builtin.integer <44: si64> !4;
-                test.return c0_op5v1_res0_op9v1_res0 !5
+                test.return c0_op9v1_res0 !5
             } !6
         } !7
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 3, column: 3], []
         !1 = @[<in-memory>: line: 6, column: 7], []
-        !2 = @[<in-memory>: line: 7, column: 9], []
-        !3 = @["/tmp/test.pliron": line: 1, column: 1], [test_print_once_attr = !8]
-        !4 = @[<in-memory>: line: 9, column: 9], [test_print_once_attr = !8]
+        !2 = @[<in-memory>: line: 7, column: 9], [builtin_debug_info = builtin.debug_info [c0]]
+        !3 = @["/tmp/test.pliron": line: 1, column: 1], [builtin_debug_info = builtin.debug_info [op1v1_res0], test_print_once_attr = !8]
+        !4 = @[<in-memory>: line: 9, column: 9], [builtin_debug_info = builtin.debug_info [op2v1_res0], test_print_once_attr = !8]
         !5 = @[<in-memory>: line: 10, column: 9], []
         !6 = @[<in-memory>: line: 4, column: 5], []
         !7 = @[<in-memory>: line: 1, column: 1], []
@@ -1121,13 +1122,14 @@ fn test_outline_attr_on_block() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1() !0:
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !1;
                 test.return c0_op3v1_res0
             }
         }
 
         outlined_attributes:
         !0 = [test_attr = test.outline_test_attr <builtin.integer si32>]
+        !1 = [builtin_debug_info = builtin.debug_info [c0]]
     "#]]
     .assert_eq(&printed);
 
@@ -1153,15 +1155,15 @@ fn test_outline_attr_on_block() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1_block3v1() !1:
-                c0_op3v1_res0_op7v1_res0 = test.constant builtin.integer <0: si64> !2;
-                test.return c0_op3v1_res0_op7v1_res0 !3
+                c0_op7v1_res0 = test.constant builtin.integer <0: si64> !2;
+                test.return c0_op7v1_res0 !3
             } !4
         } !5
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 3, column: 3], []
         !1 = @[<in-memory>: line: 6, column: 7], [test_attr = test.outline_test_attr <builtin.integer si32>]
-        !2 = @[<in-memory>: line: 7, column: 9], []
+        !2 = @[<in-memory>: line: 7, column: 9], [builtin_debug_info = builtin.debug_info [c0]]
         !3 = @[<in-memory>: line: 8, column: 9], []
         !4 = @[<in-memory>: line: 4, column: 5], []
         !5 = @[<in-memory>: line: 1, column: 1], []

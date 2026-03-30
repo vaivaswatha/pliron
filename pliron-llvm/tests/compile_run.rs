@@ -118,9 +118,12 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
     let tmp_dir = tempdir().unwrap();
     let plir_path = tmp_dir.path().join("output.plir");
     // Write the plir to a file.
-    std::fs::write(plir_path.clone(), pliron_module.disp(ctx).to_string())
-        .map_err(|e| arg_error_noloc!(e))
-        .unwrap();
+    std::fs::write(
+        plir_path.clone(),
+        pliron_module.get_operation().disp(ctx).to_string(),
+    )
+    .map_err(|e| arg_error_noloc!(e))
+    .unwrap();
 
     // Parse the plir file and verify it.
     let plir_file = std::fs::File::open(&plir_path).unwrap();

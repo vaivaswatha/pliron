@@ -365,7 +365,7 @@ fn split_block_after_const_zero() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
                 test.return c0_op3v1_res0
 
               ^entry_split_block3v1():
@@ -435,11 +435,11 @@ fn inline_region_on_const_zero() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
+                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
                 test.return c0_op3v1_res0
 
               ^entry_block4v1():
-                c0_op7v1_res0 = test.constant builtin.integer <0: si64>;
+                c0_op7v1_res0 = test.constant builtin.integer <0: si64> !1;
                 test.return c0_op7v1_res0
             }
         }"#]]

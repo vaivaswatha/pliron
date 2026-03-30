@@ -92,7 +92,51 @@ fn one_result_zero_operands() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
+        !2 = @[<in-memory>: line: 4, column: 13], []
+        !3 = @[<in-memory>: line: 1, column: 1], []
+    "#]]
+    .assert_eq(&res.disp(ctx).to_string());
+
+    assert!(res.verify(ctx).is_ok());
+}
+
+#[format_op]
+#[def_op("test.one_result_zero_operands_canonical")]
+#[derive_op_interface_impl(NOpdsInterface<0>, NResultsInterface<1>, OneResultInterface)]
+#[verify_succ]
+struct OneResultZeroOperandsCanonicalOp;
+
+#[test]
+fn one_result_zero_operands_canonical() {
+    let ctx = &mut Context::new();
+
+    let printed = "builtin.func @testfunc : builtin.function <() -> ()> {
+          ^entry():
+            res0 = test.one_result_zero_operands_canonical () [] []: <() -> (builtin.integer si64)>;
+            test.return res0
+        }";
+
+    let state_stream = state_stream_from_iterator(
+        printed.chars(),
+        parsable::State::new(ctx, location::Source::InMemory),
+    );
+
+    let (res, _) = Operation::top_level_parser()
+        .parse(state_stream)
+        .expect("OneResultZeroOperandsCanonical parser failed");
+
+    expect![[r#"
+        builtin.func @testfunc: builtin.function <()->()> 
+        {
+          ^entry_block1v1() !0:
+            res0_op2v1_res0 = test.one_result_zero_operands_canonical () [] []: <() -> (builtin.integer si64)> !1;
+            test.return res0_op2v1_res0 !2
+        } !3
+
+        outlined_attributes:
+        !0 = @[<in-memory>: line: 2, column: 11], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 4, column: 13], []
         !3 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -138,8 +182,8 @@ fn one_result_one_operand() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
-        !2 = @[<in-memory>: line: 4, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
+        !2 = @[<in-memory>: line: 4, column: 13], [builtin_debug_info = builtin.debug_info [res1]]
         !3 = @[<in-memory>: line: 5, column: 13], []
         !4 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -184,8 +228,8 @@ fn two_result_two_operands() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
-        !2 = @[<in-memory>: line: 4, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
+        !2 = @[<in-memory>: line: 4, column: 13], [builtin_debug_info = builtin.debug_info [res1a, res1b]]
         !3 = @[<in-memory>: line: 5, column: 13], []
         !4 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -230,8 +274,8 @@ fn two_results_one_operand() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
-        !2 = @[<in-memory>: line: 4, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
+        !2 = @[<in-memory>: line: 4, column: 13], [builtin_debug_info = builtin.debug_info [res1a, res1b]]
         !3 = @[<in-memory>: line: 5, column: 13], []
         !4 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -276,7 +320,7 @@ fn attr_op() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 4, column: 13], []
         !3 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -322,7 +366,7 @@ fn attr_op2() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 4, column: 13], []
         !3 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -355,7 +399,7 @@ fn attr_op2() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 4, column: 13], []
         !3 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -401,7 +445,7 @@ fn attr_op2_labeled() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 4, column: 13], []
         !3 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -434,7 +478,7 @@ fn attr_op2_labeled() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 4, column: 13], []
         !3 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -480,7 +524,7 @@ fn attr_op2_labeled_delimited() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 4, column: 13], []
         !3 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -513,7 +557,7 @@ fn attr_op2_labeled_delimited() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 4, column: 13], []
         !3 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -559,7 +603,7 @@ fn attr_op2_delimited() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 4, column: 13], []
         !3 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -592,7 +636,7 @@ fn attr_op2_delimited() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 4, column: 13], []
         !3 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -635,7 +679,7 @@ fn attr_op3() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 4, column: 13], []
         !3 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -690,9 +734,9 @@ fn if_op() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 5, column: 15], []
-        !3 = @[<in-memory>: line: 6, column: 17], []
+        !3 = @[<in-memory>: line: 6, column: 17], [builtin_debug_info = builtin.debug_info [res1]]
         !4 = @[<in-memory>: line: 7, column: 17], []
         !5 = @[<in-memory>: line: 4, column: 13], []
         !6 = @[<in-memory>: line: 9, column: 13], []
@@ -758,12 +802,12 @@ fn if_else_op() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 5, column: 15], []
-        !3 = @[<in-memory>: line: 6, column: 17], []
+        !3 = @[<in-memory>: line: 6, column: 17], [builtin_debug_info = builtin.debug_info [res1]]
         !4 = @[<in-memory>: line: 7, column: 17], []
         !5 = @[<in-memory>: line: 9, column: 15], []
-        !6 = @[<in-memory>: line: 10, column: 17], []
+        !6 = @[<in-memory>: line: 10, column: 17], [builtin_debug_info = builtin.debug_info [res2]]
         !7 = @[<in-memory>: line: 11, column: 17], []
         !8 = @[<in-memory>: line: 4, column: 13], []
         !9 = @[<in-memory>: line: 13, column: 13], []
@@ -808,15 +852,15 @@ fn br_op() {
             res0_op2v1_res0 = test.attr_op <0: si64>:builtin.integer si64 !1;
             test.br ^bb1_block3v1(res0_op2v1_res0) !2
 
-          ^bb1_block3v1(arg0_block3v1_arg0: builtin.integer si64) [builtin_debug_info: builtin.dict [debug_info_name: builtin.vec [builtin.identifier arg0]]] !3:
+          ^bb1_block3v1(arg0_block3v1_arg0: builtin.integer si64) !3:
             test.return arg0_block3v1_arg0 !4
         } !5
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 4, column: 13], []
-        !3 = @[<in-memory>: line: 5, column: 11], []
+        !3 = @[<in-memory>: line: 5, column: 11], [builtin_debug_info = builtin.debug_info [arg0]]
         !4 = @[<in-memory>: line: 6, column: 13], []
         !5 = @[<in-memory>: line: 1, column: 1], []
     "#]]
@@ -870,7 +914,7 @@ fn multiple_successors_op() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 4, column: 13], []
         !3 = @[<in-memory>: line: 5, column: 11], []
         !4 = @[<in-memory>: line: 6, column: 13], []
@@ -940,12 +984,12 @@ fn multiple_regions_op() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 3, column: 7], []
-        !1 = @[<in-memory>: line: 4, column: 9], []
+        !1 = @[<in-memory>: line: 4, column: 9], [builtin_debug_info = builtin.debug_info [res]]
         !2 = @[<in-memory>: line: 7, column: 17], []
-        !3 = @[<in-memory>: line: 8, column: 21], []
+        !3 = @[<in-memory>: line: 8, column: 21], [builtin_debug_info = builtin.debug_info [res0]]
         !4 = @[<in-memory>: line: 9, column: 21], []
         !5 = @[<in-memory>: line: 11, column: 17], []
-        !6 = @[<in-memory>: line: 12, column: 21], []
+        !6 = @[<in-memory>: line: 12, column: 21], [builtin_debug_info = builtin.debug_info [res1]]
         !7 = @[<in-memory>: line: 13, column: 21], []
         !8 = @[<in-memory>: line: 5, column: 9], []
         !9 = @[<in-memory>: line: 16, column: 9], []
@@ -995,7 +1039,7 @@ fn attr_dict_op() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 2, column: 11], []
-        !1 = @[<in-memory>: line: 3, column: 13], []
+        !1 = @[<in-memory>: line: 3, column: 13], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 4, column: 13], []
         !3 = @[<in-memory>: line: 8, column: 13], []
         !4 = @[<in-memory>: line: 1, column: 1], []
@@ -1126,10 +1170,10 @@ fn multiple_regions4_op() {
 
         outlined_attributes:
         !0 = @[<in-memory>: line: 4, column: 17], []
-        !1 = @[<in-memory>: line: 5, column: 21], []
+        !1 = @[<in-memory>: line: 5, column: 21], [builtin_debug_info = builtin.debug_info [res0]]
         !2 = @[<in-memory>: line: 6, column: 21], []
         !3 = @[<in-memory>: line: 8, column: 17], []
-        !4 = @[<in-memory>: line: 9, column: 21], []
+        !4 = @[<in-memory>: line: 9, column: 21], [builtin_debug_info = builtin.debug_info [res1]]
         !5 = @[<in-memory>: line: 10, column: 21], []
         !6 = @[<in-memory>: line: 1, column: 1], []
     "#]]

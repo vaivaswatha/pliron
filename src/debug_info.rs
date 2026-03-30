@@ -2,24 +2,95 @@
 
 use std::collections::hash_map::Entry;
 
+use combine::{Parser, attempt, between, parser::char::spaces, sep_by, token};
+use pliron::derive::pliron_attr;
+use pliron_derive::attr_interface_impl;
+
 use crate::{
-    attribute::{AttrObj, AttributeDict},
+    attribute::AttributeDict,
     basic_block::BasicBlock,
-    builtin::{
-        ATTR_KEY_DEBUG_INFO,
-        attributes::{DictAttr, IdentifierAttr, UnitAttr, VecAttr},
-    },
+    builtin::{ATTR_KEY_DEBUG_INFO, attr_interfaces::OutlinedAttr},
     context::{Context, Ptr},
-    dict_key,
     identifier::Identifier,
     operation::Operation,
-    utils::vec_exns::VecExtns,
+    parsable::{Parsable, ParseResult, StateStream},
+    printable::{self, Printable},
 };
 
-dict_key!(
-    /// Key into a debug info's variable name.
-    DEBUG_INFO_KEY_NAME, "debug_info_name"
-);
+#[pliron_attr(name = "builtin.debug_info", verifier = "succ")]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct DebugInfoAttr {
+    names: Vec<Option<Identifier>>,
+}
+
+impl DebugInfoAttr {
+    fn new(size: usize) -> Self {
+        Self {
+            names: vec![None; size],
+        }
+    }
+
+    fn get_name(&self, idx: usize) -> Option<Identifier> {
+        self.names
+            .get(idx)
+            .expect("Index out of range for debug info attribute")
+            .clone()
+    }
+
+    fn set_name(&mut self, idx: usize, name: Identifier) {
+        *self
+            .names
+            .get_mut(idx)
+            .expect("Index out of range for debug info attribute") = Some(name);
+    }
+}
+
+#[attr_interface_impl]
+impl OutlinedAttr for DebugInfoAttr {}
+
+impl Printable for DebugInfoAttr {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(
+            f,
+            "[{}]",
+            self.names
+                .iter()
+                .map(|name| match name {
+                    Some(name) => name.disp(ctx).to_string(),
+                    None => "?".to_string(),
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
+impl Parsable for DebugInfoAttr {
+    type Arg = ();
+    type Parsed = Self;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        between(
+            token('[').skip(spaces()),
+            spaces().with(token(']')),
+            sep_by(
+                attempt(token('?').map(|_| None)).or(Identifier::parser(()).map(Some)),
+                token(',').skip(spaces()),
+            ),
+        )
+        .map(|names| DebugInfoAttr { names })
+        .parse_stream(state_stream)
+        .into()
+    }
+}
 
 fn set_name_from_attr_map(
     attributes: &mut AttributeDict,
@@ -27,57 +98,30 @@ fn set_name_from_attr_map(
     max_idx: usize,
     name: Identifier,
 ) {
-    let name_attr: AttrObj = IdentifierAttr::new(name).into();
     match attributes.0.entry(ATTR_KEY_DEBUG_INFO.clone()) {
         Entry::Occupied(mut occupied) => {
-            let di_dict = occupied.get_mut().downcast_mut::<DictAttr>().unwrap();
-            let expect_msg = "Existing attribute entry for result names incorrect";
-            let names = di_dict
-                .lookup_mut(&DEBUG_INFO_KEY_NAME)
-                .expect(expect_msg)
-                .downcast_mut::<VecAttr>()
-                .expect(expect_msg);
-            names.0[idx] = name_attr;
+            let debug_info = occupied
+                .get_mut()
+                .downcast_mut::<DebugInfoAttr>()
+                .expect("Existing attribute entry for debug info incorrect");
+            debug_info.set_name(idx, name);
         }
         Entry::Vacant(vacant) => {
-            let mut names = Vec::new_init(max_idx, |_idx| UnitAttr::new().into());
-            names[idx] = name_attr;
-            vacant.insert(
-                DictAttr::new(vec![(
-                    DEBUG_INFO_KEY_NAME.clone(),
-                    VecAttr::new(names).into(),
-                )])
-                .into(),
-            );
+            let mut debug_info = DebugInfoAttr::new(max_idx);
+            debug_info.set_name(idx, name);
+            vacant.insert(debug_info.into());
         }
     }
 }
 
-fn get_name_from_attr_map(
-    attributes: &AttributeDict,
-    idx: usize,
-    panic_msg: &str,
-) -> Option<Identifier> {
+fn get_name_from_attr_map(attributes: &AttributeDict, idx: usize) -> Option<Identifier> {
     attributes
-        .get::<DictAttr>(&ATTR_KEY_DEBUG_INFO)
-        .and_then(|di_dict| {
-            di_dict.lookup(&DEBUG_INFO_KEY_NAME).and_then(|names| {
-                let names = names.downcast_ref::<VecAttr>().expect(panic_msg);
-                names.0.get(idx).and_then(|name| {
-                    name.downcast_ref::<IdentifierAttr>()
-                        .map(|name_attr| name_attr.clone().into())
-                })
-            })
-        })
+        .get::<DebugInfoAttr>(&ATTR_KEY_DEBUG_INFO)
+        .and_then(|debug_info| debug_info.get_name(idx))
 }
 
 /// Set the name for a result in an [Operation].
 /// Panics if the given `res_idx` is out of range.
-//  Names for the result are stored in an [Operation] as follows:
-//      dict = op.attributes\[[ATTR_KEY_DEBUG_INFO]\] is a [SmallDictAttr]
-//      dict\[[DEBUG_INFO_NAME]\] is a [VecAttr] with [UnitAttr] entries
-//      for unknown names and [IdentiferAttr] for known names. The length of
-//      this array is always the same as the number of results.
 pub fn set_operation_result_name(
     ctx: &Context,
     op: Ptr<Operation>,
@@ -92,25 +136,17 @@ pub fn set_operation_result_name(
 }
 
 /// Get name for a result in an [Operation].
-//  See [set_operation_result_name] for attribute storage convention.
 pub fn get_operation_result_name(
     ctx: &Context,
     op: Ptr<Operation>,
     res_idx: usize,
 ) -> Option<Identifier> {
     let op = &*op.deref(ctx);
-    let expect_msg = "Incorrect attribute for result names";
-
-    get_name_from_attr_map(&op.attributes, res_idx, expect_msg)
+    get_name_from_attr_map(&op.attributes, res_idx)
 }
 
 /// Set the name for an argumet in a [BasicBlock].
 /// Panics if the given `arg_idx` is out of range.
-//  Names for the arguments are stored in a [BasicBlock] as follows:
-//      dict = block.attributes\[[ATTR_KEY_DEBUG_INFO]\] is a [SmallDictAttr]
-//      dict\[[DEBUG_INFO_NAME]\] is a [VecAttr] with [UnitAttr] entries
-//      for unknown names and [IdentiferAttr] for known names. The length of
-//      this array is always the same as the number of arguments.
 pub fn set_block_arg_name(ctx: &Context, block: Ptr<BasicBlock>, arg_idx: usize, name: Identifier) {
     let block = &mut *block.deref_mut(ctx);
     let num_args = block.get_num_arguments();
@@ -120,15 +156,13 @@ pub fn set_block_arg_name(ctx: &Context, block: Ptr<BasicBlock>, arg_idx: usize,
 }
 
 /// Get name for an argument in a [BasicBlock].
-//  See [set_block_arg_name] for attribute storage convention.
 pub fn get_block_arg_name(
     ctx: &Context,
     block: Ptr<BasicBlock>,
     arg_idx: usize,
 ) -> Option<Identifier> {
     let block = &*block.deref(ctx);
-    let expect_msg = "Incorrect attribute for block arg names";
-    get_name_from_attr_map(&block.attributes, arg_idx, expect_msg)
+    get_name_from_attr_map(&block.attributes, arg_idx)
 }
 
 #[cfg(test)]
