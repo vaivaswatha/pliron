@@ -1,6 +1,14 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::graph::{ControlFlowGraph, traversals};
+use crate::{
+    builtin::op_interfaces::{IsolatedFromAboveInterface, RegionKindInterface},
+    context::{Context, Ptr},
+    graph::{ControlFlowGraph, traversals},
+    linked_list::LinkedList,
+    op::op_cast,
+    operation::Operation,
+    region::Region,
+};
 
 /// A node in the dominator tree.
 struct DomTreeNode<G, GraphContext>
@@ -204,11 +212,74 @@ where
     }
 }
 
+/// Does the given region use SSA dominance?
+fn region_has_ssa_dominance(ctx: &Context, region: Ptr<Region>) -> bool {
+    let parent_op = region.deref(ctx).get_parent_op();
+    let op_dyn = Operation::get_op_dyn(parent_op, ctx);
+    match op_cast::<dyn RegionKindInterface>(op_dyn.as_ref()) {
+        Some(rki) => {
+            let region_idx = region.deref(ctx).get_index_in_parent(ctx);
+            rki.has_ssa_dominance(region_idx)
+        }
+        None => true,
+    }
+}
+
+/// Does `a` dominate `b`?
+///
+/// Following MLIR-style scoping, assumes that `b` is nested inside `a`'s parent region.
+pub fn dominates(
+    ctx: &Context,
+    dom_trees: &FxHashMap<Ptr<Region>, DomTree<Ptr<Region>, Context>>,
+    a: Ptr<Operation>,
+    b: Ptr<Operation>,
+) -> bool {
+    let Some(block_a) = a.deref(ctx).get_parent_block() else {
+        return false;
+    };
+    let region_a = block_a.deref(ctx).get_parent_region().unwrap();
+    let region_a_ssa = region_has_ssa_dominance(ctx, region_a);
+
+    let mut b = b;
+    while let Some(block_b) = b.deref(ctx).get_parent_block() {
+        let region_b = block_b.deref(ctx).get_parent_region().unwrap();
+
+        if block_a == block_b {
+            if !region_a_ssa {
+                return true;
+            }
+
+            let mut cursor = a.deref(ctx).get_next();
+            while let Some(op) = cursor {
+                if op == b {
+                    return true;
+                }
+                cursor = op.deref(ctx).get_next();
+            }
+            return false;
+        }
+
+        if region_a == region_b {
+            let dom_tree = &dom_trees[&region_a];
+            return dom_tree.dominates(&block_a, &block_b);
+        }
+
+        let parent_op = region_b.deref(ctx).get_parent_op();
+        let op_dyn = Operation::get_op_dyn(parent_op, ctx);
+        if op_cast::<dyn IsolatedFromAboveInterface>(op_dyn.as_ref()).is_some() {
+            return false;
+        }
+        b = parent_op;
+    }
+
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::{DomFrontierMap, compute_dominator_tree};
     use crate::graph::ControlFlowGraph;
-    use rustc_hash::FxHashSet;
+    use rustc_hash::{FxHashMap, FxHashSet};
     use std::collections::HashSet;
 
     #[derive(Clone, Debug)]
@@ -501,5 +572,366 @@ mod tests {
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
         let df = DomFrontierMap::new(&ctx, &ArenaGraph, &dom);
         assert_eq!(*df.frontier(&4), FxHashSet::from_iter([3, 4, 11, 12]));
+    }
+
+    // --- Operation-level dominance tests ---
+
+    use crate::{
+        basic_block::BasicBlock,
+        builtin::{
+            op_interfaces::{
+                IsTerminatorInterface, NRegionsInterface, OneRegionInterface,
+                SingleBlockRegionInterface,
+            },
+            ops::{FuncOp, ModuleOp},
+            types::{FunctionType, IntegerType, Signedness},
+        },
+        context::{Context, Ptr},
+        derive::pliron_op,
+        linked_list::ContainsLinkedList,
+        op::Op,
+        operation::Operation,
+        region::Region,
+    };
+
+    /// A test-only terminator operation for setting up CFG edges.
+    #[pliron_op(
+        name = "test.branch",
+        interfaces = [IsTerminatorInterface],
+        verifier = "succ",
+    )]
+    struct BranchOp;
+    impl crate::printable::Printable for BranchOp {
+        fn fmt(
+            &self,
+            _ctx: &Context,
+            _state: &crate::printable::State,
+            f: &mut core::fmt::Formatter<'_>,
+        ) -> core::fmt::Result {
+            write!(f, "test.branch")
+        }
+    }
+    impl crate::parsable::Parsable for BranchOp {
+        type Arg = Vec<(crate::identifier::Identifier, crate::location::Location)>;
+        type Parsed = crate::op::OpObj;
+        fn parse<'a>(
+            _state_stream: &mut crate::parsable::StateStream<'a>,
+            _results: Self::Arg,
+        ) -> crate::parsable::ParseResult<'a, Self::Parsed> {
+            unimplemented!("TestTerminatorOp parsing not needed for tests")
+        }
+    }
+
+    /// A test-only operation with one region that is NOT IsolatedFromAbove.
+    /// Represents something like a loop or scope construct.
+    #[pliron_op(
+        name = "test.scope",
+        interfaces = [NRegionsInterface<1>, OneRegionInterface],
+        verifier = "succ",
+    )]
+    struct ScopeOp;
+    impl crate::printable::Printable for ScopeOp {
+        fn fmt(
+            &self,
+            _ctx: &Context,
+            _state: &crate::printable::State,
+            f: &mut core::fmt::Formatter<'_>,
+        ) -> core::fmt::Result {
+            write!(f, "test.scope")
+        }
+    }
+    impl crate::parsable::Parsable for ScopeOp {
+        type Arg = Vec<(crate::identifier::Identifier, crate::location::Location)>;
+        type Parsed = crate::op::OpObj;
+        fn parse<'a>(
+            _state_stream: &mut crate::parsable::StateStream<'a>,
+            _results: Self::Arg,
+        ) -> crate::parsable::ParseResult<'a, Self::Parsed> {
+            unimplemented!("ScopeOp parsing not needed for tests")
+        }
+    }
+    impl ScopeOp {
+        fn new(ctx: &mut Context) -> ScopeOp {
+            let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
+            // Create an entry block in the region.
+            let region = op.deref(ctx).get_region(0);
+            let block = BasicBlock::new(ctx, None, vec![]);
+            block.insert_at_front(region, ctx);
+            ScopeOp { op }
+        }
+
+        fn get_entry_block(&self, ctx: &Context) -> Ptr<BasicBlock> {
+            self.get_region(ctx).deref(ctx).get_head().unwrap()
+        }
+    }
+
+    /// Build dom_trees map for all regions reachable from a module (recursively).
+    fn build_dom_trees(
+        ctx: &Context,
+        module: &ModuleOp,
+    ) -> FxHashMap<Ptr<Region>, super::DomTree<Ptr<Region>, Context>> {
+        fn collect_regions(
+            ctx: &Context,
+            region: Ptr<Region>,
+            map: &mut FxHashMap<Ptr<Region>, super::DomTree<Ptr<Region>, Context>>,
+        ) {
+            map.insert(region, compute_dominator_tree(ctx, &region));
+            for block in region.deref(ctx).iter(ctx) {
+                for op in block.deref(ctx).iter(ctx) {
+                    for child_region in op.deref(ctx).regions() {
+                        collect_regions(ctx, child_region, map);
+                    }
+                }
+            }
+        }
+        let mut map = FxHashMap::default();
+        let mod_region = module.get_operation().deref(ctx).get_region(0);
+        collect_regions(ctx, mod_region, &mut map);
+        map
+    }
+
+    #[test]
+    fn op_dominates_same_block() {
+        let ctx = &mut Context::new();
+        let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
+        let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
+        let module = ModuleOp::new(ctx, "test_mod".try_into().unwrap());
+        let func = FuncOp::new(ctx, "f".try_into().unwrap(), func_ty);
+        module.append_operation(ctx, func.get_operation(), 0);
+
+        let bb = func.get_entry_block(ctx);
+
+        let op_a = Operation::new(
+            ctx,
+            FuncOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![],
+            0,
+        );
+        op_a.insert_at_back(bb, ctx);
+
+        let op_b = Operation::new(
+            ctx,
+            FuncOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![],
+            0,
+        );
+        op_b.insert_at_back(bb, ctx);
+
+        let dom_trees = build_dom_trees(ctx, &module);
+
+        assert!(super::dominates(ctx, &dom_trees, op_a, op_b));
+        assert!(!super::dominates(ctx, &dom_trees, op_b, op_a));
+        assert!(!super::dominates(ctx, &dom_trees, op_a, op_a));
+    }
+
+    #[test]
+    fn op_dominates_graph_region() {
+        let ctx = &mut Context::new();
+        let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
+        let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
+        let module = ModuleOp::new(ctx, "test_mod".try_into().unwrap());
+
+        let func_a = FuncOp::new(ctx, "a".try_into().unwrap(), func_ty);
+        module.append_operation(ctx, func_a.get_operation(), 0);
+        let func_b = FuncOp::new(ctx, "b".try_into().unwrap(), func_ty);
+        module.append_operation(ctx, func_b.get_operation(), 0);
+
+        let dom_trees = build_dom_trees(ctx, &module);
+
+        let op_a = func_a.get_operation();
+        let op_b = func_b.get_operation();
+
+        assert!(super::dominates(ctx, &dom_trees, op_a, op_b));
+        assert!(super::dominates(ctx, &dom_trees, op_b, op_a));
+    }
+
+    #[test]
+    fn op_dominates_isolated_from_above() {
+        let ctx = &mut Context::new();
+        let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
+        let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
+
+        let module = ModuleOp::new(ctx, "test_mod".try_into().unwrap());
+        let outer_func = FuncOp::new(ctx, "outer".try_into().unwrap(), func_ty);
+        module.append_operation(ctx, outer_func.get_operation(), 0);
+        let outer_bb = outer_func.get_entry_block(ctx);
+        let op_a = Operation::new(
+            ctx,
+            FuncOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![],
+            0,
+        );
+        op_a.insert_at_back(outer_bb, ctx);
+        let inner_func = FuncOp::new(ctx, "inner".try_into().unwrap(), func_ty);
+        inner_func.get_operation().insert_at_back(outer_bb, ctx);
+        let op_b = Operation::new(
+            ctx,
+            FuncOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![],
+            0,
+        );
+        op_b.insert_at_back(inner_func.get_entry_block(ctx), ctx);
+
+        let dom_trees = build_dom_trees(ctx, &module);
+
+        assert!(super::dominates(
+            ctx,
+            &dom_trees,
+            op_a,
+            inner_func.get_operation()
+        ));
+        assert!(!super::dominates(ctx, &dom_trees, op_a, op_b));
+    }
+
+    #[test]
+    fn op_does_not_dominate_own_body() {
+        let ctx = &mut Context::new();
+        let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
+        let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
+        let module = ModuleOp::new(ctx, "test_mod".try_into().unwrap());
+
+        let func = FuncOp::new(ctx, "f".try_into().unwrap(), func_ty);
+        module.append_operation(ctx, func.get_operation(), 0);
+
+        let inner_op = Operation::new(
+            ctx,
+            FuncOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![],
+            0,
+        );
+        inner_op.insert_at_back(func.get_entry_block(ctx), ctx);
+
+        let dom_trees = build_dom_trees(ctx, &module);
+
+        assert!(!super::dominates(
+            ctx,
+            &dom_trees,
+            func.get_operation(),
+            inner_op
+        ));
+    }
+
+    #[test]
+    fn op_dominates_nested_non_isolated_region() {
+        let ctx = &mut Context::new();
+        let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
+        let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
+        let module = ModuleOp::new(ctx, "test_mod".try_into().unwrap());
+
+        let func = FuncOp::new(ctx, "f".try_into().unwrap(), func_ty);
+        module.append_operation(ctx, func.get_operation(), 0);
+        let bb = func.get_entry_block(ctx);
+
+        let op_a = Operation::new(
+            ctx,
+            FuncOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![],
+            0,
+        );
+        op_a.insert_at_back(bb, ctx);
+
+        let scope = ScopeOp::new(ctx);
+        scope.get_operation().insert_at_back(bb, ctx);
+
+        let op_b = Operation::new(
+            ctx,
+            FuncOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![],
+            0,
+        );
+        op_b.insert_at_back(scope.get_entry_block(ctx), ctx);
+
+        let dom_trees = build_dom_trees(ctx, &module);
+
+        assert!(super::dominates(
+            ctx,
+            &dom_trees,
+            op_a,
+            scope.get_operation()
+        ));
+        assert!(super::dominates(ctx, &dom_trees, op_a, op_b));
+    }
+
+    #[test]
+    fn op_dominates_cross_block() {
+        // CFG:
+        //     entry (opA)
+        //      / \
+        //    b1    b2
+        //   (opB)  (opC)
+        //
+        let ctx = &mut Context::new();
+        let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
+        let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
+        let module = ModuleOp::new(ctx, "test_mod".try_into().unwrap());
+
+        let func = FuncOp::new(ctx, "f".try_into().unwrap(), func_ty);
+        module.append_operation(ctx, func.get_operation(), 0);
+        let func_region = func.get_region(ctx);
+        let entry = func.get_entry_block(ctx);
+
+        let b1 = BasicBlock::new(ctx, None, vec![]);
+        b1.insert_at_back(func_region, ctx);
+        let b2 = BasicBlock::new(ctx, None, vec![]);
+        b2.insert_at_back(func_region, ctx);
+
+        let op_a = Operation::new(
+            ctx,
+            ScopeOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![],
+            0,
+        );
+        op_a.insert_at_back(entry, ctx);
+        let branch = Operation::new(
+            ctx,
+            BranchOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![b1, b2],
+            0,
+        );
+        branch.insert_at_back(entry, ctx);
+
+        let op_b = Operation::new(
+            ctx,
+            ScopeOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![],
+            0,
+        );
+        op_b.insert_at_back(b1, ctx);
+
+        let op_c = Operation::new(
+            ctx,
+            ScopeOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![],
+            0,
+        );
+        op_c.insert_at_back(b2, ctx);
+
+        let dom_trees = build_dom_trees(ctx, &module);
+
+        assert!(super::dominates(ctx, &dom_trees, op_a, op_b));
+        assert!(super::dominates(ctx, &dom_trees, op_a, op_c));
+        assert!(!super::dominates(ctx, &dom_trees, op_b, op_c));
     }
 }
