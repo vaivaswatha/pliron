@@ -1,5 +1,6 @@
 use combine::{Parser, optional, token};
 use pliron::derive::pliron_op;
+use pliron_derive::op_interface_impl;
 use thiserror::Error;
 
 use crate::{
@@ -8,6 +9,7 @@ use crate::{
     builtin::{
         op_interfaces::{
             ATTR_KEY_SYM_NAME, NRegionsInterface, NResultsInterface, NoTerminatorInterface,
+            RegionKind, RegionKindInterface,
         },
         ops::func_op_attr_names::ATTR_KEY_FUNC_TYPE,
         type_interfaces::FunctionTypeInterface,
@@ -45,7 +47,7 @@ use super::{
 /// Represents a module, a top level container operation.
 ///
 /// See MLIR's [builtin.module](https://mlir.llvm.org/docs/Dialects/Builtin/#builtinmodule-mlirmoduleop).
-/// It contains a single [SSACFG](super::op_interfaces::RegionKind::SSACFG)
+/// It contains a single [Graph](super::op_interfaces::RegionKind::Graph)
 /// region containing a single block which can contain any operations and
 /// does not have a terminator.
 ///
@@ -65,6 +67,17 @@ use super::{
     verifier = "succ",
 )]
 pub struct ModuleOp;
+
+#[op_interface_impl]
+impl RegionKindInterface for ModuleOp {
+    fn get_region_kind(&self, _idx: usize) -> RegionKind {
+        RegionKind::Graph
+    }
+
+    fn has_ssa_dominance(&self, _idx: usize) -> bool {
+        false
+    }
+}
 
 impl Printable for ModuleOp {
     fn fmt(
