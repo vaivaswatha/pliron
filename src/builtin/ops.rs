@@ -73,10 +73,6 @@ impl RegionKindInterface for ModuleOp {
     fn get_region_kind(&self, _idx: usize) -> RegionKind {
         RegionKind::Graph
     }
-
-    fn has_ssa_dominance(&self, _idx: usize) -> bool {
-        false
-    }
 }
 
 impl Printable for ModuleOp {
