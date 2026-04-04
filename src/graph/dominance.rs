@@ -292,15 +292,7 @@ impl DomInfo {
         let block_b = b.deref(ctx).get_parent_block().unwrap();
 
         if block_a == block_b {
-            if !region_a_ssa {
-                return true;
-            }
-
-            if strictly_precedes_in_block(ctx, a, b) {
-                return true;
-            }
-
-            return false;
+            return !region_a_ssa || strictly_precedes_in_block(ctx, a, b);
         }
 
         let dom_tree = self.get_dom_tree(ctx, region_a);
