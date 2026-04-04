@@ -275,7 +275,12 @@ impl DomInfo {
     ///
     /// Caches region dominator trees as a side effect. This is an MLIR-specific notion of
     /// dominance. Operations in graph regions dominate themselves, so it is only "strict" for SSA regions.
-    pub fn strictly_dominates(&mut self, ctx: &Context, a: Ptr<Operation>, b: Ptr<Operation>) -> bool {
+    pub fn strictly_dominates(
+        &mut self,
+        ctx: &Context,
+        a: Ptr<Operation>,
+        b: Ptr<Operation>,
+    ) -> bool {
         let Some(block_a) = a.deref(ctx).get_parent_block() else {
             return false;
         };
