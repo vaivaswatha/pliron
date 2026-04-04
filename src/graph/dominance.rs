@@ -266,20 +266,16 @@ impl DomInfo {
         ctx: &Context,
         region: Ptr<Region>,
     ) -> &DomTree<Ptr<Region>, Context> {
-        if self.0.contains_key(&region) {
-            return &self.0[&region];
-        }
-
-        let dom_tree = compute_dominator_tree(ctx, &region);
-        self.0.insert(region, dom_tree);
-
-        &self.0[&region]
+        self.0
+            .entry(region)
+            .or_insert_with(|| compute_dominator_tree(ctx, &region))
     }
 
-    /// Does `a` dominate `b`? Caches region dominator trees as a side effect.
+    /// Does `a` strictly dominate `b`?
     ///
-    /// Following MLIR-style scoping, assumes that `b` is nested inside `a`'s parent region.
-    pub fn dominates(&mut self, ctx: &Context, a: Ptr<Operation>, b: Ptr<Operation>) -> bool {
+    /// Caches region dominator trees as a side effect. This is an MLIR-specific notion of
+    /// dominance. Operations in graph regions dominate themselves, so it is only "strict" for SSA regions.
+    pub fn strictly_dominates(&mut self, ctx: &Context, a: Ptr<Operation>, b: Ptr<Operation>) -> bool {
         let Some(block_a) = a.deref(ctx).get_parent_block() else {
             return false;
         };
@@ -621,59 +617,21 @@ mod tests {
     /// A test-only terminator operation for setting up CFG edges.
     #[pliron_op(
         name = "test.branch",
+        format = "",
         interfaces = [IsTerminatorInterface],
         verifier = "succ",
     )]
     struct BranchOp;
-    impl crate::printable::Printable for BranchOp {
-        fn fmt(
-            &self,
-            _ctx: &Context,
-            _state: &crate::printable::State,
-            f: &mut core::fmt::Formatter<'_>,
-        ) -> core::fmt::Result {
-            write!(f, "test.branch")
-        }
-    }
-    impl crate::parsable::Parsable for BranchOp {
-        type Arg = Vec<(crate::identifier::Identifier, crate::location::Location)>;
-        type Parsed = crate::op::OpObj;
-        fn parse<'a>(
-            _state_stream: &mut crate::parsable::StateStream<'a>,
-            _results: Self::Arg,
-        ) -> crate::parsable::ParseResult<'a, Self::Parsed> {
-            unimplemented!("TestTerminatorOp parsing not needed for tests")
-        }
-    }
 
     /// A test-only operation with one region that is NOT IsolatedFromAbove.
     /// Represents something like a loop or scope construct.
     #[pliron_op(
         name = "test.scope",
+        format = "`{` region($0) `}`",
         interfaces = [NRegionsInterface<1>, OneRegionInterface],
         verifier = "succ",
     )]
     struct ScopeOp;
-    impl crate::printable::Printable for ScopeOp {
-        fn fmt(
-            &self,
-            _ctx: &Context,
-            _state: &crate::printable::State,
-            f: &mut core::fmt::Formatter<'_>,
-        ) -> core::fmt::Result {
-            write!(f, "test.scope")
-        }
-    }
-    impl crate::parsable::Parsable for ScopeOp {
-        type Arg = Vec<(crate::identifier::Identifier, crate::location::Location)>;
-        type Parsed = crate::op::OpObj;
-        fn parse<'a>(
-            _state_stream: &mut crate::parsable::StateStream<'a>,
-            _results: Self::Arg,
-        ) -> crate::parsable::ParseResult<'a, Self::Parsed> {
-            unimplemented!("ScopeOp parsing not needed for tests")
-        }
-    }
     impl ScopeOp {
         fn new(ctx: &mut Context) -> ScopeOp {
             let op = Operation::new(ctx, Self::get_concrete_op_info(), vec![], vec![], vec![], 1);
@@ -722,9 +680,9 @@ mod tests {
 
         let mut dom_info = super::DomInfo::default();
 
-        assert!(dom_info.dominates(ctx, op_a, op_b));
-        assert!(!dom_info.dominates(ctx, op_b, op_a));
-        assert!(!dom_info.dominates(ctx, op_a, op_a));
+        assert!(dom_info.strictly_dominates(ctx, op_a, op_b));
+        assert!(!dom_info.strictly_dominates(ctx, op_b, op_a));
+        assert!(!dom_info.strictly_dominates(ctx, op_a, op_a));
     }
 
     #[test]
@@ -744,8 +702,8 @@ mod tests {
         let op_a = func_a.get_operation();
         let op_b = func_b.get_operation();
 
-        assert!(dom_info.dominates(ctx, op_a, op_b));
-        assert!(dom_info.dominates(ctx, op_b, op_a));
+        assert!(dom_info.strictly_dominates(ctx, op_a, op_b));
+        assert!(dom_info.strictly_dominates(ctx, op_b, op_a));
     }
 
     #[test]
@@ -774,7 +732,7 @@ mod tests {
 
         let mut dom_info = super::DomInfo::default();
 
-        assert!(!dom_info.dominates(ctx, func.get_operation(), inner_op));
+        assert!(!dom_info.strictly_dominates(ctx, func.get_operation(), inner_op));
     }
 
     #[test]
@@ -799,7 +757,22 @@ mod tests {
 
         let mut dom_info = super::DomInfo::default();
 
-        assert!(dom_info.dominates(ctx, func.get_operation(), inner_op));
+        assert!(dom_info.strictly_dominates(ctx, func.get_operation(), inner_op));
+    }
+
+    #[test]
+    fn graph_op_dominates_self() {
+        let ctx = &mut Context::new();
+        let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
+        let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
+        let module = ModuleOp::new(ctx, "test_mod".try_into().unwrap());
+
+        let func = FuncOp::new(ctx, "f".try_into().unwrap(), func_ty);
+        module.append_operation(ctx, func.get_operation(), 0);
+
+        let mut dom_info = super::DomInfo::default();
+
+        assert!(dom_info.strictly_dominates(ctx, func.get_operation(), func.get_operation()));
     }
 
     #[test]
@@ -838,8 +811,8 @@ mod tests {
 
         let mut dom_info = super::DomInfo::default();
 
-        assert!(dom_info.dominates(ctx, op_a, scope.get_operation()));
-        assert!(dom_info.dominates(ctx, op_a, op_b));
+        assert!(dom_info.strictly_dominates(ctx, op_a, scope.get_operation()));
+        assert!(dom_info.strictly_dominates(ctx, op_a, op_b));
     }
 
     #[test]
@@ -906,8 +879,8 @@ mod tests {
 
         let mut dom_info = super::DomInfo::default();
 
-        assert!(dom_info.dominates(ctx, op_a, op_b));
-        assert!(dom_info.dominates(ctx, op_a, op_c));
-        assert!(!dom_info.dominates(ctx, op_b, op_c));
+        assert!(dom_info.strictly_dominates(ctx, op_a, op_b));
+        assert!(dom_info.strictly_dominates(ctx, op_a, op_c));
+        assert!(!dom_info.strictly_dominates(ctx, op_b, op_c));
     }
 }
