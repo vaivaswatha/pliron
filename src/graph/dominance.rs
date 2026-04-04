@@ -212,8 +212,8 @@ where
     }
 }
 
-/// Returns the ancestor operation of `op` contained in `region`, or returns `None` if
-/// no ancestor of `op` is in `region`.
+/// Returns the ancestor operation of `op` contained in `target_region`, or returns `None` if
+/// no ancestor of `op` is in `target_region`.
 fn find_ancestor_in_region(
     ctx: &Context,
     op: Ptr<Operation>,
