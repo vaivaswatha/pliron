@@ -273,8 +273,16 @@ impl DomInfo {
 
     /// Does `a` strictly dominate `b`?
     ///
-    /// Caches region dominator trees as a side effect. This is an MLIR-specific notion of
-    /// dominance. Operations in graph regions dominate themselves, so it is only "strict" for SSA regions.
+    /// Caches region dominator trees as a side effect.
+    ///
+    /// Defining `OpB_` as an operation immediately in `OpA`'s region, and either
+    /// 1. contains `OpB` in its (possibly nested) regions, OR
+    /// 2. is the same as `OpB`.
+    ///
+    /// This function returns true when
+    /// 1. `OpA` and `OpB_` are in the same basic block of an SSA region and `OpA` strictly precedes `OpB_`, OR
+    /// 2. `OpA` strictly dominates (in the traditional definition of dominance, for single-region CFGs) `OpB_`, OR
+    /// 3. `OpA` and `OpB_` are in a graph region's sole basic block.
     pub fn strictly_dominates(
         &mut self,
         ctx: &Context,
