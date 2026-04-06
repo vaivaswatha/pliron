@@ -244,7 +244,9 @@ pub trait RegionKindInterface {
     fn get_region_kind(&self, idx: usize) -> RegionKind;
     /// Return true if the region with the given index inside this operation
     /// must require dominance to hold.
-    fn has_ssa_dominance(&self, idx: usize) -> bool;
+    fn has_ssa_dominance(&self, idx: usize) -> bool {
+        matches!(self.get_region_kind(idx), RegionKind::SSACFG)
+    }
 
     fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
     where
