@@ -1036,8 +1036,11 @@ impl ToLLVMValue for ZExtOp {
             ty,
             &self.get_result(ctx).unique_name(ctx),
         );
-        let nneg = self.nneg(ctx);
-        llvm_set_nneg(zext_op, nneg);
+        // The built value may not even be an instruction, but a folded constant.
+        if llvm_is_a::instruction(zext_op) {
+            let nneg = self.nneg(ctx);
+            llvm_set_nneg(zext_op, nneg);
+        }
         Ok(zext_op)
     }
 }
@@ -1541,8 +1544,11 @@ impl ToLLVMValue for UIToFPOp {
             ty,
             &self.get_result(ctx).unique_name(ctx),
         );
-        let nneg = self.nneg(ctx);
-        llvm_set_nneg(uitofp_op, nneg);
+        // The built value may not even be an instruction, but a folded constant.
+        if llvm_is_a::instruction(uitofp_op) {
+            let nneg = self.nneg(ctx);
+            llvm_set_nneg(uitofp_op, nneg);
+        }
         Ok(uitofp_op)
     }
 }

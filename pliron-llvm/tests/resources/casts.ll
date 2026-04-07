@@ -17,11 +17,38 @@ entry:
   ret i32 %trunc_back
 }
 
+; Function to test vector forms of FPToSI, FPToUI, SIToFP and UIToFP.
+define i32 @test_vector_casts() {
+entry:
+  %fvec0 = insertelement <2 x float> undef, float 5.000000e+00, i32 0
+  %fvec1 = insertelement <2 x float> %fvec0, float 9.000000e+00, i32 1
+  %fptosi = fptosi <2 x float> %fvec1 to <2 x i32>
+  %fptosi_0 = extractelement <2 x i32> %fptosi, i32 0
+  %fptoui = fptoui <2 x float> %fvec1 to <2 x i32>
+  %fptoui_1 = extractelement <2 x i32> %fptoui, i32 1
+
+  %ivec0 = insertelement <2 x i32> undef, i32 7, i32 0
+  %ivec1 = insertelement <2 x i32> %ivec0, i32 3, i32 1
+  %sitofp = sitofp <2 x i32> %ivec1 to <2 x float>
+  %sitofp_0 = extractelement <2 x float> %sitofp, i32 0
+  %sitofp_0_i = fptosi float %sitofp_0 to i32
+  %uitofp = uitofp <2 x i32> %ivec1 to <2 x float>
+  %uitofp_1 = extractelement <2 x float> %uitofp, i32 1
+  %uitofp_1_i = fptosi float %uitofp_1 to i32
+
+  %sum0 = add i32 %fptosi_0, %fptoui_1
+  %sum1 = add i32 %sitofp_0_i, %uitofp_1_i
+  %sum2 = add i32 %sum0, %sum1
+  ret i32 %sum2
+}
+
 ; Main function that calls test_casts
 define i32 @main() {
 entry:
   ; Example input value
   %input = add i32 0, 123456
-  %result = call i32 @test_casts(i32 %input)
+  %scalar_result = call i32 @test_casts(i32 %input)
+  %vector_result = call i32 @test_vector_casts()
+  %result = add i32 %scalar_result, %vector_result
   ret i32 %result
 }

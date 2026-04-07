@@ -252,7 +252,7 @@ fn test_globals() {
 #[test]
 fn test_casts() {
     init_env_logger!();
-    test_llvm_ir_via_pliron(RESOURCES_DIR.join("casts.ll").to_str().unwrap(), 64);
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("casts.ll").to_str().unwrap(), 88);
 }
 
 /// Test fib by compiling fib.ll via pliron.
