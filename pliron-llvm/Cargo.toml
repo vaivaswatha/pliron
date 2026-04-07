@@ -17,7 +17,7 @@ thiserror.workspace = true
 rustc-hash.workspace = true
 # When upgrading the LLVM version, change the LLVM versions in
 # `ci.yml` and the READMEs in `pliron-llvm` and `llvm-opt`.
-llvm-sys = "211"
+llvm-sys = "221"
 log.workspace = true
 bitflags = { workspace = true, features = ["std"] }
 

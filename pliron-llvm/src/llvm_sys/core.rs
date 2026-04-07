@@ -2,7 +2,7 @@
 
 use std::{
     fmt::{self, Display, Formatter},
-    mem::{MaybeUninit, forget},
+    mem::MaybeUninit,
     ptr,
 };
 
@@ -52,20 +52,19 @@ use llvm_sys::{
         LLVMGetParam, LLVMGetParamTypes, LLVMGetPoison, LLVMGetPreviousBasicBlock,
         LLVMGetPreviousFunction, LLVMGetPreviousGlobal, LLVMGetPreviousInstruction,
         LLVMGetPreviousParam, LLVMGetReturnType, LLVMGetStructElementTypes, LLVMGetStructName,
-        LLVMGetTypeKind, LLVMGetUndef, LLVMGetUndefMaskElem, LLVMGetValueKind, LLVMGetValueName2,
-        LLVMGetVectorSize, LLVMGlobalGetValueType, LLVMIntTypeInContext, LLVMIntrinsicIsOverloaded,
-        LLVMIsAFunction, LLVMIsATerminatorInst, LLVMIsAUser, LLVMIsDeclaration,
-        LLVMIsFunctionVarArg, LLVMIsOpaqueStruct, LLVMLookupIntrinsicID,
-        LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext, LLVMPositionBuilderAtEnd,
-        LLVMPositionBuilderBefore, LLVMPrintModuleToFile, LLVMPrintModuleToString,
-        LLVMPrintTypeToString, LLVMPrintValueToString, LLVMScalableVectorType, LLVMSetAlignment,
-        LLVMSetFastMathFlags, LLVMSetInitializer, LLVMSetLinkage, LLVMSetNNeg,
-        LLVMStructCreateNamed, LLVMStructSetBody, LLVMStructTypeInContext, LLVMTypeIsSized,
-        LLVMTypeOf, LLVMValueAsBasicBlock, LLVMValueIsBasicBlock, LLVMVectorType,
-        LLVMVoidTypeInContext,
+        LLVMGetSwitchCaseValue, LLVMGetTypeKind, LLVMGetUndef, LLVMGetUndefMaskElem,
+        LLVMGetValueKind, LLVMGetValueName2, LLVMGetVectorSize, LLVMGlobalGetValueType,
+        LLVMIntTypeInContext, LLVMIntrinsicIsOverloaded, LLVMIsAFunction, LLVMIsATerminatorInst,
+        LLVMIsAUser, LLVMIsDeclaration, LLVMIsFunctionVarArg, LLVMIsOpaqueStruct,
+        LLVMLookupIntrinsicID, LLVMModuleCreateWithNameInContext, LLVMPointerTypeInContext,
+        LLVMPositionBuilderAtEnd, LLVMPositionBuilderBefore, LLVMPrintModuleToFile,
+        LLVMPrintModuleToString, LLVMPrintTypeToString, LLVMPrintValueToString,
+        LLVMScalableVectorType, LLVMSetAlignment, LLVMSetFastMathFlags, LLVMSetInitializer,
+        LLVMSetLinkage, LLVMSetNNeg, LLVMStructCreateNamed, LLVMStructSetBody,
+        LLVMStructTypeInContext, LLVMTypeIsSized, LLVMTypeOf, LLVMValueAsBasicBlock,
+        LLVMValueIsBasicBlock, LLVMVectorType, LLVMVoidTypeInContext,
     },
     error::{LLVMDisposeErrorMessage, LLVMErrorRef, LLVMGetErrorMessage},
-    ir_reader::LLVMParseIRInContext,
     prelude::{
         LLVMBasicBlockRef, LLVMBuilderRef, LLVMContextRef, LLVMMemoryBufferRef, LLVMModuleRef,
         LLVMTypeRef, LLVMValueRef,
@@ -2198,6 +2197,12 @@ pub fn llvm_build_switch(
     }
 }
 
+/// LLVMGetSwitchCaseValue
+pub fn llvm_get_switch_case_value(switch_inst: LLVMValue, case_idx: u32) -> LLVMValue {
+    assert!(llvm_is_a::switch_inst(switch_inst));
+    unsafe { LLVMGetSwitchCaseValue(switch_inst.into(), case_idx).into() }
+}
+
 /// LLVMAddCase
 pub fn llvm_add_case(switch_inst: LLVMValue, on_val: LLVMValue, dest_block: LLVMBasicBlock) {
     assert!(llvm_is_a::switch_inst(switch_inst));
@@ -2515,6 +2520,8 @@ pub fn llvm_get_intrinsic_declaration(
 
 // We wrap LLVMModule in a module to limit its visibility for constructing
 mod llvm_module {
+    use llvm_sys::ir_reader::LLVMParseIRInContext2;
+
     use super::*;
 
     /// RAII wrapper around LLVMModuleRef
@@ -2542,16 +2549,13 @@ mod llvm_module {
             let mut err_string = MaybeUninit::uninit();
 
             let success = unsafe {
-                LLVMParseIRInContext(
+                LLVMParseIRInContext2(
                     context.inner_ref(),
                     memory_buffer.inner_ref(),
                     module_ref.as_mut_ptr(),
                     err_string.as_mut_ptr(),
                 )
             };
-
-            // LLVMParseIRInContext consumes the memory buffer.
-            forget(memory_buffer);
 
             if success != 0 {
                 unsafe {

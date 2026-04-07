@@ -57,10 +57,11 @@ use crate::{
         llvm_get_nneg, llvm_get_nsw, llvm_get_num_arg_operands, llvm_get_num_mask_elements,
         llvm_get_num_operands, llvm_get_nuw, llvm_get_operand, llvm_get_param_types,
         llvm_get_return_type, llvm_get_struct_element_types, llvm_get_struct_name,
-        llvm_get_type_kind, llvm_get_value_kind, llvm_get_value_name, llvm_get_vector_size,
-        llvm_global_get_value_type, llvm_is_a, llvm_is_declaration, llvm_is_function_type_var_arg,
-        llvm_is_opaque_struct, llvm_lookup_intrinsic_id, llvm_print_value_to_string, llvm_type_of,
-        llvm_value_as_basic_block, llvm_value_is_basic_block, param_iter,
+        llvm_get_switch_case_value, llvm_get_type_kind, llvm_get_value_kind, llvm_get_value_name,
+        llvm_get_vector_size, llvm_global_get_value_type, llvm_is_a, llvm_is_declaration,
+        llvm_is_function_type_var_arg, llvm_is_opaque_struct, llvm_lookup_intrinsic_id,
+        llvm_print_value_to_string, llvm_type_of, llvm_value_as_basic_block,
+        llvm_value_is_basic_block, param_iter,
     },
     op_interfaces::{
         AlignableOpInterface, BinArithOp, CastOpInterface, CastOpWithNNegInterface, FastMathFlags,
@@ -371,6 +372,8 @@ pub enum ConversionErr {
     ZeroWidthIntConst,
     #[error("Floating point constant not of floating point type")]
     FloatConstNotFloatType,
+    #[error("Switch case value is not an integer constant")]
+    SwitchCaseNonIntConst,
 }
 
 /// If a value is a ConstantOp with integer type, return the value.
@@ -1145,6 +1148,9 @@ fn convert_instruction(
             let res_ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
             Ok(PtrToIntOp::new(ctx, arg, res_ty).get_operation())
         }
+        LLVMOpcode::LLVMPtrToAddr => {
+            unimplemented!("LLVM-C does not have LLVMBuildPtrToAddr yet")
+        }
         LLVMOpcode::LLVMResume => todo!(),
         LLVMOpcode::LLVMRet => {
             let retval = if llvm_get_num_operands(inst) == 1 {
@@ -1214,10 +1220,20 @@ fn convert_instruction(
             let default_dest = succs
                 .first()
                 .ok_or_else(|| input_error_noloc!(ConversionErr::SuccMissing(0)))?;
-            let cases = opds
+            let num_cases = succs.len() - 1;
+            // Case values aren't stored as operands, but we can get them using `llvm_get_switch_case_value`.
+            let mut case_values = vec![];
+            // Case 0 is the default destination, so we start with 1.
+            for case_idx in 1..=num_cases {
+                let case_value = llvm_get_switch_case_value(inst, case_idx.try_into().unwrap());
+                process_constant(ctx, cctx, case_value)?;
+                let Some(case_value) = cctx.value_map.get(&case_value) else {
+                    return input_err_noloc!(ConversionErr::SwitchCaseNonIntConst);
+                };
+                case_values.push(*case_value);
+            }
+            let cases = case_values
                 .iter()
-                // Skip the first operand which is the condition
-                .skip(1)
                 // Skip the first successor which is the default destination
                 .zip(succs.iter().skip(1))
                 .enumerate()
@@ -1226,8 +1242,9 @@ fn convert_instruction(
                         input_error_noloc!("Switch case value must be a constant integer")
                     })?;
                     let case_idx: u32 = case_idx.try_into().unwrap();
-                    let llvm_dest =
-                        llvm_value_as_basic_block(llvm_get_operand(inst, 2 + (2 * case_idx) + 1));
+                    // Operand 0 is the condition and operand 1 is the default destination,
+                    // so case destinations start at operand index 2.
+                    let llvm_dest = llvm_value_as_basic_block(llvm_get_operand(inst, 2 + case_idx));
                     assert!(
                         cctx.block_map.get(&llvm_dest).unwrap() == dest_block,
                         "Switch case destination block does not match the expected block"

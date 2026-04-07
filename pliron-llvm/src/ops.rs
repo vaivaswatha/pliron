@@ -2347,6 +2347,8 @@ pub enum FloatCastVerifyErr {
     OperandTypeErr,
     #[error("Incorrect result type")]
     ResultTypeErr,
+    #[error("Operand and result must both be scalars or vectors with matching shape")]
+    MismatchedVectorShape,
     #[error("Result type must be bigger than the operand type")]
     ResultTypeSmallerThanOperand,
     #[error("Operand type must be bigger than the result type")]
@@ -2419,6 +2421,33 @@ impl Verify for FPTruncOp {
     }
 }
 
+fn cast_element_types(
+    opd_ty: Ptr<TypeObj>,
+    res_ty: Ptr<TypeObj>,
+    ctx: &Context,
+    loc: Location,
+) -> Result<(Ptr<TypeObj>, Ptr<TypeObj>)> {
+    let mut opd_elem_ty = opd_ty;
+    let mut res_elem_ty = res_ty;
+    let mut opd_vec_shape = None;
+    let mut res_vec_shape = None;
+
+    if let Some(vec_ty) = opd_ty.deref(ctx).downcast_ref::<VectorType>() {
+        opd_elem_ty = vec_ty.elem_type();
+        opd_vec_shape = Some((vec_ty.num_elements(), vec_ty.kind()));
+    }
+    if let Some(vec_ty) = res_ty.deref(ctx).downcast_ref::<VectorType>() {
+        res_elem_ty = vec_ty.elem_type();
+        res_vec_shape = Some((vec_ty.num_elements(), vec_ty.kind()));
+    }
+
+    if opd_vec_shape != res_vec_shape {
+        return verify_err!(loc, FloatCastVerifyErr::MismatchedVectorShape);
+    }
+
+    Ok((opd_elem_ty, res_elem_ty))
+}
+
 /// Equivalent to LLVM's FPToSI opcode.
 ///
 /// ### Operands
@@ -2440,11 +2469,17 @@ pub struct FPToSIOp;
 impl Verify for FPToSIOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         // Check that the operand is a float and the result is an integer
-        let opd_ty = OneOpdInterface::operand_type(self, ctx).deref(ctx);
+        let (opd_ty, res_ty) = cast_element_types(
+            OneOpdInterface::operand_type(self, ctx),
+            OneResultInterface::result_type(self, ctx),
+            ctx,
+            self.loc(ctx),
+        )?;
+        let opd_ty = opd_ty.deref(ctx);
         if !type_impls::<dyn FloatTypeInterface>(&**opd_ty) {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
         };
-        let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
+        let res_ty = res_ty.deref(ctx);
         let Some(res_int_ty) = res_ty.downcast_ref::<IntegerType>() else {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
         };
@@ -2476,11 +2511,17 @@ pub struct FPToUIOp;
 impl Verify for FPToUIOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         // Check that the operand is a float and the result is an integer
-        let opd_ty = OneOpdInterface::operand_type(self, ctx).deref(ctx);
+        let (opd_ty, res_ty) = cast_element_types(
+            OneOpdInterface::operand_type(self, ctx),
+            OneResultInterface::result_type(self, ctx),
+            ctx,
+            self.loc(ctx),
+        )?;
+        let opd_ty = opd_ty.deref(ctx);
         if !type_impls::<dyn FloatTypeInterface>(&**opd_ty) {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
         };
-        let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
+        let res_ty = res_ty.deref(ctx);
         let Some(res_int_ty) = res_ty.downcast_ref::<IntegerType>() else {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
         };
@@ -2512,14 +2553,20 @@ pub struct SIToFPOp;
 impl Verify for SIToFPOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         // Check that the operand is an integer and the result is a float
-        let opd_ty = OneOpdInterface::operand_type(self, ctx).deref(ctx);
+        let (opd_ty, res_ty) = cast_element_types(
+            OneOpdInterface::operand_type(self, ctx),
+            OneResultInterface::result_type(self, ctx),
+            ctx,
+            self.loc(ctx),
+        )?;
+        let opd_ty = opd_ty.deref(ctx);
         let Some(opd_ty_int) = opd_ty.downcast_ref::<IntegerType>() else {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
         };
         if !opd_ty_int.is_signless() {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
         }
-        let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
+        let res_ty = res_ty.deref(ctx);
         if !type_impls::<dyn FloatTypeInterface>(&**res_ty) {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
         }
@@ -2556,14 +2603,20 @@ pub struct UIToFPOp;
 impl Verify for UIToFPOp {
     fn verify(&self, ctx: &Context) -> Result<()> {
         // Check that the operand is an integer and the result is a float
-        let opd_ty = OneOpdInterface::operand_type(self, ctx).deref(ctx);
+        let (opd_ty, res_ty) = cast_element_types(
+            OneOpdInterface::operand_type(self, ctx),
+            OneResultInterface::result_type(self, ctx),
+            ctx,
+            self.loc(ctx),
+        )?;
+        let opd_ty = opd_ty.deref(ctx);
         let Some(opd_ty_int) = opd_ty.downcast_ref::<IntegerType>() else {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
         };
         if !opd_ty_int.is_signless() {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::OperandTypeErr);
         }
-        let res_ty = OneResultInterface::result_type(self, ctx).deref(ctx);
+        let res_ty = res_ty.deref(ctx);
         if !type_impls::<dyn FloatTypeInterface>(&**res_ty) {
             return verify_err!(self.loc(ctx), FloatCastVerifyErr::ResultTypeErr);
         }
