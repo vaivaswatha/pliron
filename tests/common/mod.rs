@@ -2,6 +2,7 @@ use awint::bw;
 use pliron::builtin::op_interfaces::NResultsVerifyErr;
 use pliron::derive::pliron_op;
 use pliron::init_env_logger;
+use pliron::op::verify_op;
 use pliron::utils::apint::APInt;
 use pliron::{
     attribute::AttrObj,
@@ -14,7 +15,6 @@ use pliron::{
         ops::{FuncOp, ModuleOp},
         types::{FunctionType, IntegerType, Signedness},
     },
-    common_traits::Verify,
     context::Context,
     debug_info::set_operation_result_name,
     identifier::Identifier,
@@ -157,7 +157,7 @@ pub fn const_ret_in_mod(ctx: &mut Context) -> Result<(ModuleOp, FuncOp, Constant
     let ret_op = ReturnOp::new(ctx, const_op.get_result(ctx));
     ret_op.get_operation().insert_at_back(bb, ctx);
 
-    module.get_operation().verify(ctx)?;
+    verify_op(&module, ctx)?;
 
     Ok((module, func, const_op, ret_op))
 }

@@ -1,6 +1,6 @@
 //! Tests that compile code and run it.
 
-use pliron::{combine::Parser, init_env_logger};
+use pliron::{combine::Parser, init_env_logger, op::verify_op, operation::verify_operation};
 use std::{env, path::PathBuf, sync::LazyLock};
 use which::which;
 
@@ -9,7 +9,6 @@ use cargo_manifest::Manifest;
 use pliron::{
     arg_error_noloc,
     builtin::ops::ModuleOp,
-    common_traits::Verify,
     context::Context,
     location,
     op::Op,
@@ -106,7 +105,7 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         pliron_module.disp(ctx)
     );
 
-    match pliron_module.get_operation().verify(ctx) {
+    match verify_op(&pliron_module, ctx) {
         Ok(_) => (),
         Err(err) => {
             eprintln!("{}", err.disp(ctx));
@@ -145,7 +144,7 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         parsed_res.disp(ctx)
     );
 
-    match parsed_res.verify(ctx) {
+    match verify_operation(parsed_res, ctx) {
         Ok(_) => (),
         Err(err) => {
             eprintln!("{}", err.disp(ctx));

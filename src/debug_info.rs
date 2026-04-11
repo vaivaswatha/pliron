@@ -175,11 +175,10 @@ mod tests {
             op_interfaces::{NOpdsInterface, NResultsInterface, OneResultInterface},
             types::{IntegerType, Signedness},
         },
-        common_traits::Verify,
         context::Context,
         debug_info::{get_block_arg_name, set_block_arg_name},
         op::Op,
-        operation::Operation,
+        operation::{Operation, verify_operation},
         result::Result,
     };
 
@@ -220,7 +219,7 @@ mod tests {
             get_operation_result_name(&ctx, op, 0).unwrap(),
             "foo".try_into().unwrap()
         );
-        op.deref(&ctx).verify(&ctx)?;
+        verify_operation(op, &ctx)?;
         Ok(())
     }
 

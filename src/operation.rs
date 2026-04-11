@@ -617,6 +617,11 @@ impl<T: DefUseParticipant + DefTrait> Verify for Operand<T> {
     }
 }
 
+/// Verify an operation and all its nested regions and blocks.
+pub fn verify_operation(opr: Ptr<Operation>, ctx: &Context) -> Result<()> {
+    opr.deref(ctx).verify(ctx)
+}
+
 impl Verify for Operation {
     fn verify(&self, ctx: &Context) -> Result<()> {
         fn verify_inner(opr: &Operation, ctx: &Context) -> Result<()> {

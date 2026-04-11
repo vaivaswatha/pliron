@@ -13,7 +13,6 @@ use pliron::{
         ops::FuncOp,
         types::{IntegerType, Signedness},
     },
-    common_traits::Verify,
     context::{Context, Ptr},
     identifier::Identifier,
     irbuild::{
@@ -21,7 +20,7 @@ use pliron::{
         match_rewrite::{MatchRewrite, MatchRewriter, apply_match_rewrite},
         rewriter::{Rewriter, ScopedRewriter},
     },
-    op::Op,
+    op::{Op, verify_op},
     operation::Operation,
     printable::Printable,
     result::Result,
@@ -95,7 +94,7 @@ fn replace_c0_with_c1() -> Result<()> {
     // Collect and rewrite must replace constant 0 with constant 1,
     // and then constant 1 with constant 2.
     apply_match_rewrite(ctx, ReplaceC0WithC1, module_op.get_operation())?;
-    module_op.get_operation().verify(ctx)?;
+    verify_op(&module_op, ctx)?;
 
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
@@ -230,7 +229,7 @@ fn scoped_rewriter_test() -> Result<()> {
     }
 
     apply_match_rewrite(ctx, ConstToGlobal, module_op.get_operation())?;
-    module_op.get_operation().verify(ctx)?;
+    verify_op(&module_op, ctx)?;
 
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
@@ -288,7 +287,7 @@ fn erase_func_with_const_zero() -> Result<()> {
     }
 
     apply_match_rewrite(ctx, EraseFunc, module_op.get_operation())?;
-    module_op.get_operation().verify(ctx)?;
+    verify_op(&module_op, ctx)?;
 
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
@@ -355,7 +354,7 @@ fn split_block_after_const_zero() -> Result<()> {
     }
 
     apply_match_rewrite(ctx, SplitBlockAfterConstZero, module_op.get_operation())?;
-    module_op.get_operation().verify(ctx)?;
+    verify_op(&module_op, ctx)?;
 
     let printed = format!("{}", module_op.disp(ctx));
     expect![[r#"
@@ -424,8 +423,8 @@ fn inline_region_on_const_zero() -> Result<()> {
         InlineRegionOnConstZero(func_op1),
         module_op2.get_operation(),
     )?;
-    module_op1.get_operation().verify(ctx)?;
-    module_op2.get_operation().verify(ctx)?;
+    verify_op(&module_op1, ctx)?;
+    verify_op(&module_op2, ctx)?;
 
     let printed = format!("{}", module_op1.disp(ctx));
     expect![[r#"
