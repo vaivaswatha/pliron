@@ -158,10 +158,11 @@ where
         false
     }
 
-    /// Nearest common dominator of `node1` and `node2`, if it exists.
-    pub fn nearest_common_dominator(&self, node1: &G::Node, node2: &G::Node) -> Option<G::Node> {
+    /// Nearest common dominator of `node1` and `node2`.
+    pub fn nearest_common_dominator(&self, node1: &G::Node, node2: &G::Node) -> G::Node {
         self.dominators(node1)
             .find(|node1_dom| self.dominates(node1_dom, node2))
+            .expect("For nodes reachable from entry, a common dominator must exist")
     }
 
     /// Does the dominator tree contain `node`?
@@ -451,11 +452,14 @@ impl DomInfo {
         dom_tree.dominates(&block_a, &block_b)
     }
 
-    /// Does value `a` strictly dominate value `b`?
+    /// Does value `a` strictly dominate operation `b`?
     ///
     /// Caches region dominator trees as a side effect.
     ///
-    /// See `op_strictly_dominates_op` for the definition of "strictly dominate" in the context of nested regions.
+    /// See `op_strictly_dominates_op` for the definition of "strictly dominate"
+    /// in the context of nested regions. Block arguments are considered to be defined
+    /// at the start of their block, so they dominate all operations in their block and
+    /// blocks dominated by their block.
     pub fn value_strictly_dominates_op(
         &mut self,
         ctx: &Context,
@@ -469,8 +473,16 @@ impl DomInfo {
                 arg_idx: _,
             } => {
                 if let Some(b_parent_block) = b.deref(ctx).get_parent_block() {
-                    a_block == b_parent_block
-                        || self.block_strictly_dominates_block(ctx, a_block, b_parent_block)
+                    let a_block_region = a_block
+                        .deref(ctx)
+                        .get_parent_region()
+                        .expect("Block not in any region");
+                    let b_ancestor_in_a_region =
+                        find_ancestor_block_in_region(ctx, b_parent_block, a_block_region);
+                    b_ancestor_in_a_region.is_some_and(|b_ancestor| {
+                        let dom_tree = self.get_dom_tree(ctx, a_block_region);
+                        dom_tree.dominates(&a_block, &b_ancestor)
+                    })
                 } else {
                     false
                 }
@@ -504,7 +516,7 @@ impl DomInfo {
             .get_parent_region()
             .expect("A block must be in a region");
         let dom_tree = self.get_dom_tree(ctx, region);
-        dom_tree.nearest_common_dominator(&a, &b)
+        Some(dom_tree.nearest_common_dominator(&a, &b))
     }
 }
 
@@ -602,7 +614,7 @@ mod tests {
         assert_eq!(dom.0[&3].parent, Some(0));
 
         assert_eq!(dom.children(&0).collect::<HashSet<_>>(), [1, 2, 3].into());
-        assert_eq!(dom.nearest_common_dominator(&1, &2), Some(0));
+        assert_eq!(dom.nearest_common_dominator(&1, &2), 0);
     }
 
     #[test]
@@ -634,12 +646,12 @@ mod tests {
         assert_eq!(dom.children(&2).collect::<HashSet<_>>(), [].into());
         assert_eq!(dom.children(&3).collect::<HashSet<_>>(), [].into());
 
-        assert_eq!(dom.nearest_common_dominator(&2, &3), Some(1));
-        assert_eq!(dom.nearest_common_dominator(&3, &2), Some(1));
-        assert_eq!(dom.nearest_common_dominator(&2, &1), Some(1));
-        assert_eq!(dom.nearest_common_dominator(&1, &2), Some(1));
-        assert_eq!(dom.nearest_common_dominator(&0, &1), Some(0));
-        assert_eq!(dom.nearest_common_dominator(&1, &0), Some(0));
+        assert_eq!(dom.nearest_common_dominator(&2, &3), 1);
+        assert_eq!(dom.nearest_common_dominator(&3, &2), 1);
+        assert_eq!(dom.nearest_common_dominator(&2, &1), 1);
+        assert_eq!(dom.nearest_common_dominator(&1, &2), 1);
+        assert_eq!(dom.nearest_common_dominator(&0, &1), 0);
+        assert_eq!(dom.nearest_common_dominator(&1, &0), 0);
     }
 
     #[test]
@@ -1140,6 +1152,86 @@ mod tests {
             dom_info.nearest_common_dominator(ctx, entry, b1),
             Some(entry)
         );
+    }
+
+    #[test]
+    fn value_op_result_dominates_op() {
+        let ctx = &mut Context::new();
+        let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
+        let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
+        let module = ModuleOp::new(ctx, "test_mod".try_into().unwrap());
+
+        let func = FuncOp::new(ctx, "f".try_into().unwrap(), func_ty);
+        module.append_operation(ctx, func.get_operation(), 0);
+        let bb = func.get_entry_block(ctx);
+
+        let def_op = Operation::new(
+            ctx,
+            ScopeOp::get_concrete_op_info(),
+            vec![i64_ty.into()],
+            vec![],
+            vec![],
+            0,
+        );
+        def_op.insert_at_back(bb, ctx);
+
+        let use_op = Operation::new(
+            ctx,
+            ScopeOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![],
+            0,
+        );
+        use_op.insert_at_back(bb, ctx);
+
+        let val = def_op.deref(ctx).get_result(0);
+        let mut dom_info = super::DomInfo::default();
+
+        assert!(dom_info.value_strictly_dominates_op(ctx, val, use_op));
+        assert!(!dom_info.value_strictly_dominates_op(ctx, val, def_op));
+    }
+
+    #[test]
+    fn value_block_argument_dominates_ops() {
+        let ctx = &mut Context::new();
+        let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
+        let func_ty = FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
+        let module = ModuleOp::new(ctx, "test_mod".try_into().unwrap());
+
+        let func = FuncOp::new(ctx, "f".try_into().unwrap(), func_ty);
+        module.append_operation(ctx, func.get_operation(), 0);
+        let func_region = func.get_region(ctx);
+        let entry = func.get_entry_block(ctx);
+
+        let arg_block = BasicBlock::new(ctx, None, vec![i64_ty.into()]);
+        arg_block.insert_at_back(func_region, ctx);
+
+        let branch = Operation::new(
+            ctx,
+            BranchOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![arg_block],
+            0,
+        );
+        branch.insert_at_back(entry, ctx);
+
+        let op_in_arg_block = Operation::new(
+            ctx,
+            ScopeOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![],
+            0,
+        );
+        op_in_arg_block.insert_at_back(arg_block, ctx);
+
+        let val = arg_block.deref(ctx).get_argument(0);
+        let mut dom_info = super::DomInfo::default();
+
+        assert!(dom_info.value_strictly_dominates_op(ctx, val, op_in_arg_block));
+        assert!(!dom_info.value_strictly_dominates_op(ctx, val, branch));
     }
 
     #[test]
