@@ -118,7 +118,7 @@ impl ReturnOp {
 /// No operands or results.
 #[pliron_op(
     name = "llvm.unreachable",
-    format = "",
+    format,
     interfaces = [IsTerminatorInterface, NOpdsInterface<0>, NResultsInterface<0>],
     verifier = "succ"
 )]

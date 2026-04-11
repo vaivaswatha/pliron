@@ -374,7 +374,7 @@ impl Verify for BasicBlock {
         for pred in self.self_ptr.preds(ctx) {
             if !pred.deref(ctx).has_succ(ctx, self.self_ptr) {
                 let loc = self.loc();
-                verify_err!(loc, DefUseVerifyErr)?;
+                verify_err!(loc, DefUseVerifyErr::OperandNotUseOfDef)?;
             }
         }
         self.args.iter().try_for_each(|arg| arg.verify(ctx))?;

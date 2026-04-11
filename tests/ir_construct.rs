@@ -6,11 +6,14 @@ use pliron::context::Ptr;
 use pliron::derive::pliron_op;
 use pliron::dict_key;
 use pliron::op::verify_op;
-use pliron::operation::verify_operation;
+use pliron::operation::{DefUseVerifyErr, verify_operation};
 use pliron::{
     basic_block::BasicBlock,
     builtin::{
-        op_interfaces::OneResultInterface,
+        op_interfaces::{
+            IsTerminatorInterface, OneRegionInterface, OneResultInterface,
+            SingleBlockRegionInterface,
+        },
         types::{IntegerType, Signedness},
     },
     context::Context,
@@ -730,6 +733,99 @@ fn test_verify_multiple_terminator() -> Result<()> {
     assert!(matches!(err, BasicBlockVerifyErr::TerminatorNotLast(_)));
 
     Ok(())
+}
+
+#[pliron_op(
+    name = "test.branch",
+    format,
+    interfaces = [IsTerminatorInterface],
+    verifier = "succ",
+)]
+struct BranchOp {}
+
+#[test]
+fn test_verify_operation_fails_on_undominated_op_result_use() {
+    let ctx = &mut Context::new();
+    let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
+    let func_ty = pliron::builtin::types::FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
+    let module = pliron::builtin::ops::ModuleOp::new(ctx, "bar".try_into().unwrap());
+    let func = pliron::builtin::ops::FuncOp::new(ctx, "foo".try_into().unwrap(), func_ty);
+    module.append_operation(ctx, func.get_operation(), 0);
+
+    let entry = func.get_entry_block(ctx);
+    let func_region = func.get_region(ctx);
+    let b1 = BasicBlock::new(ctx, None, vec![]);
+    b1.insert_at_back(func_region, ctx);
+    let b2 = BasicBlock::new(ctx, None, vec![]);
+    b2.insert_at_back(func_region, ctx);
+
+    Operation::new(
+        ctx,
+        BranchOp::get_concrete_op_info(),
+        vec![],
+        vec![],
+        vec![b1, b2],
+        0,
+    )
+    .insert_at_back(entry, ctx);
+
+    let def_op = ConstantOp::new(ctx, 0);
+    def_op.get_operation().insert_at_back(b1, ctx);
+    ReturnOp::new(ctx, def_op.get_result(ctx))
+        .get_operation()
+        .insert_at_back(b1, ctx);
+
+    ReturnOp::new(ctx, def_op.get_result(ctx))
+        .get_operation()
+        .insert_at_back(b2, ctx);
+
+    println!("{}", module.get_operation().disp(ctx));
+
+    let err = verify_operation(module.get_operation(), ctx).unwrap_err();
+    let err = err.err.downcast_ref::<DefUseVerifyErr>().unwrap();
+    assert!(matches!(err, DefUseVerifyErr::UseNotDominatedByDef(_)));
+}
+
+#[test]
+fn test_verify_operation_fails_on_undominated_block_argument_use() {
+    let ctx = &mut Context::new();
+    let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
+    let func_ty = pliron::builtin::types::FunctionType::get(ctx, vec![], vec![i64_ty.into()]);
+    let module = pliron::builtin::ops::ModuleOp::new(ctx, "bar".try_into().unwrap());
+    let func = pliron::builtin::ops::FuncOp::new(ctx, "foo".try_into().unwrap(), func_ty);
+    module.append_operation(ctx, func.get_operation(), 0);
+
+    let entry = func.get_entry_block(ctx);
+    let func_region = func.get_region(ctx);
+    let b1 = BasicBlock::new(ctx, None, vec![i64_ty.into()]);
+    b1.insert_at_back(func_region, ctx);
+    let b2 = BasicBlock::new(ctx, None, vec![]);
+    b2.insert_at_back(func_region, ctx);
+
+    Operation::new(
+        ctx,
+        BranchOp::get_concrete_op_info(),
+        vec![],
+        vec![],
+        vec![b1, b2],
+        0,
+    )
+    .insert_at_back(entry, ctx);
+
+    let b1_arg0 = b1.deref(ctx).get_argument(0);
+
+    ReturnOp::new(ctx, b1_arg0)
+        .get_operation()
+        .insert_at_back(b1, ctx);
+    ReturnOp::new(ctx, b1_arg0)
+        .get_operation()
+        .insert_at_back(b2, ctx);
+
+    println!("{}", module.get_operation().disp(ctx));
+
+    let err = verify_operation(module.get_operation(), ctx).unwrap_err();
+    let err = err.err.downcast_ref::<DefUseVerifyErr>().unwrap();
+    assert!(matches!(err, DefUseVerifyErr::UseNotDominatedByDef(_)));
 }
 
 #[test]

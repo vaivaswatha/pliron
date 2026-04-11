@@ -849,7 +849,7 @@ mod tests {
     /// A test-only terminator operation for setting up CFG edges.
     #[pliron_op(
         name = "test.branch",
-        format = "",
+        format,
         interfaces = [IsTerminatorInterface],
         verifier = "succ",
     )]

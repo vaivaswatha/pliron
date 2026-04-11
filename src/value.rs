@@ -203,7 +203,7 @@ impl Verify for Value {
         for r#use in self.uses(ctx) {
             let use_operand = r#use.op.deref(ctx).get_operand(r#use.opd_idx);
             if use_operand != *self {
-                verify_err!(self.loc(ctx), DefUseVerifyErr)?;
+                verify_err!(self.loc(ctx), DefUseVerifyErr::OperandNotUseOfDef)?;
             }
         }
         self.get_type(ctx).verify(ctx)

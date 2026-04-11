@@ -14,6 +14,14 @@ use crate::{
     common_traits::{Named, RcShare, Verify},
     context::{Arena, Context, Ptr, private::ArenaObj},
     debug_info,
+    graph::{
+        self,
+        dominance::DomInfo,
+        walkers::{
+            IRNode, WALKCONFIG_PREORDER_FORWARD,
+            interruptible::{WalkResult, walk_advance, walk_break},
+        },
+    },
     identifier::Identifier,
     input_err,
     irfmt::{
@@ -31,7 +39,7 @@ use crate::{
     r#type::{TypeObj, Typed},
     utils::vec_exns::VecExtns,
     value::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
-    verify_err,
+    verify_err, verify_error,
 };
 
 /// Represents the result of an [Operation].
@@ -598,8 +606,13 @@ impl<T: DefUseParticipant + Typed> Typed for Operand<T> {
 }
 
 #[derive(Error, Debug)]
-#[error("operand is not a use of its def")]
-pub struct DefUseVerifyErr;
+
+pub enum DefUseVerifyErr {
+    #[error("Operand is not a use of its def")]
+    OperandNotUseOfDef,
+    #[error("Use of {0} not dominated by definition")]
+    UseNotDominatedByDef(Identifier),
+}
 
 impl<T: DefUseParticipant + DefTrait> Verify for Operand<T> {
     fn verify(&self, ctx: &Context) -> Result<()> {
@@ -610,16 +623,76 @@ impl<T: DefUseParticipant + DefTrait> Verify for Operand<T> {
             .has_use_of(&self.into())
         {
             let loc = self.user_op.deref(ctx).loc();
-            verify_err!(loc, DefUseVerifyErr)
+            verify_err!(loc, DefUseVerifyErr::OperandNotUseOfDef)
         } else {
             Ok(())
         }
     }
 }
 
+/// Verify that every value in the IR dominates all of its uses.
+pub fn verify_value_dominance(ir: Ptr<Operation>, ctx: &Context) -> Result<()> {
+    let dom_info = &mut DomInfo::default();
+
+    fn check_value_use(
+        ctx: &Context,
+        dom_info: &mut DomInfo,
+        value: Value,
+    ) -> WalkResult<pliron::result::Error> {
+        for r#use in value.uses(ctx) {
+            let use_op = r#use.op;
+            if !dom_info.value_strictly_dominates_op(ctx, value, use_op) {
+                let loc = use_op.deref(ctx).loc();
+                return walk_break(verify_error!(
+                    loc,
+                    DefUseVerifyErr::UseNotDominatedByDef(value.unique_name(ctx))
+                ));
+            }
+        }
+        walk_advance()
+    }
+
+    let walker = graph::walkers::interruptible::immutable::walk_op;
+    fn walker_callback(
+        ctx: &Context,
+        dom_info: &mut DomInfo,
+        ir_node: IRNode,
+    ) -> WalkResult<pliron::result::Error> {
+        match ir_node {
+            IRNode::Operation(opr) => {
+                for result in opr.deref(ctx).results() {
+                    check_value_use(ctx, dom_info, result)?;
+                }
+                walk_advance()
+            }
+            IRNode::BasicBlock(block) => {
+                for arg in block.deref(ctx).arguments() {
+                    check_value_use(ctx, dom_info, arg)?;
+                }
+                walk_advance()
+            }
+            IRNode::Region(_region) => walk_advance(),
+        }
+    }
+    match walker(
+        ctx,
+        dom_info,
+        &WALKCONFIG_PREORDER_FORWARD,
+        ir,
+        walker_callback,
+    ) {
+        std::ops::ControlFlow::Continue(_) => {}
+        std::ops::ControlFlow::Break(err) => return Err(err),
+    }
+    Ok(())
+}
+
 /// Verify an operation and all its nested regions and blocks.
 pub fn verify_operation(opr: Ptr<Operation>, ctx: &Context) -> Result<()> {
-    opr.deref(ctx).verify(ctx)
+    // Verify attributes, operand, successors, region, results, interfaces and the Op's verifier.
+    opr.deref(ctx).verify(ctx)?;
+    // Verify that every definition in the IR rooted at opr, dominates its uses.
+    verify_value_dominance(opr, ctx)
 }
 
 impl Verify for Operation {
