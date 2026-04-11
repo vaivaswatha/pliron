@@ -6,13 +6,13 @@ use pliron::context::Ptr;
 use pliron::derive::pliron_op;
 use pliron::dict_key;
 use pliron::op::verify_op;
+use pliron::operation::verify_operation;
 use pliron::{
     basic_block::BasicBlock,
     builtin::{
         op_interfaces::OneResultInterface,
         types::{IntegerType, Signedness},
     },
-    common_traits::Verify,
     context::Context,
     debug_info::set_operation_result_name,
     graph::walkers::{
@@ -81,7 +81,7 @@ fn replace_c0_with_c1() -> Result<()> {
 
     Operation::erase(const_op.get_operation(), ctx);
 
-    module_op.get_operation().verify(ctx)?;
+    verify_op(&module_op, ctx)?;
 
     Ok(())
 }
@@ -143,7 +143,7 @@ fn replace_c0_with_c1_operand() -> Result<()> {
     "#]]
     .assert_eq(&printed);
 
-    module_op.get_operation().verify(ctx)?;
+    verify_op(&module_op, ctx)?;
 
     Ok(())
 }
@@ -786,7 +786,7 @@ fn block_inline_attrs_roundtrip() -> Result<()> {
             .0
     };
 
-    op.deref(ctx).verify(ctx)?;
+    verify_operation(op, ctx)?;
 
     let printed = format!("{}", op.disp(ctx));
 
@@ -801,7 +801,7 @@ fn block_inline_attrs_roundtrip() -> Result<()> {
         .unwrap()
         .0;
 
-    parsed2.deref(ctx2).verify(ctx2)?;
+    verify_operation(parsed2, ctx2)?;
 
     Ok(())
 }
@@ -866,7 +866,7 @@ fn block_attrs_parse_roundtrip() -> Result<()> {
             .0
     };
 
-    op.deref(ctx).verify(ctx)?;
+    verify_operation(op, ctx)?;
 
     let printed = format!("{}", op.deref(ctx).disp(ctx));
 
@@ -905,7 +905,7 @@ fn block_attrs_parse_roundtrip() -> Result<()> {
         .unwrap()
         .0;
 
-    parsed2.deref(ctx2).verify(ctx2)?;
+    verify_operation(parsed2, ctx2)?;
 
     // The third print should still have the attributes
     let print3 = format!("{}", parsed2.deref(ctx2).disp(ctx2));

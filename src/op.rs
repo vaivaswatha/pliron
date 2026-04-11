@@ -25,9 +25,8 @@
 //! (or that it can be checked if the interface is [implemented](op_impls))
 //! with ease.
 //!
-//! Use [verify_op] to verify an [Op] object. It calls the internal
-//! [Operation]'s `verify` method, which in turn calls the verifiers for operands,
-//! results, attributes and regions, and then the verifiers for all interfaces.
+//! Use [verify_op] or [verify_operation] to verify an [Op] object or [Operation].
+//! The verifier methods of [Op] or [Operation] may not, by themselves do a complete verification.
 //!
 //! [OpObj]s can be downcasted to their concrete types using
 //! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
@@ -64,7 +63,7 @@ use crate::{
         printers::{functional_type, iter_with_sep},
     },
     location::{Located, Location},
-    operation::Operation,
+    operation::{Operation, verify_operation},
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     region::Region,
@@ -237,9 +236,9 @@ impl PartialEq for OpObj {
     }
 }
 
-/// Verify an [Op] object. It just calls the `verify` method of the operation.
+/// Verify an [Op] object and all its nested regions and blocks.
 pub fn verify_op(op: &dyn Op, ctx: &Context) -> Result<()> {
-    op.get_operation().verify(ctx)
+    verify_operation(op.get_operation(), ctx)
 }
 
 impl Eq for OpObj {}

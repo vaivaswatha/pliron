@@ -128,7 +128,8 @@ impl ArenaObj for Region {
 
 impl Verify for Region {
     fn verify(&self, ctx: &Context) -> Result<()> {
-        self.iter(ctx).try_for_each(|op| op.deref(ctx).verify(ctx))
+        self.iter(ctx)
+            .try_for_each(|block| block.deref(ctx).verify(ctx))
     }
 }
 

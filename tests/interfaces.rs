@@ -14,6 +14,8 @@ use pliron::derive::{
     pliron_type, type_interface, type_interface_impl,
 };
 use pliron::location::{self, Located, Source};
+use pliron::op::verify_op;
+use pliron::operation::verify_operation;
 use pliron::parsable::{self, state_stream_from_iterator};
 use pliron::result::ExpectOk;
 use pliron::r#type::{type_cast, verify_type};
@@ -96,7 +98,7 @@ fn check_intrf_verfiy_errs() {
     zero_res_op.insert_before(ctx, ret_op.get_operation());
 
     assert!(matches!(
-        module_op.get_operation().verify(ctx),
+        verify_op(&module_op, ctx),
         Err(Error {
             kind: ErrorKind::VerificationFailed,
             err,
@@ -166,7 +168,7 @@ fn test_op_intr_verify_order() -> Result<()> {
 
     let vio = VerifyIntrOp::new(ctx);
 
-    vio.get_operation().deref(ctx).verify(ctx)?;
+    verify_op(&vio, ctx)?;
 
     expect![[r#"
         TestOpInterface verified
@@ -239,7 +241,7 @@ fn test_op_intr_verify_order_generic() -> Result<()> {
     let ctx = &mut Context::new();
 
     let vio = VerifyIntrOpGeneric::new(ctx);
-    vio.get_operation().deref(ctx).verify(ctx)?;
+    verify_op(&vio, ctx)?;
 
     expect![[r#"
         TestOpInterfaceGeneric verified
@@ -840,7 +842,7 @@ fn test_no_inbuilt_verify() -> Result<()> {
 
     let vio = NoInbuiltVerifyOp::new(ctx);
 
-    vio.get_operation().deref(ctx).verify(ctx)?;
+    verify_op(&vio, ctx)?;
 
     Ok(())
 }
@@ -873,7 +875,7 @@ fn test_no_inbuilt_verify2() -> Result<()> {
     let vio = NoInbuiltVerifyOp2::new(ctx);
 
     assert!(matches!(
-        vio.get_operation().verify(ctx),
+        verify_op(&vio, ctx),
         Err(Error {
             kind: ErrorKind::VerificationFailed,
             err,
@@ -1020,7 +1022,7 @@ fn test_outline_printonce_attr() -> Result<()> {
 
     let parsed_op = parsed_op.expect_ok(ctx).0;
 
-    parsed_op.verify(ctx)?;
+    verify_operation(parsed_op, ctx)?;
     expect![[r#"
         builtin.module @bar 
         {
@@ -1144,7 +1146,7 @@ fn test_outline_attr_on_block() -> Result<()> {
             .unwrap()
             .0
     };
-    parsed_op.verify(ctx)?;
+    verify_operation(parsed_op, ctx)?;
 
     // After re-parse the block now has a source location too, so indices shift.
     let print2 = parsed_op.deref(ctx).disp(ctx).to_string();

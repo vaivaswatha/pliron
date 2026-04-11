@@ -2,8 +2,8 @@ use std::{path::PathBuf, process::ExitCode};
 
 use clap::Parser;
 use pliron::{
-    arg_error_noloc, common_traits::Verify, context::Context, op::Op, printable::Printable,
-    result::Result, verify_error_noloc,
+    arg_error_noloc, context::Context, op::verify_op, printable::Printable, result::Result,
+    verify_error_noloc,
 };
 use pliron_llvm::{
     from_llvm_ir,
@@ -38,7 +38,7 @@ fn run(cli: Cli, ctx: &mut Context) -> Result<()> {
 
     log::debug!("pliron LLVM-IR:\n{}", pliron_module.disp(ctx));
 
-    pliron_module.get_operation().verify(ctx)?;
+    verify_op(&pliron_module, ctx)?;
 
     let module = to_llvm_ir::convert_module(ctx, &llvm_context, pliron_module)?;
     module

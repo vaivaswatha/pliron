@@ -7,11 +7,10 @@ use pliron::{
         IsTerminatorInterface, IsolatedFromAboveInterface, NOpdsInterface, NRegionsInterface,
         NResultsInterface, OneOpdInterface, OneRegionInterface, OneResultInterface,
     },
-    common_traits::Verify,
     context::Context,
     location,
     op::Op,
-    operation::Operation,
+    operation::{Operation, verify_operation},
     parsable::{self, state_stream_from_iterator},
     printable::Printable,
 };
@@ -54,7 +53,7 @@ fn zero_results_zero_operands() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[format_op("`: ` type($0)")]
@@ -98,7 +97,7 @@ fn one_result_zero_operands() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[format_op]
@@ -142,7 +141,7 @@ fn one_result_zero_operands_canonical() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[format_op("$0 `:` type($0)")]
@@ -189,7 +188,7 @@ fn one_result_one_operand() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[format_op("$0 `,` $1 `:` `(` type($0) `,` type($1) `)`")]
@@ -235,7 +234,7 @@ fn two_result_two_operands() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[format_op("$0 `: ` `(` types(CharSpace(`,`)) `)`")]
@@ -281,7 +280,7 @@ fn two_results_one_operand() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 use pliron::builtin::attributes::IntegerAttr;
@@ -326,7 +325,7 @@ fn attr_op() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[format_op(
@@ -372,7 +371,7 @@ fn attr_op2() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 
     let printed_with_opt_attr = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -405,7 +404,7 @@ fn attr_op2() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[format_op(
@@ -451,7 +450,7 @@ fn attr_op2_labeled() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 
     let printed_with_opt_attr = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -484,7 +483,7 @@ fn attr_op2_labeled() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[format_op(
@@ -530,7 +529,7 @@ fn attr_op2_labeled_delimited() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 
     let printed_with_opt_attr = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -563,7 +562,7 @@ fn attr_op2_labeled_delimited() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[format_op(
@@ -609,7 +608,7 @@ fn attr_op2_delimited() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 
     let printed_with_opt_attr = "builtin.func @testfunc: builtin.function <() -> ()> {
           ^entry():
@@ -642,7 +641,7 @@ fn attr_op2_delimited() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[format_op("$attr `:` type($0)")]
@@ -685,7 +684,7 @@ fn attr_op3() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[format_op("`(`$0`)` region($0)")]
@@ -744,7 +743,7 @@ fn if_op() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[format_op("`(`$0`)` region($0) `else` region($1)")]
@@ -815,7 +814,7 @@ fn if_else_op() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[def_op("test.br")]
@@ -866,7 +865,7 @@ fn br_op() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[def_op("test.multiple_successors")]
@@ -924,7 +923,7 @@ fn multiple_successors_op() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[def_op("test.multiple_regions")]
@@ -997,7 +996,7 @@ fn multiple_regions_op() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[def_op("test.attr_dict")]
@@ -1046,7 +1045,7 @@ fn attr_dict_op() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 }
 
 #[def_op("test.multiple_regions2")]
@@ -1179,7 +1178,7 @@ fn multiple_regions4_op() {
     "#]]
     .assert_eq(&res.disp(ctx).to_string());
 
-    assert!(res.verify(ctx).is_ok());
+    assert!(verify_operation(res, ctx).is_ok());
 
     Operation::erase(res, ctx);
     assert!(ctx.is_ir_empty());
