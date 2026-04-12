@@ -1,5 +1,7 @@
 //! Tests that compile code and run it.
 
+#![cfg(feature = "llvm-sys")]
+
 use pliron::{combine::Parser, init_env_logger, op::verify_op, operation::verify_operation};
 use std::{env, path::PathBuf, sync::LazyLock};
 use which::which;

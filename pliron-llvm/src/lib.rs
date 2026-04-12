@@ -10,13 +10,17 @@ use pliron::{
 };
 
 pub mod attributes;
-pub mod from_llvm_ir;
 pub mod function_call_utils;
-pub mod llvm_sys;
 pub mod op_interfaces;
 pub mod ops;
-pub mod to_llvm_ir;
 pub mod types;
+
+#[cfg(feature = "llvm-sys")]
+pub mod from_llvm_ir;
+#[cfg(feature = "llvm-sys")]
+pub mod llvm_sys;
+#[cfg(feature = "llvm-sys")]
+pub mod to_llvm_ir;
 
 /// Interface for rewriting to LLVM dialect.
 #[op_interface]
