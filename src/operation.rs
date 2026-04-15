@@ -724,18 +724,10 @@ impl Verify for Operation {
             op.verify_interfaces(ctx)?;
             op.verify(ctx)
         }
-        verify_inner(self, ctx).inspect_err(
-            |err| {
-                struct Helper(Ptr<Operation>);
-                impl Printable for Helper {
-                    fn fmt(&self, ctx: &Context, _state: &printable::State, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                        print_dbg(ctx, self.0, f)
-                    }
-                }
-                let op = self.self_ptr;
-                log::error!(target: "verify_error","{} in operation:\n{}", err.disp(ctx), Helper(op).disp(ctx))
-            }
-        )
+        verify_inner(self, ctx).inspect_err(|err| {
+            log::error!(target: "verify_error","{} in operation:\n{}", err.disp(ctx),
+                    OpDbg { op: self.self_ptr, ctx })
+        })
     }
 }
 
@@ -889,4 +881,23 @@ pub fn print_dbg(
     }
 
     Ok(())
+}
+
+/// A helper type that implements [Display](std::fmt::Display) and [Debug](std::fmt::Debug)
+/// for debug printing an [Operation] with [print_dbg].
+pub struct OpDbg<'a> {
+    pub op: Ptr<Operation>,
+    pub ctx: &'a Context,
+}
+
+impl<'a> std::fmt::Display for OpDbg<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        print_dbg(self.ctx, self.op, f)
+    }
+}
+
+impl<'a> std::fmt::Debug for OpDbg<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        print_dbg(self.ctx, self.op, f)
+    }
 }

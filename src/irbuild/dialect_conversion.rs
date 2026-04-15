@@ -5,7 +5,7 @@
 
 use std::{cell::Ref, collections::VecDeque};
 
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use crate::{
     builtin::op_interfaces::IsTerminatorInterface,
@@ -16,8 +16,10 @@ use crate::{
         listener::{Recorder, RecorderEvent},
         rewriter::{IRRewriter, Rewriter},
     },
+    irfmt::printers::list_with_sep,
     op::op_impls,
-    operation::Operation,
+    operation::{OpDbg, Operation},
+    printable::{ListSeparator, Printable},
     result::Result,
     r#type::{Type, TypeObj, Typed},
     value::Value,
@@ -34,6 +36,31 @@ pub type DialectConversionRewriter = IRRewriter<Recorder>;
 /// for each operand, is the last entry.
 #[derive(Clone, Default)]
 pub struct OperandsInfo(Vec<(Value, Vec<Ptr<TypeObj>>)>);
+
+impl Printable for OperandsInfo {
+    fn fmt(
+        &self,
+        ctx: &Context,
+        _state: &crate::printable::State,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(f, "[")?;
+        for (opd_idx, (opd, previous_types)) in self.0.iter().enumerate() {
+            write!(
+                f,
+                "{{Operand: {}, current type: {}, previous types: [{}]}}",
+                opd.disp(ctx),
+                opd.get_type(ctx).disp(ctx),
+                list_with_sep(previous_types, ListSeparator::CharSpace(',')).disp(ctx),
+            )?;
+            if opd_idx != self.0.len() - 1 {
+                write!(f, ", ")?;
+            }
+        }
+        write!(f, "]")?;
+        Ok(())
+    }
+}
 
 impl OperandsInfo {
     pub fn new(operands: Vec<(Value, Vec<Ptr<TypeObj>>)>) -> Self {
@@ -79,10 +106,10 @@ impl OperandsInfo {
 /// Interface for dialect conversion matching and rewriting.
 pub trait DialectConversion {
     /// Should this operation be converted?
-    fn can_convert_op(&mut self, ctx: &Context, op: Ptr<Operation>) -> bool;
+    fn can_convert_op(&self, ctx: &Context, op: Ptr<Operation>) -> bool;
 
     /// Should this type be converted?
-    fn can_convert_type(&mut self, _ctx: &Context, _ty: Ptr<TypeObj>) -> bool {
+    fn can_convert_type(&self, _ctx: &Context, _ty: Ptr<TypeObj>) -> bool {
         false
     }
 
@@ -109,74 +136,133 @@ pub trait DialectConversion {
 
 /// Applies dialect conversion rewrites rooted at `op`.
 ///
-/// Conversion is trait-driven and recursively ensures that any convertible
+/// Conversion is trait-driven and ensures that any convertible
 /// operand definitions are rewritten before rewriting the current operation.
 ///
 /// Block argument types are updated only in two cases:
 /// 1. The block argument is an operand use of an operation being processed.
 /// 2. An operation being processed has successor blocks, in which case all
 ///    arguments of those successor blocks are considered for type conversion.
+//
+// ## Algorithm
+//
+// 1. Collect all initially convertible operations (and terminators) into a
+//    worklist.
+// 2. Repeatedly pop from the front; only entries still marked `Queued` are
+//    processed.
+// 3. For each op, convert relevant block-argument types, then check operand
+//    defining ops. If defs are still pending, re-enqueue this op and those defs
+//    to the front so defs are handled first.
+// 4. Actually call the conversion pattern's `rewrite` callback.
+// 5. Post rewrite, process recorder events:
+//    - mark erased ops,
+//    - update value type-history,
+//    - enqueue newly inserted convertible ops.
+// 6. Mark rewritten/non-convertible ops as `Processed`.
 pub fn apply_dialect_conversion<C: DialectConversion>(
     ctx: &mut Context,
     conversion: &mut C,
     op: Ptr<Operation>,
 ) -> Result<()> {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum OpState {
+        Queued,
+        Processed,
+        Erased,
+    }
+
     struct Driver<'a, C: DialectConversion> {
-        ctx: &'a mut Context,
         conversion: &'a mut C,
         rewriter: DialectConversionRewriter,
-        erased_ops: FxHashSet<Ptr<Operation>>,
-        in_progress: FxHashSet<Ptr<Operation>>,
+        worklist: VecDeque<Ptr<Operation>>,
+        op_states: FxHashMap<Ptr<Operation>, OpState>,
         previous_types: FxHashMap<Value, Vec<Ptr<TypeObj>>>,
     }
 
     impl<'a, C: DialectConversion> Driver<'a, C> {
-        fn new(ctx: &'a mut Context, conversion: &'a mut C) -> Self {
+        fn new(conversion: &'a mut C) -> Self {
             let mut rewriter = DialectConversionRewriter::default();
             rewriter.set_listener(Recorder::default());
             Self {
-                ctx,
                 conversion,
                 rewriter,
-                erased_ops: FxHashSet::default(),
-                in_progress: FxHashSet::default(),
+                worklist: VecDeque::new(),
+                op_states: FxHashMap::default(),
                 previous_types: FxHashMap::default(),
             }
         }
 
-        fn collect_operations(&mut self, root: Ptr<Operation>) -> VecDeque<Ptr<Operation>> {
-            let mut ops = VecDeque::new();
+        fn is_erased(&self, op: Ptr<Operation>) -> bool {
+            matches!(self.op_states.get(&op), Some(OpState::Erased))
+        }
+
+        fn is_processed(&self, op: Ptr<Operation>) -> bool {
+            matches!(self.op_states.get(&op), Some(OpState::Processed))
+        }
+
+        fn is_queued(&self, op: Ptr<Operation>) -> bool {
+            matches!(self.op_states.get(&op), Some(OpState::Queued))
+        }
+
+        fn mark_erased(&mut self, op: Ptr<Operation>) {
+            self.op_states.insert(op, OpState::Erased);
+        }
+
+        fn mark_processed(&mut self, op: Ptr<Operation>) {
+            self.op_states.insert(op, OpState::Processed);
+        }
+
+        fn mark_enqueued(&mut self, op: Ptr<Operation>) {
+            self.op_states.insert(op, OpState::Queued);
+        }
+
+        fn enqueue_front(&mut self, op: Ptr<Operation>) {
+            assert!(
+                !self.is_processed(op) && !self.is_erased(op),
+                "Attempted to enqueue an operation that is already terminal-state (processed/erased)"
+            );
+            self.mark_enqueued(op);
+            self.worklist.push_front(op);
+        }
+
+        fn enqueue_back(&mut self, op: Ptr<Operation>) {
+            assert!(
+                !self.is_processed(op) && !self.is_erased(op),
+                "Attempted to enqueue an operation that is already terminal-state (processed/erased)"
+            );
+            self.mark_enqueued(op);
+            self.worklist.push_back(op);
+        }
+
+        fn op_eligible_for_processing(&self, ctx: &Context, op: Ptr<Operation>) -> bool {
+            if self.is_erased(op) || self.is_processed(op) {
+                return false;
+            }
+            self.conversion.can_convert_op(ctx, op)
+                || op_impls::<dyn IsTerminatorInterface>(&*Operation::get_op_dyn(op, ctx))
+        }
+
+        fn collect_operations(&mut self, ctx: &mut Context, root: Ptr<Operation>) {
+            self.worklist.clear();
+            self.op_states.clear();
             fn walker_callback<C: DialectConversion>(
                 ctx: &Context,
-                state: &mut Driver<'_, C>,
+                driver: &mut Driver<C>,
                 node: IRNode,
             ) {
-                if let IRNode::Operation(op) = node {
-                    let is_terminator = {
-                        let op_obj = Operation::get_op_dyn(op, ctx);
-                        op_impls::<dyn IsTerminatorInterface>(op_obj.as_ref())
-                    };
-                    if state.conversion.can_convert_op(ctx, op) || is_terminator {
-                        state.worklist.push_back(op);
-                    }
+                if let IRNode::Operation(op) = node
+                    && driver.op_eligible_for_processing(ctx, op)
+                {
+                    driver.enqueue_back(op);
                 }
             }
-            struct Driver<'a, C: DialectConversion> {
-                conversion: &'a mut C,
-                worklist: &'a mut VecDeque<Ptr<Operation>>,
-            }
-            let mut state = Driver {
-                conversion: self.conversion,
-                worklist: &mut ops,
-            };
             walk_op(
-                self.ctx,
-                &mut state,
+                ctx,
+                self,
                 &WALKCONFIG_PREORDER_FORWARD,
                 root,
                 walker_callback::<C>,
             );
-            ops
         }
 
         fn append_type_history(
@@ -222,40 +308,43 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
             Self::append_type_history(existing, vec![old_type]);
         }
 
-        fn convert_block_argument_type(&mut self, value: Value) -> Result<()> {
+        fn convert_block_argument_type(&mut self, ctx: &mut Context, value: Value) -> Result<()> {
             assert!(matches!(value, Value::BlockArgument { .. }));
 
             loop {
-                let current_type = value.get_type(self.ctx);
-                if !self.conversion.can_convert_type(self.ctx, current_type) {
+                let current_type = value.get_type(ctx);
+                if !self.conversion.can_convert_type(ctx, current_type) {
                     break;
                 }
 
-                let converted_type = self.conversion.convert_type(self.ctx, current_type)?;
+                let converted_type = self.conversion.convert_type(ctx, current_type)?;
                 if converted_type == current_type {
                     break;
                 }
 
-                self.rewriter
-                    .set_value_type(self.ctx, value, converted_type);
-                self.process_recorder_events()?;
+                self.rewriter.set_value_type(ctx, value, converted_type);
+                self.process_recorder_events(ctx)?;
             }
 
             Ok(())
         }
 
-        fn convert_successor_block_argument_types(&mut self, op: Ptr<Operation>) -> Result<()> {
-            let successors: Vec<_> = op.deref(self.ctx).successors().collect();
+        fn convert_successor_block_argument_types(
+            &mut self,
+            ctx: &mut Context,
+            op: Ptr<Operation>,
+        ) -> Result<()> {
+            let successors: Vec<_> = op.deref(ctx).successors().collect();
             for succ in successors {
-                let args: Vec<_> = succ.deref(self.ctx).arguments().collect();
+                let args: Vec<_> = succ.deref(ctx).arguments().collect();
                 for arg in args {
-                    self.convert_block_argument_type(arg)?;
+                    self.convert_block_argument_type(ctx, arg)?;
                 }
             }
             Ok(())
         }
 
-        fn process_recorder_events(&mut self) -> Result<()> {
+        fn process_recorder_events(&mut self, ctx: &mut Context) -> Result<()> {
             let events = {
                 let listener = self
                     .rewriter
@@ -266,7 +355,7 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
 
             for event in &events {
                 if let RecorderEvent::ErasedOperation(op) = event {
-                    self.erased_ops.insert(*op);
+                    self.mark_erased(*op);
                 }
             }
 
@@ -309,55 +398,65 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
 
             for event in events {
                 if let RecorderEvent::InsertedOperation(new_op) = event
-                    && !self.erased_ops.contains(&new_op)
-                    && (self.conversion.can_convert_op(self.ctx, new_op)
-                        || op_impls::<dyn IsTerminatorInterface>(&*Operation::get_op_dyn(
-                            new_op, self.ctx,
-                        )))
+                    && self.op_eligible_for_processing(ctx, new_op)
+                    && !self.is_queued(new_op)
                 {
-                    self.convert_operation(new_op)?;
+                    log::trace!(
+                        "Inserted operation added to worklist: {}",
+                        OpDbg { op: new_op, ctx }
+                    );
+                    self.enqueue_back(new_op);
                 }
             }
 
             Ok(())
         }
 
-        fn convert_operation(&mut self, op: Ptr<Operation>) -> Result<()> {
-            if self.erased_ops.contains(&op) || self.in_progress.contains(&op) {
+        fn process_operation(&mut self, ctx: &mut Context, op: Ptr<Operation>) -> Result<()> {
+            log::trace!("Beginning to process operation: {}", OpDbg { op, ctx });
+
+            self.convert_successor_block_argument_types(ctx, op)?;
+
+            if !self.conversion.can_convert_op(ctx, op) {
+                log::trace!(
+                    "Skipping operation as it is not convertible: {}",
+                    OpDbg { op, ctx }
+                );
+                self.mark_processed(op);
                 return Ok(());
             }
 
-            self.convert_successor_block_argument_types(op)?;
-
-            if !self.conversion.can_convert_op(self.ctx, op) {
-                return Ok(());
-            }
-
-            self.in_progress.insert(op);
-
-            let operands: Vec<_> = op.deref(self.ctx).operands().collect();
+            let operands: Vec<_> = op.deref(ctx).operands().collect();
+            let mut pending_defs = Vec::new();
             for operand in &operands {
                 match operand {
                     Value::OpResult { op: def_op, .. } => {
-                        if *def_op == op || self.erased_ops.contains(def_op) {
-                            continue;
+                        assert_ne!(*def_op, op, "Operation cannot depend on its own result");
+                        if self.op_eligible_for_processing(ctx, *def_op) {
+                            pending_defs.push(*def_op);
                         }
-                        self.convert_operation(*def_op)?;
                     }
-                    Value::BlockArgument { .. } => self.convert_block_argument_type(*operand)?,
+                    Value::BlockArgument { .. } => {
+                        self.convert_block_argument_type(ctx, *operand)?
+                    }
                 }
             }
 
-            if self.erased_ops.contains(&op) {
-                self.in_progress.remove(&op);
+            if !pending_defs.is_empty() {
+                // We aren't going to process it now, so add it back to the queue
+                // to be processed after its operands' defs are processed.
+                self.enqueue_front(op);
+                for def_op in pending_defs.into_iter().rev() {
+                    self.enqueue_front(def_op);
+                }
+                log::trace!(
+                    "Operation re-enqueued, to be processed after its operands' defs: {}",
+                    OpDbg { op, ctx }
+                );
                 return Ok(());
             }
 
-            if !self.conversion.can_convert_op(self.ctx, op) {
-                self.in_progress.remove(&op);
-                return Ok(());
-            }
-
+            let operands: Vec<_> = op.deref(ctx).operands().collect();
             let operands_info = OperandsInfo::new(
                 operands
                     .into_iter()
@@ -373,25 +472,40 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
                     .collect(),
             );
 
+            log::trace!("Rewriting operation: {}", OpDbg { op, ctx });
+            log::trace!(
+                "with the following operands info: {}",
+                operands_info.disp(ctx)
+            );
+
             self.rewriter
                 .set_insertion_point(OpInsertionPoint::BeforeOperation(op));
             self.conversion
-                .rewrite(self.ctx, &mut self.rewriter, op, &operands_info)?;
-            self.process_recorder_events()?;
+                .rewrite(ctx, &mut self.rewriter, op, &operands_info)?;
+            self.process_recorder_events(ctx)?;
 
-            self.in_progress.remove(&op);
+            self.mark_processed(op);
             Ok(())
         }
 
-        fn run(&mut self, root: Ptr<Operation>) -> Result<()> {
-            let mut worklist = self.collect_operations(root);
-            while let Some(op) = worklist.pop_front() {
-                self.convert_operation(op)?;
+        fn run(&mut self, ctx: &mut Context, root: Ptr<Operation>) -> Result<()> {
+            self.collect_operations(ctx, root);
+            while let Some(op) = self.worklist.pop_front() {
+                // Skip stale duplicate entries and ops that became terminal-state
+                // while queued. For the queued case, remove the queue-state first so
+                // this op can be re-enqueued if it must be deferred.
+                match self.op_states.get(&op).copied() {
+                    Some(OpState::Queued) => {
+                        self.op_states.remove(&op);
+                        self.process_operation(ctx, op)?;
+                    }
+                    Some(OpState::Processed | OpState::Erased) | None => continue,
+                }
             }
             Ok(())
         }
     }
 
-    let mut driver = Driver::new(ctx, conversion);
-    driver.run(op)
+    let mut driver = Driver::new(conversion);
+    driver.run(ctx, op)
 }

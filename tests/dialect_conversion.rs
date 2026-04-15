@@ -10,6 +10,7 @@ use pliron::{
     },
     context::{Context, Ptr},
     identifier::Identifier,
+    init_env_logger,
     irbuild::{
         dialect_conversion::{
             DialectConversion, DialectConversionRewriter, OperandsInfo, apply_dialect_conversion,
@@ -105,7 +106,7 @@ struct WidthConversion {
 }
 
 impl DialectConversion for WidthConversion {
-    fn can_convert_op(&mut self, ctx: &Context, op: Ptr<Operation>) -> bool {
+    fn can_convert_op(&self, ctx: &Context, op: Ptr<Operation>) -> bool {
         if let Some(producer) = Operation::get_op::<ProducerOp>(op, ctx) {
             let ty = producer.get_result(ctx).get_type(ctx);
             let width = ty
@@ -171,6 +172,7 @@ impl DialectConversion for WidthConversion {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dialect_conversion_defs_before_uses() -> Result<()> {
+    init_env_logger!();
     let ctx = &mut Context::new();
 
     let module = ModuleOp::new(
@@ -197,7 +199,7 @@ struct WidthConversionViaValueReplacement {
 }
 
 impl DialectConversion for WidthConversionViaValueReplacement {
-    fn can_convert_op(&mut self, ctx: &Context, op: Ptr<Operation>) -> bool {
+    fn can_convert_op(&self, ctx: &Context, op: Ptr<Operation>) -> bool {
         if let Some(producer) = Operation::get_op::<ProducerOp>(op, ctx) {
             let ty = producer.get_result(ctx).get_type(ctx);
             let width = ty
@@ -294,11 +296,11 @@ struct ConsumerOnlyConversion {
 }
 
 impl DialectConversion for ConsumerOnlyConversion {
-    fn can_convert_op(&mut self, ctx: &Context, op: Ptr<Operation>) -> bool {
+    fn can_convert_op(&self, ctx: &Context, op: Ptr<Operation>) -> bool {
         Operation::get_op::<ConsumerOp>(op, ctx).is_some()
     }
 
-    fn can_convert_type(&mut self, ctx: &Context, ty: Ptr<pliron::r#type::TypeObj>) -> bool {
+    fn can_convert_type(&self, ctx: &Context, ty: Ptr<pliron::r#type::TypeObj>) -> bool {
         ty.deref(ctx)
             .downcast_ref::<IntegerType>()
             .is_some_and(|int_ty| int_ty.width() > 16)
@@ -351,11 +353,11 @@ struct ForwardOnlyConversion {
 }
 
 impl DialectConversion for ForwardOnlyConversion {
-    fn can_convert_op(&mut self, ctx: &Context, op: Ptr<Operation>) -> bool {
+    fn can_convert_op(&self, ctx: &Context, op: Ptr<Operation>) -> bool {
         Operation::get_op::<ForwardToSuccOp>(op, ctx).is_some()
     }
 
-    fn can_convert_type(&mut self, ctx: &Context, ty: Ptr<pliron::r#type::TypeObj>) -> bool {
+    fn can_convert_type(&self, ctx: &Context, ty: Ptr<pliron::r#type::TypeObj>) -> bool {
         ty.deref(ctx)
             .downcast_ref::<IntegerType>()
             .is_some_and(|int_ty| int_ty.width() > 16)
@@ -399,6 +401,7 @@ impl DialectConversion for ForwardOnlyConversion {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dialect_conversion_block_arg_type_conversion() -> Result<()> {
+    init_env_logger!();
     let ctx = &mut Context::new();
 
     let module = ModuleOp::new(
@@ -423,6 +426,7 @@ fn dialect_conversion_block_arg_type_conversion() -> Result<()> {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dialect_conversion_successor_block_arg_type_conversion_without_uses() -> Result<()> {
+    init_env_logger!();
     let ctx = &mut Context::new();
 
     let module = ModuleOp::new(

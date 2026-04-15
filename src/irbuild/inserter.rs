@@ -175,7 +175,7 @@ pub trait Inserter<L: InsertionListener> {
     /// To insert a sequence in-order, use [append_op](Self::append_op).
     fn insert_op(&mut self, ctx: &Context, op: impl Op);
 
-    /// Insert [BasicBlock] and the provided insertion point.
+    /// Insert [BasicBlock] at the provided insertion point.
     fn insert_block(
         &mut self,
         ctx: &Context,
@@ -183,12 +183,12 @@ pub trait Inserter<L: InsertionListener> {
         block: Ptr<BasicBlock>,
     );
 
-    /// Create a new [BasicBlock] and insert it before at the provided insertion point.
+    /// Create a new [BasicBlock] and insert it at the provided insertion point.
     /// The internal [OpInsertionPoint] is updated to be at the end of the newly created block.
     fn create_block(
         &mut self,
         ctx: &mut Context,
-        insertertion_point: BlockInsertionPoint,
+        insertion_point: BlockInsertionPoint,
         label: Option<Identifier>,
         arg_types: Vec<Ptr<TypeObj>>,
     ) -> Ptr<BasicBlock>;
