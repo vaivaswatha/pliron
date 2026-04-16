@@ -7,6 +7,7 @@ use pliron::derive::pliron_op;
 use pliron::dict_key;
 use pliron::op::verify_op;
 use pliron::operation::{DefUseVerifyErr, verify_operation};
+use pliron::value::Use;
 use pliron::{
     basic_block::BasicBlock,
     builtin::{
@@ -233,6 +234,278 @@ fn test_replace_within_same_def_site() {
         !0 = [builtin_debug_info = builtin.debug_info [c0]]
     "#]]
     .assert_eq(&printed);
+}
+
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_operand_push_pop_insert_remove() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let (module_op, _func_op, const0_op, ret_op) = const_ret_in_mod(ctx)?;
+    let ret_ptr = ret_op.get_operation();
+
+    let const1_op = ConstantOp::new(ctx, 1);
+    const1_op
+        .get_operation()
+        .insert_before(ctx, ret_op.get_operation());
+    let const2_op = ConstantOp::new(ctx, 2);
+    const2_op
+        .get_operation()
+        .insert_before(ctx, ret_op.get_operation());
+
+    let c0 = const0_op.get_result(ctx);
+    let c1 = const1_op.get_result(ctx);
+    let c2 = const2_op.get_result(ctx);
+
+    assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 1);
+    assert_eq!(ret_ptr.deref(ctx).get_operand(0), c0);
+
+    let pushed_idx = Operation::push_operand(ret_ptr, ctx, c1);
+    assert_eq!(pushed_idx, 1);
+    assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 2);
+    assert_eq!(ret_ptr.deref(ctx).get_operand(0), c0);
+    assert_eq!(ret_ptr.deref(ctx).get_operand(1), c1);
+    for Use { op, opd_idx, .. } in c1.uses(ctx) {
+        assert!(op == ret_ptr && opd_idx == 1);
+    }
+    for Use { op, opd_idx, .. } in c0.uses(ctx) {
+        assert!(op == ret_ptr && opd_idx == 0);
+    }
+    verify_op(&module_op, ctx)?;
+
+    let popped = Operation::pop_operand(ret_ptr, ctx);
+    assert_eq!(popped, c1);
+    assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 1);
+    assert_eq!(ret_ptr.deref(ctx).get_operand(0), c0);
+    assert!(c1.uses(ctx).is_empty()); // c1 should have no uses now.
+    for Use { op, opd_idx, .. } in c0.uses(ctx) {
+        assert!(op == ret_ptr && opd_idx == 0);
+    }
+    verify_op(&module_op, ctx)?;
+
+    Operation::insert_operand(ret_ptr, ctx, 0, c1);
+    assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 2);
+    assert_eq!(ret_ptr.deref(ctx).get_operand(0), c1);
+    assert_eq!(ret_ptr.deref(ctx).get_operand(1), c0);
+    for Use { op, opd_idx, .. } in c1.uses(ctx) {
+        assert!(op == ret_ptr && opd_idx == 0);
+    }
+    for Use { op, opd_idx, .. } in c0.uses(ctx) {
+        assert!(op == ret_ptr && opd_idx == 1);
+    }
+    verify_op(&module_op, ctx)?;
+
+    Operation::insert_operand(ret_ptr, ctx, 2, c2);
+    assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 3);
+    assert_eq!(ret_ptr.deref(ctx).get_operand(0), c1);
+    assert_eq!(ret_ptr.deref(ctx).get_operand(1), c0);
+    assert_eq!(ret_ptr.deref(ctx).get_operand(2), c2);
+    for Use { op, opd_idx, .. } in c1.uses(ctx) {
+        assert!(op == ret_ptr && opd_idx == 0);
+    }
+    for Use { op, opd_idx, .. } in c0.uses(ctx) {
+        assert!(op == ret_ptr && opd_idx == 1);
+    }
+    for Use { op, opd_idx, .. } in c2.uses(ctx) {
+        assert!(op == ret_ptr && opd_idx == 2);
+    }
+
+    verify_op(&module_op, ctx)?;
+
+    let removed_mid = Operation::remove_operand(ret_ptr, ctx, 1);
+    assert_eq!(removed_mid, c0);
+    assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 2);
+    assert_eq!(ret_ptr.deref(ctx).get_operand(0), c1);
+    assert_eq!(ret_ptr.deref(ctx).get_operand(1), c2);
+    for Use { op, opd_idx, .. } in c1.uses(ctx) {
+        assert!(op == ret_ptr && opd_idx == 0);
+    }
+    for Use { op, opd_idx, .. } in c2.uses(ctx) {
+        assert!(op == ret_ptr && opd_idx == 1);
+    }
+    verify_op(&module_op, ctx)?;
+
+    let removed_front = Operation::remove_operand(ret_ptr, ctx, 0);
+    assert_eq!(removed_front, c1);
+    assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 1);
+    assert_eq!(ret_ptr.deref(ctx).get_operand(0), c2);
+    for Use { op, opd_idx, .. } in c2.uses(ctx) {
+        assert!(op == ret_ptr && opd_idx == 0);
+    }
+    verify_op(&module_op, ctx)?;
+
+    // Add c2 as an operand again,
+    Operation::insert_operand(ret_ptr, ctx, 0, c2);
+    assert!(c2.uses(ctx).len() == 2); // c2 should now have two uses.
+    for Use { op, opd_idx, .. } in c2.uses(ctx) {
+        // c2 should now have two uses.
+        assert!(op == ret_ptr && (opd_idx == 0 || opd_idx == 1));
+    }
+
+    // Add c0 now
+    Operation::insert_operand(ret_ptr, ctx, 1, c0);
+    assert!(c0.uses(ctx).len() == 1); // c0 should now have 1
+    assert!(c2.uses(ctx).len() == 2); // c2 should still have two uses.
+    for Use { op, opd_idx, .. } in c0.uses(ctx) {
+        // c0 should now  one use.
+        assert!(op == ret_ptr && opd_idx == 1);
+    }
+    for Use { op, opd_idx, .. } in c2.uses(ctx) {
+        // c2 should still have two uses.
+        assert!(op == ret_ptr && (opd_idx == 0 || opd_idx == 2));
+    }
+
+    Ok(())
+}
+
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_successor_push_pop_insert_remove() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let (module_op, func_op, const_op, ret_op) = const_ret_in_mod(ctx)?;
+    let entry_block = func_op.get_entry_block(ctx);
+
+    let common_pred = BasicBlock::new(ctx, None, vec![]);
+    common_pred.insert_after(ctx, entry_block);
+    let succ0 = BasicBlock::new(ctx, None, vec![]);
+    succ0.insert_after(ctx, common_pred);
+    let succ1 = BasicBlock::new(ctx, None, vec![]);
+    succ1.insert_after(ctx, succ0);
+    let succ2 = BasicBlock::new(ctx, None, vec![]);
+    succ2.insert_after(ctx, succ1);
+
+    let succ0_ret = ReturnOp::new(ctx, const_op.get_result(ctx));
+    succ0_ret.get_operation().insert_at_back(succ0, ctx);
+    let succ1_ret = ReturnOp::new(ctx, const_op.get_result(ctx));
+    succ1_ret.get_operation().insert_at_back(succ1, ctx);
+    let succ2_ret = ReturnOp::new(ctx, const_op.get_result(ctx));
+    succ2_ret.get_operation().insert_at_back(succ2, ctx);
+
+    let branch_like = Operation::new(
+        ctx,
+        BranchOp::get_concrete_op_info(),
+        vec![],
+        vec![],
+        vec![succ0, succ1, succ2],
+        0,
+    );
+    branch_like.insert_before(ctx, ret_op.get_operation());
+    Operation::erase(ret_op.get_operation(), ctx);
+
+    let branch_like = Operation::new(
+        ctx,
+        BranchOp::get_concrete_op_info(),
+        vec![],
+        vec![],
+        vec![succ0],
+        0,
+    );
+    branch_like.insert_at_back(common_pred, ctx);
+
+    // We now have where entry_block branches to common_pred, succ0, succ1, and succ2.
+    // So all blocks are reachable, and hence pass the verifier dominance checks.
+    verify_op(&module_op, ctx)?;
+
+    assert_eq!(branch_like.deref(ctx).get_num_successors(), 1);
+    assert_eq!(branch_like.deref(ctx).get_successor(0), succ0);
+    assert_eq!(succ0.num_preds(ctx), 2);
+    assert_eq!(succ1.num_preds(ctx), 1);
+    assert_eq!(succ2.num_preds(ctx), 1);
+
+    let pushed_idx = Operation::push_successor(branch_like, ctx, succ1);
+    assert_eq!(pushed_idx, 1);
+    assert_eq!(branch_like.deref(ctx).get_num_successors(), 2);
+    assert_eq!(branch_like.deref(ctx).get_successor(0), succ0);
+    assert_eq!(branch_like.deref(ctx).get_successor(1), succ1);
+    assert_eq!(succ0.num_preds(ctx), 2);
+    assert_eq!(succ1.num_preds(ctx), 2);
+    let succ0_preds = succ0.preds(ctx);
+    assert!(succ0_preds.contains(&common_pred) && succ0_preds.contains(&entry_block));
+    let succ1_preds = succ1.preds(ctx);
+    assert!(succ1_preds.contains(&common_pred) && succ1_preds.contains(&entry_block));
+    verify_op(&module_op, ctx)?;
+
+    let popped = Operation::pop_successor(branch_like, ctx);
+    assert_eq!(popped, succ1);
+    assert_eq!(branch_like.deref(ctx).get_num_successors(), 1);
+    assert_eq!(branch_like.deref(ctx).get_successor(0), succ0);
+    assert_eq!(succ0.num_preds(ctx), 2);
+    assert_eq!(succ1.num_preds(ctx), 1);
+    let succ0_preds = succ0.preds(ctx);
+    assert!(succ0_preds.contains(&common_pred) && succ0_preds.contains(&entry_block));
+    let succ1_preds = succ1.preds(ctx);
+    assert!(succ1_preds.contains(&entry_block));
+    verify_op(&module_op, ctx)?;
+
+    Operation::insert_successor(branch_like, ctx, 0, succ1);
+    assert_eq!(branch_like.deref(ctx).get_num_successors(), 2);
+    assert_eq!(branch_like.deref(ctx).get_successor(0), succ1);
+    assert_eq!(branch_like.deref(ctx).get_successor(1), succ0);
+    assert_eq!(succ0.num_preds(ctx), 2);
+    assert_eq!(succ1.num_preds(ctx), 2);
+    let succ0_preds = succ0.preds(ctx);
+    assert!(succ0_preds.contains(&common_pred) && succ0_preds.contains(&entry_block));
+    let succ1_preds = succ1.preds(ctx);
+    assert!(succ1_preds.contains(&common_pred) && succ1_preds.contains(&entry_block));
+    verify_op(&module_op, ctx)?;
+
+    Operation::insert_successor(branch_like, ctx, 2, succ2);
+    assert_eq!(branch_like.deref(ctx).get_num_successors(), 3);
+    assert_eq!(branch_like.deref(ctx).get_successor(0), succ1);
+    assert_eq!(branch_like.deref(ctx).get_successor(1), succ0);
+    assert_eq!(branch_like.deref(ctx).get_successor(2), succ2);
+    assert_eq!(succ0.num_preds(ctx), 2);
+    assert_eq!(succ1.num_preds(ctx), 2);
+    assert_eq!(succ2.num_preds(ctx), 2);
+    let succ2_preds = succ2.preds(ctx);
+    assert!(succ2_preds.contains(&common_pred) && succ2_preds.contains(&entry_block));
+    let succ1_preds = succ1.preds(ctx);
+    assert!(succ1_preds.contains(&common_pred) && succ1_preds.contains(&entry_block));
+    let succ0_preds = succ0.preds(ctx);
+    assert!(succ0_preds.contains(&common_pred) && succ0_preds.contains(&entry_block));
+    verify_op(&module_op, ctx)?;
+
+    let removed_mid = Operation::remove_successor(branch_like, ctx, 1);
+    assert_eq!(removed_mid, succ0);
+    assert_eq!(branch_like.deref(ctx).get_num_successors(), 2);
+    assert_eq!(branch_like.deref(ctx).get_successor(0), succ1);
+    assert_eq!(branch_like.deref(ctx).get_successor(1), succ2);
+    assert_eq!(succ0.num_preds(ctx), 1);
+    assert_eq!(succ1.num_preds(ctx), 2);
+    assert_eq!(succ2.num_preds(ctx), 2);
+    let succ2_preds = succ2.preds(ctx);
+    assert!(succ2_preds.contains(&common_pred) && succ2_preds.contains(&entry_block));
+    let succ1_preds = succ1.preds(ctx);
+    assert!(succ1_preds.contains(&common_pred) && succ1_preds.contains(&entry_block));
+    let succ0_preds = succ0.preds(ctx);
+    assert!(succ0_preds.contains(&entry_block));
+    verify_op(&module_op, ctx)?;
+
+    let removed_front = Operation::remove_successor(branch_like, ctx, 0);
+    assert_eq!(removed_front, succ1);
+    assert_eq!(branch_like.deref(ctx).get_num_successors(), 1);
+    assert_eq!(branch_like.deref(ctx).get_successor(0), succ2);
+    assert_eq!(succ0.num_preds(ctx), 1);
+    assert_eq!(succ1.num_preds(ctx), 1);
+    assert_eq!(succ2.num_preds(ctx), 2);
+    let succ2_preds = succ2.preds(ctx);
+    assert!(succ2_preds.contains(&common_pred) && succ2_preds.contains(&entry_block));
+    let succ1_preds = succ1.preds(ctx);
+    assert!(succ1_preds.contains(&entry_block));
+    let succ0_preds = succ0.preds(ctx);
+    assert!(succ0_preds.contains(&entry_block));
+    verify_op(&module_op, ctx)?;
+
+    // Add another branch to succ2 so that it has 3 preds, with common_pred being occurring twice.
+    Operation::insert_successor(branch_like, ctx, 0, succ2);
+    assert_eq!(branch_like.deref(ctx).get_num_successors(), 2);
+    assert_eq!(succ2.num_preds(ctx), 3);
+    let succ2_preds = succ2.preds(ctx);
+    assert!(succ2_preds.contains(&common_pred) && succ2_preds.contains(&entry_block));
+    verify_op(&module_op, ctx)?;
+
+    Ok(())
 }
 
 #[test]

@@ -257,7 +257,7 @@ impl Operation {
         self.results.len()
     }
 
-    /// Get idx'th result as a Value.
+    /// Get idx'th result as a Value. Panics on invalid index.
     pub fn get_result(&self, idx: usize) -> Value {
         self.results
             .get(idx)
@@ -305,7 +305,7 @@ impl Operation {
         self.operands.len()
     }
 
-    /// Get opd_idx'th operand of this [Operation]
+    /// Get opd_idx'th operand of this [Operation]. Panics on invalid index.
     pub fn get_operand(&self, opd_idx: usize) -> Value {
         self.operands
             .get(opd_idx)
@@ -313,7 +313,7 @@ impl Operation {
             .unwrap_or_else(|| panic!("Operand index {opd_idx} out of bounds"))
     }
 
-    /// Get opd_idx'th operand as a [`Use<Value>`].
+    /// Get opd_idx'th operand as a [`Use<Value>`]. Panics on invalid index.
     pub fn get_operand_as_use(&self, opd_idx: usize) -> Use<Value> {
         self.get_operand_ref(opd_idx).into()
     }
@@ -323,7 +323,30 @@ impl Operation {
         self.operands.iter().map(Operand::get_def)
     }
 
-    /// Replace opd_idx'th operand of `this` with `other`.
+    /// Add a new operand to the end of the operand list, returning its index.
+    pub fn push_operand(this: Ptr<Operation>, ctx: &Context, new_opd: Value) -> usize {
+        let cur_num_operands = this.deref(ctx).get_num_operands();
+        let new_operand = Operand::new(ctx, new_opd, this, cur_num_operands);
+        this.deref_mut(ctx).operands.push(new_operand);
+        cur_num_operands
+    }
+
+    /// Remove the last operand. Panics if there are no operands.
+    /// Any [`Use<Value>`](Use) of the removed operand is invalidated.
+    /// The removed [Value] is returned for convenience.
+    pub fn pop_operand(this: Ptr<Operation>, ctx: &Context) -> Value {
+        let removed_opd = this
+            .deref_mut(ctx)
+            .operands
+            .pop()
+            .expect("Can't pop operand from operation with no operands");
+        let removed_value = removed_opd.get_def();
+        removed_opd.drop_use(ctx);
+        removed_value
+    }
+
+    /// Replace opd_idx'th operand of `this` with `other`. Panics on invalid index.
+    /// Any [`Use<Value>`](Use) of the replaced operand will henceforth refer to `other`.
     pub fn replace_operand(this: Ptr<Operation>, ctx: &Context, opd_idx: usize, other: Value) {
         let (cur_def, cur_use) = {
             let this_ref = this.deref(ctx);
@@ -335,12 +358,56 @@ impl Operation {
         cur_def.replace_use_with(ctx, cur_use, &other);
     }
 
+    /// Insert a new operand at `opd_idx`, shifting existing operands, from `opd_idx`,
+    /// to the right. Panics on invalid index (i.e., `opd_idx` > number of operands).
+    /// Any [`Use<Value>`](Use) of the shifted operands are invalidated.
+    pub fn insert_operand(this: Ptr<Operation>, ctx: &mut Context, opd_idx: usize, new_opd: Value) {
+        let num_operands = this.deref(ctx).get_num_operands();
+        assert!(
+            opd_idx <= num_operands,
+            "Operand index {opd_idx} out of bounds for insertion"
+        );
+        let mut following_operands = Vec::with_capacity(num_operands - opd_idx);
+        for _ in opd_idx..num_operands {
+            following_operands.push(Self::pop_operand(this, ctx));
+        }
+        Self::push_operand(this, ctx, new_opd);
+        while let Some(opd) = following_operands.pop() {
+            Self::push_operand(this, ctx, opd);
+        }
+    }
+
+    /// Remove the operand at `opd_idx`, shifting existing operands, from `opd_idx + 1`,
+    /// to the left. Panics on invalid index (i.e., `opd_idx` >= number of operands).
+    /// Any [`Use<Value>`](Use) of the removed operand and the shifted operands are invalidated.
+    /// The removed [Value] is returned for convenience.
+    pub fn remove_operand(this: Ptr<Operation>, ctx: &mut Context, opd_idx: usize) -> Value {
+        let num_operands = this.deref(ctx).get_num_operands();
+        assert!(
+            opd_idx < num_operands,
+            "Operand index {opd_idx} out of bounds for removal"
+        );
+
+        let mut cur_pop = num_operands - 1;
+        let mut following_operands = Vec::with_capacity(num_operands - opd_idx - 1);
+        while cur_pop > opd_idx {
+            following_operands.push(Self::pop_operand(this, ctx));
+            cur_pop -= 1;
+        }
+        // Pop the operand to be removed.
+        let removed_opd = Self::pop_operand(this, ctx);
+        while let Some(opd) = following_operands.pop() {
+            Self::push_operand(this, ctx, opd);
+        }
+        removed_opd
+    }
+
     /// Get number of successors
     pub fn get_num_successors(&self) -> usize {
         self.successors.len()
     }
 
-    /// Get the opd_idx'th successor of this [Operation]
+    /// Get the opd_idx'th successor of this [Operation]. Panics on invalid index.
     pub fn get_successor(&self, succ_idx: usize) -> Ptr<BasicBlock> {
         self.successors
             .get(succ_idx)
@@ -348,12 +415,13 @@ impl Operation {
             .unwrap_or_else(|| panic!("Successor index {succ_idx} out of bounds"))
     }
 
-    /// Get the opd_idx'th successor as a [`Use<Ptr<BasicBlock>>`].
+    /// Get the opd_idx'th successor as a [`Use<Ptr<BasicBlock>>`]. Panics on invalid index.
     pub fn get_successor_as_use(&self, succ_idx: usize) -> Use<Ptr<BasicBlock>> {
         self.get_successor_ref(succ_idx).into()
     }
 
-    /// Replace opd_idx'th successor of `this` with `other`.
+    /// Replace opd_idx'th successor of `this` with `other`. Panics on invalid index.
+    /// A [`Use<Ptr<BasicBlock>>`](Use) of the replaced successor will henceforth refer to `other`.
     pub fn replace_successor(
         this: Ptr<Operation>,
         ctx: &Context,
@@ -368,6 +436,81 @@ impl Operation {
             )
         };
         cur_target.retarget_pred_to(ctx, cur_block_use, other);
+    }
+
+    /// Add a new successor to the end of the successor list, returning its index.
+    pub fn push_successor(this: Ptr<Operation>, ctx: &Context, new_succ: Ptr<BasicBlock>) -> usize {
+        let cur_num_successors = this.deref(ctx).get_num_successors();
+        let new_successor = Operand::new(ctx, new_succ, this, cur_num_successors);
+        this.deref_mut(ctx).successors.push(new_successor);
+        cur_num_successors
+    }
+
+    /// Remove the last successor. Panics if there are no successors.
+    /// Any [`Use<Ptr<BasicBlock>>`](Use) of the removed successor is invalidated.
+    /// The removed `Ptr<BasicBlock>` is returned for convenience.
+    pub fn pop_successor(this: Ptr<Operation>, ctx: &Context) -> Ptr<BasicBlock> {
+        let removed_succ = this
+            .deref_mut(ctx)
+            .successors
+            .pop()
+            .expect("Can't pop successor from operation with no successors");
+        let removed_block = removed_succ.get_def();
+        removed_succ.drop_use(ctx);
+        removed_block
+    }
+
+    /// Insert a new successor at `succ_idx`, shifting existing successors, from `succ_idx`,
+    /// to the right. Panics on invalid index (i.e., `succ_idx` > number of successors).
+    /// Any [`Use<Ptr<BasicBlock>>`](Use) of the shifted successors are invalidated.
+    pub fn insert_successor(
+        this: Ptr<Operation>,
+        ctx: &mut Context,
+        succ_idx: usize,
+        new_succ: Ptr<BasicBlock>,
+    ) {
+        let num_successors = this.deref(ctx).get_num_successors();
+        assert!(
+            succ_idx <= num_successors,
+            "Successor index {succ_idx} out of bounds for insertion"
+        );
+        let mut following_successors = Vec::with_capacity(num_successors - succ_idx);
+        for _ in succ_idx..num_successors {
+            following_successors.push(Self::pop_successor(this, ctx));
+        }
+        Self::push_successor(this, ctx, new_succ);
+        while let Some(succ) = following_successors.pop() {
+            Self::push_successor(this, ctx, succ);
+        }
+    }
+
+    /// Remove the successor at `succ_idx`, shifting existing successors, from `succ_idx + 1`,
+    /// to the left. Panics on invalid index (i.e., `succ_idx` >= number of successors).
+    /// Any [`Use<Ptr<BasicBlock>>`](Use) of the removed successor and the shifted successors
+    /// are invalidated. The removed `Ptr<BasicBlock>` is returned for convenience.
+    pub fn remove_successor(
+        this: Ptr<Operation>,
+        ctx: &mut Context,
+        succ_idx: usize,
+    ) -> Ptr<BasicBlock> {
+        let num_successors = this.deref(ctx).get_num_successors();
+        assert!(
+            succ_idx < num_successors,
+            "Successor index {succ_idx} out of bounds for removal"
+        );
+
+        let mut cur_pop = num_successors - 1;
+        let mut following_successors = Vec::with_capacity(num_successors - succ_idx - 1);
+        while cur_pop > succ_idx {
+            following_successors.push(Self::pop_successor(this, ctx));
+            cur_pop -= 1;
+        }
+        // Pop the successor to be removed.
+        let removed_succ = Self::pop_successor(this, ctx);
+        while let Some(succ) = following_successors.pop() {
+            Self::push_successor(this, ctx, succ);
+        }
+        removed_succ
     }
 
     /// Get an iterator on the successors.
@@ -392,7 +535,7 @@ impl Operation {
         Self::get_op_dyn(ptr, ctx).get_opid()
     }
 
-    /// Get a [Ptr] to the `reg_idx`th region.
+    /// Get a [Ptr] to the `reg_idx`th region. Panics on invalid index.
     pub fn get_region(&self, reg_idx: usize) -> Ptr<Region> {
         self.regions
             .get(reg_idx)
