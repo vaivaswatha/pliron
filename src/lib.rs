@@ -39,6 +39,7 @@ pub mod linked_list;
 pub mod location;
 pub mod op;
 pub mod operation;
+pub mod opts;
 pub mod parsable;
 pub mod printable;
 pub mod region;

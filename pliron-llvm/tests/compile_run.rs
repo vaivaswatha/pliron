@@ -1,6 +1,5 @@
 //! Tests that compile code and run it.
 
-use pliron::{combine::Parser, init_env_logger, op::verify_op, operation::verify_operation};
 use std::{env, path::PathBuf, sync::LazyLock};
 use which::which;
 
@@ -9,12 +8,15 @@ use cargo_manifest::Manifest;
 use pliron::{
     arg_error_noloc,
     builtin::ops::ModuleOp,
-    context::Context,
-    location,
-    op::Op,
-    operation::Operation,
+    combine::Parser,
+    context::{Context, Ptr},
+    init_env_logger, location,
+    op::{Op, verify_op},
+    operation::{Operation, verify_operation},
+    opts::{self, OptStatus},
     parsable::{self, state_stream_from_file},
     printable::Printable,
+    result::Result,
 };
 use pliron_llvm::{
     from_llvm_ir,
@@ -78,10 +80,15 @@ static RESOURCES_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
         .collect()
 });
 
+pub(crate) struct OptFn {
+    pub(crate) name: &'static str,
+    pub(crate) r#fn: fn(root: Ptr<Operation>, ctx: &mut Context) -> Result<OptStatus>,
+}
+
 /// Test an LLVM-IR file by executing it and comparing the output.
 /// The input file is `input_file`, which contains LLVM IR / Bitcode.
 /// The expected output is `expected_output`.
-fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
+fn test_llvm_ir_via_pliron(input_file: &str, opts: &[OptFn], expected_output: i32) {
     let llvm_context = LLVMContext::default();
     let module = match LLVMModule::from_ir_in_file(&llvm_context, input_file) {
         Ok(module) => module,
@@ -152,6 +159,15 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
         }
     }
 
+    for opt in opts {
+        log::trace!("Running opt {}...", opt.name);
+        if let Err(err) = (opt.r#fn)(parsed_res, ctx) {
+            eprintln!("Error in opt {}: {}", opt.name, err.disp(ctx));
+            panic!("Error in opt {}", opt.name);
+        }
+        log::trace!("Module after opt {}:\n{}", opt.name, parsed_res.disp(ctx));
+    }
+
     let parsed_module_op = Operation::get_op::<ModuleOp>(parsed_res, ctx)
         .expect("Parsed operation must be a ModuleOp");
 
@@ -203,7 +219,19 @@ fn test_llvm_ir_via_pliron(input_file: &str, expected_output: i32) {
 #[test]
 fn test_simple_loop() {
     init_env_logger!();
-    test_llvm_ir_via_pliron(RESOURCES_DIR.join("simple-loop.ll").to_str().unwrap(), 15);
+    test_llvm_ir_via_pliron(
+        RESOURCES_DIR.join("simple-loop.ll").to_str().unwrap(),
+        &[],
+        15,
+    );
+    test_llvm_ir_via_pliron(
+        RESOURCES_DIR.join("simple-loop.ll").to_str().unwrap(),
+        &[OptFn {
+            name: "mem2reg",
+            r#fn: opts::mem2reg::mem2reg,
+        }],
+        15,
+    );
 }
 
 /// Test insert_extract_value by compiling insert_extract_value.ll via pliron.
@@ -215,6 +243,7 @@ fn test_insert_extract_value() {
             .join("insert_extract_value.ll")
             .to_str()
             .unwrap(),
+        &[],
         103,
     );
 }
@@ -223,63 +252,79 @@ fn test_insert_extract_value() {
 #[test]
 fn test_select() {
     init_env_logger!();
-    test_llvm_ir_via_pliron(RESOURCES_DIR.join("select.ll").to_str().unwrap(), 100);
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("select.ll").to_str().unwrap(), &[], 100);
 }
 
 /// Test SwitchOp by compiling switch.ll via pliron.
 #[test]
 fn test_switch() {
     init_env_logger!();
-    test_llvm_ir_via_pliron(RESOURCES_DIR.join("switch.ll").to_str().unwrap(), 68);
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("switch.ll").to_str().unwrap(), &[], 68);
 }
 
 /// Test const structs and arrays
 #[test]
 fn test_consts() {
     init_env_logger!();
-    test_llvm_ir_via_pliron(RESOURCES_DIR.join("consts.ll").to_str().unwrap(), 203);
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("consts.ll").to_str().unwrap(), &[], 203);
 }
 
 /// Test globals
 #[test]
 fn test_globals() {
     init_env_logger!();
-    test_llvm_ir_via_pliron(RESOURCES_DIR.join("globals.ll").to_str().unwrap(), 59);
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("globals.ll").to_str().unwrap(), &[], 59);
 }
 
 /// Test casts
 #[test]
 fn test_casts() {
     init_env_logger!();
-    test_llvm_ir_via_pliron(RESOURCES_DIR.join("casts.ll").to_str().unwrap(), 88);
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("casts.ll").to_str().unwrap(), &[], 88);
 }
 
 /// Test fib by compiling fib.ll via pliron.
 #[test]
 fn test_fib() {
     init_env_logger!();
-    test_llvm_ir_via_pliron(RESOURCES_DIR.join("fib.ll").to_str().unwrap(), 3);
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("fib.ll").to_str().unwrap(), &[], 3);
+    test_llvm_ir_via_pliron(
+        RESOURCES_DIR.join("fib.ll").to_str().unwrap(),
+        &[OptFn {
+            name: "mem2reg",
+            r#fn: opts::mem2reg::mem2reg,
+        }],
+        3,
+    );
 }
 
 /// Test fib.mem2reg by compiling fib.ll via pliron.
 #[test]
 fn test_fib_mem2reg() {
     init_env_logger!();
-    test_llvm_ir_via_pliron(RESOURCES_DIR.join("fib.mem2reg.ll").to_str().unwrap(), 5);
+    test_llvm_ir_via_pliron(
+        RESOURCES_DIR.join("fib.mem2reg.ll").to_str().unwrap(),
+        &[],
+        5,
+    );
 }
 
 /// Test floating point operations by compiling fpops.ll via pliron
 #[test]
 fn test_fpops() {
     init_env_logger!();
-    test_llvm_ir_via_pliron(RESOURCES_DIR.join("fpops.ll").to_str().unwrap(), 45);
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("fpops.ll").to_str().unwrap(), &[], 45);
 }
 
 /// Test intrinsics by compiling intrinsics.ll via pliron
 #[test]
 fn test_intrinsics() {
     init_env_logger!();
-    test_llvm_ir_via_pliron(RESOURCES_DIR.join("intrinsics.ll").to_str().unwrap(), 66);
+    test_llvm_ir_via_pliron(
+        RESOURCES_DIR.join("intrinsics.ll").to_str().unwrap(),
+        &[],
+        66,
+    );
 }
 
 /// Test `va_arg` by compiling va_arg.ll via pliron.
@@ -289,19 +334,27 @@ fn test_intrinsics() {
 #[test]
 fn test_va_arg() {
     init_env_logger!();
-    test_llvm_ir_via_pliron(RESOURCES_DIR.join("va_arg.ll").to_str().unwrap(), 75);
+    test_llvm_ir_via_pliron(RESOURCES_DIR.join("va_arg.ll").to_str().unwrap(), &[], 75);
 }
 
 /// Test indirect-call by compiling indirect_call.ll via pliron
 #[test]
 fn test_indirect_call() {
     init_env_logger!();
-    test_llvm_ir_via_pliron(RESOURCES_DIR.join("indirect_call.ll").to_str().unwrap(), 84);
+    test_llvm_ir_via_pliron(
+        RESOURCES_DIR.join("indirect_call.ll").to_str().unwrap(),
+        &[],
+        84,
+    );
 }
 
 /// Test vector operations by compiling vector_ops.ll via pliron
 #[test]
 fn test_vector_ops() {
     init_env_logger!();
-    test_llvm_ir_via_pliron(RESOURCES_DIR.join("vector_ops.ll").to_str().unwrap(), 0);
+    test_llvm_ir_via_pliron(
+        RESOURCES_DIR.join("vector_ops.ll").to_str().unwrap(),
+        &[],
+        0,
+    );
 }
