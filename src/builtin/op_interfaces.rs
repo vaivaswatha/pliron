@@ -62,6 +62,12 @@ pub trait BranchOpInterface: IsTerminatorInterface {
     /// Get a list of [Value]s that are forwarded to the target block.
     fn successor_operands(&self, ctx: &Context, succ_idx: usize) -> Vec<Value>;
 
+    /// Add a new operand to be forwarded to the given successor.
+    /// The operand is appended after existing operands for the specified successor.
+    /// Returns the index of the newly added operand among the operands forwarded to the successor.
+    /// The returned index can be used to determine the corresponding target block argument index.
+    fn add_successor_operand(&self, ctx: &mut Context, succ_idx: usize, operand: Value) -> usize;
+
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
     where
         Self: Sized,
@@ -141,49 +147,31 @@ pub trait OperandSegmentInterface {
         (flat_operands, sizes_attr)
     }
 
-    /// Get the `idx`th segment of operands.
-    fn get_segment(&self, ctx: &Context, idx: usize) -> Vec<Value> {
-        let self_op = self.get_operation().deref(ctx);
-        let sizes_attr = self_op
-            .attributes
-            .get::<OperandSegmentSizesAttr>(&ATTR_KEY_OPERAND_SEGMENT_SIZES)
-            .unwrap();
-        let sizes = &sizes_attr.0;
-
-        if idx >= sizes.len() {
+    /// Get the `seg_idx`th segment of operands.
+    fn get_segment(&self, ctx: &Context, seg_idx: usize) -> Vec<Value> {
+        let sizes = self.get_operand_segment_sizes(ctx).0;
+        if seg_idx >= sizes.len() {
             return vec![];
         }
 
-        let start = sizes[..idx].iter().sum::<u32>() as usize;
-        let len = sizes[idx] as usize;
-
+        let self_op = self.get_operation().deref(ctx);
+        let start = sizes[..seg_idx].iter().sum::<u32>() as usize;
+        let len = sizes[seg_idx] as usize;
         self_op.operands().skip(start).take(len).collect()
     }
 
-    /// Get the length of the `idx`th segment.
-    fn segment_size(&self, ctx: &Context, idx: usize) -> u32 {
-        let self_op = self.get_operation().deref(ctx);
-        let sizes_attr = self_op
-            .attributes
-            .get::<OperandSegmentSizesAttr>(&ATTR_KEY_OPERAND_SEGMENT_SIZES)
-            .unwrap();
-        let sizes = &sizes_attr.0;
-
-        if idx >= sizes.len() {
+    /// Get the length of the `seg_idx`th segment.
+    fn segment_size(&self, ctx: &Context, seg_idx: usize) -> u32 {
+        let sizes = self.get_operand_segment_sizes(ctx).0;
+        if seg_idx >= sizes.len() {
             return 0;
         }
-
-        sizes[idx]
+        sizes[seg_idx]
     }
 
     /// Get the number of segments.
     fn num_segments(&self, ctx: &Context) -> usize {
-        let self_op = self.get_operation().deref(ctx);
-        let sizes_attr = self_op
-            .attributes
-            .get::<OperandSegmentSizesAttr>(&ATTR_KEY_OPERAND_SEGMENT_SIZES)
-            .unwrap();
-        sizes_attr.0.len()
+        self.get_operand_segment_sizes(ctx).0.len()
     }
 
     /// Set the `operand_segment_sizes` attribute for this operation.
@@ -192,6 +180,109 @@ pub trait OperandSegmentInterface {
         self_op
             .attributes
             .set(ATTR_KEY_OPERAND_SEGMENT_SIZES.clone(), sizes);
+    }
+
+    /// Get the `operand_segment_sizes` attribute for this operation.
+    fn get_operand_segment_sizes(&self, ctx: &Context) -> OperandSegmentSizesAttr {
+        let self_op = self.get_operation().deref(ctx);
+        self_op
+            .attributes
+            .get::<OperandSegmentSizesAttr>(&ATTR_KEY_OPERAND_SEGMENT_SIZES)
+            .unwrap()
+            .clone()
+    }
+
+    /// Push a new operand at the end of the `seg_idx`th segment.
+    /// Returns the index of the inserted operand within that segment.
+    fn push_to_segment(&self, ctx: &mut Context, seg_idx: usize, operand: Value) -> usize {
+        let mut sizes = self.get_operand_segment_sizes(ctx).0;
+        assert!(
+            seg_idx < sizes.len(),
+            "Segment index {seg_idx} out of bounds for {} segments",
+            sizes.len()
+        );
+
+        let seg_opd_idx = sizes[seg_idx] as usize;
+        let insert_idx = sizes[..=seg_idx].iter().sum::<u32>() as usize;
+        Operation::insert_operand(self.get_operation(), ctx, insert_idx, operand);
+
+        sizes[seg_idx] += 1;
+        self.set_operand_segment_sizes(ctx, OperandSegmentSizesAttr(sizes));
+        seg_opd_idx
+    }
+
+    /// Pop and return the last operand in the `seg_idx`th segment.
+    fn pop_from_segment(&self, ctx: &mut Context, seg_idx: usize) -> Value {
+        let mut sizes = self.get_operand_segment_sizes(ctx).0;
+        assert!(
+            seg_idx < sizes.len(),
+            "Segment index {seg_idx} out of bounds for {} segments",
+            sizes.len()
+        );
+
+        let segment_start = sizes[..seg_idx].iter().sum::<u32>() as usize;
+        let segment_len = sizes[seg_idx] as usize;
+        assert!(segment_len > 0, "Cannot pop from an empty segment");
+
+        let remove_idx = segment_start + segment_len - 1;
+        let removed = Operation::remove_operand(self.get_operation(), ctx, remove_idx);
+
+        sizes[seg_idx] -= 1;
+        self.set_operand_segment_sizes(ctx, OperandSegmentSizesAttr(sizes));
+        removed
+    }
+
+    /// Insert an operand at `seg_opd_idx` within the `seg_idx`th segment.
+    fn insert_into_segment(
+        &self,
+        ctx: &mut Context,
+        seg_idx: usize,
+        seg_opd_idx: usize,
+        operand: Value,
+    ) {
+        let mut sizes = self.get_operand_segment_sizes(ctx).0;
+        assert!(
+            seg_idx < sizes.len(),
+            "Segment index {seg_idx} out of bounds for {} segments",
+            sizes.len()
+        );
+
+        let segment_start = sizes[..seg_idx].iter().sum::<u32>() as usize;
+        let segment_len = sizes[seg_idx] as usize;
+        assert!(
+            seg_opd_idx <= segment_len,
+            "Segment operand index {seg_opd_idx} out of bounds for insertion in segment of length {segment_len}"
+        );
+
+        let insert_idx = segment_start + seg_opd_idx;
+        Operation::insert_operand(self.get_operation(), ctx, insert_idx, operand);
+
+        sizes[seg_idx] += 1;
+        self.set_operand_segment_sizes(ctx, OperandSegmentSizesAttr(sizes));
+    }
+
+    /// Remove and return the operand at `seg_opd_idx` in the `seg_idx`th segment.
+    fn remove_from_segment(&self, ctx: &mut Context, seg_idx: usize, seg_opd_idx: usize) -> Value {
+        let mut sizes = self.get_operand_segment_sizes(ctx).0;
+        assert!(
+            seg_idx < sizes.len(),
+            "Segment index {seg_idx} out of bounds for {} segments",
+            sizes.len()
+        );
+
+        let segment_start = sizes[..seg_idx].iter().sum::<u32>() as usize;
+        let segment_len = sizes[seg_idx] as usize;
+        assert!(
+            seg_opd_idx < segment_len,
+            "Segment operand index {seg_opd_idx} out of bounds for removal in segment of length {segment_len}"
+        );
+
+        let remove_idx = segment_start + seg_opd_idx;
+        let removed = Operation::remove_operand(self.get_operation(), ctx, remove_idx);
+
+        sizes[seg_idx] -= 1;
+        self.set_operand_segment_sizes(ctx, OperandSegmentSizesAttr(sizes));
+        removed
     }
 
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>

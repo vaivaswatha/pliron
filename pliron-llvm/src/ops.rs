@@ -3,7 +3,7 @@
 use std::{sync::LazyLock, vec};
 
 use pliron::{
-    arg_err_noloc,
+    arg_err, arg_err_noloc,
     attribute::{AttrObj, AttributeDict, attr_cast, attr_impls},
     basic_block::BasicBlock,
     builtin::{
@@ -25,6 +25,11 @@ use pliron::{
     context::{Context, Ptr},
     identifier::Identifier,
     indented_block, input_err,
+    irbuild::{
+        inserter::{IRInserter, Inserter},
+        listener::DummyListener,
+        rewriter::{IRRewriter, Rewriter},
+    },
     irfmt::{
         self,
         parsers::{
@@ -37,6 +42,9 @@ use pliron::{
     location::{Located, Location},
     op::{Op, OpObj},
     operation::Operation,
+    opts::mem2reg::{
+        AllocInfo, PromotableAllocationInterface, PromotableOpInterface, PromotableOpKind,
+    },
     parsable::{IntoParseResult, Parsable, ParseResult, StateStream},
     printable::{self, Printable, indented_nl},
     region::Region,
@@ -460,6 +468,48 @@ impl AllocaOp {
     }
 }
 
+#[derive(Error, Debug)]
+#[error("Register Promotion: Allocation info provided is not related to this operation")]
+pub struct UnrelatedAllocInfo;
+
+#[op_interface_impl]
+impl PromotableAllocationInterface for AllocaOp {
+    fn alloc_info(&self, ctx: &Context) -> Vec<AllocInfo> {
+        vec![AllocInfo {
+            ptr: self.get_result(ctx),
+            ty: self.result_pointee_type(ctx),
+        }]
+    }
+
+    fn default_value(
+        &self,
+        ctx: &mut Context,
+        inserter: &mut IRInserter<DummyListener>,
+        alloc_info: &AllocInfo,
+    ) -> Result<Value> {
+        if alloc_info.ptr != self.get_result(ctx) {
+            return arg_err!(self.loc(ctx), UnrelatedAllocInfo);
+        }
+        let poison = PoisonOp::new(ctx, alloc_info.ty);
+        let poison_val = poison.get_result(ctx);
+        inserter.insert_op(ctx, poison);
+        Ok(poison_val)
+    }
+
+    fn promote(
+        &self,
+        ctx: &mut Context,
+        rewriter: &mut IRRewriter<DummyListener>,
+        alloc_infos: &[AllocInfo],
+    ) -> Result<()> {
+        if alloc_infos.len() != 1 || alloc_infos[0].ptr != self.get_result(ctx) {
+            return arg_err!(self.loc(ctx), UnrelatedAllocInfo);
+        }
+        rewriter.erase_operation(ctx, self.get_operation());
+        Ok(())
+    }
+}
+
 /// Equivalent to LLVM's Bitcast opcode.
 /// ### Operands
 /// | operand | description |
@@ -579,6 +629,11 @@ impl BranchOpInterface for BrOp {
     fn successor_operands(&self, ctx: &Context, succ_idx: usize) -> Vec<Value> {
         assert!(succ_idx == 0, "BrOp has exactly one successor");
         self.get_operation().deref(ctx).operands().collect()
+    }
+
+    fn add_successor_operand(&self, ctx: &mut Context, succ_idx: usize, operand: Value) -> usize {
+        assert!(succ_idx == 0, "BrOp has exactly one successor");
+        Operation::push_operand(self.get_operation(), ctx, operand)
     }
 }
 
@@ -777,6 +832,11 @@ impl BranchOpInterface for CondBrOp {
 
         // Skip the first segment, which is the condition.
         self.get_segment(ctx, succ_idx + 1)
+    }
+
+    fn add_successor_operand(&self, ctx: &mut Context, succ_idx: usize, operand: Value) -> usize {
+        // The successor operands start at segment 1, since segment 0 is the condition operand.
+        self.push_to_segment(ctx, succ_idx + 1, operand)
     }
 }
 
@@ -1053,6 +1113,11 @@ impl BranchOpInterface for SwitchOp {
         // Skip the first segment, which is the condition.
         self.get_segment(ctx, succ_idx + 1)
     }
+
+    fn add_successor_operand(&self, ctx: &mut Context, succ_idx: usize, operand: Value) -> usize {
+        // The successor operands start at segment 1, since segment 0 is the condition operand.
+        self.push_to_segment(ctx, succ_idx + 1, operand)
+    }
 }
 
 #[op_interface_impl]
@@ -1323,6 +1388,39 @@ impl LoadOp {
             ),
         }
     }
+
+    /// Get the address operand
+    pub fn address_opd(&self, ctx: &Context) -> Value {
+        self.op.deref(ctx).get_operand(0)
+    }
+}
+
+#[op_interface_impl]
+impl PromotableOpInterface for LoadOp {
+    fn promotion_kind(&self, ctx: &Context, alloc_info: &AllocInfo) -> PromotableOpKind {
+        if self.address_opd(ctx) == alloc_info.ptr {
+            PromotableOpKind::Load
+        } else {
+            PromotableOpKind::NonPromotableUse
+        }
+    }
+
+    fn promote(
+        &self,
+        ctx: &mut Context,
+        alloc_info_reaching_defs: &[(AllocInfo, Value)],
+        rewriter: &mut IRRewriter<DummyListener>,
+    ) -> Result<()> {
+        if alloc_info_reaching_defs.len() != 1 {
+            return arg_err!(self.loc(ctx), UnrelatedAllocInfo);
+        }
+        let (alloc_info, reaching_def) = &alloc_info_reaching_defs[0];
+        if self.address_opd(ctx) != alloc_info.ptr {
+            return arg_err!(self.loc(ctx), UnrelatedAllocInfo);
+        }
+        rewriter.replace_operation_with_values(ctx, self.get_operation(), vec![*reaching_def]);
+        Ok(())
+    }
 }
 
 #[derive(Error, Debug)]
@@ -1374,6 +1472,34 @@ impl StoreOp {
     /// Get the address operand
     pub fn address_opd(&self, ctx: &Context) -> Value {
         self.op.deref(ctx).get_operand(1)
+    }
+}
+
+#[op_interface_impl]
+impl PromotableOpInterface for StoreOp {
+    fn promotion_kind(&self, ctx: &Context, alloc_info: &AllocInfo) -> PromotableOpKind {
+        if self.address_opd(ctx) == alloc_info.ptr {
+            PromotableOpKind::Store(self.value_opd(ctx))
+        } else {
+            PromotableOpKind::NonPromotableUse
+        }
+    }
+
+    fn promote(
+        &self,
+        ctx: &mut Context,
+        alloc_info_reaching_defs: &[(AllocInfo, Value)],
+        rewriter: &mut IRRewriter<DummyListener>,
+    ) -> Result<()> {
+        if alloc_info_reaching_defs.len() != 1 {
+            return arg_err!(self.loc(ctx), UnrelatedAllocInfo);
+        }
+        let (alloc_info, _reaching_def) = &alloc_info_reaching_defs[0];
+        if self.address_opd(ctx) != alloc_info.ptr {
+            return arg_err!(self.loc(ctx), UnrelatedAllocInfo);
+        }
+        rewriter.erase_operation(ctx, self.get_operation());
+        Ok(())
     }
 }
 
