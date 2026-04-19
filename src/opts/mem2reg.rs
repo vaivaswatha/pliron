@@ -1,5 +1,6 @@
 //! Memory to register promotion optimization pass.
 
+use core::panic;
 use std::collections::hash_map;
 
 use pliron_derive::op_interface;
@@ -15,7 +16,7 @@ use crate::{
     },
     irbuild::{
         inserter::{IRInserter, Inserter},
-        listener::DummyListener,
+        listener::{Recorder, RecorderEvent},
         rewriter::IRRewriter,
     },
     linked_list::ContainsLinkedList,
@@ -51,7 +52,7 @@ pub trait PromotableAllocationInterface {
     fn default_value(
         &self,
         ctx: &mut Context,
-        inserter: &mut IRInserter<DummyListener>,
+        inserter: &mut IRInserter<Recorder>,
         alloc_info: &AllocInfo,
     ) -> Result<Value>;
 
@@ -62,7 +63,7 @@ pub trait PromotableAllocationInterface {
     fn promote(
         &self,
         ctx: &mut Context,
-        rewriter: &mut IRRewriter<DummyListener>,
+        rewriter: &mut IRRewriter<Recorder>,
         alloc_infos: &[AllocInfo],
     ) -> Result<()>;
 
@@ -107,15 +108,13 @@ pub trait PromotableOpInterface {
     ///
     /// Only those `alloc_info`s for which [Self::promotion_kind] is not
     /// [PromotableOpKind::NonPromotableUse] will be passed to this method.
-    /// **Note**: IR rewriting must not remove operations on which this method
-    /// may be called later, such as other uses of the same allocation etc.
     ///
     /// The rewriter is set to insert before this promotable op.
     fn promote(
         &self,
         ctx: &mut Context,
         alloc_info_reaching_defs: &[(AllocInfo, Value)],
-        rewriter: &mut IRRewriter<DummyListener>,
+        rewriter: &mut IRRewriter<Recorder>,
     ) -> Result<()>;
 
     fn verify(_op: &dyn Op, _ctx: &Context) -> Result<()>
@@ -347,6 +346,29 @@ fn get_or_create_default_def(
     }
 }
 
+/// Process the events in the recorder to note down erased operations.
+fn note_erased_ops(recorder: &mut Recorder, erased: &mut FxHashSet<Ptr<Operation>>) {
+    for event in recorder.events.drain(..) {
+        match event {
+            RecorderEvent::ErasedOperation(op) => {
+                erased.insert(op);
+            }
+            RecorderEvent::ErasedBlock(_)
+            | RecorderEvent::ErasedRegion(_)
+            | RecorderEvent::UnlinkedBlock(_, _) => {
+                panic!("mem2reg rewrite (promotion) call backs must not alter control flow");
+            }
+            RecorderEvent::InsertedOperation(_)
+            | RecorderEvent::InsertedBlock(_)
+            | RecorderEvent::ReplacedValueUses { .. }
+            | RecorderEvent::ValueTypeChanged { .. }
+            | RecorderEvent::UnlinkedOperation(_, _) => {
+                // No action needed for these events in this context.
+            }
+        }
+    }
+}
+
 /// Rename uses of allocation pointers to SSA values via a dominator-tree walk,
 /// replacing loads/stores with reaching definitions and filling phi operands in
 /// successor branch operations.
@@ -383,7 +405,11 @@ fn rename_block(
     }
 
     let ops: Vec<Ptr<Operation>> = block.deref(ctx).iter(ctx).collect();
+    let mut erased_ops = FxHashSet::default();
     for &op in &ops {
+        if erased_ops.contains(&op) {
+            continue;
+        }
         let op_obj = Operation::get_op_dyn(op, ctx);
         let Some(piface) = op_cast::<dyn PromotableOpInterface>(op_obj.as_ref()) else {
             continue;
@@ -417,6 +443,7 @@ fn rename_block(
             rewriter.set_insertion_point_before_operation(op);
             log::trace!("Promoting op {}", OpDbg { op, ctx });
             piface.promote(ctx, &promote_queue, rewriter)?;
+            note_erased_ops(rewriter.get_listener_mut(), &mut erased_ops);
         }
     }
 
@@ -562,7 +589,12 @@ pub fn mem2reg(root: Ptr<Operation>, ctx: &mut Context) -> Result<OptStatus> {
                 .or_default()
                 .push(cand.alloc_info.clone());
         }
+
+        let mut erased_ops = FxHashSet::default();
         for (op, infos) in alloc_op_to_infos {
+            if erased_ops.contains(&op) {
+                panic!("Alloc op was already erased during promotion of another candidate");
+            }
             rewriter.set_insertion_point_before_operation(op);
             let op = Operation::get_op_dyn(op, ctx);
             let piface = op_cast::<dyn PromotableAllocationInterface>(op.as_ref())
@@ -575,6 +607,7 @@ pub fn mem2reg(root: Ptr<Operation>, ctx: &mut Context) -> Result<OptStatus> {
                 }
             );
             piface.promote(ctx, rewriter, &infos)?;
+            note_erased_ops(rewriter.get_listener_mut(), &mut erased_ops);
         }
     }
 

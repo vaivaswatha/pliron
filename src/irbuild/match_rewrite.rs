@@ -81,9 +81,7 @@ pub fn apply_match_rewrite<M: MatchRewrite>(
         }
         rewriter.set_insertion_point(OpInsertionPoint::BeforeOperation(op));
         match_rewrite.rewrite(ctx, &mut rewriter, op)?;
-        let listener = rewriter
-            .get_listener_mut()
-            .expect("Rewriter must have a listener attached");
+        let listener = rewriter.get_listener_mut();
         // First process all erased operations to avoid dereferencing them.
         for event in &listener.events {
             if let RecorderEvent::ErasedOperation(erased_op) = event {
@@ -101,9 +99,6 @@ pub fn apply_match_rewrite<M: MatchRewrite>(
                     if !erased.contains(new_op) && match_rewrite.r#match(ctx, *new_op) {
                         to_rewrite.push_back(*new_op);
                     }
-                }
-                RecorderEvent::ReplacedOperation { .. } => {
-                    // No action needed for replacements.
                 }
                 RecorderEvent::ReplacedValueUses { .. } => {
                     // No action needed for value use replacements.

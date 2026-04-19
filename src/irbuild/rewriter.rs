@@ -177,11 +177,11 @@ impl<L: RewriteListener, I: Inserter<L>> Inserter<L> for IRRewriter<L, I> {
         self.inserter.set_listener(listener);
     }
 
-    fn get_listener(&self) -> Option<&L> {
+    fn get_listener(&self) -> &L {
         self.inserter.get_listener()
     }
 
-    fn get_listener_mut(&mut self) -> Option<&mut L> {
+    fn get_listener_mut(&mut self) -> &mut L {
         self.inserter.get_listener_mut()
     }
 }
@@ -223,12 +223,12 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
             op.deref(ctx).get_num_results() == new_values.len(),
             "Replacement values must match the number of results of the original operation."
         );
-        if let Some(listener) = self.get_listener_mut() {
-            listener.notify_operation_replacement(ctx, op, new_values.clone());
-        }
+
         // We need to collect the results first to avoid `RefCell` borrowing issues.
         let results: Vec<_> = op.deref(ctx).results().zip(new_values).collect();
         for (res, new_res) in results {
+            self.get_listener_mut()
+                .notify_value_use_replacement(ctx, res, new_res);
             res.replace_all_uses_with(ctx, &new_res);
         }
         self.erase_operation(ctx, op);
@@ -239,75 +239,61 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
         if old_value == new_value {
             return;
         }
-        if let Some(listener) = self.get_listener_mut() {
-            listener.notify_value_use_replacement(ctx, old_value, new_value);
-        }
+        self.get_listener_mut()
+            .notify_value_use_replacement(ctx, old_value, new_value);
         old_value.replace_all_uses_with(ctx, &new_value);
         self.set_modified();
     }
 
     fn erase_operation(&mut self, ctx: &mut Context, op: Ptr<Operation>) {
-        // We need to intervene and erase sub-entities only when there's a listener.
-        // Otherwise `Operation::erase` later on will take care of it.
-        if self.get_listener().is_some() {
-            let regions = op.deref(ctx).regions().collect::<Vec<_>>();
-            for region in regions.into_iter().rev() {
-                self.erase_region(ctx, region);
-            }
+        // We need to intervene and erase sub-entities (so that the listener is notified)
+        let regions = op.deref(ctx).regions().collect::<Vec<_>>();
+        for region in regions.into_iter().rev() {
+            self.erase_region(ctx, region);
         }
 
-        if let Some(listener) = self.get_listener_mut() {
-            listener.notify_operation_erasure(ctx, op);
-        }
+        self.get_listener_mut().notify_operation_erasure(ctx, op);
 
         Operation::erase(op, ctx);
         self.set_modified();
     }
 
     fn erase_block(&mut self, ctx: &mut Context, block: Ptr<BasicBlock>) {
-        // We need to intervene and erase sub-entities only when there's a listener.
-        // Otherwise `BasicBlock::erase` later on will take care of it.
-        if self.get_listener().is_some() {
-            let operations = block.deref(ctx).iter(ctx).collect::<Vec<_>>();
-            // We erase operations in reverse order so that uses are erased before defs.
-            for op in operations.into_iter().rev() {
-                self.erase_operation(ctx, op);
-            }
+        // We need to intervene and erase sub-entities (so that the listener is notified)
+        let operations = block.deref(ctx).iter(ctx).collect::<Vec<_>>();
+        // We erase operations in reverse order so that uses are erased before defs.
+        for op in operations.into_iter().rev() {
+            self.erase_operation(ctx, op);
         }
 
-        if let Some(listener) = self.get_listener_mut() {
-            listener.notify_block_erasure(ctx, block);
-        }
+        self.get_listener_mut().notify_block_erasure(ctx, block);
 
         BasicBlock::erase(block, ctx);
         self.set_modified();
     }
 
     fn erase_region(&mut self, ctx: &mut Context, region: Ptr<Region>) {
-        // We need to intervene and erase sub-entities only when there's a listener.
+        // We need to intervene and erase sub-entities (so that the listener is notified)
         // Otherwise `Region::erase` later on will take care of it.
-        if self.get_listener().is_some() {
-            // We erase blocks in post-order so that uses are erased before defs.
-            let blocks = post_order(ctx, &region);
-            for block in blocks.iter().rev() {
-                // We do not erase the block already because its predecessors
-                // (which are its uses) haven't already been erased. We erase
-                // only the operations now and the blocks later.
-                let operations = block.deref(ctx).iter(ctx).collect::<Vec<_>>();
-                // We erase operations in reverse order so that uses are erased before defs.
-                for op in operations.into_iter().rev() {
-                    self.erase_operation(ctx, op);
-                }
+
+        // We erase blocks in post-order so that uses are erased before defs.
+        let blocks = post_order(ctx, &region);
+        for block in blocks.iter().rev() {
+            // We do not erase the block already because its predecessors
+            // (which are its uses) haven't already been erased. We erase
+            // only the operations now and the blocks later.
+            let operations = block.deref(ctx).iter(ctx).collect::<Vec<_>>();
+            // We erase operations in reverse order so that uses are erased before defs.
+            for op in operations.into_iter().rev() {
+                self.erase_operation(ctx, op);
             }
-            // Now erase the blocks.
-            for block in blocks {
-                self.erase_block(ctx, block);
-            }
+        }
+        // Now erase the blocks.
+        for block in blocks {
+            self.erase_block(ctx, block);
         }
 
-        if let Some(listener) = self.get_listener_mut() {
-            listener.notify_region_erasure(ctx, region);
-        }
+        self.get_listener_mut().notify_region_erasure(ctx, region);
 
         let index_in_parent = region.deref(ctx).get_index_in_parent(ctx);
         let parent_op = region.deref(ctx).get_parent_op();
@@ -316,17 +302,13 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
     }
 
     fn unlink_operation(&mut self, ctx: &Context, op: Ptr<Operation>) {
-        if let Some(listener) = self.get_listener_mut() {
-            listener.notify_operation_unlinking(ctx, op);
-        }
+        self.get_listener_mut().notify_operation_unlinking(ctx, op);
         op.unlink(ctx);
         self.set_modified();
     }
 
     fn unlink_block(&mut self, ctx: &Context, block: Ptr<BasicBlock>) {
-        if let Some(listener) = self.get_listener_mut() {
-            listener.notify_block_unlinking(ctx, block);
-        }
+        self.get_listener_mut().notify_block_unlinking(ctx, block);
         block.unlink(ctx);
         self.set_modified();
     }
@@ -405,9 +387,8 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
         if old_type == new_type {
             return;
         }
-        if let Some(listener) = self.get_listener_mut() {
-            listener.notify_value_type_change(ctx, value, old_type, new_type);
-        }
+        self.get_listener_mut()
+            .notify_value_type_change(ctx, value, old_type, new_type);
         value.set_type(ctx, new_type);
         self.set_modified();
     }
@@ -535,11 +516,11 @@ impl<'a, L: RewriteListener, R: Rewriter<L>> Inserter<L> for ScopedRewriter<'a, 
         self.rewriter.set_listener(listener)
     }
 
-    fn get_listener(&self) -> Option<&L> {
+    fn get_listener(&self) -> &L {
         self.rewriter.get_listener()
     }
 
-    fn get_listener_mut(&mut self) -> Option<&mut L> {
+    fn get_listener_mut(&mut self) -> &mut L {
         self.rewriter.get_listener_mut()
     }
 }
