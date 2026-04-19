@@ -51,12 +51,13 @@ pub mod uniqued_any;
 pub mod utils;
 pub mod value;
 
-/// A macro to initialize `env_logger`: Default logger level is "off".
+/// A macro to initialize `env_logger` for tests. Default logger level is set to "off".
+/// It sets `env_logger`'s test mode so that logs are captured by the test framework.
 ///
 /// This is a macro because we don't want [pliron] to depend on `env_logger` directly,
 /// and we want to allow users to choose their own logging framework if they want.
 #[macro_export]
-macro_rules! init_env_logger {
+macro_rules! init_env_logger_for_tests {
     () => {{
         // The default logger level is "off".
         let mut builder =
