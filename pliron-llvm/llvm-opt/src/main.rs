@@ -1,8 +1,14 @@
-use std::{path::PathBuf, process::ExitCode};
+use std::{path::PathBuf, process::ExitCode, str::FromStr};
 
 use clap::Parser;
 use pliron::{
-    arg_error_noloc, context::Context, op::verify_op, printable::Printable, result::Result,
+    arg_error_noloc,
+    context::{Context, Ptr},
+    op::{Op, verify_op},
+    operation::Operation,
+    opts::mem2reg,
+    printable::Printable,
+    result::Result,
     verify_error_noloc,
 };
 use pliron_llvm::{
@@ -25,6 +31,41 @@ struct Cli {
     /// Emit text assembly LLVM-IR
     #[arg(short = 'S', default_value_t = false)]
     text_output: bool,
+
+    /// Optimization passes to run in order (comma-separated)
+    ///
+    /// Example: --opts mem2reg
+    #[arg(long = "opts", value_name = "PASS1,PASS2", value_delimiter = ',')]
+    opts: Option<Vec<OptPass>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum OptPass {
+    Mem2Reg,
+}
+
+impl FromStr for OptPass {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "mem2reg" => Ok(OptPass::Mem2Reg),
+            other => Err(format!(
+                "unknown optimization pass '{other}'. Available passes: mem2reg"
+            )),
+        }
+    }
+}
+
+fn run_opt_passes(module: Ptr<Operation>, opts: &[OptPass], ctx: &mut Context) -> Result<()> {
+    for opt in opts {
+        match opt {
+            OptPass::Mem2Reg => {
+                let _status = mem2reg::mem2reg(module, ctx)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn run(cli: Cli, ctx: &mut Context) -> Result<()> {
@@ -35,9 +76,20 @@ fn run(cli: Cli, ctx: &mut Context) -> Result<()> {
         .map_err(|err| arg_error_noloc!("{}", err))?;
 
     let pliron_module = from_llvm_ir::convert_module(ctx, &module)?;
+    log::debug!(
+        "pliron IR parsed from LLVM-IR:\n{}",
+        pliron_module.disp(ctx)
+    );
+    verify_op(&pliron_module, ctx)?;
 
-    log::debug!("pliron LLVM-IR:\n{}", pliron_module.disp(ctx));
+    if let Some(opts) = cli.opts.as_ref() {
+        run_opt_passes(pliron_module.get_operation(), opts, ctx)?;
+    }
 
+    log::debug!(
+        "pliron IR after optimizations:\n{}",
+        pliron_module.disp(ctx)
+    );
     verify_op(&pliron_module, ctx)?;
 
     let module = to_llvm_ir::convert_module(ctx, &llvm_context, pliron_module)?;
