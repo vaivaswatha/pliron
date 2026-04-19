@@ -282,10 +282,8 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
             old_types: Vec<Ptr<TypeObj>>,
             new_values: Vec<Value>,
         ) {
-            for ((old_value, old_type), new_value) in old_values
-                .into_iter()
-                .zip(old_types.into_iter())
-                .zip(new_values.into_iter())
+            for ((old_value, old_type), new_value) in
+                old_values.into_iter().zip(old_types).zip(new_values)
             {
                 self.record_value_replacement(old_value, old_type, new_value);
             }
