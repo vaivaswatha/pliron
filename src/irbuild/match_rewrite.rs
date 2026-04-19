@@ -100,9 +100,6 @@ pub fn apply_match_rewrite<M: MatchRewrite>(
                         to_rewrite.push_back(*new_op);
                     }
                 }
-                RecorderEvent::ReplacedOperation { .. } => {
-                    // No action needed for replacements.
-                }
                 RecorderEvent::ReplacedValueUses { .. } => {
                     // No action needed for value use replacements.
                 }

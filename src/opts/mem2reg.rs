@@ -360,7 +360,6 @@ fn note_erased_ops(recorder: &mut Recorder, erased: &mut FxHashSet<Ptr<Operation
             }
             RecorderEvent::InsertedOperation(_)
             | RecorderEvent::InsertedBlock(_)
-            | RecorderEvent::ReplacedOperation { .. }
             | RecorderEvent::ReplacedValueUses { .. }
             | RecorderEvent::ValueTypeChanged { .. }
             | RecorderEvent::UnlinkedOperation(_, _) => {

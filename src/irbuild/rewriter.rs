@@ -223,11 +223,12 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
             op.deref(ctx).get_num_results() == new_values.len(),
             "Replacement values must match the number of results of the original operation."
         );
-        self.get_listener_mut()
-            .notify_operation_replacement(ctx, op, new_values.clone());
+
         // We need to collect the results first to avoid `RefCell` borrowing issues.
         let results: Vec<_> = op.deref(ctx).results().zip(new_values).collect();
         for (res, new_res) in results {
+            self.get_listener_mut()
+                .notify_value_use_replacement(ctx, res, new_res);
             res.replace_all_uses_with(ctx, &new_res);
         }
         self.erase_operation(ctx, op);
