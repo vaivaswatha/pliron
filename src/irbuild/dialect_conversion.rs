@@ -344,10 +344,7 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
 
         fn process_recorder_events(&mut self, ctx: &mut Context) -> Result<()> {
             let events = {
-                let listener = self
-                    .rewriter
-                    .get_listener_mut()
-                    .expect("Rewriter must have a listener attached");
+                let listener = self.rewriter.get_listener_mut();
                 std::mem::take(&mut listener.events)
             };
 

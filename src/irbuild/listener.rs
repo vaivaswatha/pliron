@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// Listener interface for insertion events.
-pub trait InsertionListener {
+pub trait InsertionListener: Default {
     /// Notify that an operation has been inserted.
     fn notify_operation_inserted(&mut self, ctx: &Context, operation: Ptr<Operation>);
     /// Notify that a block has been inserted.
@@ -51,6 +51,7 @@ pub trait RewriteListener: InsertionListener {
 }
 
 /// A listener that doesn't do anything on being notified.
+#[derive(Default)]
 pub struct DummyListener;
 impl InsertionListener for DummyListener {
     fn notify_operation_inserted(&mut self, _ctx: &Context, _operation: Ptr<Operation>) {}
