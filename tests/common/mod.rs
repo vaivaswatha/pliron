@@ -1,7 +1,7 @@
 use awint::bw;
 use pliron::builtin::op_interfaces::NResultsVerifyErr;
 use pliron::derive::pliron_op;
-use pliron::init_env_logger;
+use pliron::init_env_logger_for_tests;
 use pliron::op::verify_op;
 use pliron::utils::apint::APInt;
 use pliron::{
@@ -139,7 +139,7 @@ impl Parsable for ConstantOp {
 // Create a print a module "bar", with a function "foo"
 // containing a single `return 0`.
 pub fn const_ret_in_mod(ctx: &mut Context) -> Result<(ModuleOp, FuncOp, ConstantOp, ReturnOp)> {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed);
     let module = ModuleOp::new(ctx, "bar".try_into().unwrap());
     // Our function is going to have type () -> ().

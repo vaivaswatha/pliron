@@ -12,7 +12,7 @@ use pliron::{
     builtin::ops::ModuleOp,
     combine::Parser,
     context::{Context, Ptr},
-    init_env_logger, location,
+    init_env_logger_for_tests, location,
     op::{Op, verify_op},
     operation::{Operation, verify_operation},
     opts::{self, OptStatus},
@@ -220,7 +220,7 @@ fn test_llvm_ir_via_pliron(input_file: &str, opts: &[OptFn], expected_output: i3
 /// Test simple-loop by compiling simple-loop.ll via pliron.
 #[test]
 fn test_simple_loop() {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     test_llvm_ir_via_pliron(
         RESOURCES_DIR.join("simple-loop.ll").to_str().unwrap(),
         &[],
@@ -239,7 +239,7 @@ fn test_simple_loop() {
 /// Test insert_extract_value by compiling insert_extract_value.ll via pliron.
 #[test]
 fn test_insert_extract_value() {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     test_llvm_ir_via_pliron(
         RESOURCES_DIR
             .join("insert_extract_value.ll")
@@ -253,42 +253,42 @@ fn test_insert_extract_value() {
 /// Test SelectOp by compiling select.ll via pliron.
 #[test]
 fn test_select() {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("select.ll").to_str().unwrap(), &[], 100);
 }
 
 /// Test SwitchOp by compiling switch.ll via pliron.
 #[test]
 fn test_switch() {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("switch.ll").to_str().unwrap(), &[], 68);
 }
 
 /// Test const structs and arrays
 #[test]
 fn test_consts() {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("consts.ll").to_str().unwrap(), &[], 203);
 }
 
 /// Test globals
 #[test]
 fn test_globals() {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("globals.ll").to_str().unwrap(), &[], 59);
 }
 
 /// Test casts
 #[test]
 fn test_casts() {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("casts.ll").to_str().unwrap(), &[], 88);
 }
 
 /// Test fib by compiling fib.ll via pliron.
 #[test]
 fn test_fib() {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("fib.ll").to_str().unwrap(), &[], 3);
     test_llvm_ir_via_pliron(
         RESOURCES_DIR.join("fib.ll").to_str().unwrap(),
@@ -303,7 +303,7 @@ fn test_fib() {
 /// Test fib.mem2reg by compiling fib.ll via pliron.
 #[test]
 fn test_fib_mem2reg() {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     test_llvm_ir_via_pliron(
         RESOURCES_DIR.join("fib.mem2reg.ll").to_str().unwrap(),
         &[],
@@ -314,14 +314,14 @@ fn test_fib_mem2reg() {
 /// Test floating point operations by compiling fpops.ll via pliron
 #[test]
 fn test_fpops() {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("fpops.ll").to_str().unwrap(), &[], 45);
 }
 
 /// Test intrinsics by compiling intrinsics.ll via pliron
 #[test]
 fn test_intrinsics() {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     test_llvm_ir_via_pliron(
         RESOURCES_DIR.join("intrinsics.ll").to_str().unwrap(),
         &[],
@@ -335,14 +335,14 @@ fn test_intrinsics() {
 /// We'll need to fix it then.
 #[test]
 fn test_va_arg() {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("va_arg.ll").to_str().unwrap(), &[], 75);
 }
 
 /// Test indirect-call by compiling indirect_call.ll via pliron
 #[test]
 fn test_indirect_call() {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     test_llvm_ir_via_pliron(
         RESOURCES_DIR.join("indirect_call.ll").to_str().unwrap(),
         &[],
@@ -353,7 +353,7 @@ fn test_indirect_call() {
 /// Test vector operations by compiling vector_ops.ll via pliron
 #[test]
 fn test_vector_ops() {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     test_llvm_ir_via_pliron(
         RESOURCES_DIR.join("vector_ops.ll").to_str().unwrap(),
         &[],
