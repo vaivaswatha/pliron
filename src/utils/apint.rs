@@ -189,6 +189,22 @@ impl APInt {
         self.value.to_u64()
     }
 
+    /// Build APInt from usize.
+    /// Zero extends value if width > usize.
+    /// Truncates value if width < usize.
+    pub fn from_usize(value: usize, width: NonZero<usize>) -> APInt {
+        let mut awi_value = Awi::zero_with_capacity(width, width);
+        awi_value.usize_(value);
+        APInt { value: awi_value }
+    }
+
+    /// Convert APInt to usize.
+    /// Truncates value if width > usize.
+    /// Zero extends value if width < usize.
+    pub fn to_usize(&self) -> usize {
+        self.value.to_usize()
+    }
+
     /// Build APInt from u128.
     /// Zero extends value if width > 128.
     /// Truncates value if width < 128.

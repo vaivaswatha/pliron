@@ -361,7 +361,7 @@ pub fn format(args: TokenStream, input: TokenStream) -> TokenStream {
 ///      3. Two additional optional arguments can be specified:
 ///         * The "label" directive, with one argument, a named variable `$label`, which
 ///           specifies the label to be used while printing / parsing the attribute.
-///         * The "delimiter" directive, which takes two literal arguments,
+///         * The "delimiters" directive, which takes two literal arguments,
 ///           specifying the opening and closing delimiters to be used while printing / parsing.
 ///
 ///      The advantage over specifying an attribute using the [attr](#attr) directive (as against

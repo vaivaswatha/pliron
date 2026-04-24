@@ -170,15 +170,15 @@ fn prune_candidates(candidates: &mut Vec<AllocCandidate>, ctx: &Context) {
             .get_parent_region(ctx)
             .expect("Alloc op must be in a region");
         cand.alloc_info.ptr.uses(ctx).iter().all(|r#use| {
-            let use_op = r#use.op;
-            let use_op_obj = Operation::get_op_dyn(use_op, ctx);
-            op_cast::<dyn PromotableOpInterface>(use_op_obj.as_ref()).is_some_and(|piface| {
-                let use_region = use_op
+            let user_op = r#use.user_op;
+            let user_op_obj = Operation::get_op_dyn(user_op, ctx);
+            op_cast::<dyn PromotableOpInterface>(user_op_obj.as_ref()).is_some_and(|piface| {
+                let user_region = user_op
                     .deref(ctx)
                     .get_parent_region(ctx)
                     .expect("Use op must be in a region");
                 let promotion_kind = piface.promotion_kind(ctx, &cand.alloc_info);
-                use_region == alloc_region
+                user_region == alloc_region
                     && !matches!(promotion_kind, PromotableOpKind::NonPromotableUse)
             })
         })
@@ -203,7 +203,7 @@ fn compute_candidate_live_in_and_defining_blocks(
     // Compute blocks that contain uses of this pointer.
     let mut user_blocks: FxHashSet<Ptr<BasicBlock>> = FxHashSet::default();
     for u in ptr.uses(ctx) {
-        if let Some(block) = u.op.deref(ctx).get_parent_block() {
+        if let Some(block) = u.user_op.deref(ctx).get_parent_block() {
             user_blocks.insert(block);
         }
     }

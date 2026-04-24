@@ -367,14 +367,19 @@ impl Verify for BasicBlock {
         if !op_impls::<dyn NoTerminatorInterface>(parent_op.as_ref())
             && self.get_terminator(ctx).is_none()
         {
-            let loc = self.loc();
-            verify_err!(loc, BasicBlockVerifyErr::MissingTerminator(label))?;
+            verify_err!(self.loc(), BasicBlockVerifyErr::MissingTerminator(label))?;
+        }
+        // Check that every use is of this block.
+        for r#use in self.self_ptr.uses(ctx) {
+            if r#use.get_def(ctx) != self.self_ptr {
+                verify_err!(self.loc(), DefUseVerifyErr::OperandNotUseOfDef)?;
+            }
         }
         // Check that every predecessor points back to this block.
+        // (This is almost a repetition of the previous check).
         for pred in self.self_ptr.preds(ctx) {
             if !pred.deref(ctx).has_succ(ctx, self.self_ptr) {
-                let loc = self.loc();
-                verify_err!(loc, DefUseVerifyErr::OperandNotUseOfDef)?;
+                verify_err!(self.loc(), DefUseVerifyErr::OperandNotUseOfDef)?;
             }
         }
         self.args.iter().try_for_each(|arg| arg.verify(ctx))?;

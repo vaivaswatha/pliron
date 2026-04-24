@@ -7,7 +7,6 @@ use pliron::derive::pliron_op;
 use pliron::dict_key;
 use pliron::op::verify_op;
 use pliron::operation::{DefUseVerifyErr, verify_operation};
-use pliron::value::Use;
 use pliron::{
     basic_block::BasicBlock,
     builtin::{
@@ -265,11 +264,13 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 2);
     assert_eq!(ret_ptr.deref(ctx).get_operand(0), c0);
     assert_eq!(ret_ptr.deref(ctx).get_operand(1), c1);
-    for Use { op, opd_idx, .. } in c1.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 1);
+    for r#use in c1.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c1);
+        assert!(r#use.user_op == ret_ptr && r#use.opd_idx == 1);
     }
-    for Use { op, opd_idx, .. } in c0.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 0);
+    for r#use in c0.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c0);
+        assert!(r#use.user_op == ret_ptr && r#use.opd_idx == 0);
     }
     verify_op(&module_op, ctx)?;
 
@@ -278,8 +279,9 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 1);
     assert_eq!(ret_ptr.deref(ctx).get_operand(0), c0);
     assert!(c1.uses(ctx).is_empty()); // c1 should have no uses now.
-    for Use { op, opd_idx, .. } in c0.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 0);
+    for r#use in c0.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c0);
+        assert!(r#use.user_op == ret_ptr && r#use.opd_idx == 0);
     }
     verify_op(&module_op, ctx)?;
 
@@ -287,11 +289,13 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 2);
     assert_eq!(ret_ptr.deref(ctx).get_operand(0), c1);
     assert_eq!(ret_ptr.deref(ctx).get_operand(1), c0);
-    for Use { op, opd_idx, .. } in c1.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 0);
+    for r#use in c1.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c1);
+        assert!(r#use.user_op == ret_ptr && r#use.opd_idx == 0);
     }
-    for Use { op, opd_idx, .. } in c0.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 1);
+    for r#use in c0.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c0);
+        assert!(r#use.user_op == ret_ptr && r#use.opd_idx == 1);
     }
     verify_op(&module_op, ctx)?;
 
@@ -300,14 +304,17 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_operand(0), c1);
     assert_eq!(ret_ptr.deref(ctx).get_operand(1), c0);
     assert_eq!(ret_ptr.deref(ctx).get_operand(2), c2);
-    for Use { op, opd_idx, .. } in c1.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 0);
+    for r#use in c1.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c1);
+        assert!(r#use.user_op == ret_ptr && r#use.opd_idx == 0);
     }
-    for Use { op, opd_idx, .. } in c0.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 1);
+    for r#use in c0.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c0);
+        assert!(r#use.user_op == ret_ptr && r#use.opd_idx == 1);
     }
-    for Use { op, opd_idx, .. } in c2.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 2);
+    for r#use in c2.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c2);
+        assert!(r#use.user_op == ret_ptr && r#use.opd_idx == 2);
     }
 
     verify_op(&module_op, ctx)?;
@@ -317,11 +324,13 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 2);
     assert_eq!(ret_ptr.deref(ctx).get_operand(0), c1);
     assert_eq!(ret_ptr.deref(ctx).get_operand(1), c2);
-    for Use { op, opd_idx, .. } in c1.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 0);
+    for r#use in c1.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c1);
+        assert!(r#use.user_op == ret_ptr && r#use.opd_idx == 0);
     }
-    for Use { op, opd_idx, .. } in c2.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 1);
+    for r#use in c2.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c2);
+        assert!(r#use.user_op == ret_ptr && r#use.opd_idx == 1);
     }
     verify_op(&module_op, ctx)?;
 
@@ -329,30 +338,34 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(removed_front, c1);
     assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 1);
     assert_eq!(ret_ptr.deref(ctx).get_operand(0), c2);
-    for Use { op, opd_idx, .. } in c2.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 0);
+    for r#use in c2.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c2);
+        assert!(r#use.user_op == ret_ptr && r#use.opd_idx == 0);
     }
     verify_op(&module_op, ctx)?;
 
     // Add c2 as an operand again,
     Operation::insert_operand(ret_ptr, ctx, 0, c2);
     assert!(c2.uses(ctx).len() == 2); // c2 should now have two uses.
-    for Use { op, opd_idx, .. } in c2.uses(ctx) {
+    for r#use in c2.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c2);
         // c2 should now have two uses.
-        assert!(op == ret_ptr && (opd_idx == 0 || opd_idx == 1));
+        assert!(r#use.user_op == ret_ptr && (r#use.opd_idx == 0 || r#use.opd_idx == 1));
     }
 
     // Add c0 now
     Operation::insert_operand(ret_ptr, ctx, 1, c0);
-    assert!(c0.uses(ctx).len() == 1); // c0 should now have 1
+    assert!(c0.uses(ctx).len() == 1); // c0 should now have 1 use.
     assert!(c2.uses(ctx).len() == 2); // c2 should still have two uses.
-    for Use { op, opd_idx, .. } in c0.uses(ctx) {
-        // c0 should now  one use.
-        assert!(op == ret_ptr && opd_idx == 1);
+    for r#use in c0.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c0);
+        // c0 should now have one use.
+        assert!(r#use.user_op == ret_ptr && r#use.opd_idx == 1);
     }
-    for Use { op, opd_idx, .. } in c2.uses(ctx) {
+    for r#use in c2.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c2);
         // c2 should still have two uses.
-        assert!(op == ret_ptr && (opd_idx == 0 || opd_idx == 2));
+        assert!(r#use.user_op == ret_ptr && (r#use.opd_idx == 0 || r#use.opd_idx == 2));
     }
 
     Ok(())
@@ -403,12 +416,18 @@ fn test_successor_push_pop_insert_remove() -> Result<()> {
     );
     branch_like.insert_at_back(common_pred, ctx);
 
+    fn assert_block_pred_uses(ctx: &Context, block: Ptr<BasicBlock>) {
+        for block_use in block.uses(ctx) {
+            assert!(block_use.get_def(ctx) == block);
+        }
+    }
     // We now have where entry_block branches to common_pred, succ0, succ1, and succ2.
     // So all blocks are reachable, and hence pass the verifier dominance checks.
     verify_op(&module_op, ctx)?;
 
     assert_eq!(branch_like.deref(ctx).get_num_successors(), 1);
     assert_eq!(branch_like.deref(ctx).get_successor(0), succ0);
+    assert_block_pred_uses(ctx, succ0);
     assert_eq!(succ0.num_preds(ctx), 2);
     assert_eq!(succ1.num_preds(ctx), 1);
     assert_eq!(succ2.num_preds(ctx), 1);
@@ -417,7 +436,9 @@ fn test_successor_push_pop_insert_remove() -> Result<()> {
     assert_eq!(pushed_idx, 1);
     assert_eq!(branch_like.deref(ctx).get_num_successors(), 2);
     assert_eq!(branch_like.deref(ctx).get_successor(0), succ0);
+    assert_block_pred_uses(ctx, succ0);
     assert_eq!(branch_like.deref(ctx).get_successor(1), succ1);
+    assert_block_pred_uses(ctx, succ1);
     assert_eq!(succ0.num_preds(ctx), 2);
     assert_eq!(succ1.num_preds(ctx), 2);
     let succ0_preds = succ0.preds(ctx);
@@ -430,6 +451,7 @@ fn test_successor_push_pop_insert_remove() -> Result<()> {
     assert_eq!(popped, succ1);
     assert_eq!(branch_like.deref(ctx).get_num_successors(), 1);
     assert_eq!(branch_like.deref(ctx).get_successor(0), succ0);
+    assert_block_pred_uses(ctx, succ0);
     assert_eq!(succ0.num_preds(ctx), 2);
     assert_eq!(succ1.num_preds(ctx), 1);
     let succ0_preds = succ0.preds(ctx);
@@ -441,7 +463,9 @@ fn test_successor_push_pop_insert_remove() -> Result<()> {
     Operation::insert_successor(branch_like, ctx, 0, succ1);
     assert_eq!(branch_like.deref(ctx).get_num_successors(), 2);
     assert_eq!(branch_like.deref(ctx).get_successor(0), succ1);
+    assert_block_pred_uses(ctx, succ1);
     assert_eq!(branch_like.deref(ctx).get_successor(1), succ0);
+    assert_block_pred_uses(ctx, succ0);
     assert_eq!(succ0.num_preds(ctx), 2);
     assert_eq!(succ1.num_preds(ctx), 2);
     let succ0_preds = succ0.preds(ctx);
@@ -453,8 +477,11 @@ fn test_successor_push_pop_insert_remove() -> Result<()> {
     Operation::insert_successor(branch_like, ctx, 2, succ2);
     assert_eq!(branch_like.deref(ctx).get_num_successors(), 3);
     assert_eq!(branch_like.deref(ctx).get_successor(0), succ1);
+    assert_block_pred_uses(ctx, succ1);
     assert_eq!(branch_like.deref(ctx).get_successor(1), succ0);
+    assert_block_pred_uses(ctx, succ0);
     assert_eq!(branch_like.deref(ctx).get_successor(2), succ2);
+    assert_block_pred_uses(ctx, succ2);
     assert_eq!(succ0.num_preds(ctx), 2);
     assert_eq!(succ1.num_preds(ctx), 2);
     assert_eq!(succ2.num_preds(ctx), 2);
@@ -470,7 +497,9 @@ fn test_successor_push_pop_insert_remove() -> Result<()> {
     assert_eq!(removed_mid, succ0);
     assert_eq!(branch_like.deref(ctx).get_num_successors(), 2);
     assert_eq!(branch_like.deref(ctx).get_successor(0), succ1);
+    assert_block_pred_uses(ctx, succ1);
     assert_eq!(branch_like.deref(ctx).get_successor(1), succ2);
+    assert_block_pred_uses(ctx, succ2);
     assert_eq!(succ0.num_preds(ctx), 1);
     assert_eq!(succ1.num_preds(ctx), 2);
     assert_eq!(succ2.num_preds(ctx), 2);
@@ -486,6 +515,7 @@ fn test_successor_push_pop_insert_remove() -> Result<()> {
     assert_eq!(removed_front, succ1);
     assert_eq!(branch_like.deref(ctx).get_num_successors(), 1);
     assert_eq!(branch_like.deref(ctx).get_successor(0), succ2);
+    assert_block_pred_uses(ctx, succ2);
     assert_eq!(succ0.num_preds(ctx), 1);
     assert_eq!(succ1.num_preds(ctx), 1);
     assert_eq!(succ2.num_preds(ctx), 2);
