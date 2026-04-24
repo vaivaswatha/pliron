@@ -318,9 +318,14 @@ impl Operation {
         self.get_operand_ref(opd_idx).into()
     }
 
-    /// Get an iterator over the results of this operation.
+    /// Get an iterator over the operands of this operation.
     pub fn operands(&self) -> impl Iterator<Item = Value> + Clone + '_ {
         self.operands.iter().map(Operand::get_def)
+    }
+
+    /// Get an iterator over the operands of this operation as [`Use<Value>`]s.
+    pub fn operands_as_uses(&self) -> impl Iterator<Item = Use<Value>> + '_ {
+        self.operands.iter().map(Into::into)
     }
 
     /// Add a new operand to the end of the operand list, returning its index.
