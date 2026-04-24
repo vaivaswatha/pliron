@@ -29,8 +29,8 @@ use crate::{
     verify_err,
 };
 
-/// def-use chains are implemented for [Value]s and `Ptr<BasicBlock`.
-pub trait DefUseParticipant: Copy + Hash + Eq {}
+/// def-use chains are implemented for [Value]s and `Ptr<BasicBlock>`.
+pub(crate) trait DefUseParticipant: Copy + Hash + Eq {}
 impl DefUseParticipant for Value {}
 impl DefUseParticipant for Ptr<BasicBlock> {}
 
@@ -104,6 +104,8 @@ impl<T: DefUseParticipant> DefNode<T> {
 
 /// Interface for [UseNode] wrappers.
 pub(crate) trait UseTrait: DefUseParticipant {
+    /// Get a reference to the [UseNode] described by this use.
+    fn get_usenode_ref<'a>(r#use: &Use<Self>, ctx: &'a Context) -> Ref<'a, UseNode<Self>>;
     /// Get a mutable reference to the [UseNode] described by this  use.
     fn get_usenode_mut<'a>(r#use: &Use<Self>, ctx: &'a Context) -> RefMut<'a, UseNode<Self>>;
 }
@@ -201,7 +203,7 @@ impl Verify for Value {
     // Check that the value's uses point back to it,
     fn verify(&self, ctx: &Context) -> Result<()> {
         for r#use in self.uses(ctx) {
-            let use_operand = r#use.op.deref(ctx).get_operand(r#use.opd_idx);
+            let use_operand = r#use.user_op.deref(ctx).get_operand(r#use.opd_idx);
             if use_operand != *self {
                 verify_err!(self.loc(ctx), DefUseVerifyErr::OperandNotUseOfDef)?;
             }
@@ -285,8 +287,12 @@ impl DefTrait for Value {
 }
 
 impl UseTrait for Value {
+    fn get_usenode_ref<'a>(r#use: &Use<Self>, ctx: &'a Context) -> Ref<'a, UseNode<Self>> {
+        let op = r#use.user_op.deref(ctx);
+        Ref::map(op, |opref| &opref.get_operand_ref(r#use.opd_idx).r#use)
+    }
     fn get_usenode_mut<'a>(r#use: &Use<Self>, ctx: &'a Context) -> RefMut<'a, UseNode<Value>> {
-        let op = r#use.op.deref_mut(ctx);
+        let op = r#use.user_op.deref_mut(ctx);
         RefMut::map(op, |opref| &mut opref.get_operand_mut(r#use.opd_idx).r#use)
     }
 }
@@ -309,12 +315,17 @@ impl Ptr<BasicBlock> {
             .uses()
             .map(|r#use| {
                 r#use
-                    .op
+                    .user_op
                     .deref(ctx)
                     .get_container()
                     .expect("Terminator branching to this block is not in any basic block")
             })
             .collect()
+    }
+
+    /// Get uses (as successor operands in an Operation) of this block.
+    pub fn uses(&self, ctx: &Context) -> Vec<Use<Ptr<BasicBlock>>> {
+        self.deref(ctx).preds.uses().collect()
     }
 
     /// Checks whether self is a successor of `pred`.
@@ -336,7 +347,7 @@ impl Ptr<BasicBlock> {
     ) {
         let predicate = |ctx: &Context, r#use: &Use<Ptr<BasicBlock>>| {
             let pred_block = r#use
-                .op
+                .user_op
                 .deref(ctx)
                 .get_container()
                 .expect("Predecessor block must be in a Region");
@@ -395,11 +406,15 @@ impl DefTrait for Ptr<BasicBlock> {
 }
 
 impl UseTrait for Ptr<BasicBlock> {
+    fn get_usenode_ref<'a>(r#use: &Use<Self>, ctx: &'a Context) -> Ref<'a, UseNode<Self>> {
+        let op = r#use.user_op.deref(ctx);
+        Ref::map(op, |opref| &opref.get_successor_ref(r#use.opd_idx).r#use)
+    }
     fn get_usenode_mut<'a>(
         r#use: &Use<Ptr<BasicBlock>>,
         ctx: &'a Context,
     ) -> RefMut<'a, UseNode<Ptr<BasicBlock>>> {
-        let op = r#use.op.deref_mut(ctx);
+        let op = r#use.user_op.deref_mut(ctx);
         RefMut::map(op, |opref| {
             &mut opref.get_successor_mut(r#use.opd_idx).r#use
         })
@@ -421,10 +436,25 @@ impl<T: DefUseParticipant> UseNode<T> {
 
 /// Describes a [Value] or [BasicBlock] use.
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
+#[allow(private_bounds)]
 pub struct Use<T: DefUseParticipant> {
     /// Uses of a def can only be in an operation.
-    pub op: Ptr<Operation>,
-    /// Used as the i'th operand or successor of [op](Self::op).
+    pub user_op: Ptr<Operation>,
+    /// Used as the i'th operand or successor of [op](Self::user_op).
     pub opd_idx: usize,
     pub(crate) _dummy: PhantomData<T>,
+}
+
+#[allow(private_bounds)]
+impl<T: UseTrait> Use<T> {
+    /// Get the definition that this is a use of.
+    pub fn get_def(&self, ctx: &Context) -> T {
+        UseTrait::get_usenode_ref(self, ctx).get_def()
+    }
+}
+
+impl Typed for Use<Value> {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        self.get_def(ctx).get_type(ctx)
+    }
 }
