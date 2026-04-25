@@ -188,6 +188,12 @@ impl BasicBlock {
             .map(|region| region.deref(ctx).get_parent_op())
     }
 
+    /// Get parent block.
+    pub fn get_parent_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
+        self.get_parent_op(ctx)
+            .and_then(|op| op.deref(ctx).get_parent_block())
+    }
+
     /// Get idx'th argument as a Value.
     pub fn get_argument(&self, arg_idx: usize) -> Value {
         self.args

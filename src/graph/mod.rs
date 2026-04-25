@@ -7,14 +7,21 @@ pub mod walkers;
 
 use crate::{
     basic_block::BasicBlock,
+    common_traits::Named,
     context::{Context, Ptr},
-    linked_list::ContainsLinkedList,
+    linked_list::{ContainsLinkedList, LinkedList},
+    operation::Operation,
     region::Region,
 };
 use std::hash::Hash;
 
+/// A trait for graph nodes that can be labeled for visualization purposes.
+pub trait HasLabel<GraphContext> {
+    fn label(&self, ctx: &GraphContext) -> String;
+}
+
 pub trait ControlFlowGraph<GraphContext> {
-    type Node: Eq + Hash + Clone;
+    type Node: Eq + Hash + Clone + HasLabel<GraphContext>;
 
     /// Returns the successors of a node in the graph.
     fn successors(&self, ctx: &GraphContext, node: &Self::Node) -> Vec<Self::Node>;
@@ -47,4 +54,59 @@ impl ControlFlowGraph<Context> for Ptr<Region> {
     fn nodes<'a>(&'a self, ctx: &'a Context) -> Box<dyn Iterator<Item = Self::Node> + 'a> {
         Box::new(self.deref(ctx).iter(ctx))
     }
+}
+
+impl HasLabel<Context> for Ptr<BasicBlock> {
+    fn label(&self, ctx: &Context) -> String {
+        self.deref(ctx).unique_name(ctx).to_string()
+    }
+}
+
+/// Does operation `a` strictly precede operation `b` in `a`'s block?
+pub fn strictly_precedes_in_block(ctx: &Context, a: Ptr<Operation>, b: Ptr<Operation>) -> bool {
+    // Quick exit if `a` and `b` are not in the same block, or if they are the same operation.
+    if a.deref(ctx).get_parent_block() != b.deref(ctx).get_parent_block() || a == b {
+        return false;
+    }
+
+    let mut cursor = a.deref(ctx).get_next();
+    while let Some(op) = cursor {
+        if op == b {
+            return true;
+        }
+        cursor = op.deref(ctx).get_next();
+    }
+    false
+}
+
+/// Returns the ancestor operation of `op` contained in `target_region`, or returns `None` if
+/// no ancestor of `op` is in `target_region`.
+pub fn find_ancestor_op_in_region(
+    ctx: &Context,
+    mut op: Ptr<Operation>,
+    target_region: Ptr<Region>,
+) -> Option<Ptr<Operation>> {
+    while let Some(ancestor_region) = op.deref(ctx).get_parent_region(ctx) {
+        if ancestor_region == target_region {
+            return Some(op);
+        }
+        op = ancestor_region.deref(ctx).get_parent_op();
+    }
+    None
+}
+
+/// Returns the ancestor block of `block` contained in `target_region`, or returns `None` if
+/// no ancestor of `block` is in `target_region`.
+pub fn find_ancestor_block_in_region(
+    ctx: &Context,
+    mut block: Ptr<BasicBlock>,
+    target_region: Ptr<Region>,
+) -> Option<Ptr<BasicBlock>> {
+    while let Some(ancestor_region) = block.deref(ctx).get_parent_region() {
+        if ancestor_region == target_region {
+            return Some(block);
+        }
+        block = ancestor_region.deref(ctx).get_parent_block(ctx)?;
+    }
+    None
 }

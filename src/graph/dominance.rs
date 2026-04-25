@@ -2,11 +2,11 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     basic_block::BasicBlock,
-    builtin::op_interfaces::RegionKindInterface,
     context::{Context, Ptr},
-    graph::{ControlFlowGraph, traversals},
-    linked_list::LinkedList,
-    op::op_cast,
+    graph::{
+        ControlFlowGraph, find_ancestor_block_in_region, find_ancestor_op_in_region,
+        strictly_precedes_in_block, traversals,
+    },
     operation::Operation,
     region::Region,
     value::Value,
@@ -221,49 +221,6 @@ where
     }
 }
 
-/// Returns the ancestor operation of `op` contained in `target_region`, or returns `None` if
-/// no ancestor of `op` is in `target_region`.
-fn find_ancestor_in_region(
-    ctx: &Context,
-    op: Ptr<Operation>,
-    target_region: Ptr<Region>,
-) -> Option<Ptr<Operation>> {
-    let mut op = op;
-    while let Some(ancestor_region) = op.deref(ctx).get_parent_region(ctx) {
-        if ancestor_region == target_region {
-            return Some(op);
-        }
-        op = ancestor_region.deref(ctx).get_parent_op();
-    }
-    None
-}
-
-/// Returns the ancestor block of `block` contained in `target_region`, or returns `None` if
-/// no ancestor of `block` is in `target_region`.
-fn find_ancestor_block_in_region(
-    ctx: &Context,
-    block: Ptr<BasicBlock>,
-    target_region: Ptr<Region>,
-) -> Option<Ptr<BasicBlock>> {
-    let mut block = block;
-    while let Some(ancestor_region) = block.deref(ctx).get_parent_region() {
-        if ancestor_region == target_region {
-            return Some(block);
-        }
-        let ancestor_op = ancestor_region.deref(ctx).get_parent_op();
-        block = ancestor_op.deref(ctx).get_parent_block()?;
-    }
-    None
-}
-
-/// Return the ancestor block enclosing `block`, if it exists.
-fn get_ancestor_block(ctx: &Context, block: Ptr<BasicBlock>) -> Option<Ptr<BasicBlock>> {
-    block
-        .deref(ctx)
-        .get_parent_op(ctx)
-        .and_then(|op| op.deref(ctx).get_parent_block())
-}
-
 /// Tries to update `a` and `b` to blocks in the same region.
 ///
 /// This mirrors MLIR's `tryGetBlocksInSameRegion`: if the input blocks are in different
@@ -290,7 +247,7 @@ fn try_get_blocks_in_same_region(
             a = block;
             return Some((a, b));
         }
-        a_cursor = get_ancestor_block(ctx, block);
+        a_cursor = block.deref(ctx).get_parent_block(ctx);
     }
 
     // Symmetrically, walk `b` up its ancestor blocks looking for one in `a`'s region.
@@ -302,7 +259,7 @@ fn try_get_blocks_in_same_region(
             b = block;
             return Some((a, b));
         }
-        b_cursor = get_ancestor_block(ctx, block);
+        b_cursor = block.deref(ctx).get_parent_block(ctx);
     }
 
     let mut a_opt = Some(a);
@@ -310,11 +267,11 @@ fn try_get_blocks_in_same_region(
 
     // If neither side reaches the other's region directly, equalize their region depths first.
     while a_region_depth > b_region_depth {
-        a_opt = a_opt.and_then(|block| get_ancestor_block(ctx, block));
+        a_opt = a_opt.and_then(|block| block.deref(ctx).get_parent_block(ctx));
         a_region_depth -= 1;
     }
     while b_region_depth > a_region_depth {
-        b_opt = b_opt.and_then(|block| get_ancestor_block(ctx, block));
+        b_opt = b_opt.and_then(|block| block.deref(ctx).get_parent_block(ctx));
         b_region_depth -= 1;
     }
 
@@ -323,37 +280,12 @@ fn try_get_blocks_in_same_region(
         if a_block.deref(ctx).get_parent_region() == b_block.deref(ctx).get_parent_region() {
             return Some((a_block, b_block));
         }
-        a_opt = get_ancestor_block(ctx, a_block);
-        b_opt = get_ancestor_block(ctx, b_block);
+        a_opt = a_block.deref(ctx).get_parent_block(ctx);
+        b_opt = b_block.deref(ctx).get_parent_block(ctx);
     }
 
     // The blocks do not share any common ancestor region.
     None
-}
-
-/// Does the given region use SSA dominance?
-fn region_has_ssa_dominance(ctx: &Context, region: Ptr<Region>) -> bool {
-    let parent_op = region.deref(ctx).get_parent_op();
-    let op_dyn = Operation::get_op_dyn(parent_op, ctx);
-    match op_cast::<dyn RegionKindInterface>(op_dyn.as_ref()) {
-        Some(rki) => {
-            let region_idx = region.deref(ctx).get_index_in_parent(ctx);
-            rki.has_ssa_dominance(region_idx)
-        }
-        None => true,
-    }
-}
-
-/// Does operation `a` strictly precede operation `b` in `a`'s block?
-fn strictly_precedes_in_block(ctx: &Context, a: Ptr<Operation>, b: Ptr<Operation>) -> bool {
-    let mut cursor = a.deref(ctx).get_next();
-    while let Some(op) = cursor {
-        if op == b {
-            return true;
-        }
-        cursor = op.deref(ctx).get_next();
-    }
-    false
 }
 
 /// Caches dominance trees for multiple regions in a program
@@ -395,7 +327,7 @@ impl DomInfo {
             .deref(ctx)
             .get_parent_region()
             .expect("A block must be in a region");
-        let region_a_ssa = region_has_ssa_dominance(ctx, region_a);
+        let region_a_ssa = region_a.deref(ctx).has_ssa_dominance(ctx);
 
         let Some(b) = find_ancestor_block_in_region(ctx, b, region_a) else {
             return false;
@@ -434,9 +366,9 @@ impl DomInfo {
             .deref(ctx)
             .get_parent_region()
             .expect("A block must be in a region");
-        let region_a_ssa = region_has_ssa_dominance(ctx, region_a);
+        let region_a_ssa = region_a.deref(ctx).has_ssa_dominance(ctx);
 
-        let Some(b) = find_ancestor_in_region(ctx, b, region_a) else {
+        let Some(b) = find_ancestor_op_in_region(ctx, b, region_a) else {
             return false;
         };
         let block_b = b
@@ -523,7 +455,7 @@ impl DomInfo {
 #[cfg(test)]
 mod tests {
     use super::{DomFrontierMap, compute_dominator_tree};
-    use crate::graph::ControlFlowGraph;
+    use crate::graph::{ControlFlowGraph, HasLabel};
     use rustc_hash::FxHashSet;
     use std::collections::HashSet;
 
@@ -534,6 +466,12 @@ mod tests {
 
     #[derive(Clone, Copy, Debug)]
     struct ArenaGraph;
+
+    impl HasLabel<Vec<Node>> for usize {
+        fn label(&self, _ctx: &Vec<Node>) -> String {
+            self.to_string()
+        }
+    }
 
     impl ControlFlowGraph<Vec<Node>> for ArenaGraph {
         type Node = usize;
