@@ -3,11 +3,13 @@ use combine::{Parser, parser::char::spaces, token};
 
 use crate::{
     basic_block::BasicBlock,
+    builtin::op_interfaces::RegionKindInterface,
     common_traits::Verify,
     context::{Context, Ptr, private::ArenaObj},
     indented_block,
     linked_list::{ContainsLinkedList, private},
     location::Located,
+    op::op_cast,
     operation::Operation,
     parsable::{self, IntoParseResult, Parsable, ParseResult},
     printable::{self, ListSeparator, Printable, fmt_indented_newline, fmt_iter},
@@ -67,6 +69,16 @@ impl Region {
         self.parent_op
     }
 
+    /// Get the parent region of this region, if it exists.
+    pub fn get_parent_region(&self, ctx: &Context) -> Option<Ptr<Region>> {
+        self.get_parent_op().deref(ctx).get_parent_region(ctx)
+    }
+
+    /// Get the parent block of this region, if it exists.
+    pub fn get_parent_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
+        self.get_parent_op().deref(ctx).get_parent_block()
+    }
+
     /// Get the index of this region in its parent operation.
     pub fn get_index_in_parent(&self, ctx: &Context) -> usize {
         let parent_op = self.get_parent_op();
@@ -76,6 +88,19 @@ impl Region {
             .iter()
             .position(|r| *r == self.self_ptr)
             .expect("Region missing in it's parent Operation")
+    }
+
+    /// Does this region use SSA dominance?
+    pub fn has_ssa_dominance(&self, ctx: &Context) -> bool {
+        let parent_op = self.get_parent_op();
+        let op_dyn = Operation::get_op_dyn(parent_op, ctx);
+        match op_cast::<dyn RegionKindInterface>(op_dyn.as_ref()) {
+            Some(rki) => {
+                let region_idx = self.get_index_in_parent(ctx);
+                rki.has_ssa_dominance(region_idx)
+            }
+            None => true,
+        }
     }
 
     /// Drop all uses that this region holds.

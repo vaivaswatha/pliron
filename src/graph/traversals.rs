@@ -1,10 +1,12 @@
 //! Control-flow-graph traversals
 
 use super::ControlFlowGraph;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// Region traversal utilities
 pub mod region {
+    use crate::graph::HasLabel;
+
     use super::*;
 
     fn post_order_walk_component<G, GraphContext>(
@@ -98,12 +100,185 @@ pub mod region {
         }
         rpo_by_component
     }
+
+    /// The pre-order, post-order and rpo numbers of a node in a DFS traversal.
+    struct DFSNumber {
+        pre_order_number: usize,
+        post_order_number: usize,
+        reverse_post_order_number: usize,
+    }
+
+    /// Edge kind in a DFS traversal.
+    /// Conventionally DFS traversal classifies edges into tree, back, forward and cross edges.
+    /// Since we don't explicitly maintain the DFS tree, we can't distinguish between
+    /// tree and forward edges. So we classify them both as forward edges.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub enum DFSEdgeKind {
+        Forward,
+        Back,
+        Cross,
+    }
+
+    /// Performs a DFS traversal of the graph reachable from the entry node.
+    /// Answers queries related to the traversal.
+    pub struct DFSTraversal<G, GraphContext>
+    where
+        G: ControlFlowGraph<GraphContext>,
+    {
+        result: FxHashMap<G::Node, DFSNumber>,
+    }
+
+    fn dfs_walk<G, GraphContext>(
+        ctx: &GraphContext,
+        graph: &G,
+        node: G::Node,
+        pre_order_counter: &mut usize,
+        post_order_counter: &mut usize,
+        result: &mut FxHashMap<G::Node, DFSNumber>,
+    ) where
+        G: ControlFlowGraph<GraphContext>,
+    {
+        // Assign pre-order number to this node.
+        let pre_order_number = *pre_order_counter;
+        *pre_order_counter += 1;
+
+        let newly_inserted = result.insert(
+            node.clone(),
+            DFSNumber {
+                pre_order_number,
+                post_order_number: 0,         // to be filled later
+                reverse_post_order_number: 0, // to be filled later
+            },
+        );
+        assert!(
+            newly_inserted.is_none(),
+            "Node {} visited multiple times during DFS traversal",
+            node.label(ctx)
+        );
+
+        // Visit successors before visiting this node.
+        for succ in graph.successors(ctx, &node) {
+            if result.contains_key(&succ) {
+                // node already visited.
+                continue;
+            }
+            dfs_walk(
+                ctx,
+                graph,
+                succ,
+                pre_order_counter,
+                post_order_counter,
+                result,
+            );
+        }
+
+        // Assign post-order and reverse-post-order numbers to this node.
+        let post_order_number = *post_order_counter;
+        *post_order_counter += 1;
+
+        result.get_mut(&node).unwrap().post_order_number = post_order_number;
+
+        result.insert(
+            node.clone(),
+            DFSNumber {
+                pre_order_number,
+                post_order_number,
+                reverse_post_order_number: 0, // to be filled later
+            },
+        );
+    }
+
+    impl<G, GraphContext> DFSTraversal<G, GraphContext>
+    where
+        G: ControlFlowGraph<GraphContext>,
+    {
+        /// Perform DFS traversal of the graph and compute pre-order,
+        /// post-order and reverse-post-order numbers for each node.
+        pub fn new(ctx: &GraphContext, graph: &G) -> Self {
+            let mut result = FxHashMap::<G::Node, DFSNumber>::default();
+            let mut pre_order_counter = 0;
+            let mut post_order_counter = 0;
+
+            if let Some(entry) = graph.entry_node(ctx) {
+                dfs_walk(
+                    ctx,
+                    graph,
+                    entry,
+                    &mut pre_order_counter,
+                    &mut post_order_counter,
+                    &mut result,
+                );
+            }
+
+            let num_nodes = result.len();
+            for dfs_number in result.values_mut() {
+                dfs_number.reverse_post_order_number = num_nodes - 1 - dfs_number.post_order_number;
+            }
+            Self { result }
+        }
+
+        /// Returns the pre-order number of a node.
+        pub fn pre_order_number(&self, node: &G::Node) -> usize {
+            self.result
+                .get(node)
+                .expect("pre-order number requested for unreachable node in graph")
+                .pre_order_number
+        }
+
+        /// Returns the post-order number of a node.
+        pub fn post_order_number(&self, node: &G::Node) -> usize {
+            self.result
+                .get(node)
+                .expect("post-order number requested for unreachable node in graph")
+                .post_order_number
+        }
+
+        /// Returns the reverse-post-order number of a node.
+        pub fn reverse_post_order_number(&self, node: &G::Node) -> usize {
+            self.result
+                .get(node)
+                .expect("reverse-post-order number requested for unreachable node in graph")
+                .reverse_post_order_number
+        }
+
+        /// Returns the kind of edge (tree, back, forward or cross) between two nodes.
+        pub fn edge_kind(&self, from: &G::Node, to: &G::Node) -> DFSEdgeKind {
+            let from_pre = self.pre_order_number(from);
+            let from_post = self.post_order_number(from);
+            let to_pre = self.pre_order_number(to);
+            let to_post = self.post_order_number(to);
+
+            // If the pre-order numbers are the same, the post-order
+            // numbers must also be the same, and vice versa.
+            assert!((from_pre == to_pre) == (from_post == to_post));
+            if from_pre == to_pre {
+                // Self-loop edge; classify as back edge.
+                return DFSEdgeKind::Back;
+            }
+
+            if from_pre < to_pre {
+                assert!(
+                    from_post > to_post,
+                    "Can't pop a node before finishing its subtree in DFS traversal"
+                );
+                // Descendant edge in DFS forest: tree or forward.
+                DFSEdgeKind::Forward
+            } else {
+                if from_post < to_post {
+                    // Edge to an ancestor in DFS tree.
+                    DFSEdgeKind::Back
+                } else {
+                    DFSEdgeKind::Cross
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::region::{post_order, topological_order};
-    use crate::graph::ControlFlowGraph;
+    use super::region::{DFSEdgeKind, DFSTraversal, post_order, topological_order};
+    use crate::graph::{ControlFlowGraph, HasLabel};
 
     #[derive(Clone, Debug)]
     struct Node {
@@ -113,6 +288,12 @@ mod tests {
 
     #[derive(Clone, Copy, Debug)]
     struct ArenaGraph;
+
+    impl HasLabel<Vec<Node>> for usize {
+        fn label(&self, _ctx: &Vec<Node>) -> String {
+            self.to_string()
+        }
+    }
 
     impl ControlFlowGraph<Vec<Node>> for ArenaGraph {
         type Node = usize;
@@ -241,5 +422,77 @@ mod tests {
         assert_is_permutation_of_all_nodes(&ctx, &po);
         assert_post_order_edge_property_for_dag(&ctx, &po);
         assert_topological_edge_property_for_dag(&ctx, &rpo);
+    }
+
+    #[test]
+    fn dfs_edge_kind_classification() {
+        let ctx = vec![n(0, &[1, 2]), n(1, &[3]), n(2, &[3]), n(3, &[0, 3])];
+        let dfs = DFSTraversal::<ArenaGraph, Vec<Node>>::new(&ctx, &ArenaGraph);
+
+        assert_eq!(dfs.edge_kind(&0, &1), DFSEdgeKind::Forward);
+        assert_eq!(dfs.edge_kind(&1, &3), DFSEdgeKind::Forward);
+        assert_eq!(dfs.edge_kind(&0, &2), DFSEdgeKind::Forward);
+        assert_eq!(dfs.edge_kind(&3, &0), DFSEdgeKind::Back);
+        assert_eq!(dfs.edge_kind(&3, &3), DFSEdgeKind::Back);
+        assert_eq!(dfs.edge_kind(&2, &3), DFSEdgeKind::Cross);
+    }
+
+    #[test]
+    fn dfs_edge_kind_classification_bob_morgan_fig31() {
+        // This graph is from Figure 3.1 in Bob Morgan's "Building an Optimizing Compiler".
+        let ctx = vec![
+            n(0, &[1, 5]),
+            n(1, &[2, 4]),
+            n(2, &[3, 6]),
+            n(3, &[4, 2]),
+            n(4, &[5, 1]),
+            n(5, &[]),
+            n(6, &[3]),
+        ];
+        let dfs = DFSTraversal::<ArenaGraph, Vec<Node>>::new(&ctx, &ArenaGraph);
+
+        // Table 3.1 in Bob Morgan's "Building an Optimizing Compiler" classifies edges in this graph as follows:
+        // Tree edges: 0->1, 1->2, 2->3, 2->6, 3->4, 4->5
+        // Forward edges: 0->5, 1->4
+        assert_eq!(dfs.edge_kind(&0, &1), DFSEdgeKind::Forward);
+        assert_eq!(dfs.edge_kind(&1, &2), DFSEdgeKind::Forward);
+        assert_eq!(dfs.edge_kind(&2, &3), DFSEdgeKind::Forward);
+        assert_eq!(dfs.edge_kind(&2, &6), DFSEdgeKind::Forward);
+        assert_eq!(dfs.edge_kind(&3, &4), DFSEdgeKind::Forward);
+        assert_eq!(dfs.edge_kind(&4, &5), DFSEdgeKind::Forward);
+        assert_eq!(dfs.edge_kind(&0, &5), DFSEdgeKind::Forward);
+        assert_eq!(dfs.edge_kind(&1, &4), DFSEdgeKind::Forward);
+
+        // Back edges: 3->2, 4->1
+        assert_eq!(dfs.edge_kind(&3, &2), DFSEdgeKind::Back);
+        assert_eq!(dfs.edge_kind(&4, &1), DFSEdgeKind::Back);
+
+        // Cross edges: 6->3
+        assert_eq!(dfs.edge_kind(&6, &3), DFSEdgeKind::Cross);
+
+        // Test pre-order, post-order and reverse-post-order numbers for a few nodes.
+        assert_eq!(dfs.pre_order_number(&0), 0);
+        assert_eq!(dfs.pre_order_number(&1), 1);
+        assert_eq!(dfs.pre_order_number(&2), 2);
+        assert_eq!(dfs.pre_order_number(&3), 3);
+        assert_eq!(dfs.pre_order_number(&4), 4);
+        assert_eq!(dfs.pre_order_number(&5), 5);
+        assert_eq!(dfs.pre_order_number(&6), 6);
+
+        assert_eq!(dfs.post_order_number(&5), 0);
+        assert_eq!(dfs.post_order_number(&4), 1);
+        assert_eq!(dfs.post_order_number(&3), 2);
+        assert_eq!(dfs.post_order_number(&6), 3);
+        assert_eq!(dfs.post_order_number(&2), 4);
+        assert_eq!(dfs.post_order_number(&1), 5);
+        assert_eq!(dfs.post_order_number(&0), 6);
+
+        assert_eq!(dfs.reverse_post_order_number(&0), 0);
+        assert_eq!(dfs.reverse_post_order_number(&1), 1);
+        assert_eq!(dfs.reverse_post_order_number(&2), 2);
+        assert_eq!(dfs.reverse_post_order_number(&6), 3);
+        assert_eq!(dfs.reverse_post_order_number(&3), 4);
+        assert_eq!(dfs.reverse_post_order_number(&4), 5);
+        assert_eq!(dfs.reverse_post_order_number(&5), 6);
     }
 }
