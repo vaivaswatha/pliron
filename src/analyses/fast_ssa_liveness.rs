@@ -1,5 +1,4 @@
-//! Fast analysis for liveness queries on an SSA-CFG.
-//! "Fast Liveness Checking for SSA-Form Programs" - Boissinot et al.
+//! Fast liveness queries on an SSA-CFG.
 
 use core::panic;
 
@@ -23,7 +22,10 @@ use crate::{
 type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
 use hi_sparse_bitset::{ops as bitset_ops, reduce as bitset_reduce};
 
-struct RegionLivenessInfo {
+/// This mirrors the approach from "Fast Liveness Checking for SSA-Form Programs":
+/// reduced reachability (`R`) and back-edge target closure (`Tq`) are precomputed
+/// per region and reused across value queries.
+pub struct LivenessTq {
     /// The region this info is associated with.
     region: Ptr<Region>,
     /// Is this region's CFG reducible?
@@ -41,7 +43,7 @@ struct RegionLivenessInfo {
     back_edge_targets: BitSet,
 }
 
-impl RegionLivenessInfo {
+impl LivenessTq {
     fn new(ctx: &Context, region: Ptr<Region>, dom_tree: &DomTree<Ptr<Region>, Context>) -> Self {
         let dfs = DFSTraversal::new(ctx, &region);
         // RPO ordered blocks reachable from entry and a
@@ -297,17 +299,24 @@ impl RegionLivenessInfo {
         }
         Some(use_blocks)
     }
+}
 
-    fn is_live_in_block(
-        &self,
+impl RegionLiveness for LivenessTq {
+    fn precompute(
         ctx: &Context,
-        value: Value,
-        def_block: Ptr<BasicBlock>,
-        query_block: Ptr<BasicBlock>,
-    ) -> bool {
+        region: Ptr<Region>,
+        dom_tree: &DomTree<Ptr<Region>, Context>,
+    ) -> Self {
+        Self::new(ctx, region, dom_tree)
+    }
+
+    fn is_live_in_block(&self, ctx: &Context, value: Value, query_block: Ptr<BasicBlock>) -> bool {
+        let def_block = value
+            .get_defining_block(ctx)
+            .expect("Value must have a defining block for liveness queries");
+
         assert!(
-            value.get_defining_block(ctx) == Some(def_block)
-                && query_block.deref(ctx).get_parent_region() == Some(self.region)
+            query_block.deref(ctx).get_parent_region() == Some(self.region)
                 && def_block.deref(ctx).get_parent_region() == Some(self.region),
             "Query block must be in the same region as the definition block for liveness queries"
         );
@@ -355,16 +364,13 @@ impl RegionLivenessInfo {
             .any(|t_idx| !(&self.reduced_reachability[t_idx] & &use_blocks).is_empty())
     }
 
-    fn is_live_out_block(
-        &self,
-        ctx: &Context,
-        value: Value,
-        def_block: Ptr<BasicBlock>,
-        query_block: Ptr<BasicBlock>,
-    ) -> bool {
+    fn is_live_out_block(&self, ctx: &Context, value: Value, query_block: Ptr<BasicBlock>) -> bool {
+        let def_block = value
+            .get_defining_block(ctx)
+            .expect("Value must have a defining block for liveness queries");
+
         assert!(
-            value.get_defining_block(ctx) == Some(def_block)
-                && query_block.deref(ctx).get_parent_region() == Some(self.region)
+            query_block.deref(ctx).get_parent_region() == Some(self.region)
                 && def_block.deref(ctx).get_parent_region() == Some(self.region),
             "Query block must be in the same region as the definition block for liveness queries"
         );
@@ -414,23 +420,47 @@ impl RegionLivenessInfo {
     }
 }
 
-/// Caches liveness pre-computation for regions and fast answers liveness queries.
-///
-/// This mirrors the approach from "Fast Liveness Checking for SSA-Form Programs":
-/// reduced reachability (`R`) and back-edge target closure (`Tq`) are precomputed
-/// per region and reused across value queries.
-#[derive(Default)]
-pub struct LivenessInfo {
-    regions: FxHashMap<Ptr<Region>, RegionLivenessInfo>,
+/// Answer liveness queries for values in a region.
+pub trait RegionLiveness {
+    /// Precompute information for `region` and return query interface.
+    fn precompute(
+        ctx: &Context,
+        region: Ptr<Region>,
+        dom_tree: &DomTree<Ptr<Region>, Context>,
+    ) -> Self;
+
+    /// Is `value` live-in at the start of `query_block`?
+    /// `value`'s definition block and `query_block` must both be in `Self`'s region.
+    /// May conservatively return "live" for [Value]s with uses outside the region.
+    fn is_live_in_block(&self, ctx: &Context, value: Value, query_block: Ptr<BasicBlock>) -> bool;
+
+    /// Is `value` live-out at the end of `query_block`?
+    /// `value`'s definition block and `query_block` must both be in `Self`'s region.
+    /// May conservatively return "live" for [Value]s with uses outside the region.
+    fn is_live_out_block(&self, ctx: &Context, value: Value, query_block: Ptr<BasicBlock>) -> bool;
+}
+
+/// Fast answers liveness queries, caching liveness pre-computation for regions.
+pub struct Liveness<T: RegionLiveness> {
+    regions: FxHashMap<Ptr<Region>, T>,
     dom_info: DomInfo,
 }
 
-impl LivenessInfo {
-    fn get_region_info(&mut self, ctx: &Context, region: Ptr<Region>) -> &RegionLivenessInfo {
+impl<T: RegionLiveness> Default for Liveness<T> {
+    fn default() -> Self {
+        Self {
+            regions: FxHashMap::default(),
+            dom_info: DomInfo::default(),
+        }
+    }
+}
+
+impl<T: RegionLiveness> Liveness<T> {
+    fn get_region_info(&mut self, ctx: &Context, region: Ptr<Region>) -> &T {
         let dom_tree = self.dom_info.get_dom_tree(ctx, region);
         self.regions
             .entry(region)
-            .or_insert_with(|| RegionLivenessInfo::new(ctx, region, dom_tree))
+            .or_insert_with(|| T::precompute(ctx, region, dom_tree))
     }
 
     fn has_local_use_after_point(ctx: &Context, value: Value, point: OpInsertionPoint) -> bool {
@@ -471,7 +501,7 @@ impl LivenessInfo {
         };
 
         let info = self.get_region_info(ctx, def_region);
-        info.is_live_in_block(ctx, value, def_block, query_in_def_region)
+        info.is_live_in_block(ctx, value, query_in_def_region)
     }
 
     /// Is `value` live-out at the end of `query_block`?
@@ -493,7 +523,7 @@ impl LivenessInfo {
         };
 
         let info = self.get_region_info(ctx, def_region);
-        info.is_live_out_block(ctx, value, def_block, query_in_def_region)
+        info.is_live_out_block(ctx, value, query_in_def_region)
     }
 
     /// Is `value` live at an operation insertion point?
@@ -549,8 +579,9 @@ impl LivenessInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::LivenessInfo;
+    use super::Liveness;
     use crate::{
+        analyses::fast_ssa_liveness::LivenessTq,
         basic_block::BasicBlock,
         builtin::{
             op_interfaces::{
@@ -644,7 +675,7 @@ mod tests {
         insert_br(ctx, header, vec![body, exit]);
         insert_br(ctx, body, vec![header]);
 
-        let mut liveness = LivenessInfo::default();
+        let mut liveness = Liveness::<LivenessTq>::default();
         assert!(liveness.is_live_in_block(ctx, val, header));
         assert!(liveness.is_live_out_block(ctx, val, header));
         assert!(!liveness.is_live_in_block(ctx, val, exit));
@@ -659,7 +690,7 @@ mod tests {
         let (def_op, val) = insert_def(ctx, entry);
         let use_op = insert_use(ctx, entry, val);
 
-        let mut liveness = LivenessInfo::default();
+        let mut liveness = Liveness::<LivenessTq>::default();
 
         // Special-case in Algorithm 2: live-out at def block only if used outside def block.
         assert!(!liveness.is_live_out_block(ctx, val, entry));
@@ -706,7 +737,7 @@ mod tests {
         insert_br(ctx, b, vec![c]);
         insert_br(ctx, c, vec![a, exit]);
 
-        let mut liveness = LivenessInfo::default();
+        let mut liveness = Liveness::<LivenessTq>::default();
 
         // Dominated by entry and reaches use through irreducible SCC.
         assert!(liveness.is_live_in_block(ctx, val, b));
@@ -733,7 +764,7 @@ mod tests {
         insert_br(ctx, entry, vec![header]);
         insert_br(ctx, header, vec![header, exit]);
 
-        let mut liveness = LivenessInfo::default();
+        let mut liveness = Liveness::<LivenessTq>::default();
 
         // val is defined in entry and used in header, so it is live-in at header.
         assert!(liveness.is_live_in_block(ctx, val, header));
@@ -763,7 +794,7 @@ mod tests {
 
         insert_br(ctx, entry, vec![successor]);
 
-        let mut liveness = LivenessInfo::default();
+        let mut liveness = Liveness::<LivenessTq>::default();
         // query block is dominated by def block — exercises use_blocks.is_empty() path.
         assert!(!liveness.is_live_in_block(ctx, val, successor));
         // def == query block, no uses anywhere.
@@ -790,7 +821,7 @@ mod tests {
         insert_br(ctx, left, vec![merge]);
         insert_br(ctx, right, vec![merge]);
 
-        let mut liveness = LivenessInfo::default();
+        let mut liveness = Liveness::<LivenessTq>::default();
         // `left` does not dominate `right` — early exit fires, must be false.
         assert!(!liveness.is_live_in_block(ctx, val, right));
         assert!(!liveness.is_live_out_block(ctx, val, right));
@@ -817,7 +848,7 @@ mod tests {
         insert_br(ctx, entry, vec![a]);
         insert_br(ctx, a, vec![exit]);
 
-        let mut liveness = LivenessInfo::default();
+        let mut liveness = Liveness::<LivenessTq>::default();
         assert!(liveness.is_live_in_block(ctx, val, a));
         // Only use is in `a` itself — not live-out past the end of `a`.
         assert!(!liveness.is_live_out_block(ctx, val, a));
@@ -846,7 +877,7 @@ mod tests {
         insert_br(ctx, header, vec![body, exit]);
         insert_br(ctx, body, vec![header]);
 
-        let mut liveness = LivenessInfo::default();
+        let mut liveness = Liveness::<LivenessTq>::default();
         assert!(liveness.is_live_in_block(ctx, val, header));
         // val is live-in at body because body -> header and header uses val.
         assert!(liveness.is_live_in_block(ctx, val, body));
