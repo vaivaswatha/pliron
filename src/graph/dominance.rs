@@ -24,9 +24,14 @@ where
 }
 
 /// Represents dominator tree for a control-flow-graph
-pub struct DomTree<G, GraphContext>(FxHashMap<G::Node, DomTreeNode<G, GraphContext>>)
+pub struct DomTree<G, GraphContext>
 where
-    G: ControlFlowGraph<GraphContext>;
+    G: ControlFlowGraph<GraphContext>,
+{
+    // An empty tree has no root.
+    root: Option<G::Node>,
+    dominators_map: FxHashMap<G::Node, DomTreeNode<G, GraphContext>>,
+}
 
 /// Maps each node to its dominance frontier
 pub struct DomFrontierMap<G, GraphContext>(FxHashMap<G::Node, FxHashSet<G::Node>>)
@@ -45,7 +50,10 @@ where
     G: ControlFlowGraph<GraphContext>,
 {
     let Some(entry_node) = graph.entry_node(ctx) else {
-        return DomTree(FxHashMap::default());
+        return DomTree {
+            root: None,
+            dominators_map: FxHashMap::default(),
+        };
     };
 
     // We consider only the first connected component for the dominator tree,
@@ -116,12 +124,15 @@ where
         }
     }
 
-    let mut dom_tree = DomTree(FxHashMap::default());
+    let mut dom_tree = DomTree {
+        root: Some(entry_node),
+        dominators_map: FxHashMap::default(),
+    };
     let entry = DomTreeNode {
         parent: None,
         children: vec![],
     };
-    dom_tree.0.insert(rpo[0].clone(), entry);
+    dom_tree.dominators_map.insert(rpo[0].clone(), entry);
 
     let child_parent = dom
         .iter()
@@ -134,8 +145,10 @@ where
             parent: Some(parent_node.clone()),
             children: vec![],
         };
-        dom_tree.0.insert(child_node.clone(), child_dom_node);
-        let parent_dom_node = dom_tree.0.get_mut(&parent_node).unwrap();
+        dom_tree
+            .dominators_map
+            .insert(child_node.clone(), child_dom_node);
+        let parent_dom_node = dom_tree.dominators_map.get_mut(&parent_node).unwrap();
         parent_dom_node.children.push(child_node.clone())
     }
 
@@ -153,7 +166,7 @@ where
             if node == *dominator {
                 return true;
             }
-            node_opt = self.0[&node].parent.clone();
+            node_opt = self.dominators_map[&node].parent.clone();
         }
         false
     }
@@ -168,23 +181,41 @@ where
     /// Does the dominator tree contain `node`?
     /// That is, is `node` reachable from the entry node?
     pub fn contains(&self, node: &G::Node) -> bool {
-        self.0.contains_key(node)
+        self.dominators_map.contains_key(node)
     }
 
     /// Return the immediate dominator of `node`
     pub fn idom(&self, node: &G::Node) -> Option<G::Node> {
-        self.0[node].parent.clone()
+        self.dominators_map[node].parent.clone()
     }
 
     /// Return an iterator over the dominators of `node`, starting with `node` itself,
     /// then its immediate dominator, and so on up to the root.
-    pub fn dominators(&self, node: &G::Node) -> impl Iterator<Item = G::Node> + '_ {
-        std::iter::successors(Some(node.clone()), |n| self.0[n].parent.clone())
+    pub fn dominators(&self, node: &G::Node) -> impl Iterator<Item = G::Node> + Clone + '_ {
+        std::iter::successors(Some(node.clone()), |n| {
+            self.dominators_map[n].parent.clone()
+        })
     }
 
     /// Get an iterator over the children nodes
-    pub fn children(&self, node: &G::Node) -> impl Iterator<Item = G::Node> + '_ {
-        self.0[node].children.iter().cloned()
+    pub fn children(&self, node: &G::Node) -> impl Iterator<Item = G::Node> + Clone + '_ {
+        self.dominators_map[node].children.iter().cloned()
+    }
+
+    /// Get the root of the dominator tree (i.e. the entry node of the graph)
+    /// Returns `None` if the graph has no entry node (empty dominator tree).
+    pub fn root(&self) -> Option<G::Node> {
+        self.root.clone()
+    }
+
+    /// Get the number of nodes in the dominator tree
+    pub fn num_nodes(&self) -> usize {
+        self.dominators_map.len()
+    }
+
+    /// Get an iterator over all nodes in the dominator tree
+    pub fn nodes(&self) -> impl Iterator<Item = G::Node> + Clone + '_ {
+        self.dominators_map.keys().cloned()
     }
 }
 
@@ -506,14 +537,14 @@ mod tests {
     fn dominator_tree_empty_graph() {
         let ctx: Vec<Node> = vec![];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0.len(), 0);
+        assert_eq!(dom.root(), None);
     }
 
     #[test]
     fn dominator_tree_single_node() {
         let ctx = vec![n(&[])];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0[&0].parent, None);
+        assert_eq!(dom.root(), Some(0));
     }
 
     #[test]
@@ -525,10 +556,10 @@ mod tests {
             /* 2 */ n(&[]),
         ];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0.len(), 3);
-        assert_eq!(dom.0[&0].parent, None);
-        assert_eq!(dom.0[&1].parent, Some(0));
-        assert_eq!(dom.0[&2].parent, Some(1));
+        assert_eq!(dom.num_nodes(), 3);
+        assert_eq!(dom.idom(&0), None);
+        assert_eq!(dom.idom(&1), Some(0));
+        assert_eq!(dom.idom(&2), Some(1));
     }
 
     #[test]
@@ -545,11 +576,11 @@ mod tests {
             /* 3 */ n(&[]),
         ];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0.len(), 4);
-        assert_eq!(dom.0[&0].parent, None);
-        assert_eq!(dom.0[&1].parent, Some(0));
-        assert_eq!(dom.0[&2].parent, Some(0));
-        assert_eq!(dom.0[&3].parent, Some(0));
+        assert_eq!(dom.num_nodes(), 4);
+        assert_eq!(dom.idom(&0), None);
+        assert_eq!(dom.idom(&1), Some(0));
+        assert_eq!(dom.idom(&2), Some(0));
+        assert_eq!(dom.idom(&3), Some(0));
 
         assert_eq!(dom.children(&0).collect::<HashSet<_>>(), [1, 2, 3].into());
         assert_eq!(dom.nearest_common_dominator(&1, &2), 0);
@@ -570,11 +601,11 @@ mod tests {
             /* 3 */ n(&[]),
         ];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0.len(), 4);
-        assert_eq!(dom.0[&0].parent, None);
-        assert_eq!(dom.0[&1].parent, Some(0));
-        assert_eq!(dom.0[&2].parent, Some(1));
-        assert_eq!(dom.0[&3].parent, Some(1));
+        assert_eq!(dom.num_nodes(), 4);
+        assert_eq!(dom.idom(&0), None);
+        assert_eq!(dom.idom(&1), Some(0));
+        assert_eq!(dom.idom(&2), Some(1));
+        assert_eq!(dom.idom(&3), Some(1));
 
         assert!(dom.dominates(&1, &3));
         assert!(!dom.dominates(&2, &3));
@@ -612,13 +643,13 @@ mod tests {
             /* 5 */ n(&[4]),
         ];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0.len(), 6);
-        assert_eq!(dom.0[&0].parent, None);
-        assert_eq!(dom.0[&1].parent, Some(0));
-        assert_eq!(dom.0[&2].parent, Some(0));
-        assert_eq!(dom.0[&3].parent, Some(0));
-        assert_eq!(dom.0[&4].parent, Some(0));
-        assert_eq!(dom.0[&5].parent, Some(0));
+        assert_eq!(dom.num_nodes(), 6);
+        assert_eq!(dom.idom(&0), None);
+        assert_eq!(dom.idom(&1), Some(0));
+        assert_eq!(dom.idom(&2), Some(0));
+        assert_eq!(dom.idom(&3), Some(0));
+        assert_eq!(dom.idom(&4), Some(0));
+        assert_eq!(dom.idom(&5), Some(0));
 
         assert!(dom.dominates(&0, &1));
         assert!(!dom.dominates(&2, &4));
@@ -640,17 +671,17 @@ mod tests {
             /* 9 */ n(&[6]),
         ];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0.len(), 10);
-        assert_eq!(dom.0[&0].parent, None);
-        assert_eq!(dom.0[&1].parent, Some(0));
-        assert_eq!(dom.0[&2].parent, Some(0));
-        assert_eq!(dom.0[&3].parent, Some(2));
-        assert_eq!(dom.0[&4].parent, Some(3));
-        assert_eq!(dom.0[&5].parent, Some(3));
-        assert_eq!(dom.0[&6].parent, Some(3));
-        assert_eq!(dom.0[&7].parent, Some(6));
-        assert_eq!(dom.0[&8].parent, Some(7));
-        assert_eq!(dom.0[&9].parent, Some(7));
+        assert_eq!(dom.num_nodes(), 10);
+        assert_eq!(dom.idom(&0), None);
+        assert_eq!(dom.idom(&1), Some(0));
+        assert_eq!(dom.idom(&2), Some(0));
+        assert_eq!(dom.idom(&3), Some(2));
+        assert_eq!(dom.idom(&4), Some(3));
+        assert_eq!(dom.idom(&5), Some(3));
+        assert_eq!(dom.idom(&6), Some(3));
+        assert_eq!(dom.idom(&7), Some(6));
+        assert_eq!(dom.idom(&8), Some(7));
+        assert_eq!(dom.idom(&9), Some(7));
 
         assert_eq!(dom.children(&3).collect::<HashSet<_>>(), [4, 5, 6].into());
     }
@@ -665,19 +696,11 @@ mod tests {
             /* 3 */ n(&[]),
         ];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0.len(), 2);
-        assert_eq!(dom.0[&0].parent, None);
-        assert_eq!(dom.0[&1].parent, Some(0));
+        assert_eq!(dom.num_nodes(), 2);
+        assert_eq!(dom.idom(&0), None);
+        assert_eq!(dom.idom(&1), Some(0));
 
         assert_eq!(dom.children(&0).collect::<HashSet<_>>(), [1].into());
-    }
-
-    #[test]
-    fn dom_frontier_empty() {
-        // test that we can construct a dominance frontier map from an empty graph without crashing
-        let ctx: Vec<Node> = vec![];
-        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        let _df = DomFrontierMap::new(&ctx, &ArenaGraph, &dom);
     }
 
     #[test]

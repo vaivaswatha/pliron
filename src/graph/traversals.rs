@@ -125,7 +125,7 @@ pub mod region {
     where
         G: ControlFlowGraph<GraphContext>,
     {
-        result: FxHashMap<G::Node, DFSNumber>,
+        tree: FxHashMap<G::Node, DFSNumber>,
     }
 
     fn dfs_walk<G, GraphContext>(
@@ -214,12 +214,12 @@ pub mod region {
             for dfs_number in result.values_mut() {
                 dfs_number.reverse_post_order_number = num_nodes - 1 - dfs_number.post_order_number;
             }
-            Self { result }
+            Self { tree: result }
         }
 
         /// Returns the pre-order number of a node.
         pub fn pre_order_number(&self, node: &G::Node) -> usize {
-            self.result
+            self.tree
                 .get(node)
                 .expect("pre-order number requested for unreachable node in graph")
                 .pre_order_number
@@ -227,7 +227,7 @@ pub mod region {
 
         /// Returns the post-order number of a node.
         pub fn post_order_number(&self, node: &G::Node) -> usize {
-            self.result
+            self.tree
                 .get(node)
                 .expect("post-order number requested for unreachable node in graph")
                 .post_order_number
@@ -235,7 +235,7 @@ pub mod region {
 
         /// Returns the reverse-post-order number of a node.
         pub fn reverse_post_order_number(&self, node: &G::Node) -> usize {
-            self.result
+            self.tree
                 .get(node)
                 .expect("reverse-post-order number requested for unreachable node in graph")
                 .reverse_post_order_number
@@ -271,6 +271,39 @@ pub mod region {
                     DFSEdgeKind::Cross
                 }
             }
+        }
+
+        /// Get all nodes reachable from entry in post-order.
+        pub fn post_order(&self) -> impl Iterator<Item = G::Node> {
+            let mut nodes = vec![None; self.tree.len()];
+            for (node, dfs_number) in &self.tree {
+                nodes[dfs_number.post_order_number] = Some(node.clone());
+            }
+            nodes
+                .into_iter()
+                .map(|n| n.expect("Node missing in post-order"))
+        }
+
+        /// Get all nodes reachable from entry in reverse post-order.
+        pub fn reverse_post_order(&self) -> impl Iterator<Item = G::Node> {
+            let mut nodes = vec![None; self.tree.len()];
+            for (node, dfs_number) in &self.tree {
+                nodes[dfs_number.reverse_post_order_number] = Some(node.clone());
+            }
+            nodes
+                .into_iter()
+                .map(|n| n.expect("Node missing in reverse post-order"))
+        }
+
+        /// Get all nodes reachable from entry in pre-order.
+        pub fn pre_order(&self) -> impl Iterator<Item = G::Node> {
+            let mut nodes = vec![None; self.tree.len()];
+            for (node, dfs_number) in &self.tree {
+                nodes[dfs_number.pre_order_number] = Some(node.clone());
+            }
+            nodes
+                .into_iter()
+                .map(|n| n.expect("Node missing in pre-order"))
         }
     }
 }
