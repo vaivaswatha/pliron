@@ -2,7 +2,7 @@
 
 use core::panic;
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     basic_block::BasicBlock,
@@ -10,7 +10,8 @@ use crate::{
     graph::{
         ControlFlowGraph,
         dominance::{DomInfo, DomTree},
-        find_ancestor_block_in_region,
+        find_ancestor_block_of_block_in_region, find_ancestor_op_of_op_in_block,
+        find_ancestor_op_of_op_in_region,
         traversals::region::{DFSEdgeKind, DFSTraversal},
     },
     irbuild::inserter::OpInsertionPoint,
@@ -287,7 +288,9 @@ impl LivenessTq {
                 // We don't know where the user op is, hence unanalysable
                 return None;
             };
-            let Some(ancestor) = find_ancestor_block_in_region(ctx, user_block, self.region) else {
+            let Some(ancestor) =
+                find_ancestor_block_of_block_in_region(ctx, user_block, self.region)
+            else {
                 // Use in a different region, hence unanalysable
                 return None;
             };
@@ -310,7 +313,12 @@ impl RegionLiveness for LivenessTq {
         Self::new(ctx, region, dom_tree)
     }
 
-    fn is_live_in_block(&self, ctx: &Context, value: Value, query_block: Ptr<BasicBlock>) -> bool {
+    fn is_live_in_at_block(
+        &self,
+        ctx: &Context,
+        value: Value,
+        query_block: Ptr<BasicBlock>,
+    ) -> bool {
         let def_block = value
             .get_defining_block(ctx)
             .expect("Value must have a defining block for liveness queries");
@@ -318,7 +326,7 @@ impl RegionLiveness for LivenessTq {
         assert!(
             query_block.deref(ctx).get_parent_region() == Some(self.region)
                 && def_block.deref(ctx).get_parent_region() == Some(self.region),
-            "Query block must be in the same region as the definition block for liveness queries"
+            "Query and definition blocks must be in the same region for liveness queries"
         );
 
         let (Some(def_idx), Some(query_idx)) =
@@ -364,7 +372,12 @@ impl RegionLiveness for LivenessTq {
             .any(|t_idx| !(&self.reduced_reachability[t_idx] & &use_blocks).is_empty())
     }
 
-    fn is_live_out_block(&self, ctx: &Context, value: Value, query_block: Ptr<BasicBlock>) -> bool {
+    fn is_live_out_of_block(
+        &self,
+        ctx: &Context,
+        value: Value,
+        query_block: Ptr<BasicBlock>,
+    ) -> bool {
         let def_block = value
             .get_defining_block(ctx)
             .expect("Value must have a defining block for liveness queries");
@@ -372,7 +385,7 @@ impl RegionLiveness for LivenessTq {
         assert!(
             query_block.deref(ctx).get_parent_region() == Some(self.region)
                 && def_block.deref(ctx).get_parent_region() == Some(self.region),
-            "Query block must be in the same region as the definition block for liveness queries"
+            "Query and definition blocks must be in the same region for liveness queries"
         );
 
         let (Some(def_idx), Some(query_idx)) =
@@ -432,12 +445,22 @@ pub trait RegionLiveness {
     /// Is `value` live-in at the start of `query_block`?
     /// `value`'s definition block and `query_block` must both be in `Self`'s region.
     /// May conservatively return "live" for [Value]s with uses outside the region.
-    fn is_live_in_block(&self, ctx: &Context, value: Value, query_block: Ptr<BasicBlock>) -> bool;
+    fn is_live_in_at_block(
+        &self,
+        ctx: &Context,
+        value: Value,
+        query_block: Ptr<BasicBlock>,
+    ) -> bool;
 
     /// Is `value` live-out at the end of `query_block`?
     /// `value`'s definition block and `query_block` must both be in `Self`'s region.
     /// May conservatively return "live" for [Value]s with uses outside the region.
-    fn is_live_out_block(&self, ctx: &Context, value: Value, query_block: Ptr<BasicBlock>) -> bool;
+    fn is_live_out_of_block(
+        &self,
+        ctx: &Context,
+        value: Value,
+        query_block: Ptr<BasicBlock>,
+    ) -> bool;
 }
 
 /// Fast answers liveness queries, caching liveness pre-computation for regions.
@@ -463,8 +486,27 @@ impl<T: RegionLiveness> Liveness<T> {
             .or_insert_with(|| T::precompute(ctx, region, dom_tree))
     }
 
+    fn has_use_in_region_subtree(ctx: &Context, value: Value, region: Ptr<Region>) -> bool {
+        value
+            .uses(ctx)
+            .iter()
+            .any(|r#use| find_ancestor_op_of_op_in_region(ctx, r#use.user_op, region).is_some())
+    }
+
+    /// Are there any uses of `value` in the same block after `point`?
+    /// The uses could be nested within regions inside the operations in the block.
     fn has_local_use_after_point(ctx: &Context, value: Value, point: OpInsertionPoint) -> bool {
-        let mut op_iter = match point {
+        let point_block = point
+            .get_insertion_block(ctx)
+            .expect("Query point must be within a block for local use check");
+
+        let user_ops_in_point_block: FxHashSet<_> = value
+            .uses(ctx)
+            .iter()
+            .filter_map(|r#use| find_ancestor_op_of_op_in_block(ctx, r#use.user_op, point_block))
+            .collect();
+
+        let op_iter = match point {
             OpInsertionPoint::BeforeOperation(op) => Some(op),
             OpInsertionPoint::AfterOperation(op) => op.deref(ctx).get_next(),
             OpInsertionPoint::AtBlockStart(block) => block.deref(ctx).get_head(),
@@ -472,86 +514,110 @@ impl<T: RegionLiveness> Liveness<T> {
             OpInsertionPoint::Unset => panic!("Insertion point must be set for local use check"),
         };
 
-        while let Some(op) = op_iter {
-            let op = op.deref(ctx);
-            if op.operands().any(|operand| operand == value) {
-                return true;
-            }
-            op_iter = op.get_next();
-        }
-        false
-    }
-
-    /// Is `value` live-in at the start of `query_block`?
-    pub fn is_live_in_block(
-        &mut self,
-        ctx: &Context,
-        value: Value,
-        query_block: Ptr<BasicBlock>,
-    ) -> bool {
-        let Some(def_block) = value.get_defining_block(ctx) else {
-            return false;
-        };
-        let Some(def_region) = def_block.deref(ctx).get_parent_region() else {
-            return false;
-        };
-        let Some(query_in_def_region) = find_ancestor_block_in_region(ctx, query_block, def_region)
-        else {
-            return false;
-        };
-
-        let info = self.get_region_info(ctx, def_region);
-        info.is_live_in_block(ctx, value, query_in_def_region)
-    }
-
-    /// Is `value` live-out at the end of `query_block`?
-    pub fn is_live_out_block(
-        &mut self,
-        ctx: &Context,
-        value: Value,
-        query_block: Ptr<BasicBlock>,
-    ) -> bool {
-        let Some(def_block) = value.get_defining_block(ctx) else {
-            return false;
-        };
-        let Some(def_region) = def_block.deref(ctx).get_parent_region() else {
-            return false;
-        };
-        let Some(query_in_def_region) = find_ancestor_block_in_region(ctx, query_block, def_region)
-        else {
-            return false;
-        };
-
-        let info = self.get_region_info(ctx, def_region);
-        info.is_live_out_block(ctx, value, query_in_def_region)
+        std::iter::successors(op_iter, |op| op.deref(ctx).get_next())
+            .any(|op| user_ops_in_point_block.contains(&op))
     }
 
     /// Is `value` live at an operation insertion point?
-    pub fn is_live_at_op_insertion_point(
+    pub fn is_live_at_point(
         &mut self,
         ctx: &Context,
         value: Value,
         point: OpInsertionPoint,
     ) -> bool {
-        let query_block = point.get_insertion_block(ctx).expect("point not set");
+        let Some(def_block) = value.get_defining_block(ctx) else {
+            // With no defining block, the value can't be live anywhere that we can check.
+            return false;
+        };
+        let Some(query_block) = point.get_insertion_block(ctx) else {
+            // If we don't even know where the query point is, we can't answer the query
+            return false;
+        };
 
-        match point {
+        let (Some(def_region), Some(query_region)) = (
+            def_block.deref(ctx).get_parent_region(),
+            query_block.deref(ctx).get_parent_region(),
+        ) else {
+            // The definition or the query is in an orphan block.
+
+            // If the query block is the same as the definition block, we can check for local uses.
+            if def_block == query_block {
+                return Self::has_local_use_after_point(ctx, value, point);
+            }
+
+            // If query_block is nested within def_block, we can find its ancestor op
+            // in def_block, and check for local uses from there.
+            let mut query_ancestor_op_opt = query_block.deref(ctx).get_parent_op(ctx);
+            while let Some(query_ancestor_op) = query_ancestor_op_opt {
+                let query_ancestor_block_opt = query_ancestor_op.deref(ctx).get_parent_block();
+                let Some(query_ancestor_block) = query_ancestor_block_opt else {
+                    // The query block isn't nested within the definition block.
+                    // There's no way to reach the query block from the definition.
+                    return false;
+                };
+                if query_ancestor_block == def_block {
+                    return Self::has_local_use_after_point(
+                        ctx,
+                        value,
+                        OpInsertionPoint::BeforeOperation(query_ancestor_op),
+                    );
+                } else {
+                    query_ancestor_op_opt = query_ancestor_op.deref(ctx).get_parent_op(ctx);
+                }
+            }
+            // The query block isn't nested within the definition block.
+            return false;
+        };
+
+        let point_in_def_region = {
+            if query_region != def_region {
+                let query_parent = query_region.deref(ctx).get_parent_op();
+                let Some(query_op_in_def_region) =
+                    find_ancestor_op_of_op_in_region(ctx, query_parent, def_region)
+                else {
+                    // If the query point is outside of our definition region,
+                    // there is no path from the definition to the query block.
+                    return false;
+                };
+                if Self::has_use_in_region_subtree(ctx, value, query_region) {
+                    // A use inside a queried nested region implies, conservatively,
+                    // that the value is live throughout that region.
+                    return true;
+                } else {
+                    // We can treat the query as being right before this operation in the definition region.
+                    // It is live at the original query point in the nested region IFF it is live here.
+                    OpInsertionPoint::BeforeOperation(query_op_in_def_region)
+                }
+            } else {
+                // Query point is in the same region as the definition, we can query directly.
+                point
+            }
+        };
+
+        match point_in_def_region {
             OpInsertionPoint::Unset => panic!("Insertion point must be set for liveness query"),
             OpInsertionPoint::AtBlockStart(query_block) => {
-                self.is_live_in_block(ctx, value, query_block)
+                let info = self.get_region_info(ctx, def_region);
+                info.is_live_in_at_block(ctx, value, query_block)
             }
             OpInsertionPoint::AtBlockEnd(query_block) => {
-                self.is_live_out_block(ctx, value, query_block)
+                let info = self.get_region_info(ctx, def_region);
+                info.is_live_out_of_block(ctx, value, query_block)
             }
             OpInsertionPoint::BeforeOperation(op) => {
                 if !self.dom_info.value_strictly_dominates_op(ctx, value, op) {
                     // If the value doesn't dominate the operation, it can't be live before it
                     return false;
                 }
-                if Self::has_local_use_after_point(ctx, value, point) {
+                if Self::has_local_use_after_point(ctx, value, point_in_def_region) {
                     return true;
                 }
-                self.is_live_out_block(ctx, value, query_block)
+                // It isn't used locally in this block, check for after the block.
+                let info = self.get_region_info(ctx, def_region);
+                let query_block = op.deref(ctx).get_parent_block().expect(
+                    "Operations in the definition region must be in blocks for liveness queries",
+                );
+                info.is_live_out_of_block(ctx, value, query_block)
             }
             OpInsertionPoint::AfterOperation(op) => {
                 // Since the query is for liveness **after** this operation,
@@ -568,10 +634,15 @@ impl<T: RegionLiveness> Liveness<T> {
                     // If the value doesn't dominate the operation, it can't be live after it
                     return false;
                 }
-                if Self::has_local_use_after_point(ctx, value, point) {
+                if Self::has_local_use_after_point(ctx, value, point_in_def_region) {
                     return true;
                 }
-                self.is_live_out_block(ctx, value, query_block)
+                // It isn't used locally in this block, check for after the block.
+                let info = self.get_region_info(ctx, def_region);
+                let query_block = op.deref(ctx).get_parent_block().expect(
+                    "Operations in the definition region must be in blocks for liveness queries",
+                );
+                info.is_live_out_of_block(ctx, value, query_block)
             }
         }
     }
@@ -595,6 +666,7 @@ mod tests {
         irbuild::inserter::OpInsertionPoint,
         op::Op,
         operation::Operation,
+        region::Region,
         value::Value,
     };
 
@@ -656,6 +728,25 @@ mod tests {
         br_op.insert_at_back(block, ctx);
     }
 
+    fn insert_region_holder_with_block(
+        ctx: &mut Context,
+        block: Ptr<BasicBlock>,
+    ) -> (Ptr<Operation>, Ptr<Region>, Ptr<BasicBlock>) {
+        let holder = Operation::new(
+            ctx,
+            NodeOp::get_concrete_op_info(),
+            vec![],
+            vec![],
+            vec![],
+            1,
+        );
+        holder.insert_at_back(block, ctx);
+        let region = holder.deref(ctx).get_region(0);
+        let inner_block = BasicBlock::new(ctx, None, vec![]);
+        inner_block.insert_at_back(region, ctx);
+        (holder, region, inner_block)
+    }
+
     #[test]
     fn liveness_reducible_loop_blocks() {
         // CFG:
@@ -676,9 +767,9 @@ mod tests {
         insert_br(ctx, body, vec![header]);
 
         let mut liveness = Liveness::<LivenessTq>::default();
-        assert!(liveness.is_live_in_block(ctx, val, header));
-        assert!(liveness.is_live_out_block(ctx, val, header));
-        assert!(!liveness.is_live_in_block(ctx, val, exit));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(header)));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockEnd(header)));
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(exit)));
     }
 
     #[test]
@@ -693,26 +784,14 @@ mod tests {
         let mut liveness = Liveness::<LivenessTq>::default();
 
         // Special-case in Algorithm 2: live-out at def block only if used outside def block.
-        assert!(!liveness.is_live_out_block(ctx, val, entry));
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockEnd(entry)));
 
         // Before defining op is never live; after defining op it is live because of local use.
-        assert!(!liveness.is_live_at_op_insertion_point(
-            ctx,
-            val,
-            OpInsertionPoint::BeforeOperation(def_op),
-        ));
-        assert!(liveness.is_live_at_op_insertion_point(
-            ctx,
-            val,
-            OpInsertionPoint::AfterOperation(def_op),
-        ));
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::BeforeOperation(def_op),));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AfterOperation(def_op),));
 
         // Before use in same block, the value should be live.
-        assert!(liveness.is_live_at_op_insertion_point(
-            ctx,
-            val,
-            OpInsertionPoint::BeforeOperation(use_op),
-        ));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::BeforeOperation(use_op),));
     }
 
     #[test]
@@ -740,11 +819,11 @@ mod tests {
         let mut liveness = Liveness::<LivenessTq>::default();
 
         // Dominated by entry and reaches use through irreducible SCC.
-        assert!(liveness.is_live_in_block(ctx, val, b));
-        assert!(liveness.is_live_out_block(ctx, val, b));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(b)));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockEnd(b)));
 
         // Use is not reachable from exit.
-        assert!(!liveness.is_live_in_block(ctx, val, exit));
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(exit)));
     }
 
     #[test]
@@ -767,9 +846,9 @@ mod tests {
         let mut liveness = Liveness::<LivenessTq>::default();
 
         // val is defined in entry and used in header, so it is live-in at header.
-        assert!(liveness.is_live_in_block(ctx, val, header));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(header)));
         // Not live past header (no use in exit).
-        assert!(!liveness.is_live_in_block(ctx, val, exit));
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(exit)));
 
         // Verify the CFG was treated as reducible (fast path exercised).
         let def_region = entry.deref(ctx).get_parent_region().unwrap();
@@ -796,9 +875,9 @@ mod tests {
 
         let mut liveness = Liveness::<LivenessTq>::default();
         // query block is dominated by def block — exercises use_blocks.is_empty() path.
-        assert!(!liveness.is_live_in_block(ctx, val, successor));
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(successor)));
         // def == query block, no uses anywhere.
-        assert!(!liveness.is_live_out_block(ctx, val, entry));
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockEnd(entry)));
     }
 
     #[test]
@@ -823,12 +902,12 @@ mod tests {
 
         let mut liveness = Liveness::<LivenessTq>::default();
         // `left` does not dominate `right` — early exit fires, must be false.
-        assert!(!liveness.is_live_in_block(ctx, val, right));
-        assert!(!liveness.is_live_out_block(ctx, val, right));
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(right)));
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockEnd(right)));
         // `left` does not dominate `entry` — early exit fires, must be false.
-        assert!(!liveness.is_live_in_block(ctx, val, entry));
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(entry)));
         // Local use only in `left`, not live-out past `left`.
-        assert!(!liveness.is_live_out_block(ctx, val, left));
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockEnd(left)));
     }
 
     #[test]
@@ -849,11 +928,11 @@ mod tests {
         insert_br(ctx, a, vec![exit]);
 
         let mut liveness = Liveness::<LivenessTq>::default();
-        assert!(liveness.is_live_in_block(ctx, val, a));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(a)));
         // Only use is in `a` itself — not live-out past the end of `a`.
-        assert!(!liveness.is_live_out_block(ctx, val, a));
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockEnd(a)));
         // Also live-out at entry since `a` (a different block) uses it.
-        assert!(liveness.is_live_out_block(ctx, val, entry));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockEnd(entry)));
     }
 
     #[test]
@@ -878,12 +957,157 @@ mod tests {
         insert_br(ctx, body, vec![header]);
 
         let mut liveness = Liveness::<LivenessTq>::default();
-        assert!(liveness.is_live_in_block(ctx, val, header));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(header)));
         // val is live-in at body because body -> header and header uses val.
-        assert!(liveness.is_live_in_block(ctx, val, body));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(body)));
         // header is a back-edge target: live-out because the loop can re-execute header.
-        assert!(liveness.is_live_out_block(ctx, val, header));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockEnd(header)));
         // val is NOT live-in at exit since there's no use reachable from exit.
-        assert!(!liveness.is_live_in_block(ctx, val, exit));
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(exit)));
+    }
+
+    #[test]
+    fn liveness_nested_region_use_is_live_throughout_that_region() {
+        let ctx = &mut Context::new();
+        let (_func, entry) = new_test_func(ctx, "nested_region_use_live_throughout");
+
+        let (_def_op, val) = insert_def(ctx, entry);
+
+        let (_holder_1, _region_1, inner_1) = insert_region_holder_with_block(ctx, entry);
+        let (_holder_2, _region_2, inner_2) = insert_region_holder_with_block(ctx, entry);
+
+        let inner_use = insert_use(ctx, inner_1, val);
+
+        let mut liveness = Liveness::<LivenessTq>::default();
+
+        // Querying inside the nested region that contains a use should report live throughout.
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(inner_1)));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockEnd(inner_1)));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::BeforeOperation(inner_use)));
+
+        // A sibling nested region with no uses should not be forced live.
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(inner_2)));
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockEnd(inner_2)));
+    }
+
+    #[test]
+    fn liveness_local_nested_use_in_def_block() {
+        // Block layout: entry = [def_op, holder_op (inner_block: [use_op]), later_op, br]
+        // The only use of `val` is inside a nested region (inner_block) owned by `holder_op`,
+        // which itself lives in the def block. This exercises the improved
+        // `has_local_use_after_point` which maps uses through `find_ancestor_op_of_op_in_block`.
+        let ctx = &mut Context::new();
+        let (func, entry) = new_test_func(ctx, "local_nested_use_def_block");
+        let exit = append_block(ctx, &func);
+
+        let (def_op, val) = insert_def(ctx, entry);
+        let (holder_op, _region, inner_block) = insert_region_holder_with_block(ctx, entry);
+        insert_use(ctx, inner_block, val);
+        let later_op = insert_use(ctx, entry, val); // a second use after the holder, so there's something to query against
+        insert_br(ctx, entry, vec![exit]);
+
+        let mut liveness = Liveness::<LivenessTq>::default();
+
+        // Before the holder: val is live because the nested use is in the suffix.
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::BeforeOperation(holder_op)));
+        // After def_op: val is live (nested use ahead).
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AfterOperation(def_op)));
+        // Before def_op: val is not yet defined, never live.
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::BeforeOperation(def_op)));
+        // After holder_op: nested use has been consumed, but later_op still uses val directly.
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AfterOperation(holder_op)));
+        // After later_op (the last use): val is dead.
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AfterOperation(later_op)));
+    }
+
+    #[test]
+    fn liveness_local_nested_use_in_successor_block() {
+        // CFG: entry -> a -> exit.
+        // def in entry, only use inside a nested region owned by an op in `a`.
+        // Exercises `has_local_use_after_point` when the query point is in a block other
+        // than def_block, and the only local use is nested inside a later op in that block.
+        let ctx = &mut Context::new();
+        let (func, entry) = new_test_func(ctx, "local_nested_use_successor_block");
+        let a = append_block(ctx, &func);
+        let exit = append_block(ctx, &func);
+
+        let (_def_op, val) = insert_def(ctx, entry);
+        // In block `a`: op_before_holder, then holder (nested use inside), then br.
+        let op_before_holder = insert_use(ctx, a, val); // a direct use — kept to have something at AtBlockStart
+        let (holder_op, _region, inner_block) = insert_region_holder_with_block(ctx, a);
+        insert_use(ctx, inner_block, val);
+        insert_br(ctx, entry, vec![a]);
+        insert_br(ctx, a, vec![exit]);
+
+        let mut liveness = Liveness::<LivenessTq>::default();
+
+        // Live at start of `a` (uses exist in `a`'s subtree).
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(a)));
+        // Before holder: nested use is still in the suffix, so val is live.
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::BeforeOperation(holder_op)));
+        // After op_before_holder: nested use (inside holder) is still ahead.
+        assert!(liveness.is_live_at_point(
+            ctx,
+            val,
+            OpInsertionPoint::AfterOperation(op_before_holder)
+        ));
+        // After holder: the nested use (and the direct use in op_before_holder) are both
+        // consumed; no further uses in `a`. val is dead.
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AfterOperation(holder_op)));
+        // val is not live at start of exit (no reachable use from exit).
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(exit)));
+    }
+
+    #[test]
+    fn liveness_orphan_def_block_query_in_same_block() {
+        // def_block is an orphan (not attached to any region).
+        // Layout: def_block = [def_op, holder_op (inner: [use_op])]
+        // Query points are all within def_block itself.
+        let ctx = &mut Context::new();
+        // Create an orphan block — not inserted into any region.
+        let orphan_block = BasicBlock::new(ctx, None, vec![]);
+
+        let (def_op, val) = insert_def(ctx, orphan_block);
+        let (holder_op, _region, inner_block) = insert_region_holder_with_block(ctx, orphan_block);
+        insert_use(ctx, inner_block, val);
+
+        let mut liveness = Liveness::<LivenessTq>::default();
+
+        // After def_op: holder_op (with its nested use) is still ahead.
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AfterOperation(def_op)));
+        // Before holder_op: nested use is in the suffix.
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::BeforeOperation(holder_op)));
+        // After holder_op: the only use has been consumed; val is dead.
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AfterOperation(holder_op)));
+    }
+
+    #[test]
+    fn liveness_orphan_def_block_query_in_nested_block() {
+        // def_block is an orphan (not attached to any region).
+        // Layout: def_block = [def_op, holder_1 (inner_1: no uses), holder_2 (inner_2: [use_op])]
+        // Query points are inside inner_1 and inner_2.
+        let ctx = &mut Context::new();
+        let orphan_block = BasicBlock::new(ctx, None, vec![]);
+
+        let (_def_op, val) = insert_def(ctx, orphan_block);
+        // holder_1 has no use of val inside it.
+        let (_holder_1, _region_1, inner_1) = insert_region_holder_with_block(ctx, orphan_block);
+        // holder_2 has a use of val inside it.
+        let (_holder_2, _region_2, inner_2) = insert_region_holder_with_block(ctx, orphan_block);
+        insert_use(ctx, inner_2, val);
+
+        let mut liveness = Liveness::<LivenessTq>::default();
+
+        // Query inside inner_1: val is live because holder_2's nested use comes after holder_1
+        // in the orphan block, so `has_local_use_after_point(BeforeOperation(holder_1))` fires.
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(inner_1)));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockEnd(inner_1)));
+
+        // Query inside inner_2: val is live (use is inside this very nested region).
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockStart(inner_2)));
+        assert!(liveness.is_live_at_point(ctx, val, OpInsertionPoint::AtBlockEnd(inner_2)));
+
+        // Sibling check: after holder_2 in the orphan block, val is dead.
+        assert!(!liveness.is_live_at_point(ctx, val, OpInsertionPoint::AfterOperation(_holder_2)));
     }
 }

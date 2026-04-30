@@ -79,9 +79,9 @@ pub fn strictly_precedes_in_block(ctx: &Context, a: Ptr<Operation>, b: Ptr<Opera
     false
 }
 
-/// Returns the ancestor operation of `op` contained in `target_region`, or returns `None` if
-/// no ancestor of `op` is in `target_region`.
-pub fn find_ancestor_op_in_region(
+/// Returns the ancestor operation of `op` contained in `target_region`, or returns `None`
+/// if no ancestor of `op` is in `target_region`.
+pub fn find_ancestor_op_of_op_in_region(
     ctx: &Context,
     mut op: Ptr<Operation>,
     target_region: Ptr<Region>,
@@ -95,9 +95,9 @@ pub fn find_ancestor_op_in_region(
     None
 }
 
-/// Returns the ancestor block of `block` contained in `target_region`, or returns `None` if
-/// no ancestor of `block` is in `target_region`.
-pub fn find_ancestor_block_in_region(
+/// Returns the ancestor block of `block` contained in `target_region`, or returns `None`
+/// if no ancestor of `block` is in `target_region`.
+pub fn find_ancestor_block_of_block_in_region(
     ctx: &Context,
     mut block: Ptr<BasicBlock>,
     target_region: Ptr<Region>,
@@ -107,6 +107,33 @@ pub fn find_ancestor_block_in_region(
             return Some(block);
         }
         block = ancestor_region.deref(ctx).get_parent_block(ctx)?;
+    }
+    None
+}
+
+/// Returns the ancestor block of `op` contained in `target_region`, or returns `None`
+/// if no ancestor of `op` is in `target_region`.
+pub fn find_ancestor_block_of_op_in_region(
+    ctx: &Context,
+    op: Ptr<Operation>,
+    target_region: Ptr<Region>,
+) -> Option<Ptr<BasicBlock>> {
+    let parent_block = op.deref(ctx).get_parent_block()?;
+    find_ancestor_block_of_block_in_region(ctx, parent_block, target_region)
+}
+
+/// Returns the ancestor operation of `op` contained in `target_block`, or returns `None`
+/// if no ancestor of `op` is in `target_block`.
+pub fn find_ancestor_op_of_op_in_block(
+    ctx: &Context,
+    mut op: Ptr<Operation>,
+    target_block: Ptr<BasicBlock>,
+) -> Option<Ptr<Operation>> {
+    while let Some(parent_block) = op.deref(ctx).get_parent_block() {
+        if parent_block == target_block {
+            return Some(op);
+        }
+        op = parent_block.deref(ctx).get_parent_op(ctx)?;
     }
     None
 }

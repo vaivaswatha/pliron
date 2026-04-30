@@ -108,16 +108,8 @@ impl OpInsertionPoint {
         match self {
             OpInsertionPoint::AtBlockStart(block) => Some(*block),
             OpInsertionPoint::AtBlockEnd(block) => Some(*block),
-            OpInsertionPoint::AfterOperation(op) => Some(
-                op.deref(ctx)
-                    .get_parent_block()
-                    .expect("Insertion point Operation must have parent block"),
-            ),
-            OpInsertionPoint::BeforeOperation(op) => Some(
-                op.deref(ctx)
-                    .get_parent_block()
-                    .expect("Insertion point Operation must have parent block"),
-            ),
+            OpInsertionPoint::AfterOperation(op) => op.deref(ctx).get_parent_block(),
+            OpInsertionPoint::BeforeOperation(op) => op.deref(ctx).get_parent_block(),
             OpInsertionPoint::Unset => None,
         }
     }
@@ -134,18 +126,8 @@ impl BlockInsertionPoint {
         match self {
             BlockInsertionPoint::AtRegionStart(region) => Some(*region),
             BlockInsertionPoint::AtRegionEnd(region) => Some(*region),
-            BlockInsertionPoint::AfterBlock(block) => Some(
-                block
-                    .deref(ctx)
-                    .get_parent_region()
-                    .expect("Insertion point BasicBlock must have parent region"),
-            ),
-            BlockInsertionPoint::BeforeBlock(block) => Some(
-                block
-                    .deref(ctx)
-                    .get_parent_region()
-                    .expect("Insertion point BasicBlock must have parent region"),
-            ),
+            BlockInsertionPoint::AfterBlock(block) => block.deref(ctx).get_parent_region(),
+            BlockInsertionPoint::BeforeBlock(block) => block.deref(ctx).get_parent_region(),
             BlockInsertionPoint::Unset => None,
         }
     }

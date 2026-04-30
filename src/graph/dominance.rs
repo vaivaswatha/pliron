@@ -4,7 +4,7 @@ use crate::{
     basic_block::BasicBlock,
     context::{Context, Ptr},
     graph::{
-        ControlFlowGraph, find_ancestor_block_in_region, find_ancestor_op_in_region,
+        ControlFlowGraph, find_ancestor_block_of_block_in_region, find_ancestor_op_of_op_in_region,
         strictly_precedes_in_block, traversals,
     },
     operation::Operation,
@@ -360,7 +360,7 @@ impl DomInfo {
             .expect("A block must be in a region");
         let region_a_ssa = region_a.deref(ctx).has_ssa_dominance(ctx);
 
-        let Some(b) = find_ancestor_block_in_region(ctx, b, region_a) else {
+        let Some(b) = find_ancestor_block_of_block_in_region(ctx, b, region_a) else {
             return false;
         };
 
@@ -399,7 +399,7 @@ impl DomInfo {
             .expect("A block must be in a region");
         let region_a_ssa = region_a.deref(ctx).has_ssa_dominance(ctx);
 
-        let Some(b) = find_ancestor_op_in_region(ctx, b, region_a) else {
+        let Some(b) = find_ancestor_op_of_op_in_region(ctx, b, region_a) else {
             return false;
         };
         let block_b = b
@@ -441,7 +441,7 @@ impl DomInfo {
                         .get_parent_region()
                         .expect("Block not in any region");
                     let b_ancestor_in_a_region =
-                        find_ancestor_block_in_region(ctx, b_parent_block, a_block_region);
+                        find_ancestor_block_of_block_in_region(ctx, b_parent_block, a_block_region);
                     b_ancestor_in_a_region.is_some_and(|b_ancestor| {
                         let dom_tree = self.get_dom_tree(ctx, a_block_region);
                         dom_tree.dominates(&a_block, &b_ancestor)
