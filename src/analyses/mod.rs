@@ -1,3 +1,3 @@
 //! Various Analyses
 
-pub mod fast_ssa_liveness;
+pub mod liveness;

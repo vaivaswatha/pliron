@@ -1,6 +1,9 @@
-//! Fast liveness queries on an SSA-CFG.
-
-use core::panic;
+//! Liveness queries on SSA control-flow-graphs.
+//!
+//! The primary interface for liveness queries is through the [Liveness] struct.
+//! It can be instantiated with:
+//! - [LivenessTq]: An implementation of the Tq-sets based liveness checking algorithm
+//!   from "Fast Liveness Checking for SSA-Form Programs".
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -652,7 +655,7 @@ impl<T: RegionLiveness> Liveness<T> {
 mod tests {
     use super::Liveness;
     use crate::{
-        analyses::fast_ssa_liveness::LivenessTq,
+        analyses::liveness::LivenessTq,
         basic_block::BasicBlock,
         builtin::{
             op_interfaces::{
