@@ -24,6 +24,7 @@ pub use dyn_clone;
 #[cfg(target_family = "wasm")]
 pub use inventory;
 
+pub mod analyses;
 pub mod attribute;
 pub mod basic_block;
 pub mod builtin;

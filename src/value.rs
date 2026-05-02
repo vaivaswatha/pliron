@@ -197,6 +197,14 @@ impl Value {
                 .set_type(ctx, ty),
         }
     }
+
+    /// Get the defining block of this value.
+    pub fn get_defining_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
+        match self {
+            Value::OpResult { op, res_idx: _ } => op.deref(ctx).get_parent_block(),
+            Value::BlockArgument { block, arg_idx: _ } => Some(*block),
+        }
+    }
 }
 
 impl Verify for Value {
