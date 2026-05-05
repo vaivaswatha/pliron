@@ -521,7 +521,7 @@ impl<T: RegionLiveness> Liveness<T> {
             .any(|op| user_ops_in_point_block.contains(&op))
     }
 
-    /// Is `value` live at an operation insertion point?
+    /// Is `value` live at a program point?
     pub fn is_live_at_point(
         &mut self,
         ctx: &Context,

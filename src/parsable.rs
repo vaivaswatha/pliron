@@ -11,7 +11,7 @@ use crate::{
     context::{Context, Ptr},
     identifier::Identifier,
     input_err,
-    irfmt::parsers::{int_parser, quoted_string_parser},
+    irfmt::parsers::{hex_int_parser, int_parser, quoted_string_parser},
     location::{self, Located, Location, Source},
     op::op_impls,
     operation::Operation,
@@ -571,5 +571,37 @@ impl Parsable for String {
         _arg: Self::Arg,
     ) -> ParseResult<'a, Self::Parsed> {
         quoted_string_parser().parse_stream(state_stream).into()
+    }
+}
+
+impl Parsable for *const () {
+    type Arg = ();
+
+    type Parsed = Self;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        hex_int_parser::<usize>()
+            .parse_stream(state_stream)
+            .map(|n| n as *const ())
+            .into()
+    }
+}
+
+impl Parsable for *mut () {
+    type Arg = ();
+
+    type Parsed = Self;
+
+    fn parse<'a>(
+        state_stream: &mut StateStream<'a>,
+        _arg: Self::Arg,
+    ) -> ParseResult<'a, Self::Parsed> {
+        hex_int_parser::<usize>()
+            .parse_stream(state_stream)
+            .map(|n| n as *mut ())
+            .into()
     }
 }

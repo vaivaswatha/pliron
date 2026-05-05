@@ -1,6 +1,6 @@
 //! Utilities for parsing.
 
-use std::str::FromStr;
+use std::{num::ParseIntError, str::FromStr};
 
 use crate::{
     arg_err,
@@ -82,6 +82,49 @@ where
     IntT::Err: std::error::Error + Send + Sync + 'static,
 {
     combine::parser(move |parsable_state: &mut StateStream<'a>| int_parse(parsable_state, ()))
+        .boxed()
+}
+
+/// A trait for parsing an integer from a string with a given radix.
+pub trait FromStrRadix: Sized {
+    fn from_str_radix(src: &str, radix: u32) -> std::result::Result<Self, ParseIntError>;
+}
+
+macro_rules! impl_from_str_radix_for_int {
+    ($($ty:ty),*) => {
+        $(
+            impl FromStrRadix for $ty {
+                fn from_str_radix(src: &str, radix: u32) -> std::result::Result<Self, ParseIntError> {
+                    <$ty>::from_str_radix(src, radix)
+                }
+            }
+        )*
+    };
+}
+impl_from_str_radix_for_int!(u8, u16, u32, u64, usize, i8, i16, i32, i64, isize);
+
+/// Parser to parse a hexadecimal integer, which is a sequence of hexadecimal digits prefixed with `0x`.
+pub fn hex_int_parse<'a, IntT>(
+    state_stream: &mut StateStream<'a>,
+    _arg: (),
+) -> ParseResult<'a, IntT>
+where
+    IntT: FromStrRadix,
+{
+    combine::parser::char::string("0x")
+        .with(many1::<String, _, _>(combine::parser::char::hex_digit()))
+        .and_then(|digits| IntT::from_str_radix(&digits, 16))
+        .parse_stream(state_stream)
+        .into()
+}
+
+/// Get a parser combinator to parse a hexadecimal integer, which is a sequence of hexadecimal digits prefixed with `0x`.
+pub fn hex_int_parser<'a, IntT>()
+-> Box<dyn Parser<StateStream<'a>, Output = IntT, PartialState = ()> + 'a>
+where
+    IntT: FromStrRadix,
+{
+    combine::parser(move |parsable_state: &mut StateStream<'a>| hex_int_parse(parsable_state, ()))
         .boxed()
 }
 
@@ -296,5 +339,104 @@ mod test {
 
         let parsed = type_parser().parse(state_stream).unwrap().0;
         assert_eq!(parsed.disp(&ctx).to_string(), "builtin.integer si32");
+    }
+
+    #[test]
+    fn test_hex_int_parser() {
+        use crate::{
+            context::Context,
+            location,
+            parsable::{self, state_stream_from_iterator},
+        };
+
+        let mut ctx = Context::new();
+
+        // Valid hex integer
+        let state_stream = state_stream_from_iterator(
+            "0xff".chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+        let parsed: u64 = hex_int_parser().parse(state_stream).unwrap().0;
+        assert_eq!(parsed, 0xff);
+
+        // Valid hex integer with uppercase digits
+        let state_stream = state_stream_from_iterator(
+            "0xDEAD".chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+        let parsed: u64 = hex_int_parser().parse(state_stream).unwrap().0;
+        assert_eq!(parsed, 0xDEAD);
+
+        // u32 type
+        let state_stream = state_stream_from_iterator(
+            "0xCAFE".chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+        let parsed: u32 = hex_int_parser().parse(state_stream).unwrap().0;
+        assert_eq!(parsed, 0xCAFEu32);
+
+        // u8 type
+        let state_stream = state_stream_from_iterator(
+            "0x7f".chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+        let parsed: u8 = hex_int_parser().parse(state_stream).unwrap().0;
+        assert_eq!(parsed, 0x7fu8);
+
+        // i64 type
+        let state_stream = state_stream_from_iterator(
+            "0x1234".chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+        let parsed: i64 = hex_int_parser().parse(state_stream).unwrap().0;
+        assert_eq!(parsed, 0x1234i64);
+
+        // usize type
+        let state_stream = state_stream_from_iterator(
+            "0xABCDEF".chars(),
+            parsable::State::new(&mut ctx, location::Source::InMemory),
+        );
+        let parsed: usize = hex_int_parser().parse(state_stream).unwrap().0;
+        assert_eq!(parsed, 0xABCDEFusize);
+
+        // Value too large for u8 (0x100 = 256) should fail
+        {
+            let state_stream = state_stream_from_iterator(
+                "0x100".chars(),
+                parsable::State::new(&mut ctx, location::Source::InMemory),
+            );
+            let res = hex_int_parser::<u8>().parse(state_stream);
+            assert!(res.is_err());
+        }
+
+        // Value too large for u16 (0x10000 = 65536) should fail
+        {
+            let state_stream = state_stream_from_iterator(
+                "0x10000".chars(),
+                parsable::State::new(&mut ctx, location::Source::InMemory),
+            );
+            let res = hex_int_parser::<u16>().parse(state_stream);
+            assert!(res.is_err());
+        }
+
+        // Missing 0x prefix should fail
+        {
+            let state_stream = state_stream_from_iterator(
+                "ff".chars(),
+                parsable::State::new(&mut ctx, location::Source::InMemory),
+            );
+            let res = hex_int_parser::<u64>().parse(state_stream);
+            assert!(res.is_err());
+        }
+
+        // No digits after 0x should fail
+        {
+            let state_stream = state_stream_from_iterator(
+                "0x".chars(),
+                parsable::State::new(&mut ctx, location::Source::InMemory),
+            );
+            let res = hex_int_parser::<u64>().parse(state_stream);
+            assert!(res.is_err());
+        }
     }
 }
