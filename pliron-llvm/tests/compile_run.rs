@@ -226,10 +226,16 @@ fn test_simple_loop() {
     );
     test_llvm_ir_via_pliron(
         RESOURCES_DIR.join("simple-loop.ll").to_str().unwrap(),
-        &[OptFn {
-            name: "mem2reg",
-            r#fn: opts::mem2reg::mem2reg,
-        }],
+        &[
+            OptFn {
+                name: "mem2reg",
+                r#fn: opts::mem2reg::mem2reg,
+            },
+            OptFn {
+                name: "dce",
+                r#fn: opts::dce::dce,
+            },
+        ],
         15,
     );
 }
@@ -290,10 +296,16 @@ fn test_fib() {
     test_llvm_ir_via_pliron(RESOURCES_DIR.join("fib.ll").to_str().unwrap(), &[], 3);
     test_llvm_ir_via_pliron(
         RESOURCES_DIR.join("fib.ll").to_str().unwrap(),
-        &[OptFn {
-            name: "mem2reg",
-            r#fn: opts::mem2reg::mem2reg,
-        }],
+        &[
+            OptFn {
+                name: "mem2reg",
+                r#fn: opts::mem2reg::mem2reg,
+            },
+            OptFn {
+                name: "dce",
+                r#fn: opts::dce::dce,
+            },
+        ],
         3,
     );
 }
