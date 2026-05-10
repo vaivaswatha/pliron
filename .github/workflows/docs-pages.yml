@@ -38,6 +38,29 @@ jobs:
         run: |
           RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 
+      - name: Create docs landing page
+        run: |
+          cat > target/doc/index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <title>pliron docs</title>
+              <meta http-equiv="refresh" content="0; url=pliron/">
+            </head>
+            <body>
+              <p>Redirecting to <a href="pliron/">pliron docs</a>...</p>
+              <ul>
+                <li><a href="pliron/">pliron</a></li>
+                <li><a href="pliron_llvm/">pliron-llvm</a></li>
+                <li><a href="pliron_derive/">pliron-derive</a></li>
+              </ul>
+            </body>
+          </html>
+          EOF
+          touch target/doc/.nojekyll
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 

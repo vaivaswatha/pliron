@@ -1,9 +1,9 @@
 ## Programming Languages Intermediate Representation
 
 [![Status](https://github.com/vaivaswatha/pliron/actions/workflows/ci.yml/badge.svg)](https://github.com/vaivaswatha/pliron/actions/workflows/ci.yml)
-[![Crates.io](https://img.shields.io/crates/v/pliron?style=for-the-badge)](https://crates.io/crates/pliron)
-[![Docs.rs](https://img.shields.io/docsrs/pliron?style=for-the-badge)](https://docs.rs/pliron/latest/pliron/)
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/5M3K4Ujv7v)
+[![Crates.io](https://img.shields.io/crates/v/pliron)](https://crates.io/crates/pliron)
+[![Docs.rs](https://img.shields.io/docsrs/pliron)](https://docs.rs/pliron/latest/pliron/)
+[![Discord](https://img.shields.io/discord/1481908978978918523)](https://discord.gg/5M3K4Ujv7v)
 
 `pliron` is an extensible compiler IR framework in Rust, inspired by [MLIR](https://mlir.llvm.org/docs/LangRef/).
 
@@ -45,8 +45,9 @@ We also plan to start work on supporting a cranelift dialect/backend soon.
 * Introduction and motivation are covered in the [introductory wiki article](https://github.com/vaivaswatha/pliron/wiki/Introduction).
 * The wiki also has a [comparison](https://github.com/vaivaswatha/pliron/wiki/Comparison-with-other-compiler-frameworks) of `pliron`
 with other compiler projects, touching upon some design decisions.
-* Code documentation can be found on
-  [docs.rs](https://docs.rs/pliron/latest/pliron/).
+* Code documentation for pliron releases can be found on
+[docs.rs](https://docs.rs/pliron/latest/pliron/).
+* Latest code (`master`) documentation is available on [GitHub Pages](https://vaivaswatha.github.io/pliron/).
 
 ### Some talks on `pliron`
 * [pliron: An Extensible IR Framework in Rust - IICT'24](https://www.youtube.com/watch?v=LobYuwcUaZA)
@@ -60,6 +61,7 @@ with other compiler projects, touching upon some design decisions.
 * [Pliron Dialect for Tensors](https://github.com/vaivaswatha/pliron-tensor)
 
 ### Discussions
-Discord: https://discord.gg/5M3K4Ujv7v
+- [Discord channel](https://discord.com/channels/1481908978978918523/) ([Invitation link](https://discord.gg/5M3K4Ujv7v))
+- [GitHub Discussions](https://github.com/vaivaswatha/pliron/discussions)
 
 ![pliron-logo](https://github.com/user-attachments/assets/adfaaeed-775f-4290-92fd-93d7c9b4fd12)

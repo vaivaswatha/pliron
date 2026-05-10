@@ -1,7 +1,7 @@
 # LLVM Dialect for [pliron](../README.md)
 
-[![Crates.io](https://img.shields.io/crates/v/pliron-llvm?style=for-the-badge)](https://crates.io/crates/pliron-llvm)
-[![Docs.rs](https://img.shields.io/docsrs/pliron-llvm?style=for-the-badge)](https://docs.rs/pliron-llvm/latest/pliron-llvm/)
+[![Crates.io](https://img.shields.io/crates/v/pliron-llvm)](https://crates.io/crates/pliron-llvm)
+[![Docs.rs](https://img.shields.io/docsrs/pliron-llvm)](https://docs.rs/pliron-llvm/latest/pliron-llvm/)
 
 This crate provides the following functionality:
 1. Dialect definitions of LLVM ops, types and attributes.
