@@ -1,6 +1,9 @@
 ## Programming Languages Intermediate Representation
 
 [![Status](https://github.com/vaivaswatha/pliron/actions/workflows/ci.yml/badge.svg)](https://github.com/vaivaswatha/pliron/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/pliron?style=for-the-badge)](https://crates.io/crates/pliron)
+[![Docs.rs](https://img.shields.io/docsrs/pliron?style=for-the-badge)](https://docs.rs/pliron/latest/pliron/)
+[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/5M3K4Ujv7v)
 
 `pliron` is an extensible compiler IR framework in Rust, inspired by [MLIR](https://mlir.llvm.org/docs/LangRef/).
 
