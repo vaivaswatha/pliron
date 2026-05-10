@@ -430,10 +430,10 @@ impl DomInfo {
         b: Ptr<Operation>,
     ) -> bool {
         match a {
-            Value::OpResult { op, res_idx: _ } => self.op_strictly_dominates_op(ctx, op, b),
+            Value::OpResult { op, val_uid: _ } => self.op_strictly_dominates_op(ctx, op, b),
             Value::BlockArgument {
                 block: a_block,
-                arg_idx: _,
+                val_uid: _,
             } => {
                 if let Some(b_parent_block) = b.deref(ctx).get_parent_block() {
                     let a_block_region = a_block

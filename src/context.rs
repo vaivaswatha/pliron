@@ -47,6 +47,9 @@ pub type Arena<T> = SlotMap<ArenaIndex, RefCell<T>>;
 
 /// A context stores all IR data of this compilation session.
 pub struct Context {
+    /// A unique number for each [Value] in the context.
+    /// Serves as a generation counter against accessing invalid [Value]s.
+    pub(crate) value_counter: u64,
     /// Allocation pool for [Operation]s.
     pub(crate) operations: Arena<Operation>,
     /// Allocation pool for [BasicBlock]s.
@@ -79,11 +82,19 @@ impl Context {
     pub fn is_ir_empty(&self) -> bool {
         self.operations.is_empty() && self.basic_blocks.is_empty() && self.regions.is_empty()
     }
+
+    /// Get a unique number for a new value.
+    pub(crate) fn get_new_value_uid(&mut self) -> u64 {
+        let uid = self.value_counter;
+        self.value_counter += 1;
+        uid
+    }
 }
 
 impl Default for Context {
     fn default() -> Self {
         let mut ctx = Context {
+            value_counter: 0,
             operations: Arena::default(),
             basic_blocks: Arena::default(),
             regions: Arena::default(),

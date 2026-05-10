@@ -297,7 +297,7 @@ impl NameTracker {
 
         match scope.entry(id.0.clone()) {
             Entry::Occupied(mut occ) => match occ.get_mut() {
-                Value::OpResult { op, res_idx: _ } => {
+                Value::OpResult { op, val_uid: _ } => {
                     let fref_opt =
                         Operation::get_op::<ForwardRefOp>(*op, ctx).map(|op| op.get_result(ctx));
                     if let Some(fref) = fref_opt {

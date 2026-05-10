@@ -104,8 +104,8 @@ fn replace_c0_with_c1() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                op3v3_res0 = test.constant builtin.integer <2: si64>;
-                test.return op3v3_res0
+                v2 = test.constant builtin.integer <2: si64>;
+                test.return v2
             }
         }"#]]
     .assert_eq(&printed);
@@ -236,12 +236,12 @@ fn scoped_rewriter_test() -> Result<()> {
         builtin.module @bar 
         {
           ^block1v1():
-            op5v1_res0 = test.global () [] [test_global_op_const_val: builtin.integer <0: si64>, sym_name: builtin.identifier global_0]: <() -> (test.ptr )>;
+            v1 = test.global () [] [test_global_op_const_val: builtin.integer <0: si64>, sym_name: builtin.identifier global_0]: <() -> (test.ptr )>;
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                op6v1_res0 = test.load op5v1_res0 ;
-                test.return op6v1_res0
+                v2 = test.load v1 ;
+                test.return v2
             }
         }"#]].assert_eq(&printed);
 
@@ -364,12 +364,12 @@ fn split_block_after_const_zero() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
-                test.return c0_op3v1_res0
+                c0_v0 = test.constant builtin.integer <0: si64> !0;
+                test.return c0_v0
 
               ^entry_split_block3v1():
-                op5v1_res0 = test.constant builtin.integer <1: si64>;
-                test.return op5v1_res0
+                v1 = test.constant builtin.integer <1: si64>;
+                test.return v1
             }
         }"#]]
     .assert_eq(&printed);
@@ -434,12 +434,12 @@ fn inline_region_on_const_zero() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
-                test.return c0_op3v1_res0
+                c0_v0 = test.constant builtin.integer <0: si64> !0;
+                test.return c0_v0
 
               ^entry_block4v1():
-                c0_op7v1_res0 = test.constant builtin.integer <0: si64> !1;
-                test.return c0_op7v1_res0
+                c0_v1 = test.constant builtin.integer <0: si64> !1;
+                test.return c0_v1
             }
         }"#]]
     .assert_eq(&printed);

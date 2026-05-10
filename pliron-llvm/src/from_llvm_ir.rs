@@ -378,7 +378,7 @@ pub enum ConversionErr {
 
 /// If a value is a ConstantOp with integer type, return the value.
 fn get_const_op_as_int(ctx: &Context, val: Value) -> Option<IntegerAttr> {
-    let Value::OpResult { op, res_idx: _ } = val else {
+    let Value::OpResult { op, val_uid: _ } = val else {
         return None;
     };
     Operation::get_op::<ConstantOp>(op, ctx).and_then(|const_op| {
@@ -1305,7 +1305,7 @@ fn convert_block(
     for inst in instruction_iter(block) {
         if llvm_get_instruction_opcode(inst) == LLVMOpcode::LLVMPHI {
             let ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
-            let arg_idx = m_block.deref_mut(ctx).add_argument(ty);
+            let arg_idx = BasicBlock::add_argument(m_block, ctx, ty);
             cctx.value_map
                 .insert(inst, m_block.deref(ctx).get_argument(arg_idx));
         } else {
@@ -1316,7 +1316,7 @@ fn convert_block(
             if let Some(result) = m_inst_result {
                 if let Some(res_name) = llvm_get_value_name(inst).filter(|name| !name.is_empty()) {
                     let res_name = cctx.id_legaliser.legalise(&res_name);
-                    debug_info::set_operation_result_name(ctx, m_inst, 0, res_name);
+                    debug_info::set_operation_result_name(ctx, m_inst, 0, Some(res_name));
                 }
                 cctx.value_map.insert(inst, result);
             }

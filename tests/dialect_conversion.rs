@@ -410,7 +410,7 @@ fn dialect_conversion_block_arg_type_conversion() -> Result<()> {
     );
     let body = module.get_body(ctx, 0);
     let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed).into();
-    let arg_idx = body.deref_mut(ctx).add_argument(i64_ty);
+    let arg_idx = BasicBlock::add_argument(body, ctx, i64_ty);
     let block_arg = body.deref(ctx).get_argument(arg_idx);
 
     let consumer = ConsumerOp::new(ctx, block_arg);

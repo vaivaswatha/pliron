@@ -94,7 +94,7 @@ pub fn dce_with_rewriter<L: RewriteListener>(
             .filter_map(|opd| {
                 if let Value::OpResult {
                     op: def_op,
-                    res_idx: _,
+                    val_uid: _,
                 } = opd
                 {
                     Some(def_op)

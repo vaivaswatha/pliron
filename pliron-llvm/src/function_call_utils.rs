@@ -242,8 +242,8 @@ mod tests {
 
             define i64 @main() {
             entry_block2v1:
-              %op8v1_res0 = call ptr @malloc(i64 ptrtoint (ptr getelementptr (double, ptr null, i32 1) to i64))
-              call void @free(ptr %op8v1_res0)
+              %v3 = call ptr @malloc(i64 ptrtoint (ptr getelementptr (double, ptr null, i32 1) to i64))
+              call void @free(ptr %v3)
               ret i64 ptrtoint (ptr getelementptr (double, ptr null, i32 1) to i64)
             }
 

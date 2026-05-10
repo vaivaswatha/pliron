@@ -13,7 +13,6 @@ use crate::{
     builtin::op_interfaces::{IsTerminatorInterface, SymbolOpInterface},
     common_traits::{Named, RcShare, Verify},
     context::{Arena, Context, Ptr, private::ArenaObj},
-    debug_info,
     graph::{
         self,
         dominance::DomInfo,
@@ -46,12 +45,10 @@ use crate::{
 pub(crate) struct OpResult {
     /// The def containing the list of this result's uses.
     pub(crate) def: DefNode<Value>,
-    /// Get the [Operation] that this is a result of.
-    def_op: Ptr<Operation>,
-    /// Index of this result in the [Operation] that this is part of.
-    res_idx: usize,
+    /// Unique ID of this value in [Context].
+    pub(crate) val_uid: u64,
     /// [Type](crate::type::Type) of this operation result.
-    ty: Ptr<TypeObj>,
+    pub(crate) ty: Ptr<TypeObj>,
 }
 
 impl OpResult {
@@ -64,49 +61,19 @@ impl OpResult {
     pub fn set_type(&mut self, ty: Ptr<TypeObj>) {
         self.ty = ty;
     }
+
+    /// Build a [Value] corresponding to this operation result.
+    pub fn as_value(&self, op: Ptr<Operation>) -> Value {
+        Value::OpResult {
+            op,
+            val_uid: self.val_uid,
+        }
+    }
 }
 
 impl Typed for OpResult {
     fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
         self.get_type()
-    }
-}
-
-impl Printable for OpResult {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        _state: &printable::State,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        write!(f, "{}", self.unique_name(ctx))
-    }
-}
-
-impl From<&OpResult> for Value {
-    fn from(value: &OpResult) -> Self {
-        Value::OpResult {
-            op: value.def_op,
-            res_idx: value.res_idx,
-        }
-    }
-}
-
-impl Verify for OpResult {
-    fn verify(&self, ctx: &Context) -> Result<()> {
-        Into::<Value>::into(self).verify(ctx)
-    }
-}
-
-impl Named for OpResult {
-    fn given_name(&self, ctx: &Context) -> Option<Identifier> {
-        debug_info::get_operation_result_name(ctx, self.def_op, self.res_idx)
-    }
-
-    fn id(&self, _ctx: &Context) -> Identifier {
-        format!("{}_res{}", self.def_op.make_name("op"), self.res_idx)
-            .try_into()
-            .unwrap()
     }
 }
 
@@ -134,11 +101,11 @@ pub struct Operation {
     /// For quick creation of an [OpObj] or concrete [Op] from [Self].
     concrete_op: ConcreteOpInfo,
     /// [Results](OpResult) defined by self.
-    results: Vec<OpResult>,
+    pub(crate) results: Vec<OpResult>,
     /// [Operand]s used by self.
-    operands: Vec<Operand<Value>>,
+    pub(crate) operands: Vec<Operand<Value>>,
     /// Control-flow-graph successors.
-    successors: Vec<Operand<Ptr<BasicBlock>>>,
+    pub(crate) successors: Vec<Operand<Ptr<BasicBlock>>>,
     /// Links to the parent [BasicBlock] and
     /// previous and next [Operation]s in the block.
     block_links: BlockLinks,
@@ -208,12 +175,10 @@ impl Operation {
         // Update the results (we can't do this easily during creation).
         let results = result_types
             .into_iter()
-            .enumerate()
-            .map(|(res_idx, ty)| OpResult {
+            .map(|ty| OpResult {
                 def: DefNode::new(),
-                def_op: newop,
                 ty,
-                res_idx,
+                val_uid: ctx.get_new_value_uid(),
             })
             .collect();
         newop.deref_mut(ctx).results = results;
@@ -261,13 +226,13 @@ impl Operation {
     pub fn get_result(&self, idx: usize) -> Value {
         self.results
             .get(idx)
-            .map(|res| res.into())
+            .map(|res| res.as_value(self.self_ptr))
             .unwrap_or_else(|| panic!("Result index {idx} out of bounds"))
     }
 
     /// Get an iterator over the results of this operation.
     pub fn results(&self) -> impl Iterator<Item = Value> + Clone + '_ {
-        self.results.iter().map(Into::into)
+        self.results.iter().map(|res| res.as_value(self.self_ptr))
     }
 
     /// Does any result of this operation have a use?
@@ -650,20 +615,6 @@ impl Operation {
         })
     }
 
-    /// Get a reference to the idx'th result.
-    pub(crate) fn get_result_ref(&self, idx: usize) -> &OpResult {
-        self.results
-            .get(idx)
-            .unwrap_or_else(|| panic!("Result index {idx} out of bounds"))
-    }
-
-    /// Get a mutable reference to the idx'th result.
-    pub(crate) fn get_result_mut(&mut self, idx: usize) -> &mut OpResult {
-        self.results
-            .get_mut(idx)
-            .unwrap_or_else(|| panic!("Result index {idx} out of bounds"))
-    }
-
     /// Get a reference to the opd_idx'th operand.
     pub(crate) fn get_operand_ref(&self, opd_idx: usize) -> &Operand<Value> {
         self.operands
@@ -871,7 +822,9 @@ impl Verify for Operation {
             opr.regions
                 .iter()
                 .try_for_each(|region| region.verify(ctx))?;
-            opr.results.iter().try_for_each(|res| res.verify(ctx))?;
+            opr.results
+                .iter()
+                .try_for_each(|res| res.as_value(opr.self_ptr).verify(ctx))?;
             let op = &*Operation::get_op_dyn(opr.self_ptr, ctx);
             if op_impls::<dyn IsTerminatorInterface>(op) && opr.get_next().is_some() {
                 let loc = opr.loc.clone();
@@ -1019,10 +972,10 @@ pub fn print_dbg(
         None => "".to_string(),
     };
 
-    if opr.get_num_results() == 0 {
-        // Print Ptr representing this operation.
-        write!(f, "{:?} ", opr.get_self_ptr(ctx))?;
-    } else {
+    // Print [Ptr] representing this operation.
+    write!(f, "[{:?}] ", opr.get_self_ptr(ctx))?;
+
+    if opr.get_num_results() > 0 {
         let results = iter_with_sep(opr.results(), sep);
         write!(f, "{} = ", results.disp(ctx))?;
     }

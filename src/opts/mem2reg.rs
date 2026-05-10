@@ -9,7 +9,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::{
     basic_block::BasicBlock,
     builtin::op_interfaces::BranchOpInterface,
+    common_traits::Named,
     context::{Context, Ptr},
+    debug_info::set_block_arg_name,
     graph::{
         dominance::{DomFrontierMap, DomTree, compute_dominator_tree},
         walkers::{IRNode, WALKCONFIG_PREORDER_FORWARD, uninterruptible::immutable::walk_op},
@@ -547,7 +549,8 @@ pub fn mem2reg(root: Ptr<Operation>, ctx: &mut Context) -> Result<OptStatus> {
             if let Some(needed_blocks) = phi_blocks.get(&ptr) {
                 let needed_blocks: Vec<Ptr<BasicBlock>> = needed_blocks.iter().cloned().collect();
                 for phi_block in needed_blocks {
-                    let arg_idx = phi_block.deref_mut(ctx).add_argument(cand.alloc_info.ty);
+                    let arg_idx = BasicBlock::add_argument(phi_block, ctx, cand.alloc_info.ty);
+                    set_block_arg_name(ctx, phi_block, arg_idx, ptr.given_name(ctx));
                     new_phis_in_block
                         .entry(phi_block)
                         .or_default()

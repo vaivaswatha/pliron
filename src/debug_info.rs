@@ -15,6 +15,7 @@ use crate::{
     operation::Operation,
     parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable},
+    utils::vec_exns::VecExtns,
 };
 
 #[pliron_attr(name = "builtin.debug_info", verifier = "succ")]
@@ -31,17 +32,12 @@ impl DebugInfoAttr {
     }
 
     fn get_name(&self, idx: usize) -> Option<Identifier> {
-        self.names
-            .get(idx)
-            .expect("Index out of range for debug info attribute")
-            .clone()
+        self.names.get(idx).cloned().flatten()
     }
 
-    fn set_name(&mut self, idx: usize, name: Identifier) {
-        *self
-            .names
-            .get_mut(idx)
-            .expect("Index out of range for debug info attribute") = Some(name);
+    fn set_name(&mut self, idx: usize, name: Option<Identifier>) {
+        self.names.grow_to(idx + 1, |_| None);
+        *self.names.get_mut(idx).unwrap() = name;
     }
 }
 
@@ -96,7 +92,7 @@ fn set_name_from_attr_map(
     attributes: &mut AttributeDict,
     idx: usize,
     max_idx: usize,
-    name: Identifier,
+    name: Option<Identifier>,
 ) {
     match attributes.0.entry(ATTR_KEY_DEBUG_INFO.clone()) {
         Entry::Occupied(mut occupied) => {
@@ -126,7 +122,7 @@ pub fn set_operation_result_name(
     ctx: &Context,
     op: Ptr<Operation>,
     res_idx: usize,
-    name: Identifier,
+    name: Option<Identifier>,
 ) {
     let op = &mut *op.deref_mut(ctx);
     let num_results = op.get_num_results();
@@ -145,9 +141,14 @@ pub fn get_operation_result_name(
     get_name_from_attr_map(&op.attributes, res_idx)
 }
 
-/// Set the name for an argumet in a [BasicBlock].
+/// Set the name for an argument in a [BasicBlock].
 /// Panics if the given `arg_idx` is out of range.
-pub fn set_block_arg_name(ctx: &Context, block: Ptr<BasicBlock>, arg_idx: usize, name: Identifier) {
+pub fn set_block_arg_name(
+    ctx: &Context,
+    block: Ptr<BasicBlock>,
+    arg_idx: usize,
+    name: Option<Identifier>,
+) {
     let block = &mut *block.deref_mut(ctx);
     let num_args = block.get_num_arguments();
     assert!(arg_idx < num_args);
@@ -214,7 +215,7 @@ mod tests {
         let mut ctx = Context::new();
         let cop = ZeroOp::new(&mut ctx);
         let op = cop.get_operation();
-        set_operation_result_name(&ctx, op, 0, "foo".try_into().unwrap());
+        set_operation_result_name(&ctx, op, 0, Some("foo".try_into().unwrap()));
         assert_eq!(
             get_operation_result_name(&ctx, op, 0).unwrap(),
             "foo".try_into().unwrap()
@@ -232,7 +233,7 @@ mod tests {
             Some("entry".try_into().unwrap()),
             vec![i64_ty.into()],
         );
-        set_block_arg_name(&ctx, block, 0, "foo".try_into().unwrap());
+        set_block_arg_name(&ctx, block, 0, Some("foo".try_into().unwrap()));
         assert!(get_block_arg_name(&ctx, block, 0).unwrap() == "foo".try_into().unwrap());
         Ok(())
     }

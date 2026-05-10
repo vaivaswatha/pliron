@@ -1908,7 +1908,7 @@ fn convert_to_llvm_const(
     value: Value,
 ) -> Result<LLVMValue> {
     match value {
-        Value::OpResult { op, res_idx: _ } => {
+        Value::OpResult { op, val_uid: _ } => {
             let op = Operation::get_op_dyn(op, ctx);
             if let Some(const_trans) = op_cast::<dyn ToLLVMConstValue>(op.as_ref()) {
                 const_trans.convert(ctx, llvm_ctx, cctx)
