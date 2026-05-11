@@ -185,14 +185,12 @@ impl Operation {
         // Update the operands (we can't do this easily during creation).
         let operands = operands
             .iter()
-            .enumerate()
-            .map(|(opd_idx, def)| Operand::new(ctx, *def, newop, opd_idx))
+            .map(|def| Operand::new(ctx, *def, newop))
             .collect();
         newop.deref_mut(ctx).operands = operands;
         let successors = successors
             .iter()
-            .enumerate()
-            .map(|(succ_idx, def)| Operand::new(ctx, *def, newop, succ_idx))
+            .map(|def| Operand::new(ctx, *def, newop))
             .collect();
         newop.deref_mut(ctx).successors = successors;
         newop.deref_mut(ctx).regions = Vec::new_init(num_regions, |_| Region::new(ctx, newop));
@@ -280,9 +278,10 @@ impl Operation {
 
     /// Get opd_idx'th operand as a [`Use<Value>`]. Panics on invalid index.
     pub fn get_operand_as_use(&self, opd_idx: usize) -> Use<Value> {
+        let use_uid = self.operands[opd_idx].use_uid;
         Use {
             user_op: self.self_ptr,
-            opd_idx,
+            use_uid,
             _dummy: PhantomData,
         }
     }
@@ -294,17 +293,13 @@ impl Operation {
 
     /// Get an iterator over the operands of this operation as [`Use<Value>`]s.
     pub fn operands_as_uses(&self) -> impl Iterator<Item = Use<Value>> + '_ {
-        (0..self.get_num_operands()).map(move |opd_idx| Use {
-            user_op: self.self_ptr,
-            opd_idx,
-            _dummy: PhantomData,
-        })
+        (0..self.get_num_operands()).map(move |opd_idx| self.get_operand_as_use(opd_idx))
     }
 
     /// Add a new operand to the end of the operand list, returning its index.
     pub fn push_operand(this: Ptr<Operation>, ctx: &Context, new_opd: Value) -> usize {
         let cur_num_operands = this.deref(ctx).get_num_operands();
-        let new_operand = Operand::new(ctx, new_opd, this, cur_num_operands);
+        let new_operand = Operand::new(ctx, new_opd, this);
         this.deref_mut(ctx).operands.push(new_operand);
         cur_num_operands
     }
@@ -319,21 +314,16 @@ impl Operation {
             .pop()
             .expect("Can't pop operand from operation with no operands");
         let removed_value = removed_opd.get_def();
-        removed_opd.drop_use(ctx, this, this.deref(ctx).get_num_operands());
+        removed_opd.drop_use(ctx, this);
         removed_value
     }
 
     /// Replace opd_idx'th operand of `this` with `other`. Panics on invalid index.
-    /// Any [`Use<Value>`](Use) of the replaced operand will henceforth refer to `other`.
+    /// Any [`Use<Value>`](Use) of the replaced operand will be invalidated.
     pub fn replace_operand(this: Ptr<Operation>, ctx: &Context, opd_idx: usize, other: Value) {
-        let (cur_def, cur_use) = {
-            let this_ref = this.deref(ctx);
-            (
-                this_ref.get_operand(opd_idx),
-                this_ref.get_operand_as_use(opd_idx),
-            )
-        };
-        cur_def.replace_use_with(ctx, cur_use, &other);
+        let new_operand = Operand::new(ctx, other, this);
+        std::mem::replace(&mut this.deref_mut(ctx).operands[opd_idx], new_operand)
+            .drop_use(ctx, this);
     }
 
     /// Insert a new operand at `opd_idx`, shifting existing operands, from `opd_idx`,
@@ -395,9 +385,10 @@ impl Operation {
 
     /// Get the opd_idx'th successor as a [`Use<Ptr<BasicBlock>>`]. Panics on invalid index.
     pub fn get_successor_as_use(&self, succ_idx: usize) -> Use<Ptr<BasicBlock>> {
+        let use_uid = self.successors[succ_idx].use_uid;
         Use {
             user_op: self.self_ptr,
-            opd_idx: succ_idx,
+            use_uid,
             _dummy: PhantomData,
         }
     }
@@ -410,20 +401,15 @@ impl Operation {
         succ_idx: usize,
         other: Ptr<BasicBlock>,
     ) {
-        let (cur_target, cur_block_use) = {
-            let this_ref = this.deref(ctx);
-            (
-                this_ref.get_successor(succ_idx),
-                this_ref.get_successor_as_use(succ_idx),
-            )
-        };
-        cur_target.retarget_pred_to(ctx, cur_block_use, other);
+        let new_successor = Operand::new(ctx, other, this);
+        std::mem::replace(&mut this.deref_mut(ctx).successors[succ_idx], new_successor)
+            .drop_use(ctx, this);
     }
 
     /// Add a new successor to the end of the successor list, returning its index.
     pub fn push_successor(this: Ptr<Operation>, ctx: &Context, new_succ: Ptr<BasicBlock>) -> usize {
         let cur_num_successors = this.deref(ctx).get_num_successors();
-        let new_successor = Operand::new(ctx, new_succ, this, cur_num_successors);
+        let new_successor = Operand::new(ctx, new_succ, this);
         this.deref_mut(ctx).successors.push(new_successor);
         cur_num_successors
     }
@@ -438,7 +424,7 @@ impl Operation {
             .pop()
             .expect("Can't pop successor from operation with no successors");
         let removed_block = removed_succ.get_def();
-        removed_succ.drop_use(ctx, this, this.deref(ctx).get_num_successors());
+        removed_succ.drop_use(ctx, this);
         removed_block
     }
 
@@ -502,12 +488,7 @@ impl Operation {
 
     /// Get an iterator over the successors of this operation as [`Use<Ptr<BasicBlock>>`]s.
     pub fn successors_as_uses(&self) -> impl Iterator<Item = Use<Ptr<BasicBlock>>> + '_ {
-        let op = self.self_ptr;
-        (0..self.get_num_successors()).map(move |succ_idx| Use {
-            user_op: op,
-            opd_idx: succ_idx,
-            _dummy: PhantomData,
-        })
+        (0..self.get_num_successors()).map(move |succ_idx| self.get_successor_as_use(succ_idx))
     }
 
     /// Create an [OpObj] corresponding to self.
@@ -564,13 +545,13 @@ impl Operation {
     pub fn drop_all_uses(ptr: Ptr<Self>, ctx: &Context) {
         // The operands cease to be a use of their definitions.
         let operands = std::mem::take(&mut (ptr.deref_mut(ctx).operands));
-        for (opd_idx, opd) in operands.into_iter().enumerate() {
-            opd.drop_use(ctx, ptr, opd_idx);
+        for opd in operands.into_iter() {
+            opd.drop_use(ctx, ptr);
         }
         // The successors cease to be a use of their definitions.
         let successors = std::mem::take(&mut (ptr.deref_mut(ctx).successors));
-        for (succ_idx, succ) in successors.into_iter().enumerate() {
-            succ.drop_use(ctx, ptr, succ_idx);
+        for succ in successors.into_iter() {
+            succ.drop_use(ctx, ptr);
         }
 
         let regions = ptr.deref(ctx).regions.clone();
@@ -614,34 +595,6 @@ impl Operation {
             Self::top_level_parse(parsable_state)
         })
     }
-
-    /// Get a reference to the opd_idx'th operand.
-    pub(crate) fn get_operand_ref(&self, opd_idx: usize) -> &Operand<Value> {
-        self.operands
-            .get(opd_idx)
-            .unwrap_or_else(|| panic!("Operand index {opd_idx} out of bounds"))
-    }
-
-    /// Get a mutable reference to the opd_idx'th operand.
-    pub(crate) fn get_operand_mut(&mut self, opd_idx: usize) -> &mut Operand<Value> {
-        self.operands
-            .get_mut(opd_idx)
-            .unwrap_or_else(|| panic!("Operand index {opd_idx} out of bounds"))
-    }
-
-    /// Get a reference to the succ_idx'th successor.
-    pub(crate) fn get_successor_ref(&self, succ_idx: usize) -> &Operand<Ptr<BasicBlock>> {
-        self.successors
-            .get(succ_idx)
-            .unwrap_or_else(|| panic!("Successor index {succ_idx} out of bounds"))
-    }
-
-    /// Get a mutable reference to the succ_idx'th successor.
-    pub(crate) fn get_successor_mut(&mut self, succ_idx: usize) -> &mut Operand<Ptr<BasicBlock>> {
-        self.successors
-            .get_mut(succ_idx)
-            .unwrap_or_else(|| panic!("Successor index {succ_idx} out of bounds"))
-    }
 }
 
 impl ArenaObj for Operation {
@@ -665,6 +618,7 @@ impl ArenaObj for Operation {
 /// Container for a [Use] in an [Operation].
 pub(crate) struct Operand<T: DefUseParticipant> {
     pub(crate) r#use: UseNode<T>,
+    pub(crate) use_uid: u64,
 }
 
 impl<T: DefUseParticipant + DefTrait> Operand<T> {
@@ -674,34 +628,36 @@ impl<T: DefUseParticipant + DefTrait> Operand<T> {
     }
 
     /// Drop this use, removing self from its definition's uses list.
-    fn drop_use(&self, ctx: &Context, op: Ptr<Operation>, opd_idx: usize) {
+    fn drop_use(&self, ctx: &Context, op: Ptr<Operation>) {
         self.get_def().get_defnode_mut(ctx).remove_use(Use {
             user_op: op,
-            opd_idx,
+            use_uid: self.use_uid,
             _dummy: PhantomData,
         });
     }
 
-    /// As `user_op`'s `opd_idx`'th operand, create a new Operand.
-    fn new(ctx: &Context, def: T, user_op: Ptr<Operation>, opd_idx: usize) -> Operand<T> {
+    /// Create a new Operand in `user_op`.
+    fn new(ctx: &Context, def: T, user_op: Ptr<Operation>) -> Operand<T> {
+        let use_uid = ctx.get_new_use_uid();
         Operand {
             r#use: def.get_defnode_mut(ctx).add_use(
                 def,
                 Use {
                     user_op,
-                    opd_idx,
+                    use_uid,
                     _dummy: PhantomData,
                 },
             ),
+            use_uid,
         }
     }
 
-    /// Verify that self is a valid operand of `user_op` at index `opd_idx`.
-    fn verify(&self, ctx: &Context, user_op: Ptr<Operation>, opd_idx: usize) -> Result<()> {
+    /// Verify that self is a valid operand of `user_op`.
+    fn verify(&self, ctx: &Context, user_op: Ptr<Operation>) -> Result<()> {
         let def = self.get_def();
         let r#use = Use {
             user_op,
-            opd_idx,
+            use_uid: self.use_uid,
             _dummy: PhantomData,
         };
         if !def.get_defnode_ref(ctx).has_use_of(&r#use) {
@@ -813,12 +769,10 @@ impl Verify for Operation {
                 .try_for_each(|attr| verify_attr(&**attr, ctx))?;
             opr.operands
                 .iter()
-                .enumerate()
-                .try_for_each(|(idx, opd)| opd.verify(ctx, opr.self_ptr, idx))?;
+                .try_for_each(|opd| opd.verify(ctx, opr.self_ptr))?;
             opr.successors
                 .iter()
-                .enumerate()
-                .try_for_each(|(idx, succ)| succ.verify(ctx, opr.self_ptr, idx))?;
+                .try_for_each(|succ| succ.verify(ctx, opr.self_ptr))?;
             opr.regions
                 .iter()
                 .try_for_each(|region| region.verify(ctx))?;

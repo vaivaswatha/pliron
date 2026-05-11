@@ -104,8 +104,25 @@ impl<T: DefUseParticipant> DefNode<T> {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+enum UseError {
+    #[error("Use does not correspond to any operand of its user operation")]
+    OperandNotInUserOp,
+    #[error("Use does not correspond to any successor of its user operation")]
+    SuccessorNotInUserOp,
+}
+
 /// Interface for [UseNode] wrappers.
 pub(crate) trait UseTrait: DefUseParticipant {
+    /// Find the index of the operand/successor in the user operation that corresponds to this use.
+    /// Returns [Err] if the use is not in its user operation's operands/successors.
+    fn try_get_index(r#use: &Use<Self>, ctx: &Context) -> Result<usize>;
+    /// Find the index of the operand/successor in the user operation that corresponds to this use.
+    /// Panics if the use is not in its user operation's operands/successors.
+    fn get_index(r#use: &Use<Self>, ctx: &Context) -> usize {
+        Self::try_get_index(r#use, ctx)
+            .expect("Use is not in its user operation's operands/successors")
+    }
     /// Get a reference to the [UseNode] described by this use.
     fn get_usenode_ref<'a>(r#use: &Use<Self>, ctx: &'a Context) -> Ref<'a, UseNode<Self>>;
     /// Get a mutable reference to the [UseNode] described by this  use.
@@ -126,13 +143,13 @@ pub enum Value {
     OpResult {
         /// The defining operation of this value.
         op: Ptr<Operation>,
-        /// The global (in the context) unique id of this value.
+        /// The global (in the context) unique id of the value we're describing.
         val_uid: u64,
     },
     BlockArgument {
         /// The defining block of this value.
         block: Ptr<BasicBlock>,
-        /// The global (in the context) unique id of this value.
+        /// The global (in the context) unique id of the value we're describing.
         val_uid: u64,
     },
 }
@@ -252,7 +269,8 @@ impl Verify for Value {
     // Check that the value's uses point back to it,
     fn verify(&self, ctx: &Context) -> Result<()> {
         for r#use in self.uses(ctx) {
-            let use_operand = r#use.user_op.deref(ctx).get_operand(r#use.opd_idx);
+            let opd_idx = <Self as UseTrait>::get_index(&r#use, ctx);
+            let use_operand = r#use.user_op.deref(ctx).get_operand(opd_idx);
             if use_operand != *self {
                 verify_err!(self.loc(ctx), DefUseVerifyErr::OperandNotUseOfDef)?;
             }
@@ -337,13 +355,22 @@ impl DefTrait for Value {
 }
 
 impl UseTrait for Value {
-    fn get_usenode_ref<'a>(r#use: &Use<Self>, ctx: &'a Context) -> Ref<'a, UseNode<Self>> {
+    fn try_get_index(r#use: &Use<Self>, ctx: &Context) -> Result<usize> {
         let op = r#use.user_op.deref(ctx);
-        Ref::map(op, |opref| &opref.get_operand_ref(r#use.opd_idx).r#use)
+        op.operands
+            .iter()
+            .position(|operand| operand.use_uid == r#use.use_uid)
+            .ok_or(arg_error!(op.loc(), UseError::OperandNotInUserOp))
+    }
+    fn get_usenode_ref<'a>(r#use: &Use<Self>, ctx: &'a Context) -> Ref<'a, UseNode<Self>> {
+        let index = <Self as UseTrait>::get_index(r#use, ctx);
+        let op = r#use.user_op.deref(ctx);
+        Ref::map(op, |opref| &opref.operands[index].r#use)
     }
     fn get_usenode_mut<'a>(r#use: &Use<Self>, ctx: &'a Context) -> RefMut<'a, UseNode<Value>> {
+        let index = <Self as UseTrait>::get_index(r#use, ctx);
         let op = r#use.user_op.deref_mut(ctx);
-        RefMut::map(op, |opref| &mut opref.get_operand_mut(r#use.opd_idx).r#use)
+        RefMut::map(op, |opref| &mut opref.operands[index].r#use)
     }
 }
 
@@ -456,18 +483,25 @@ impl DefTrait for Ptr<BasicBlock> {
 }
 
 impl UseTrait for Ptr<BasicBlock> {
-    fn get_usenode_ref<'a>(r#use: &Use<Self>, ctx: &'a Context) -> Ref<'a, UseNode<Self>> {
+    fn try_get_index(r#use: &Use<Self>, ctx: &Context) -> Result<usize> {
         let op = r#use.user_op.deref(ctx);
-        Ref::map(op, |opref| &opref.get_successor_ref(r#use.opd_idx).r#use)
+        op.successors
+            .iter()
+            .position(|succ| succ.use_uid == r#use.use_uid)
+            .ok_or(arg_error!(op.loc(), UseError::SuccessorNotInUserOp))
+    }
+    fn get_usenode_ref<'a>(r#use: &Use<Self>, ctx: &'a Context) -> Ref<'a, UseNode<Self>> {
+        let succ_idx = <Self as UseTrait>::get_index(r#use, ctx);
+        let op = r#use.user_op.deref(ctx);
+        Ref::map(op, |opref| &opref.successors[succ_idx].r#use)
     }
     fn get_usenode_mut<'a>(
         r#use: &Use<Ptr<BasicBlock>>,
         ctx: &'a Context,
     ) -> RefMut<'a, UseNode<Ptr<BasicBlock>>> {
+        let succ_idx = <Self as UseTrait>::get_index(r#use, ctx);
         let op = r#use.user_op.deref_mut(ctx);
-        RefMut::map(op, |opref| {
-            &mut opref.get_successor_mut(r#use.opd_idx).r#use
-        })
+        RefMut::map(op, |opref| &mut opref.successors[succ_idx].r#use)
     }
 }
 
@@ -490,13 +524,26 @@ impl<T: DefUseParticipant> UseNode<T> {
 pub struct Use<T: DefUseParticipant> {
     /// Uses of a def can only be in an operation.
     pub user_op: Ptr<Operation>,
-    /// Used as the i'th operand or successor of [op](Self::user_op).
-    pub opd_idx: usize,
+    /// The global (in the context) unique id of the use we're describing.
+    pub use_uid: u64,
+    /// Phantom data to keep track of whether this is a Value use or a BasicBlock use.
     pub(crate) _dummy: PhantomData<T>,
 }
 
 #[allow(private_bounds)]
 impl<T: UseTrait> Use<T> {
+    /// Find index of the operand/successor in the user operation that corresponds to this [Use].
+    /// Returns [Err] if the [Use] is not in its user operation's operands/successors.
+    pub fn try_get_index(&self, ctx: &Context) -> Result<usize> {
+        T::try_get_index(self, ctx)
+    }
+
+    /// Find index of the operand/successor in the user operation that corresponds to this [Use].
+    /// Panics if the [Use] is not in its user operation's operands/successors.
+    pub fn get_index(&self, ctx: &Context) -> usize {
+        T::get_index(self, ctx)
+    }
+
     /// Get the definition that this is a use of.
     pub fn get_def(&self, ctx: &Context) -> T {
         UseTrait::get_usenode_ref(self, ctx).get_def()
