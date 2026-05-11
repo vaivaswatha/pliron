@@ -53,7 +53,7 @@ pub(crate) struct OpResult {
 
 impl OpResult {
     /// Create a new OpResult with the given type and a new unique value ID from the context.
-    pub(crate) fn new(ctx: &mut Context, ty: Ptr<TypeObj>) -> OpResult {
+    pub(crate) fn new(ctx: &Context, ty: Ptr<TypeObj>) -> OpResult {
         OpResult {
             def: DefNode::new(),
             val_uid: ctx.get_new_value_uid(),
@@ -227,10 +227,7 @@ impl Operation {
 
     /// Get idx'th result as a Value. Panics on invalid index.
     pub fn get_result(&self, idx: usize) -> Value {
-        self.results
-            .get(idx)
-            .map(|res| res.as_value(self.self_ptr))
-            .unwrap_or_else(|| panic!("Result index {idx} out of bounds"))
+        self.results[idx].as_value(self.self_ptr)
     }
 
     /// Get an iterator over the results of this operation.
@@ -306,12 +303,7 @@ impl Operation {
 
     /// Get opd_idx'th operand as a [`Use<Value>`]. Panics on invalid index.
     pub fn get_operand_as_use(&self, opd_idx: usize) -> Use<Value> {
-        let use_uid = self.operands[opd_idx].use_uid;
-        Use {
-            user_op: self.self_ptr,
-            use_uid,
-            _dummy: PhantomData,
-        }
+        self.operands[opd_idx].as_use(self.self_ptr)
     }
 
     /// Get an iterator over the operands of this operation.
@@ -321,7 +313,9 @@ impl Operation {
 
     /// Get an iterator over the operands of this operation as [`Use<Value>`]s.
     pub fn operands_as_uses(&self) -> impl Iterator<Item = Use<Value>> + '_ {
-        (0..self.get_num_operands()).map(move |opd_idx| self.get_operand_as_use(opd_idx))
+        self.operands
+            .iter()
+            .map(move |opd| opd.as_use(self.self_ptr))
     }
 
     /// Add a new operand to the end of the operand list, returning its index.
@@ -376,12 +370,7 @@ impl Operation {
 
     /// Get the opd_idx'th successor as a [`Use<Ptr<BasicBlock>>`]. Panics on invalid index.
     pub fn get_successor_as_use(&self, succ_idx: usize) -> Use<Ptr<BasicBlock>> {
-        let use_uid = self.successors[succ_idx].use_uid;
-        Use {
-            user_op: self.self_ptr,
-            use_uid,
-            _dummy: PhantomData,
-        }
+        self.successors[succ_idx].as_use(self.self_ptr)
     }
 
     /// Replace opd_idx'th successor of `this` with `other`. Panics on invalid index.
@@ -445,7 +434,9 @@ impl Operation {
 
     /// Get an iterator over the successors of this operation as [`Use<Ptr<BasicBlock>>`]s.
     pub fn successors_as_uses(&self) -> impl Iterator<Item = Use<Ptr<BasicBlock>>> + '_ {
-        (0..self.get_num_successors()).map(move |succ_idx| self.get_successor_as_use(succ_idx))
+        self.successors
+            .iter()
+            .map(|succ| succ.as_use(self.self_ptr))
     }
 
     /// Create an [OpObj] corresponding to self.
@@ -620,6 +611,15 @@ impl<T: DefUseParticipant + DefTrait> Operand<T> {
             verify_err!(loc, DefUseVerifyErr::OperandNotUseOfDef)
         } else {
             Ok(())
+        }
+    }
+
+    /// Build a [Use] corresponding to this operand.
+    fn as_use(&self, user_op: Ptr<Operation>) -> Use<T> {
+        Use {
+            user_op,
+            use_uid: self.use_uid,
+            _dummy: PhantomData,
         }
     }
 }

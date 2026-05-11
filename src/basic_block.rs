@@ -46,7 +46,7 @@ pub(crate) struct BlockArgument {
 
 impl BlockArgument {
     /// Create a new block argument with the given type and a fresh value UID.
-    pub(crate) fn new(ctx: &mut Context, ty: Ptr<TypeObj>) -> Self {
+    pub(crate) fn new(ctx: &Context, ty: Ptr<TypeObj>) -> Self {
         Self {
             def: DefNode::new(),
             val_uid: ctx.get_new_value_uid(),
@@ -166,12 +166,9 @@ impl BasicBlock {
             .and_then(|op| op.deref(ctx).get_parent_block())
     }
 
-    /// Get idx'th argument as a Value.
+    /// Get idx'th argument as a Value. Panics on invalid index.
     pub fn get_argument(&self, arg_idx: usize) -> Value {
-        self.args
-            .get(arg_idx)
-            .map(|arg| arg.as_value(self.self_ptr))
-            .unwrap_or_else(|| panic!("Block argument index {arg_idx} out of bounds"))
+        self.args[arg_idx].as_value(self.self_ptr)
     }
 
     /// Get an iterator over the arguments
@@ -180,14 +177,14 @@ impl BasicBlock {
     }
 
     /// Add an argument to the end of the argument list. returing its index.
-    pub fn push_argument(block: Ptr<BasicBlock>, ctx: &mut Context, ty: Ptr<TypeObj>) -> usize {
+    pub fn push_argument(block: Ptr<BasicBlock>, ctx: &Context, ty: Ptr<TypeObj>) -> usize {
         let new_block_arg = BlockArgument::new(ctx, ty);
         block.deref_mut(ctx).args.push_back(new_block_arg)
     }
 
     /// Remove the last argument. Panics if there are no arguments or if the argument has uses.
     /// Any [Value] referring to the removed argument is invalidated.
-    pub fn pop_argument(block: Ptr<BasicBlock>, ctx: &mut Context) {
+    pub fn pop_argument(block: Ptr<BasicBlock>, ctx: &Context) {
         let arg_idx = block.deref(ctx).args.len() - 1;
         Self::remove_argument(block, ctx, arg_idx);
     }
@@ -196,7 +193,7 @@ impl BasicBlock {
     /// Panics on invalid index.
     pub fn insert_argument(
         block: Ptr<BasicBlock>,
-        ctx: &mut Context,
+        ctx: &Context,
         arg_idx: usize,
         ty: Ptr<TypeObj>,
     ) {
@@ -207,7 +204,7 @@ impl BasicBlock {
     /// Remove the argument at `arg_idx`, shifting subsequent arguments to the left.
     /// Panics on invalid index or if the argument has uses.
     /// Any [Value] referring to the removed argument is invalidated.
-    pub fn remove_argument(block: Ptr<BasicBlock>, ctx: &mut Context, arg_idx: usize) {
+    pub fn remove_argument(block: Ptr<BasicBlock>, ctx: &Context, arg_idx: usize) {
         let value = block.deref(ctx).get_argument(arg_idx);
         assert!(!value.is_used(ctx), "Can't remove argument with uses");
         block.deref_mut(ctx).args.remove(arg_idx);
