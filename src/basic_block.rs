@@ -176,7 +176,7 @@ impl BasicBlock {
         self.args.iter().map(|arg| arg.as_value(self.self_ptr))
     }
 
-    /// Add an argument to the end of the argument list. returing its index.
+    /// Add an argument to the end of the argument list, returning its index.
     pub fn push_argument(block: Ptr<BasicBlock>, ctx: &Context, ty: Ptr<TypeObj>) -> usize {
         let new_block_arg = BlockArgument::new(ctx, ty);
         block.deref_mut(ctx).args.push_back(new_block_arg)
@@ -185,8 +185,9 @@ impl BasicBlock {
     /// Remove the last argument. Panics if there are no arguments or if the argument has uses.
     /// Any [Value] referring to the removed argument is invalidated.
     pub fn pop_argument(block: Ptr<BasicBlock>, ctx: &Context) {
-        let arg_idx = block.deref(ctx).args.len() - 1;
-        Self::remove_argument(block, ctx, arg_idx);
+        let len = block.deref(ctx).args.len();
+        assert!(len > 0, "Can't pop argument from block with no arguments");
+        Self::remove_argument(block, ctx, len - 1);
     }
 
     /// Insert a new argument at `arg_idx`, shifting existing arguments, from `arg_idx`, to the right.

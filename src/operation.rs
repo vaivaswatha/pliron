@@ -244,8 +244,9 @@ impl Operation {
     /// Remove the last result. Panics if there are no results or if the result has uses.
     /// Any [Value] referring to the removed result is invalidated.
     pub fn pop_result(this: Ptr<Self>, ctx: &mut Context) {
-        let res_idx = this.deref(ctx).results.len() - 1;
-        Self::remove_result(this, ctx, res_idx);
+        let len = this.deref(ctx).results.len();
+        assert!(len > 0, "Can't pop result from operation with no results");
+        Self::remove_result(this, ctx, len - 1);
     }
 
     /// Insert a new result at `res_idx`, shifting existing results, from `res_idx`, to the right.
@@ -328,8 +329,9 @@ impl Operation {
     /// Any [`Use<Value>`](Use) of the removed operand is invalidated.
     /// The removed [Value] is returned for convenience.
     pub fn pop_operand(this: Ptr<Operation>, ctx: &Context) -> Value {
-        let opd_idx = this.deref(ctx).operands.len() - 1;
-        Self::remove_operand(this, ctx, opd_idx)
+        let len = this.deref(ctx).operands.len();
+        assert!(len > 0, "Can't pop operand from operation with no operands");
+        Self::remove_operand(this, ctx, len - 1)
     }
 
     /// Replace opd_idx'th operand of `this` with `other`. Panics on invalid index.
@@ -396,8 +398,12 @@ impl Operation {
     /// Any [`Use<Ptr<BasicBlock>>`](Use) of the removed successor is invalidated.
     /// The removed `Ptr<BasicBlock>` is returned for convenience.
     pub fn pop_successor(this: Ptr<Operation>, ctx: &Context) -> Ptr<BasicBlock> {
-        let succ_idx = this.deref(ctx).successors.len() - 1;
-        Self::remove_successor(this, ctx, succ_idx)
+        let len = this.deref(ctx).successors.len();
+        assert!(
+            len > 0,
+            "Can't pop successor from operation with no successors"
+        );
+        Self::remove_successor(this, ctx, len - 1)
     }
 
     /// Insert a new successor at `succ_idx`, shifting existing successors, from `succ_idx`,
