@@ -7,6 +7,7 @@ use pliron::derive::pliron_op;
 use pliron::dict_key;
 use pliron::op::verify_op;
 use pliron::operation::{DefUseVerifyErr, verify_operation};
+use pliron::r#type::TypeObj;
 use pliron::{
     basic_block::BasicBlock,
     builtin::{
@@ -381,6 +382,302 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
             r#use.user_op == ret_ptr && (r#use.get_index(ctx) == 0 || r#use.get_index(ctx) == 2)
         );
     }
+
+    Ok(())
+}
+
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_result_push_pop_insert_remove() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let i64_ty: Ptr<TypeObj> = IntegerType::get(ctx, 64, Signedness::Signed).into();
+    let i32_ty: Ptr<TypeObj> = IntegerType::get(ctx, 32, Signedness::Signed).into();
+
+    // Create a DualDefOp with two i64 results.
+    let op = Operation::new(
+        ctx,
+        DualDefOp::get_concrete_op_info(),
+        vec![i64_ty, i64_ty],
+        vec![],
+        vec![],
+        0,
+    );
+
+    let r0 = op.deref(ctx).get_result(0);
+    let r1 = op.deref(ctx).get_result(1);
+
+    assert_eq!(op.deref(ctx).get_num_results(), 2);
+    assert_eq!(r0.get_index(ctx), 0);
+    assert_eq!(r1.get_index(ctx), 1);
+    assert_eq!(op.deref(ctx).get_type(0), i64_ty);
+    assert_eq!(op.deref(ctx).get_type(1), i64_ty);
+
+    // Push a new i32 result at the end.
+    let pushed_idx = Operation::push_result(op, ctx, i32_ty);
+    assert_eq!(pushed_idx, 2);
+    assert_eq!(op.deref(ctx).get_num_results(), 3);
+    // r0 and r1 still have the same indices.
+    assert_eq!(r0.get_index(ctx), 0);
+    assert_eq!(r1.get_index(ctx), 1);
+    let r2 = op.deref(ctx).get_result(2);
+    assert_eq!(r2.get_index(ctx), 2);
+    assert_eq!(op.deref(ctx).get_type(2), i32_ty);
+
+    // Pop the last result (r2 has no uses).
+    Operation::pop_result(op, ctx);
+    assert_eq!(op.deref(ctx).get_num_results(), 2);
+    assert_eq!(r0.get_index(ctx), 0);
+    assert_eq!(r1.get_index(ctx), 1);
+
+    // Insert an i32 result at index 0, shifting r0 -> 1 and r1 -> 2.
+    Operation::insert_result(op, ctx, 0, i32_ty);
+    assert_eq!(op.deref(ctx).get_num_results(), 3);
+    assert_eq!(op.deref(ctx).get_type(0), i32_ty);
+    assert_eq!(r0.get_index(ctx), 1);
+    assert_eq!(r1.get_index(ctx), 2);
+
+    // Remove index 0 (the freshly inserted i32, which has no uses).
+    Operation::remove_result(op, ctx, 0);
+    assert_eq!(op.deref(ctx).get_num_results(), 2);
+    assert_eq!(r0.get_index(ctx), 0);
+    assert_eq!(r1.get_index(ctx), 1);
+
+    // Insert an i32 result at index 1 (between r0 and r1), shifting r1 -> 2.
+    Operation::insert_result(op, ctx, 1, i32_ty);
+    assert_eq!(op.deref(ctx).get_num_results(), 3);
+    assert_eq!(r0.get_index(ctx), 0);
+    assert_eq!(op.deref(ctx).get_type(1), i32_ty);
+    assert_eq!(r1.get_index(ctx), 2);
+
+    // Remove index 1 (no uses), shifting r1 back to 1.
+    Operation::remove_result(op, ctx, 1);
+    assert_eq!(op.deref(ctx).get_num_results(), 2);
+    assert_eq!(r0.get_index(ctx), 0);
+    assert_eq!(r1.get_index(ctx), 1);
+
+    // Insert at the end (index 2).
+    Operation::insert_result(op, ctx, 2, i32_ty);
+    assert_eq!(op.deref(ctx).get_num_results(), 3);
+    assert_eq!(r0.get_index(ctx), 0);
+    assert_eq!(r1.get_index(ctx), 1);
+    assert_eq!(op.deref(ctx).get_type(2), i32_ty);
+
+    // Remove from the end.
+    Operation::remove_result(op, ctx, 2);
+    assert_eq!(op.deref(ctx).get_num_results(), 2);
+    assert_eq!(r0.get_index(ctx), 0);
+    assert_eq!(r1.get_index(ctx), 1);
+
+    Ok(())
+}
+
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_block_arg_push_pop_insert_remove() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let i64_ty: Ptr<TypeObj> = IntegerType::get(ctx, 64, Signedness::Signed).into();
+    let i32_ty: Ptr<TypeObj> = IntegerType::get(ctx, 32, Signedness::Signed).into();
+
+    // Create a block with two i64 arguments.
+    let block = BasicBlock::new(ctx, None, vec![i64_ty, i64_ty]);
+
+    let a0 = block.deref(ctx).get_argument(0);
+    let a1 = block.deref(ctx).get_argument(1);
+
+    assert_eq!(block.deref(ctx).get_num_arguments(), 2);
+    assert_eq!(a0.get_index(ctx), 0);
+    assert_eq!(a1.get_index(ctx), 1);
+
+    // Push a new i32 argument at the end.
+    let pushed_idx = BasicBlock::push_argument(block, ctx, i32_ty);
+    assert_eq!(pushed_idx, 2);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 3);
+    // a0 and a1 retain their indices.
+    assert_eq!(a0.get_index(ctx), 0);
+    assert_eq!(a1.get_index(ctx), 1);
+    let a2 = block.deref(ctx).get_argument(2);
+    assert_eq!(a2.get_index(ctx), 2);
+
+    // Pop the last argument (a2 has no uses).
+    BasicBlock::pop_argument(block, ctx);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 2);
+    assert_eq!(a0.get_index(ctx), 0);
+    assert_eq!(a1.get_index(ctx), 1);
+
+    // Insert an i32 argument at index 0, shifting a0 -> 1 and a1 -> 2.
+    BasicBlock::insert_argument(block, ctx, 0, i32_ty);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 3);
+    assert_eq!(a0.get_index(ctx), 1);
+    assert_eq!(a1.get_index(ctx), 2);
+
+    // Remove index 0 (no uses), restoring a0 -> 0 and a1 -> 1.
+    BasicBlock::remove_argument(block, ctx, 0);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 2);
+    assert_eq!(a0.get_index(ctx), 0);
+    assert_eq!(a1.get_index(ctx), 1);
+
+    // Insert an i32 argument at index 1 (between a0 and a1), shifting a1 -> 2.
+    BasicBlock::insert_argument(block, ctx, 1, i32_ty);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 3);
+    assert_eq!(a0.get_index(ctx), 0);
+    assert_eq!(a1.get_index(ctx), 2);
+
+    // Remove index 1 (no uses), shifting a1 back to 1.
+    BasicBlock::remove_argument(block, ctx, 1);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 2);
+    assert_eq!(a0.get_index(ctx), 0);
+    assert_eq!(a1.get_index(ctx), 1);
+
+    // Insert at the end (index 2).
+    BasicBlock::insert_argument(block, ctx, 2, i32_ty);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 3);
+    assert_eq!(a0.get_index(ctx), 0);
+    assert_eq!(a1.get_index(ctx), 1);
+
+    // Remove from the end.
+    BasicBlock::remove_argument(block, ctx, 2);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 2);
+    assert_eq!(a0.get_index(ctx), 0);
+    assert_eq!(a1.get_index(ctx), 1);
+
+    Ok(())
+}
+
+/// Tests that `Value` objects held as operands correctly track their
+/// index within the defining operation's result list when results are
+/// inserted, removed, pushed, or popped ahead of / behind them.
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_result_index_tracking_with_uses() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let i64_ty: Ptr<TypeObj> = IntegerType::get(ctx, 64, Signedness::Signed).into();
+    let i32_ty: Ptr<TypeObj> = IntegerType::get(ctx, 32, Signedness::Signed).into();
+
+    // Create a DualDefOp with two i64 results: r0 at index 0, r1 at index 1.
+    let dual_op = Operation::new(
+        ctx,
+        DualDefOp::get_concrete_op_info(),
+        vec![i64_ty, i64_ty],
+        vec![],
+        vec![],
+        0,
+    );
+
+    let r0 = dual_op.deref(ctx).get_result(0);
+    let r1 = dual_op.deref(ctx).get_result(1);
+
+    // Build a user op that holds r0 as its first operand, r1 as its second.
+    let user_op = ReturnOp::new(ctx, r0).get_operation();
+    Operation::push_operand(user_op, ctx, r1);
+
+    // Sanity: operands are r0 and r1; their result indices are 0 and 1.
+    assert_eq!(user_op.deref(ctx).get_operand(0), r0);
+    assert_eq!(user_op.deref(ctx).get_operand(1), r1);
+    assert_eq!(user_op.deref(ctx).get_operand(0).get_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).get_index(ctx), 1);
+
+    // Insert a new i32 result at index 0 of dual_op, shifting r0 -> 1 and r1 -> 2.
+    Operation::insert_result(dual_op, ctx, 0, i32_ty);
+    assert_eq!(dual_op.deref(ctx).get_num_results(), 3);
+    assert_eq!(user_op.deref(ctx).get_operand(0), r0);
+    assert_eq!(user_op.deref(ctx).get_operand(1), r1);
+    assert_eq!(user_op.deref(ctx).get_operand(0).get_index(ctx), 1);
+    assert_eq!(user_op.deref(ctx).get_operand(1).get_index(ctx), 2);
+
+    // Remove the new result at index 0, restoring r0 -> 0 and r1 -> 1.
+    Operation::remove_result(dual_op, ctx, 0);
+    assert_eq!(dual_op.deref(ctx).get_num_results(), 2);
+    assert_eq!(user_op.deref(ctx).get_operand(0).get_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).get_index(ctx), 1);
+
+    // Insert a new result between r0 and r1 (at index 1), shifting r1 -> 2.
+    Operation::insert_result(dual_op, ctx, 1, i32_ty);
+    assert_eq!(user_op.deref(ctx).get_operand(0).get_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).get_index(ctx), 2);
+
+    // Remove at index 1, restoring r1 -> 1.
+    Operation::remove_result(dual_op, ctx, 1);
+    assert_eq!(user_op.deref(ctx).get_operand(0).get_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).get_index(ctx), 1);
+
+    // Push a result at the end (after r1); r0 and r1 indices are unchanged.
+    let pushed_idx = Operation::push_result(dual_op, ctx, i32_ty);
+    assert_eq!(pushed_idx, 2);
+    assert_eq!(user_op.deref(ctx).get_operand(0).get_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).get_index(ctx), 1);
+
+    // Pop the trailing result; indices still unchanged.
+    Operation::pop_result(dual_op, ctx);
+    assert_eq!(user_op.deref(ctx).get_operand(0).get_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).get_index(ctx), 1);
+
+    Ok(())
+}
+
+/// Tests that `Value` objects held as operands correctly track their
+/// index within the defining block's argument list when arguments are
+/// inserted, removed, pushed, or popped ahead of / behind them.
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_block_arg_index_tracking_with_uses() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let i64_ty: Ptr<TypeObj> = IntegerType::get(ctx, 64, Signedness::Signed).into();
+    let i32_ty: Ptr<TypeObj> = IntegerType::get(ctx, 32, Signedness::Signed).into();
+
+    // Create a block with two i64 arguments: a0 at index 0, a1 at index 1.
+    let block = BasicBlock::new(ctx, None, vec![i64_ty, i64_ty]);
+
+    let a0 = block.deref(ctx).get_argument(0);
+    let a1 = block.deref(ctx).get_argument(1);
+
+    // Build a user op that holds a0 as its first operand, a1 as its second.
+    let user_op = ReturnOp::new(ctx, a0).get_operation();
+    Operation::push_operand(user_op, ctx, a1);
+
+    // Sanity: operands are a0 and a1; their argument indices are 0 and 1.
+    assert_eq!(user_op.deref(ctx).get_operand(0), a0);
+    assert_eq!(user_op.deref(ctx).get_operand(1), a1);
+    assert_eq!(user_op.deref(ctx).get_operand(0).get_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).get_index(ctx), 1);
+
+    // Insert a new i32 argument at index 0, shifting a0 -> 1 and a1 -> 2.
+    BasicBlock::insert_argument(block, ctx, 0, i32_ty);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 3);
+    assert_eq!(user_op.deref(ctx).get_operand(0), a0);
+    assert_eq!(user_op.deref(ctx).get_operand(1), a1);
+    assert_eq!(user_op.deref(ctx).get_operand(0).get_index(ctx), 1);
+    assert_eq!(user_op.deref(ctx).get_operand(1).get_index(ctx), 2);
+
+    // Remove the new argument at index 0, restoring a0 -> 0 and a1 -> 1.
+    BasicBlock::remove_argument(block, ctx, 0);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 2);
+    assert_eq!(user_op.deref(ctx).get_operand(0).get_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).get_index(ctx), 1);
+
+    // Insert a new argument between a0 and a1 (at index 1), shifting a1 -> 2.
+    BasicBlock::insert_argument(block, ctx, 1, i32_ty);
+    assert_eq!(user_op.deref(ctx).get_operand(0).get_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).get_index(ctx), 2);
+
+    // Remove at index 1, restoring a1 -> 1.
+    BasicBlock::remove_argument(block, ctx, 1);
+    assert_eq!(user_op.deref(ctx).get_operand(0).get_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).get_index(ctx), 1);
+
+    // Push an argument at the end (after a1); a0 and a1 indices are unchanged.
+    let pushed_idx = BasicBlock::push_argument(block, ctx, i32_ty);
+    assert_eq!(pushed_idx, 2);
+    assert_eq!(user_op.deref(ctx).get_operand(0).get_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).get_index(ctx), 1);
+
+    // Pop the trailing argument; indices still unchanged.
+    BasicBlock::pop_argument(block, ctx);
+    assert_eq!(user_op.deref(ctx).get_operand(0).get_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).get_index(ctx), 1);
 
     Ok(())
 }

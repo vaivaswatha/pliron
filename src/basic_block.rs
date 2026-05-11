@@ -45,18 +45,27 @@ pub(crate) struct BlockArgument {
 }
 
 impl BlockArgument {
+    /// Create a new block argument with the given type and a fresh value UID.
+    pub(crate) fn new(ctx: &mut Context, ty: Ptr<TypeObj>) -> Self {
+        Self {
+            def: DefNode::new(),
+            val_uid: ctx.get_new_value_uid(),
+            ty,
+        }
+    }
+
     /// Get the [Type](crate::type::Type) of this argument.
-    pub fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
+    pub(crate) fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
         self.ty
     }
 
     /// Set the [Type](crate::type::Type) of this argument.
-    pub fn set_type(&mut self, _ctx: &Context, ty: Ptr<TypeObj>) {
+    pub(crate) fn set_type(&mut self, _ctx: &Context, ty: Ptr<TypeObj>) {
         self.ty = ty;
     }
 
     /// Build a [Value] corresponding to this argument.
-    pub fn as_value(&self, block: Ptr<BasicBlock>) -> Value {
+    pub(crate) fn as_value(&self, block: Ptr<BasicBlock>) -> Value {
         Value::BlockArgument {
             block,
             val_uid: self.val_uid,
@@ -133,11 +142,7 @@ impl BasicBlock {
         // Let's update the args of the new block. Easier to do it here than during creation.
         let args = arg_types
             .into_iter()
-            .map(|ty| BlockArgument {
-                def: DefNode::new(),
-                val_uid: ctx.get_new_value_uid(),
-                ty,
-            })
+            .map(|ty| BlockArgument::new(ctx, ty))
             .collect();
         newblock.deref_mut(ctx).args = args;
         // We're done.
@@ -174,14 +179,38 @@ impl BasicBlock {
         self.args.iter().map(|arg| arg.as_value(self.self_ptr))
     }
 
-    /// Add a new argument with specified type. Returns idx at which it was added.
-    pub fn add_argument(block: Ptr<BasicBlock>, ctx: &mut Context, ty: Ptr<TypeObj>) -> usize {
-        let val_uid = ctx.get_new_value_uid();
-        block.deref_mut(ctx).args.push_back(BlockArgument {
-            def: DefNode::new(),
-            val_uid,
-            ty,
-        })
+    /// Add an argument to the end of the argument list. returing its index.
+    pub fn push_argument(block: Ptr<BasicBlock>, ctx: &mut Context, ty: Ptr<TypeObj>) -> usize {
+        let new_block_arg = BlockArgument::new(ctx, ty);
+        block.deref_mut(ctx).args.push_back(new_block_arg)
+    }
+
+    /// Remove the last argument. Panics if there are no arguments or if the argument has uses.
+    /// Any [Value] referring to the removed argument is invalidated.
+    pub fn pop_argument(block: Ptr<BasicBlock>, ctx: &mut Context) {
+        let arg_idx = block.deref(ctx).args.len() - 1;
+        Self::remove_argument(block, ctx, arg_idx);
+    }
+
+    /// Insert a new argument at `arg_idx`, shifting existing arguments, from `arg_idx`, to the right.
+    /// Panics on invalid index.
+    pub fn insert_argument(
+        block: Ptr<BasicBlock>,
+        ctx: &mut Context,
+        arg_idx: usize,
+        ty: Ptr<TypeObj>,
+    ) {
+        let new_block_arg = BlockArgument::new(ctx, ty);
+        block.deref_mut(ctx).args.insert(arg_idx, new_block_arg);
+    }
+
+    /// Remove the argument at `arg_idx`, shifting subsequent arguments to the left.
+    /// Panics on invalid index or if the argument has uses.
+    /// Any [Value] referring to the removed argument is invalidated.
+    pub fn remove_argument(block: Ptr<BasicBlock>, ctx: &mut Context, arg_idx: usize) {
+        let value = block.deref(ctx).get_argument(arg_idx);
+        assert!(!value.is_used(ctx), "Can't remove argument with uses");
+        block.deref_mut(ctx).args.remove(arg_idx);
     }
 
     /// Get the number of arguments.

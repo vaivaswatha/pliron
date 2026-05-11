@@ -1305,7 +1305,7 @@ fn convert_block(
     for inst in instruction_iter(block) {
         if llvm_get_instruction_opcode(inst) == LLVMOpcode::LLVMPHI {
             let ty = convert_type(ctx, cctx, llvm_type_of(inst))?;
-            let arg_idx = BasicBlock::add_argument(m_block, ctx, ty);
+            let arg_idx = BasicBlock::push_argument(m_block, ctx, ty);
             cctx.value_map
                 .insert(inst, m_block.deref(ctx).get_argument(arg_idx));
         } else {

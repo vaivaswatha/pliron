@@ -549,7 +549,7 @@ pub fn mem2reg(root: Ptr<Operation>, ctx: &mut Context) -> Result<OptStatus> {
             if let Some(needed_blocks) = phi_blocks.get(&ptr) {
                 let needed_blocks: Vec<Ptr<BasicBlock>> = needed_blocks.iter().cloned().collect();
                 for phi_block in needed_blocks {
-                    let arg_idx = BasicBlock::add_argument(phi_block, ctx, cand.alloc_info.ty);
+                    let arg_idx = BasicBlock::push_argument(phi_block, ctx, cand.alloc_info.ty);
                     set_block_arg_name(ctx, phi_block, arg_idx, ptr.given_name(ctx));
                     new_phis_in_block
                         .entry(phi_block)
