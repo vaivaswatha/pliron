@@ -82,14 +82,14 @@ impl Printable for BlockInsertionPoint {
                 write!(
                     f,
                     "At start of Region {}",
-                    region.deref(ctx).get_index_in_parent(ctx)
+                    region.deref(ctx).find_index_in_parent(ctx)
                 )
             }
             BlockInsertionPoint::AtRegionEnd(region) => {
                 write!(
                     f,
                     "At end of Region {}",
-                    region.deref(ctx).get_index_in_parent(ctx)
+                    region.deref(ctx).find_index_in_parent(ctx)
                 )
             }
             BlockInsertionPoint::AfterBlock(block) => {

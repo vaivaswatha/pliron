@@ -295,7 +295,7 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
 
         self.get_listener_mut().notify_region_erasure(ctx, region);
 
-        let index_in_parent = region.deref(ctx).get_index_in_parent(ctx);
+        let index_in_parent = region.deref(ctx).find_index_in_parent(ctx);
         let parent_op = region.deref(ctx).get_parent_op();
         Operation::erase_region(parent_op, ctx, index_in_parent);
         self.set_modified();
