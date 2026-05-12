@@ -35,7 +35,7 @@ impl DebugInfoAttr {
     }
 
     fn insert_name(&mut self, idx: usize, name: Option<Identifier>) {
-        self.names.grow_to(idx + 1, |_| None);
+        self.names.grow_to(idx, |_| None);
         self.names.insert(idx, name);
     }
 
@@ -100,7 +100,12 @@ fn set_name_in_attr_map(attributes: &mut AttributeDict, idx: usize, name: Option
                 .get_mut()
                 .downcast_mut::<DebugInfoAttr>()
                 .expect("Existing attribute entry for debug info incorrect");
+            let name_is_none = name.is_none();
             debug_info.set_name(idx, name);
+            // If the debug info attribute has all None entries, remove it from the map.
+            if name_is_none && debug_info.names.iter().all(|name| name.is_none()) {
+                occupied.remove();
+            }
         }
         Entry::Vacant(vacant) => {
             // Only insert a new debug info attribute if there's actually a name to set.
@@ -120,7 +125,12 @@ fn insert_name_in_attr_map(attributes: &mut AttributeDict, idx: usize, name: Opt
                 .get_mut()
                 .downcast_mut::<DebugInfoAttr>()
                 .expect("Existing attribute entry for debug info incorrect");
+            let name_is_none = name.is_none();
             debug_info.insert_name(idx, name);
+            // If the debug info attribute has all None entries, remove it from the map.
+            if name_is_none && debug_info.names.iter().all(|name| name.is_none()) {
+                occupied.remove();
+            }
         }
         Entry::Vacant(vacant) => {
             // Only insert a new debug info attribute if there's actually a name to set.

@@ -28,7 +28,7 @@ use crate::{
     printable::Printable,
     result::Result,
     r#type::{TypeObj, Typed},
-    verify_err,
+    verify_err, verify_error,
 };
 
 /// def-use chains are implemented for [Value]s and `Ptr<BasicBlock>`.
@@ -269,7 +269,8 @@ impl Verify for Value {
     // Check that the value's uses point back to it,
     fn verify(&self, ctx: &Context) -> Result<()> {
         for r#use in self.uses(ctx) {
-            let opd_idx = <Self as UseTrait>::find(&r#use, ctx);
+            let opd_idx = <Self as UseTrait>::try_find_index(&r#use, ctx)
+                .map_err(|_| verify_error!(self.loc(ctx), DefUseVerifyErr::OperandNotUseOfDef))?;
             let use_operand = r#use.user_op.deref(ctx).get_operand(opd_idx);
             if use_operand != *self {
                 verify_err!(self.loc(ctx), DefUseVerifyErr::OperandNotUseOfDef)?;
