@@ -12,6 +12,9 @@ pub trait VecExtns<T> {
 
     /// Create and initialize a new vector.
     fn new_init<U: FnMut(usize) -> T>(size: usize, initf: U) -> Vec<T>;
+
+    /// Grow the vector to the new size, initializing new elements with `initf`.
+    fn grow_to(&mut self, new_size: usize, initf: impl FnMut(usize) -> T);
 }
 
 impl<T> VecExtns<T> for Vec<T> {
@@ -32,5 +35,15 @@ impl<T> VecExtns<T> for Vec<T> {
             v.push(initf(i));
         }
         v
+    }
+
+    fn grow_to(&mut self, new_size: usize, mut initf: impl FnMut(usize) -> T) {
+        let current_size = self.len();
+        if new_size > current_size {
+            self.reserve(new_size - current_size);
+            for i in current_size..new_size {
+                self.push(initf(i));
+            }
+        }
     }
 }

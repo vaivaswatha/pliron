@@ -23,7 +23,7 @@ use crate::{
     operation::{OpDbg, Operation},
     opts::OptStatus,
     result::Result,
-    value::Value,
+    value::DefEntity,
 };
 
 /// Convey the presence of side effects in an operation.
@@ -92,11 +92,7 @@ pub fn dce_with_rewriter<L: RewriteListener>(
             .deref(ctx)
             .operands()
             .filter_map(|opd| {
-                if let Value::OpResult {
-                    op: def_op,
-                    res_idx: _,
-                } = opd
-                {
+                if let DefEntity::OpResult(def_op) = opd.def_entity() {
                     Some(def_op)
                 } else {
                     // We don't eliminate block arguments yet.

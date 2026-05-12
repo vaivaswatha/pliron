@@ -19,7 +19,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use slotmap::{SlotMap, new_key_type};
 use std::{
     any::{Any, TypeId},
-    cell::{Ref, RefCell, RefMut},
+    cell::{Cell, Ref, RefCell, RefMut},
     fmt::{Debug, Display},
     hash::Hash,
     marker::PhantomData,
@@ -47,6 +47,12 @@ pub type Arena<T> = SlotMap<ArenaIndex, RefCell<T>>;
 
 /// A context stores all IR data of this compilation session.
 pub struct Context {
+    /// A unique number for each `Value` in the context.
+    /// Serves as a generation counter against accessing invalid `Value`s.
+    pub(crate) value_counter: Cell<u64>,
+    /// A unique number for each `Use` in the context.
+    /// Serves as a generation counter against accessing invalid `Use`s.
+    pub(crate) use_counter: Cell<u64>,
     /// Allocation pool for [Operation]s.
     pub(crate) operations: Arena<Operation>,
     /// Allocation pool for [BasicBlock]s.
@@ -79,11 +85,27 @@ impl Context {
     pub fn is_ir_empty(&self) -> bool {
         self.operations.is_empty() && self.basic_blocks.is_empty() && self.regions.is_empty()
     }
+
+    /// Get a unique number for a new value.
+    pub(crate) fn get_new_value_uid(&self) -> u64 {
+        let uid = self.value_counter.get();
+        self.value_counter.set(uid + 1);
+        uid
+    }
+
+    /// Get a unique number for a new use.
+    pub(crate) fn get_new_use_uid(&self) -> u64 {
+        let uid = self.use_counter.get();
+        self.use_counter.set(uid + 1);
+        uid
+    }
 }
 
 impl Default for Context {
     fn default() -> Self {
         let mut ctx = Context {
+            value_counter: Cell::new(0),
+            use_counter: Cell::new(0),
             operations: Arena::default(),
             basic_blocks: Arena::default(),
             regions: Arena::default(),

@@ -12,13 +12,13 @@ use crate::{
     builtin::op_interfaces::{IsTerminatorInterface, NoTerminatorInterface},
     common_traits::{Named, RcShare, Verify},
     context::{Arena, Context, Ptr, private::ArenaObj},
-    debug_info::{get_block_arg_name, set_block_arg_name},
+    debug_info::{self, set_block_arg_name},
     identifier::Identifier,
     indented_block,
     irfmt::{
         outlined::{preprint_outline_block, register_block_for_outline},
         parsers::{delimited_list_parser, location, spaced, type_parser},
-        printers::{iter_with_sep, list_with_sep},
+        printers::iter_with_sep,
     },
     linked_list::{ContainsLinkedList, LinkedList, private},
     location::{Located, Location},
@@ -30,7 +30,7 @@ use crate::{
     result::Result,
     r#type::{TypeObj, Typed},
     utils::vec_exns::VecExtns,
-    value::{DefNode, Value},
+    value::{DefEntity, DefNode, Value},
     verify_err, verify_error,
 };
 
@@ -38,66 +38,44 @@ use crate::{
 pub(crate) struct BlockArgument {
     /// The def containing the list of this argument's uses.
     pub(crate) def: DefNode<Value>,
-    /// A [Ptr] to the [BasicBlock] of which this is an argument.
-    pub(crate) def_block: Ptr<BasicBlock>,
-    /// Index of this argument in the block's list of arguments.
-    pub(crate) arg_idx: usize,
+    /// Unique ID of this value in [Context].
+    pub(crate) val_uid: u64,
     /// The [Type](crate::type::Type) of this argument.
     pub(crate) ty: Ptr<TypeObj>,
 }
 
 impl BlockArgument {
+    /// Create a new block argument with the given type and a fresh value UID.
+    pub(crate) fn new(ctx: &Context, ty: Ptr<TypeObj>) -> Self {
+        Self {
+            def: DefNode::new(),
+            val_uid: ctx.get_new_value_uid(),
+            ty,
+        }
+    }
+
     /// Get the [Type](crate::type::Type) of this argument.
-    pub fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
+    pub(crate) fn get_type(&self, _ctx: &Context) -> Ptr<TypeObj> {
         self.ty
     }
 
     /// Set the [Type](crate::type::Type) of this argument.
-    pub fn set_type(&mut self, _ctx: &Context, ty: Ptr<TypeObj>) {
+    pub(crate) fn set_type(&mut self, _ctx: &Context, ty: Ptr<TypeObj>) {
         self.ty = ty;
+    }
+
+    /// Build a [Value] corresponding to this argument.
+    pub(crate) fn as_value(&self, block: Ptr<BasicBlock>) -> Value {
+        Value {
+            def_entity: DefEntity::BlockArgument(block),
+            val_uid: self.val_uid,
+        }
     }
 }
 
 impl Typed for BlockArgument {
     fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         self.get_type(ctx)
-    }
-}
-
-impl Named for BlockArgument {
-    fn given_name(&self, ctx: &Context) -> Option<Identifier> {
-        get_block_arg_name(ctx, self.def_block, self.arg_idx)
-    }
-    fn id(&self, ctx: &Context) -> Identifier {
-        format!("{}_arg{}", self.def_block.deref(ctx).id(ctx), self.arg_idx)
-            .try_into()
-            .unwrap()
-    }
-}
-
-impl From<&BlockArgument> for Value {
-    fn from(value: &BlockArgument) -> Self {
-        Value::BlockArgument {
-            block: value.def_block,
-            arg_idx: value.arg_idx,
-        }
-    }
-}
-
-impl Printable for BlockArgument {
-    fn fmt(
-        &self,
-        ctx: &Context,
-        _state: &printable::State,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "{}: {}", self.unique_name(ctx), self.ty.disp(ctx))
-    }
-}
-
-impl Verify for BlockArgument {
-    fn verify(&self, ctx: &Context) -> Result<()> {
-        Into::<Value>::into(self).verify(ctx)
     }
 }
 
@@ -119,7 +97,7 @@ struct RegionLinks {
     prev_block: Option<Ptr<BasicBlock>>,
 }
 
-/// A basic block contains a list of [Operation]s. It may have [arguments](Value::BlockArgument).
+/// A basic block contains a list of [Operation]s. It may have arguments.
 pub struct BasicBlock {
     pub(crate) self_ptr: Ptr<BasicBlock>,
     pub(crate) label: Option<Identifier>,
@@ -164,13 +142,7 @@ impl BasicBlock {
         // Let's update the args of the new block. Easier to do it here than during creation.
         let args = arg_types
             .into_iter()
-            .enumerate()
-            .map(|(arg_idx, ty)| BlockArgument {
-                def: DefNode::new(),
-                def_block: newblock,
-                arg_idx,
-                ty,
-            })
+            .map(|ty| BlockArgument::new(ctx, ty))
             .collect();
         newblock.deref_mut(ctx).args = args;
         // We're done.
@@ -194,41 +166,51 @@ impl BasicBlock {
             .and_then(|op| op.deref(ctx).get_parent_block())
     }
 
-    /// Get idx'th argument as a Value.
+    /// Get idx'th argument as a Value. Panics on invalid index.
     pub fn get_argument(&self, arg_idx: usize) -> Value {
-        self.args
-            .get(arg_idx)
-            .map(|arg| arg.into())
-            .unwrap_or_else(|| panic!("Block argument index {arg_idx} out of bounds"))
+        self.args[arg_idx].as_value(self.self_ptr)
     }
 
     /// Get an iterator over the arguments
     pub fn arguments(&self) -> impl Iterator<Item = Value> + '_ {
-        self.args.iter().map(Into::into)
+        self.args.iter().map(|arg| arg.as_value(self.self_ptr))
     }
 
-    /// Add a new argument with specified type. Returns idx at which it was added.
-    pub fn add_argument(&mut self, ty: Ptr<TypeObj>) -> usize {
-        self.args.push_back_with(|arg_idx| BlockArgument {
-            def: DefNode::new(),
-            def_block: self.self_ptr,
-            arg_idx,
-            ty,
-        })
+    /// Add an argument to the end of the argument list, returning its index.
+    pub fn push_argument(block: Ptr<BasicBlock>, ctx: &Context, ty: Ptr<TypeObj>) -> usize {
+        let new_block_arg = BlockArgument::new(ctx, ty);
+        block.deref_mut(ctx).args.push_back(new_block_arg)
     }
 
-    /// Get a reference to the idx'th argument.
-    pub(crate) fn get_argument_ref(&self, arg_idx: usize) -> &BlockArgument {
-        self.args
-            .get(arg_idx)
-            .unwrap_or_else(|| panic!("Block argument index {arg_idx} out of bounds"))
+    /// Remove the last argument. Panics if there are no arguments or if the argument has uses.
+    /// Any [Value] referring to the removed argument is invalidated.
+    pub fn pop_argument(block: Ptr<BasicBlock>, ctx: &Context) {
+        let len = block.deref(ctx).args.len();
+        assert!(len > 0, "Can't pop argument from block with no arguments");
+        Self::remove_argument(block, ctx, len - 1);
     }
 
-    /// Get a mutable reference to the idx'th argument.
-    pub(crate) fn get_argument_mut(&mut self, arg_idx: usize) -> &mut BlockArgument {
-        self.args
-            .get_mut(arg_idx)
-            .unwrap_or_else(|| panic!("Block argument index {arg_idx} out of bounds"))
+    /// Insert a new argument at `arg_idx`, shifting existing arguments, from `arg_idx`, to the right.
+    /// Panics on invalid index.
+    pub fn insert_argument(
+        block: Ptr<BasicBlock>,
+        ctx: &Context,
+        arg_idx: usize,
+        ty: Ptr<TypeObj>,
+    ) {
+        let new_block_arg = BlockArgument::new(ctx, ty);
+        block.deref_mut(ctx).args.insert(arg_idx, new_block_arg);
+        debug_info::insert_block_arg_name(ctx, block, arg_idx, None);
+    }
+
+    /// Remove the argument at `arg_idx`, shifting subsequent arguments to the left.
+    /// Panics on invalid index or if the argument has uses.
+    /// Any [Value] referring to the removed argument is invalidated.
+    pub fn remove_argument(block: Ptr<BasicBlock>, ctx: &Context, arg_idx: usize) {
+        let value = block.deref(ctx).get_argument(arg_idx);
+        assert!(!value.is_used(ctx), "Can't remove argument with uses");
+        debug_info::remove_block_arg_name(ctx, block, arg_idx);
+        block.deref_mut(ctx).args.remove(arg_idx);
     }
 
     /// Get the number of arguments.
@@ -388,7 +370,9 @@ impl Verify for BasicBlock {
                 verify_err!(self.loc(), DefUseVerifyErr::OperandNotUseOfDef)?;
             }
         }
-        self.args.iter().try_for_each(|arg| arg.verify(ctx))?;
+        self.args
+            .iter()
+            .try_for_each(|arg| arg.as_value(self.self_ptr).verify(ctx))?;
         self.iter(ctx).try_for_each(|op| op.deref(ctx).verify(ctx))
     }
 }
@@ -416,7 +400,17 @@ impl Printable for BasicBlock {
             f,
             "^{}({})",
             self.unique_name(ctx),
-            list_with_sep(&self.args, ListSeparator::CharSpace(',')).print(ctx, state),
+            iter_with_sep(
+                self.args.iter().map(|arg| {
+                    format!(
+                        "{}: {}",
+                        arg.as_value(self.self_ptr).disp(ctx),
+                        arg.get_type(ctx).disp(ctx)
+                    )
+                }),
+                ListSeparator::CharSpace(',')
+            )
+            .print(ctx, state),
         )?;
 
         // Print non-outlined attributes inline.
@@ -509,13 +503,13 @@ impl Parsable for BasicBlock {
         }
 
         for (arg_idx, (arg_loc, name)) in arg_names.into_iter().enumerate() {
-            let def: Value = (&block.deref(state_stream.state.ctx).args[arg_idx]).into();
+            let def: Value = block.deref(state_stream.state.ctx).args[arg_idx].as_value(block);
             state_stream.state.name_tracker.ssa_def(
                 state_stream.state.ctx,
                 &(name.clone(), arg_loc),
                 def,
             )?;
-            set_block_arg_name(state_stream.state.ctx, block, arg_idx, name);
+            set_block_arg_name(state_stream.state.ctx, block, arg_idx, Some(name));
         }
 
         // Register in outline parse state if !N was found.

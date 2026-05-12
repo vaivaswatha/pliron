@@ -16,7 +16,7 @@ use crate::{
     op::op_impls,
     operation::Operation,
     result::{self, Result},
-    value::Value,
+    value::{DefEntity, Value},
 };
 use combine::{
     Parser, Positioned, StreamOnce, choice,
@@ -296,14 +296,14 @@ impl NameTracker {
             .expect("NameTracker doesn't have an active scope.");
 
         match scope.entry(id.0.clone()) {
-            Entry::Occupied(mut occ) => match occ.get_mut() {
-                Value::OpResult { op, res_idx: _ } => {
+            Entry::Occupied(mut occ) => match occ.get_mut().def_entity() {
+                DefEntity::OpResult(op) => {
                     let fref_opt =
-                        Operation::get_op::<ForwardRefOp>(*op, ctx).map(|op| op.get_result(ctx));
+                        Operation::get_op::<ForwardRefOp>(op, ctx).map(|op| op.get_result(ctx));
                     if let Some(fref) = fref_opt {
                         // If there's already a def and its a forward ref, replace that.
                         fref.replace_some_uses_with(ctx, |_, _| true, &def);
-                        Operation::erase(*op, ctx);
+                        Operation::erase(op, ctx);
                         occ.insert(def);
                     } else {
                         // There's another def and it isn't a forward ref.
@@ -313,7 +313,7 @@ impl NameTracker {
                         )?
                     }
                 }
-                Value::BlockArgument { .. } => {
+                DefEntity::BlockArgument(_) => {
                     // There's another def and it isn't a forward ref.
                     input_err!(
                         id.1.clone(),
@@ -414,8 +414,9 @@ impl NameTracker {
                 .ssa_name_scope
                 .pop()
                 .expect("Exiting an isolated-from-above region which wasn't entered into.");
-            for (id, op) in ssa_scope {
-                if matches!(op, Value::OpResult { op, .. } if Operation::get_op::<ForwardRefOp>(op, ctx).is_some())
+            for (id, value) in ssa_scope {
+                if let DefEntity::OpResult(op) = value.def_entity()
+                    && Operation::is_op::<ForwardRefOp>(op, ctx)
                 {
                     input_err!(loc.clone(), UnresolvedReference(id.clone()))?
                 }

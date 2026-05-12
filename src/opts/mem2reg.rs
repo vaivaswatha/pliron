@@ -9,7 +9,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::{
     basic_block::BasicBlock,
     builtin::op_interfaces::BranchOpInterface,
+    common_traits::Named,
     context::{Context, Ptr},
+    debug_info::set_block_arg_name,
     graph::{
         dominance::{DomFrontierMap, DomTree, compute_dominator_tree},
         walkers::{IRNode, WALKCONFIG_PREORDER_FORWARD, uninterruptible::immutable::walk_op},
@@ -170,7 +172,7 @@ fn prune_candidates(candidates: &mut Vec<AllocCandidate>, ctx: &Context) {
             .get_parent_region(ctx)
             .expect("Alloc op must be in a region");
         cand.alloc_info.ptr.uses(ctx).iter().all(|r#use| {
-            let user_op = r#use.user_op;
+            let user_op = r#use.user_op();
             let user_op_obj = Operation::get_op_dyn(user_op, ctx);
             op_cast::<dyn PromotableOpInterface>(user_op_obj.as_ref()).is_some_and(|piface| {
                 let user_region = user_op
@@ -203,7 +205,7 @@ fn compute_candidate_live_in_and_defining_blocks(
     // Compute blocks that contain uses of this pointer.
     let mut user_blocks: FxHashSet<Ptr<BasicBlock>> = FxHashSet::default();
     for u in ptr.uses(ctx) {
-        if let Some(block) = u.user_op.deref(ctx).get_parent_block() {
+        if let Some(block) = u.user_op().deref(ctx).get_parent_block() {
             user_blocks.insert(block);
         }
     }
@@ -547,7 +549,8 @@ pub fn mem2reg(root: Ptr<Operation>, ctx: &mut Context) -> Result<OptStatus> {
             if let Some(needed_blocks) = phi_blocks.get(&ptr) {
                 let needed_blocks: Vec<Ptr<BasicBlock>> = needed_blocks.iter().cloned().collect();
                 for phi_block in needed_blocks {
-                    let arg_idx = phi_block.deref_mut(ctx).add_argument(cand.alloc_info.ty);
+                    let arg_idx = BasicBlock::push_argument(phi_block, ctx, cand.alloc_info.ty);
+                    set_block_arg_name(ctx, phi_block, arg_idx, ptr.given_name(ctx));
                     new_phis_in_block
                         .entry(phi_block)
                         .or_default()

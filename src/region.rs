@@ -79,8 +79,8 @@ impl Region {
         self.get_parent_op().deref(ctx).get_parent_block()
     }
 
-    /// Get the index of this region in its parent operation.
-    pub fn get_index_in_parent(&self, ctx: &Context) -> usize {
+    /// Find the index of this region in its parent operation.
+    pub fn find_index_in_parent(&self, ctx: &Context) -> usize {
         let parent_op = self.get_parent_op();
         parent_op
             .deref(ctx)
@@ -96,7 +96,7 @@ impl Region {
         let op_dyn = Operation::get_op_dyn(parent_op, ctx);
         match op_cast::<dyn RegionKindInterface>(op_dyn.as_ref()) {
             Some(rki) => {
-                let region_idx = self.get_index_in_parent(ctx);
+                let region_idx = self.find_index_in_parent(ctx);
                 rki.has_ssa_dominance(region_idx)
             }
             None => true,
