@@ -29,7 +29,7 @@
 //! The verifier methods of [Op] or [Operation] may not, by themselves do a complete verification.
 //!
 //! [OpObj]s can be downcasted to their concrete types using
-//! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
+//! [downcast_rs](https://docs.rs/downcast-rs/latest/downcast_rs/#example-without-generics).
 
 use combine::{
     Parser,
@@ -249,13 +249,66 @@ impl Hash for OpObj {
     }
 }
 
+/// Marker trait for op interface trait objects.
+///
+/// This is auto-implemented by the `#[op_interface]` macro for `dyn Interface`
+/// objects and is used to restrict [op_cast] and [op_impls] to interface casts.
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` not an op interface.",
+    label = "If `{Self}` is a trait, annotate it with #[op_interface] to be able to cast to it from a `&dyn Op`",
+    note = "If you want to cast to a concrete `Op`, use `downcast_ref` instead."
+)]
+pub trait OpInterfaceMarker {}
+
 /// Cast reference to an [Op] object to an interface reference.
-pub fn op_cast<T: ?Sized + Op>(op: &dyn Op) -> Option<&T> {
+///
+/// Right usage: cast to an interface trait object.
+/// ```
+/// use pliron::builtin::op_interfaces::SymbolTableInterface;
+/// use pliron::op::{Op, op_cast};
+///
+/// fn right_cast(op: &dyn Op) {
+///     let _ = op_cast::<dyn SymbolTableInterface>(op);
+/// }
+/// ```
+///
+/// Casting to concrete [Op] types are intentionally rejected.
+/// ```compile_fail
+/// use pliron::builtin::ops::ModuleOp;
+/// use pliron::op::{Op, op_cast};
+///
+/// fn wrong_cast(op: &dyn Op) {
+///     let _ = op_cast::<ModuleOp>(op);
+/// }
+/// ```
+/// Use [downcast_rs](https://docs.rs/downcast-rs/latest/downcast_rs/#example-without-generics)
+/// to downcast to concrete [Op] types.
+pub fn op_cast<T: ?Sized + OpInterfaceMarker + 'static>(op: &dyn Op) -> Option<&T> {
     crate::utils::trait_cast::any_to_trait::<T>(op.as_any())
 }
 
-/// Does this [Op] object implement interface T?
-pub fn op_impls<T: ?Sized + Op>(op: &dyn Op) -> bool {
+/// Does this [Op] object implement interface `T`?
+///
+/// Right usage: query using an interface trait object.
+/// ```
+/// use pliron::builtin::op_interfaces::SymbolTableInterface;
+/// use pliron::op::{Op, op_impls};
+///
+/// fn right_query(op: &dyn Op) {
+///     let _ = op_impls::<dyn SymbolTableInterface>(op);
+/// }
+/// ```
+///
+/// Querying with a concrete [Op] type is intentionally rejected.
+/// ```compile_fail
+/// use pliron::builtin::ops::ModuleOp;
+/// use pliron::op::{Op, op_impls};
+///
+/// fn wrong_query(op: &dyn Op) {
+///     let _ = op_impls::<ModuleOp>(op);
+/// }
+/// ```
+pub fn op_impls<T: ?Sized + OpInterfaceMarker + 'static>(op: &dyn Op) -> bool {
     op_cast::<T>(op).is_some()
 }
 
@@ -266,7 +319,7 @@ pub type OpInterfaceAllVerifiers = fn() -> Vec<OpInterfaceVerifier>;
 
 #[doc(hidden)]
 /// An [Op] paired with an interface it implements
-/// (specically the verifiers (including super verifiers) for that interface).
+/// (specifically the verifiers (including super verifiers) for that interface).
 type OpInterfaceVerifierInfo = (std::any::TypeId, OpInterfaceAllVerifiers);
 
 #[cfg(not(target_family = "wasm"))]

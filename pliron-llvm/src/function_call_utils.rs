@@ -142,7 +142,7 @@ mod tests {
             types::FP64Type,
         },
         context::Context,
-        init_env_logger,
+        init_env_logger_for_tests,
         irbuild::{
             inserter::{IRInserter, Inserter, OpInsertionPoint},
             listener::DummyListener,
@@ -164,7 +164,7 @@ mod tests {
 
     #[test]
     fn test_malloc_and_free_integration() {
-        init_env_logger!();
+        init_env_logger_for_tests!();
         let mut ctx = Context::new();
         let mut symbol_table_collection = pliron::symbol_table::SymbolTableCollection::new();
 
@@ -242,8 +242,8 @@ mod tests {
 
             define i64 @main() {
             entry_block2v1:
-              %op8v1_res0 = call ptr @malloc(i64 ptrtoint (ptr getelementptr (double, ptr null, i32 1) to i64))
-              call void @free(ptr %op8v1_res0)
+              %v3 = call ptr @malloc(i64 ptrtoint (ptr getelementptr (double, ptr null, i32 1) to i64))
+              call void @free(ptr %v3)
               ret i64 ptrtoint (ptr getelementptr (double, ptr null, i32 1) to i64)
             }
 

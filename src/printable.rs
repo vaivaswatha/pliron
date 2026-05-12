@@ -166,7 +166,7 @@ pub trait Printable {
 ///     struct MyType;
 ///     impl std::fmt::Display for MyType {
 ///         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-///             write!(f, "{}", self)
+///             write!(f, "MyType")
 ///         }
 ///     }
 ///     pliron::impl_printable_for_display!(MyType);
@@ -200,6 +200,32 @@ impl_printable_for_display!(i16);
 impl_printable_for_display!(i8);
 impl_printable_for_display!(bool);
 impl_printable_for_display!(char);
+
+/// Implement [Printable] for a type that already implements [Debug].
+/// Example:
+/// ```
+///     #[derive(Debug)]
+///     struct MyType;
+///     pliron::impl_printable_for_debug!(MyType);
+/// ```
+#[macro_export]
+macro_rules! impl_printable_for_debug {
+    ($ty_name:ty) => {
+        impl $crate::printable::Printable for $ty_name {
+            fn fmt(
+                &self,
+                _ctx: &pliron::context::Context,
+                _state: &pliron::printable::State,
+                f: &mut std::fmt::Formatter<'_>,
+            ) -> std::fmt::Result {
+                write!(f, "{:?}", self)
+            }
+        }
+    };
+}
+
+impl_printable_for_debug!(*const ());
+impl_printable_for_debug!(*mut ());
 
 impl<T: Printable + ?Sized> Printable for &T {
     fn fmt(&self, ctx: &Context, state: &State, f: &mut fmt::Formatter<'_>) -> fmt::Result {

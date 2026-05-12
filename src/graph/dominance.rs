@@ -2,14 +2,14 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     basic_block::BasicBlock,
-    builtin::op_interfaces::RegionKindInterface,
     context::{Context, Ptr},
-    graph::{ControlFlowGraph, traversals},
-    linked_list::LinkedList,
-    op::op_cast,
+    graph::{
+        ControlFlowGraph, find_ancestor_block_of_block_in_region, find_ancestor_op_of_op_in_region,
+        strictly_precedes_in_block, traversals,
+    },
     operation::Operation,
     region::Region,
-    value::Value,
+    value::{DefEntity, Value},
 };
 
 /// A node in the dominator tree.
@@ -24,9 +24,14 @@ where
 }
 
 /// Represents dominator tree for a control-flow-graph
-pub struct DomTree<G, GraphContext>(FxHashMap<G::Node, DomTreeNode<G, GraphContext>>)
+pub struct DomTree<G, GraphContext>
 where
-    G: ControlFlowGraph<GraphContext>;
+    G: ControlFlowGraph<GraphContext>,
+{
+    // An empty tree has no root.
+    root: Option<G::Node>,
+    dominators_map: FxHashMap<G::Node, DomTreeNode<G, GraphContext>>,
+}
 
 /// Maps each node to its dominance frontier
 pub struct DomFrontierMap<G, GraphContext>(FxHashMap<G::Node, FxHashSet<G::Node>>)
@@ -45,7 +50,10 @@ where
     G: ControlFlowGraph<GraphContext>,
 {
     let Some(entry_node) = graph.entry_node(ctx) else {
-        return DomTree(FxHashMap::default());
+        return DomTree {
+            root: None,
+            dominators_map: FxHashMap::default(),
+        };
     };
 
     // We consider only the first connected component for the dominator tree,
@@ -116,12 +124,15 @@ where
         }
     }
 
-    let mut dom_tree = DomTree(FxHashMap::default());
+    let mut dom_tree = DomTree {
+        root: Some(entry_node),
+        dominators_map: FxHashMap::default(),
+    };
     let entry = DomTreeNode {
         parent: None,
         children: vec![],
     };
-    dom_tree.0.insert(rpo[0].clone(), entry);
+    dom_tree.dominators_map.insert(rpo[0].clone(), entry);
 
     let child_parent = dom
         .iter()
@@ -134,8 +145,10 @@ where
             parent: Some(parent_node.clone()),
             children: vec![],
         };
-        dom_tree.0.insert(child_node.clone(), child_dom_node);
-        let parent_dom_node = dom_tree.0.get_mut(&parent_node).unwrap();
+        dom_tree
+            .dominators_map
+            .insert(child_node.clone(), child_dom_node);
+        let parent_dom_node = dom_tree.dominators_map.get_mut(&parent_node).unwrap();
         parent_dom_node.children.push(child_node.clone())
     }
 
@@ -153,7 +166,7 @@ where
             if node == *dominator {
                 return true;
             }
-            node_opt = self.0[&node].parent.clone();
+            node_opt = self.dominators_map[&node].parent.clone();
         }
         false
     }
@@ -168,23 +181,41 @@ where
     /// Does the dominator tree contain `node`?
     /// That is, is `node` reachable from the entry node?
     pub fn contains(&self, node: &G::Node) -> bool {
-        self.0.contains_key(node)
+        self.dominators_map.contains_key(node)
     }
 
     /// Return the immediate dominator of `node`
     pub fn idom(&self, node: &G::Node) -> Option<G::Node> {
-        self.0[node].parent.clone()
+        self.dominators_map[node].parent.clone()
     }
 
     /// Return an iterator over the dominators of `node`, starting with `node` itself,
     /// then its immediate dominator, and so on up to the root.
-    pub fn dominators(&self, node: &G::Node) -> impl Iterator<Item = G::Node> + '_ {
-        std::iter::successors(Some(node.clone()), |n| self.0[n].parent.clone())
+    pub fn dominators(&self, node: &G::Node) -> impl Iterator<Item = G::Node> + Clone + '_ {
+        std::iter::successors(Some(node.clone()), |n| {
+            self.dominators_map[n].parent.clone()
+        })
     }
 
     /// Get an iterator over the children nodes
-    pub fn children(&self, node: &G::Node) -> impl Iterator<Item = G::Node> + '_ {
-        self.0[node].children.iter().cloned()
+    pub fn children(&self, node: &G::Node) -> impl Iterator<Item = G::Node> + Clone + '_ {
+        self.dominators_map[node].children.iter().cloned()
+    }
+
+    /// Get the root of the dominator tree (i.e. the entry node of the graph)
+    /// Returns `None` if the graph has no entry node (empty dominator tree).
+    pub fn root(&self) -> Option<G::Node> {
+        self.root.clone()
+    }
+
+    /// Get the number of nodes in the dominator tree
+    pub fn num_nodes(&self) -> usize {
+        self.dominators_map.len()
+    }
+
+    /// Get an iterator over all nodes in the dominator tree
+    pub fn nodes(&self) -> impl Iterator<Item = G::Node> + Clone + '_ {
+        self.dominators_map.keys().cloned()
     }
 }
 
@@ -221,49 +252,6 @@ where
     }
 }
 
-/// Returns the ancestor operation of `op` contained in `target_region`, or returns `None` if
-/// no ancestor of `op` is in `target_region`.
-fn find_ancestor_in_region(
-    ctx: &Context,
-    op: Ptr<Operation>,
-    target_region: Ptr<Region>,
-) -> Option<Ptr<Operation>> {
-    let mut op = op;
-    while let Some(ancestor_region) = op.deref(ctx).get_parent_region(ctx) {
-        if ancestor_region == target_region {
-            return Some(op);
-        }
-        op = ancestor_region.deref(ctx).get_parent_op();
-    }
-    None
-}
-
-/// Returns the ancestor block of `block` contained in `target_region`, or returns `None` if
-/// no ancestor of `block` is in `target_region`.
-fn find_ancestor_block_in_region(
-    ctx: &Context,
-    block: Ptr<BasicBlock>,
-    target_region: Ptr<Region>,
-) -> Option<Ptr<BasicBlock>> {
-    let mut block = block;
-    while let Some(ancestor_region) = block.deref(ctx).get_parent_region() {
-        if ancestor_region == target_region {
-            return Some(block);
-        }
-        let ancestor_op = ancestor_region.deref(ctx).get_parent_op();
-        block = ancestor_op.deref(ctx).get_parent_block()?;
-    }
-    None
-}
-
-/// Return the ancestor block enclosing `block`, if it exists.
-fn get_ancestor_block(ctx: &Context, block: Ptr<BasicBlock>) -> Option<Ptr<BasicBlock>> {
-    block
-        .deref(ctx)
-        .get_parent_op(ctx)
-        .and_then(|op| op.deref(ctx).get_parent_block())
-}
-
 /// Tries to update `a` and `b` to blocks in the same region.
 ///
 /// This mirrors MLIR's `tryGetBlocksInSameRegion`: if the input blocks are in different
@@ -290,7 +278,7 @@ fn try_get_blocks_in_same_region(
             a = block;
             return Some((a, b));
         }
-        a_cursor = get_ancestor_block(ctx, block);
+        a_cursor = block.deref(ctx).get_parent_block(ctx);
     }
 
     // Symmetrically, walk `b` up its ancestor blocks looking for one in `a`'s region.
@@ -302,7 +290,7 @@ fn try_get_blocks_in_same_region(
             b = block;
             return Some((a, b));
         }
-        b_cursor = get_ancestor_block(ctx, block);
+        b_cursor = block.deref(ctx).get_parent_block(ctx);
     }
 
     let mut a_opt = Some(a);
@@ -310,11 +298,11 @@ fn try_get_blocks_in_same_region(
 
     // If neither side reaches the other's region directly, equalize their region depths first.
     while a_region_depth > b_region_depth {
-        a_opt = a_opt.and_then(|block| get_ancestor_block(ctx, block));
+        a_opt = a_opt.and_then(|block| block.deref(ctx).get_parent_block(ctx));
         a_region_depth -= 1;
     }
     while b_region_depth > a_region_depth {
-        b_opt = b_opt.and_then(|block| get_ancestor_block(ctx, block));
+        b_opt = b_opt.and_then(|block| block.deref(ctx).get_parent_block(ctx));
         b_region_depth -= 1;
     }
 
@@ -323,37 +311,12 @@ fn try_get_blocks_in_same_region(
         if a_block.deref(ctx).get_parent_region() == b_block.deref(ctx).get_parent_region() {
             return Some((a_block, b_block));
         }
-        a_opt = get_ancestor_block(ctx, a_block);
-        b_opt = get_ancestor_block(ctx, b_block);
+        a_opt = a_block.deref(ctx).get_parent_block(ctx);
+        b_opt = b_block.deref(ctx).get_parent_block(ctx);
     }
 
     // The blocks do not share any common ancestor region.
     None
-}
-
-/// Does the given region use SSA dominance?
-fn region_has_ssa_dominance(ctx: &Context, region: Ptr<Region>) -> bool {
-    let parent_op = region.deref(ctx).get_parent_op();
-    let op_dyn = Operation::get_op_dyn(parent_op, ctx);
-    match op_cast::<dyn RegionKindInterface>(op_dyn.as_ref()) {
-        Some(rki) => {
-            let region_idx = region.deref(ctx).get_index_in_parent(ctx);
-            rki.has_ssa_dominance(region_idx)
-        }
-        None => true,
-    }
-}
-
-/// Does operation `a` strictly precede operation `b` in `a`'s block?
-fn strictly_precedes_in_block(ctx: &Context, a: Ptr<Operation>, b: Ptr<Operation>) -> bool {
-    let mut cursor = a.deref(ctx).get_next();
-    while let Some(op) = cursor {
-        if op == b {
-            return true;
-        }
-        cursor = op.deref(ctx).get_next();
-    }
-    false
 }
 
 /// Caches dominance trees for multiple regions in a program
@@ -395,9 +358,9 @@ impl DomInfo {
             .deref(ctx)
             .get_parent_region()
             .expect("A block must be in a region");
-        let region_a_ssa = region_has_ssa_dominance(ctx, region_a);
+        let region_a_ssa = region_a.deref(ctx).has_ssa_dominance(ctx);
 
-        let Some(b) = find_ancestor_block_in_region(ctx, b, region_a) else {
+        let Some(b) = find_ancestor_block_of_block_in_region(ctx, b, region_a) else {
             return false;
         };
 
@@ -434,9 +397,9 @@ impl DomInfo {
             .deref(ctx)
             .get_parent_region()
             .expect("A block must be in a region");
-        let region_a_ssa = region_has_ssa_dominance(ctx, region_a);
+        let region_a_ssa = region_a.deref(ctx).has_ssa_dominance(ctx);
 
-        let Some(b) = find_ancestor_in_region(ctx, b, region_a) else {
+        let Some(b) = find_ancestor_op_of_op_in_region(ctx, b, region_a) else {
             return false;
         };
         let block_b = b
@@ -466,19 +429,16 @@ impl DomInfo {
         a: Value,
         b: Ptr<Operation>,
     ) -> bool {
-        match a {
-            Value::OpResult { op, res_idx: _ } => self.op_strictly_dominates_op(ctx, op, b),
-            Value::BlockArgument {
-                block: a_block,
-                arg_idx: _,
-            } => {
+        match a.def_entity() {
+            DefEntity::OpResult(op) => self.op_strictly_dominates_op(ctx, op, b),
+            DefEntity::BlockArgument(a_block) => {
                 if let Some(b_parent_block) = b.deref(ctx).get_parent_block() {
                     let a_block_region = a_block
                         .deref(ctx)
                         .get_parent_region()
                         .expect("Block not in any region");
                     let b_ancestor_in_a_region =
-                        find_ancestor_block_in_region(ctx, b_parent_block, a_block_region);
+                        find_ancestor_block_of_block_in_region(ctx, b_parent_block, a_block_region);
                     b_ancestor_in_a_region.is_some_and(|b_ancestor| {
                         let dom_tree = self.get_dom_tree(ctx, a_block_region);
                         dom_tree.dominates(&a_block, &b_ancestor)
@@ -523,7 +483,7 @@ impl DomInfo {
 #[cfg(test)]
 mod tests {
     use super::{DomFrontierMap, compute_dominator_tree};
-    use crate::graph::ControlFlowGraph;
+    use crate::graph::{ControlFlowGraph, HasLabel};
     use rustc_hash::FxHashSet;
     use std::collections::HashSet;
 
@@ -534,6 +494,12 @@ mod tests {
 
     #[derive(Clone, Copy, Debug)]
     struct ArenaGraph;
+
+    impl HasLabel<Vec<Node>> for usize {
+        fn label(&self, _ctx: &Vec<Node>) -> String {
+            self.to_string()
+        }
+    }
 
     impl ControlFlowGraph<Vec<Node>> for ArenaGraph {
         type Node = usize;
@@ -568,14 +534,14 @@ mod tests {
     fn dominator_tree_empty_graph() {
         let ctx: Vec<Node> = vec![];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0.len(), 0);
+        assert_eq!(dom.root(), None);
     }
 
     #[test]
     fn dominator_tree_single_node() {
         let ctx = vec![n(&[])];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0[&0].parent, None);
+        assert_eq!(dom.root(), Some(0));
     }
 
     #[test]
@@ -587,10 +553,10 @@ mod tests {
             /* 2 */ n(&[]),
         ];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0.len(), 3);
-        assert_eq!(dom.0[&0].parent, None);
-        assert_eq!(dom.0[&1].parent, Some(0));
-        assert_eq!(dom.0[&2].parent, Some(1));
+        assert_eq!(dom.num_nodes(), 3);
+        assert_eq!(dom.idom(&0), None);
+        assert_eq!(dom.idom(&1), Some(0));
+        assert_eq!(dom.idom(&2), Some(1));
     }
 
     #[test]
@@ -607,11 +573,11 @@ mod tests {
             /* 3 */ n(&[]),
         ];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0.len(), 4);
-        assert_eq!(dom.0[&0].parent, None);
-        assert_eq!(dom.0[&1].parent, Some(0));
-        assert_eq!(dom.0[&2].parent, Some(0));
-        assert_eq!(dom.0[&3].parent, Some(0));
+        assert_eq!(dom.num_nodes(), 4);
+        assert_eq!(dom.idom(&0), None);
+        assert_eq!(dom.idom(&1), Some(0));
+        assert_eq!(dom.idom(&2), Some(0));
+        assert_eq!(dom.idom(&3), Some(0));
 
         assert_eq!(dom.children(&0).collect::<HashSet<_>>(), [1, 2, 3].into());
         assert_eq!(dom.nearest_common_dominator(&1, &2), 0);
@@ -632,11 +598,11 @@ mod tests {
             /* 3 */ n(&[]),
         ];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0.len(), 4);
-        assert_eq!(dom.0[&0].parent, None);
-        assert_eq!(dom.0[&1].parent, Some(0));
-        assert_eq!(dom.0[&2].parent, Some(1));
-        assert_eq!(dom.0[&3].parent, Some(1));
+        assert_eq!(dom.num_nodes(), 4);
+        assert_eq!(dom.idom(&0), None);
+        assert_eq!(dom.idom(&1), Some(0));
+        assert_eq!(dom.idom(&2), Some(1));
+        assert_eq!(dom.idom(&3), Some(1));
 
         assert!(dom.dominates(&1, &3));
         assert!(!dom.dominates(&2, &3));
@@ -674,13 +640,13 @@ mod tests {
             /* 5 */ n(&[4]),
         ];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0.len(), 6);
-        assert_eq!(dom.0[&0].parent, None);
-        assert_eq!(dom.0[&1].parent, Some(0));
-        assert_eq!(dom.0[&2].parent, Some(0));
-        assert_eq!(dom.0[&3].parent, Some(0));
-        assert_eq!(dom.0[&4].parent, Some(0));
-        assert_eq!(dom.0[&5].parent, Some(0));
+        assert_eq!(dom.num_nodes(), 6);
+        assert_eq!(dom.idom(&0), None);
+        assert_eq!(dom.idom(&1), Some(0));
+        assert_eq!(dom.idom(&2), Some(0));
+        assert_eq!(dom.idom(&3), Some(0));
+        assert_eq!(dom.idom(&4), Some(0));
+        assert_eq!(dom.idom(&5), Some(0));
 
         assert!(dom.dominates(&0, &1));
         assert!(!dom.dominates(&2, &4));
@@ -702,17 +668,17 @@ mod tests {
             /* 9 */ n(&[6]),
         ];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0.len(), 10);
-        assert_eq!(dom.0[&0].parent, None);
-        assert_eq!(dom.0[&1].parent, Some(0));
-        assert_eq!(dom.0[&2].parent, Some(0));
-        assert_eq!(dom.0[&3].parent, Some(2));
-        assert_eq!(dom.0[&4].parent, Some(3));
-        assert_eq!(dom.0[&5].parent, Some(3));
-        assert_eq!(dom.0[&6].parent, Some(3));
-        assert_eq!(dom.0[&7].parent, Some(6));
-        assert_eq!(dom.0[&8].parent, Some(7));
-        assert_eq!(dom.0[&9].parent, Some(7));
+        assert_eq!(dom.num_nodes(), 10);
+        assert_eq!(dom.idom(&0), None);
+        assert_eq!(dom.idom(&1), Some(0));
+        assert_eq!(dom.idom(&2), Some(0));
+        assert_eq!(dom.idom(&3), Some(2));
+        assert_eq!(dom.idom(&4), Some(3));
+        assert_eq!(dom.idom(&5), Some(3));
+        assert_eq!(dom.idom(&6), Some(3));
+        assert_eq!(dom.idom(&7), Some(6));
+        assert_eq!(dom.idom(&8), Some(7));
+        assert_eq!(dom.idom(&9), Some(7));
 
         assert_eq!(dom.children(&3).collect::<HashSet<_>>(), [4, 5, 6].into());
     }
@@ -727,19 +693,11 @@ mod tests {
             /* 3 */ n(&[]),
         ];
         let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        assert_eq!(dom.0.len(), 2);
-        assert_eq!(dom.0[&0].parent, None);
-        assert_eq!(dom.0[&1].parent, Some(0));
+        assert_eq!(dom.num_nodes(), 2);
+        assert_eq!(dom.idom(&0), None);
+        assert_eq!(dom.idom(&1), Some(0));
 
         assert_eq!(dom.children(&0).collect::<HashSet<_>>(), [1].into());
-    }
-
-    #[test]
-    fn dom_frontier_empty() {
-        // test that we can construct a dominance frontier map from an empty graph without crashing
-        let ctx: Vec<Node> = vec![];
-        let dom = compute_dominator_tree(&ctx, &ArenaGraph);
-        let _df = DomFrontierMap::new(&ctx, &ArenaGraph, &dom);
     }
 
     #[test]

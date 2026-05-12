@@ -10,7 +10,7 @@ use pliron::{
     },
     context::{Context, Ptr},
     identifier::Identifier,
-    init_env_logger,
+    init_env_logger_for_tests,
     irbuild::{
         dialect_conversion::{
             DialectConversion, DialectConversionRewriter, OperandsInfo, apply_dialect_conversion,
@@ -172,7 +172,7 @@ impl DialectConversion for WidthConversion {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dialect_conversion_defs_before_uses() -> Result<()> {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     let ctx = &mut Context::new();
 
     let module = ModuleOp::new(
@@ -401,7 +401,7 @@ impl DialectConversion for ForwardOnlyConversion {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dialect_conversion_block_arg_type_conversion() -> Result<()> {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     let ctx = &mut Context::new();
 
     let module = ModuleOp::new(
@@ -410,7 +410,7 @@ fn dialect_conversion_block_arg_type_conversion() -> Result<()> {
     );
     let body = module.get_body(ctx, 0);
     let i64_ty = IntegerType::get(ctx, 64, Signedness::Signed).into();
-    let arg_idx = body.deref_mut(ctx).add_argument(i64_ty);
+    let arg_idx = BasicBlock::push_argument(body, ctx, i64_ty);
     let block_arg = body.deref(ctx).get_argument(arg_idx);
 
     let consumer = ConsumerOp::new(ctx, block_arg);
@@ -426,7 +426,7 @@ fn dialect_conversion_block_arg_type_conversion() -> Result<()> {
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dialect_conversion_successor_block_arg_type_conversion_without_uses() -> Result<()> {
-    init_env_logger!();
+    init_env_logger_for_tests!();
     let ctx = &mut Context::new();
 
     let module = ModuleOp::new(

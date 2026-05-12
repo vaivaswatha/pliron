@@ -11,6 +11,7 @@ use pliron::{
 
 pub mod attributes;
 pub mod function_call_utils;
+pub mod interface_impls;
 pub mod op_interfaces;
 pub mod ops;
 pub mod types;

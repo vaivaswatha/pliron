@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// Listener interface for insertion events.
-pub trait InsertionListener {
+pub trait InsertionListener: Default {
     /// Notify that an operation has been inserted.
     fn notify_operation_inserted(&mut self, ctx: &Context, operation: Ptr<Operation>);
     /// Notify that a block has been inserted.
@@ -23,13 +23,6 @@ pub trait InsertionListener {
 pub trait RewriteListener: InsertionListener {
     /// Notify that an operation is about to be erased.
     fn notify_operation_erasure(&mut self, ctx: &Context, op: Ptr<Operation>);
-    /// Notify that an operation is about to be replaced.
-    fn notify_operation_replacement(
-        &mut self,
-        ctx: &Context,
-        old_op: Ptr<Operation>,
-        new_values: Vec<Value>,
-    );
     /// Notify that all uses of a value are about to be replaced.
     fn notify_value_use_replacement(&mut self, ctx: &Context, old_value: Value, new_value: Value);
     /// Notify that a value type changed.
@@ -51,6 +44,7 @@ pub trait RewriteListener: InsertionListener {
 }
 
 /// A listener that doesn't do anything on being notified.
+#[derive(Default)]
 pub struct DummyListener;
 impl InsertionListener for DummyListener {
     fn notify_operation_inserted(&mut self, _ctx: &Context, _operation: Ptr<Operation>) {}
@@ -58,13 +52,6 @@ impl InsertionListener for DummyListener {
 }
 impl RewriteListener for DummyListener {
     fn notify_operation_erasure(&mut self, _ctx: &Context, _op: Ptr<Operation>) {}
-    fn notify_operation_replacement(
-        &mut self,
-        _ctx: &Context,
-        _old_op: Ptr<Operation>,
-        _new_values: Vec<Value>,
-    ) {
-    }
     fn notify_value_use_replacement(
         &mut self,
         _ctx: &Context,
@@ -91,11 +78,6 @@ pub enum RecorderEvent {
     InsertedOperation(Ptr<Operation>),
     InsertedBlock(Ptr<BasicBlock>),
     ErasedOperation(Ptr<Operation>),
-    ReplacedOperation {
-        old_values: Vec<Value>,
-        old_types: Vec<Ptr<TypeObj>>,
-        new_values: Vec<Value>,
-    },
     ReplacedValueUses {
         old_value: Value,
         old_type: Ptr<TypeObj>,
@@ -132,21 +114,6 @@ impl InsertionListener for Recorder {
 impl RewriteListener for Recorder {
     fn notify_operation_erasure(&mut self, _ctx: &Context, op: Ptr<Operation>) {
         self.events.push(RecorderEvent::ErasedOperation(op));
-    }
-
-    fn notify_operation_replacement(
-        &mut self,
-        ctx: &Context,
-        old_op: Ptr<Operation>,
-        new_values: Vec<Value>,
-    ) {
-        let old_values = old_op.deref(ctx).results().collect();
-        let old_types = old_op.deref(ctx).result_types().collect();
-        self.events.push(RecorderEvent::ReplacedOperation {
-            old_values,
-            old_types,
-            new_values,
-        });
     }
 
     fn notify_value_use_replacement(&mut self, ctx: &Context, old_value: Value, new_value: Value) {

@@ -16,9 +16,11 @@ use std::{
 };
 
 use crate::{
+    arg_error,
     basic_block::BasicBlock,
     common_traits::{Named, Verify},
     context::{Context, Ptr},
+    debug_info,
     identifier::Identifier,
     linked_list::{ContainsLinkedList, LinkedList},
     location::{Located, Location},
@@ -26,11 +28,11 @@ use crate::{
     printable::Printable,
     result::Result,
     r#type::{TypeObj, Typed},
-    verify_err,
+    verify_err, verify_error,
 };
 
-/// def-use chains are implemented for [Value]s and `Ptr<BasicBlock`.
-pub trait DefUseParticipant: Copy + Hash + Eq {}
+/// def-use chains are implemented for [Value]s and `Ptr<BasicBlock>`.
+pub(crate) trait DefUseParticipant: Copy + Hash + Eq {}
 impl DefUseParticipant for Value {}
 impl DefUseParticipant for Ptr<BasicBlock> {}
 
@@ -102,9 +104,28 @@ impl<T: DefUseParticipant> DefNode<T> {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+enum UseError {
+    #[error("Use does not correspond to any operand of its user operation")]
+    OperandNotInUserOp,
+    #[error("Use does not correspond to any successor of its user operation")]
+    SuccessorNotInUserOp,
+}
+
 /// Interface for [UseNode] wrappers.
 pub(crate) trait UseTrait: DefUseParticipant {
-    /// Get a mutable reference to the [UseNode] described by this  use.
+    /// Find the index of the operand/successor in the user operation that corresponds to this use.
+    /// Returns [Err] if the use is not in its user operation's operands/successors.
+    fn try_find_index(r#use: &Use<Self>, ctx: &Context) -> Result<usize>;
+    /// Find the index of the operand/successor in the user operation that corresponds to this use.
+    /// Panics if the use is not in its user operation's operands/successors.
+    fn find(r#use: &Use<Self>, ctx: &Context) -> usize {
+        Self::try_find_index(r#use, ctx)
+            .expect("Use is not in its user operation's operands/successors")
+    }
+    /// Get a reference to the [UseNode] described by this use.
+    fn get_usenode_ref<'a>(r#use: &Use<Self>, ctx: &'a Context) -> Ref<'a, UseNode<Self>>;
+    /// Get a mutable reference to the [UseNode] described by this use.
     fn get_usenode_mut<'a>(r#use: &Use<Self>, ctx: &'a Context) -> RefMut<'a, UseNode<Self>>;
 }
 
@@ -116,20 +137,64 @@ pub(crate) trait DefTrait: DefUseParticipant {
     fn get_defnode_mut<'a>(&self, ctx: &'a Context) -> RefMut<'a, DefNode<Self>>;
 }
 
+/// The defining entity of a [Value]:
+/// Either an [Operation] result or a [BasicBlock] argument.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DefEntity {
+    OpResult(Ptr<Operation>),
+    BlockArgument(Ptr<BasicBlock>),
+}
+
 /// Describes a value definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Value {
-    OpResult {
-        op: Ptr<Operation>,
-        res_idx: usize,
-    },
-    BlockArgument {
-        block: Ptr<BasicBlock>,
-        arg_idx: usize,
-    },
+pub struct Value {
+    pub(crate) val_uid: u64,
+    pub(crate) def_entity: DefEntity,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ValueError {
+    #[error("Invalid Value: Defining operation has no result corresponding to this value")]
+    NotInOpResult,
+    #[error("Invalid Value: Defining block has no argument corresponding to this value")]
+    NotInBlockArgument,
 }
 
 impl Value {
+    /// Get the definition entity
+    pub fn def_entity(&self) -> DefEntity {
+        self.def_entity
+    }
+
+    /// Find the (result / argument) index of this value in its defining entity.
+    /// Returns [Err] if this value is not currently defined by its defining entity.
+    pub fn try_find_index(&self, ctx: &Context) -> Result<usize> {
+        match self.def_entity {
+            DefEntity::OpResult(op) => {
+                let op = op.deref(ctx);
+                op.results
+                    .iter()
+                    .position(|res| res.val_uid == self.val_uid)
+                    .ok_or(arg_error!(op.loc(), ValueError::NotInOpResult))
+            }
+            DefEntity::BlockArgument(block) => {
+                let block = block.deref(ctx);
+                block
+                    .args
+                    .iter()
+                    .position(|arg| arg.val_uid == self.val_uid)
+                    .ok_or(arg_error!(block.loc(), ValueError::NotInBlockArgument))
+            }
+        }
+    }
+
+    /// Find the (result / argument) index of this value in its defining entity.
+    /// Panics if this value is not currently defined by its defining entity.
+    pub fn find_index(&self, ctx: &Context) -> usize {
+        self.try_find_index(ctx)
+            .expect("Value is not currently defined by its defining entity")
+    }
+
     /// How many uses does this definition have?
     pub fn num_uses(&self, ctx: &Context) -> usize {
         self.get_defnode_ref(ctx).num_uses()
@@ -177,22 +242,26 @@ impl Value {
 
     /// Get this value's location
     pub fn loc(&self, ctx: &Context) -> Location {
-        match self {
-            Value::OpResult { op, res_idx: _ } => op.deref(ctx).loc(),
-            Value::BlockArgument { block, arg_idx: _ } => block.deref(ctx).loc(),
+        match self.def_entity {
+            DefEntity::OpResult(op) => op.deref(ctx).loc(),
+            DefEntity::BlockArgument(block) => block.deref(ctx).loc(),
         }
     }
 
     /// Set this value's type.
     pub fn set_type(&self, ctx: &Context, ty: Ptr<TypeObj>) {
-        match self {
-            Value::OpResult { op, res_idx } => {
-                op.deref_mut(ctx).get_result_mut(*res_idx).set_type(ty)
-            }
-            Value::BlockArgument { block, arg_idx } => block
-                .deref_mut(ctx)
-                .get_argument_mut(*arg_idx)
-                .set_type(ctx, ty),
+        let index = self.find_index(ctx);
+        match self.def_entity {
+            DefEntity::OpResult(op) => op.deref_mut(ctx).results[index].set_type(ty),
+            DefEntity::BlockArgument(block) => block.deref_mut(ctx).args[index].set_type(ctx, ty),
+        }
+    }
+
+    /// Get the defining block of this value.
+    pub fn get_defining_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
+        match self.def_entity {
+            DefEntity::OpResult(op) => op.deref(ctx).get_parent_block(),
+            DefEntity::BlockArgument(block) => Some(block),
         }
     }
 }
@@ -201,7 +270,9 @@ impl Verify for Value {
     // Check that the value's uses point back to it,
     fn verify(&self, ctx: &Context) -> Result<()> {
         for r#use in self.uses(ctx) {
-            let use_operand = r#use.op.deref(ctx).get_operand(r#use.opd_idx);
+            let opd_idx = <Self as UseTrait>::try_find_index(&r#use, ctx)
+                .map_err(|_| verify_error!(self.loc(ctx), DefUseVerifyErr::OperandNotUseOfDef))?;
+            let use_operand = r#use.user_op.deref(ctx).get_operand(opd_idx);
             if use_operand != *self {
                 verify_err!(self.loc(ctx), DefUseVerifyErr::OperandNotUseOfDef)?;
             }
@@ -212,34 +283,25 @@ impl Verify for Value {
 
 impl Typed for Value {
     fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
-        match self {
-            Value::OpResult { op, res_idx } => op.deref(ctx).get_result_ref(*res_idx).get_type(),
-            Value::BlockArgument { block, arg_idx } => {
-                block.deref(ctx).get_argument_ref(*arg_idx).get_type(ctx)
-            }
+        let index = self.find_index(ctx);
+        match self.def_entity {
+            DefEntity::OpResult(op) => op.deref(ctx).results[index].get_type(),
+            DefEntity::BlockArgument(block) => block.deref(ctx).args[index].get_type(ctx),
         }
     }
 }
 
 impl Named for Value {
     fn given_name(&self, ctx: &Context) -> Option<Identifier> {
-        match self {
-            Value::OpResult { op, res_idx } => {
-                op.deref(ctx).get_result_ref(*res_idx).given_name(ctx)
-            }
-            Value::BlockArgument { block, arg_idx } => {
-                block.deref(ctx).get_argument_ref(*arg_idx).given_name(ctx)
-            }
+        let index = self.find_index(ctx);
+        match self.def_entity {
+            DefEntity::OpResult(op) => debug_info::get_operation_result_name(ctx, op, index),
+            DefEntity::BlockArgument(block) => debug_info::get_block_arg_name(ctx, block, index),
         }
     }
 
-    fn id(&self, ctx: &Context) -> Identifier {
-        match self {
-            Value::OpResult { op, res_idx } => op.deref(ctx).get_result_ref(*res_idx).id(ctx),
-            Value::BlockArgument { block, arg_idx } => {
-                block.deref(ctx).get_argument_ref(*arg_idx).id(ctx)
-            }
-        }
+    fn id(&self, _ctx: &Context) -> Identifier {
+        Identifier::try_from(format!("v{}", self.val_uid)).unwrap()
     }
 }
 
@@ -256,38 +318,51 @@ impl Printable for Value {
 
 impl DefTrait for Value {
     fn get_defnode_ref<'a>(&self, ctx: &'a Context) -> Ref<'a, DefNode<Self>> {
-        match self {
-            Self::OpResult { op, res_idx } => {
+        let index = self.find_index(ctx);
+        match self.def_entity {
+            DefEntity::OpResult(op) => {
                 let op = op.deref(ctx);
-                Ref::map(op, |opref| &opref.get_result_ref(*res_idx).def)
+                Ref::map(op, |opref| &opref.results[index].def)
             }
-            Self::BlockArgument { block, arg_idx } => {
+            DefEntity::BlockArgument(block) => {
                 let block = block.deref(ctx);
-                Ref::map(block, |blockref| &blockref.get_argument_ref(*arg_idx).def)
+                Ref::map(block, |blockref| &blockref.args[index].def)
             }
         }
     }
 
     fn get_defnode_mut<'a>(&self, ctx: &'a Context) -> RefMut<'a, DefNode<Self>> {
-        match self {
-            Self::OpResult { op, res_idx } => {
+        let index = self.find_index(ctx);
+        match self.def_entity {
+            DefEntity::OpResult(op) => {
                 let op = op.deref_mut(ctx);
-                RefMut::map(op, |opref| &mut opref.get_result_mut(*res_idx).def)
+                RefMut::map(op, |opref| &mut opref.results[index].def)
             }
-            Self::BlockArgument { block, arg_idx } => {
+            DefEntity::BlockArgument(block) => {
                 let block = block.deref_mut(ctx);
-                RefMut::map(block, |blockref| {
-                    &mut blockref.get_argument_mut(*arg_idx).def
-                })
+                RefMut::map(block, |blockref| &mut blockref.args[index].def)
             }
         }
     }
 }
 
 impl UseTrait for Value {
+    fn try_find_index(r#use: &Use<Self>, ctx: &Context) -> Result<usize> {
+        let op = r#use.user_op.deref(ctx);
+        op.operands
+            .iter()
+            .position(|operand| operand.use_uid == r#use.use_uid)
+            .ok_or(arg_error!(op.loc(), UseError::OperandNotInUserOp))
+    }
+    fn get_usenode_ref<'a>(r#use: &Use<Self>, ctx: &'a Context) -> Ref<'a, UseNode<Self>> {
+        let index = <Self as UseTrait>::find(r#use, ctx);
+        let op = r#use.user_op.deref(ctx);
+        Ref::map(op, |opref| &opref.operands[index].r#use)
+    }
     fn get_usenode_mut<'a>(r#use: &Use<Self>, ctx: &'a Context) -> RefMut<'a, UseNode<Value>> {
-        let op = r#use.op.deref_mut(ctx);
-        RefMut::map(op, |opref| &mut opref.get_operand_mut(r#use.opd_idx).r#use)
+        let index = <Self as UseTrait>::find(r#use, ctx);
+        let op = r#use.user_op.deref_mut(ctx);
+        RefMut::map(op, |opref| &mut opref.operands[index].r#use)
     }
 }
 
@@ -309,12 +384,17 @@ impl Ptr<BasicBlock> {
             .uses()
             .map(|r#use| {
                 r#use
-                    .op
+                    .user_op
                     .deref(ctx)
                     .get_container()
                     .expect("Terminator branching to this block is not in any basic block")
             })
             .collect()
+    }
+
+    /// Get uses (as successor operands in an Operation) of this block.
+    pub fn uses(&self, ctx: &Context) -> Vec<Use<Ptr<BasicBlock>>> {
+        self.deref(ctx).preds.uses().collect()
     }
 
     /// Checks whether self is a successor of `pred`.
@@ -336,7 +416,7 @@ impl Ptr<BasicBlock> {
     ) {
         let predicate = |ctx: &Context, r#use: &Use<Ptr<BasicBlock>>| {
             let pred_block = r#use
-                .op
+                .user_op
                 .deref(ctx)
                 .get_container()
                 .expect("Predecessor block must be in a Region");
@@ -395,14 +475,25 @@ impl DefTrait for Ptr<BasicBlock> {
 }
 
 impl UseTrait for Ptr<BasicBlock> {
+    fn try_find_index(r#use: &Use<Self>, ctx: &Context) -> Result<usize> {
+        let op = r#use.user_op.deref(ctx);
+        op.successors
+            .iter()
+            .position(|succ| succ.use_uid == r#use.use_uid)
+            .ok_or(arg_error!(op.loc(), UseError::SuccessorNotInUserOp))
+    }
+    fn get_usenode_ref<'a>(r#use: &Use<Self>, ctx: &'a Context) -> Ref<'a, UseNode<Self>> {
+        let succ_idx = <Self as UseTrait>::find(r#use, ctx);
+        let op = r#use.user_op.deref(ctx);
+        Ref::map(op, |opref| &opref.successors[succ_idx].r#use)
+    }
     fn get_usenode_mut<'a>(
         r#use: &Use<Ptr<BasicBlock>>,
         ctx: &'a Context,
     ) -> RefMut<'a, UseNode<Ptr<BasicBlock>>> {
-        let op = r#use.op.deref_mut(ctx);
-        RefMut::map(op, |opref| {
-            &mut opref.get_successor_mut(r#use.opd_idx).r#use
-        })
+        let succ_idx = <Self as UseTrait>::find(r#use, ctx);
+        let op = r#use.user_op.deref_mut(ctx);
+        RefMut::map(op, |opref| &mut opref.successors[succ_idx].r#use)
     }
 }
 
@@ -421,10 +512,43 @@ impl<T: DefUseParticipant> UseNode<T> {
 
 /// Describes a [Value] or [BasicBlock] use.
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
+#[allow(private_bounds)]
 pub struct Use<T: DefUseParticipant> {
     /// Uses of a def can only be in an operation.
-    pub op: Ptr<Operation>,
-    /// Used as the i'th operand or successor of [op](Self::op).
-    pub opd_idx: usize,
+    pub(crate) user_op: Ptr<Operation>,
+    /// The global (in the context) unique id of the use we're describing.
+    pub(crate) use_uid: u64,
+    /// Phantom data to keep track of whether this is a Value use or a BasicBlock use.
     pub(crate) _dummy: PhantomData<T>,
+}
+
+#[allow(private_bounds)]
+impl<T: UseTrait> Use<T> {
+    /// Find index of the operand/successor in the user operation that corresponds to this [Use].
+    /// Returns [Err] if the [Use] is not in its user operation's operands/successors.
+    pub fn try_find_index(&self, ctx: &Context) -> Result<usize> {
+        T::try_find_index(self, ctx)
+    }
+
+    /// Find index of the operand/successor in the user operation that corresponds to this [Use].
+    /// Panics if the [Use] is not in its user operation's operands/successors.
+    pub fn find_index(&self, ctx: &Context) -> usize {
+        T::find(self, ctx)
+    }
+
+    /// Get the definition that this is a use of.
+    pub fn get_def(&self, ctx: &Context) -> T {
+        UseTrait::get_usenode_ref(self, ctx).get_def()
+    }
+
+    /// Get the operation that is the user of this use.
+    pub fn user_op(&self) -> Ptr<Operation> {
+        self.user_op
+    }
+}
+
+impl Typed for Use<Value> {
+    fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
+        self.get_def(ctx).get_type(ctx)
+    }
 }

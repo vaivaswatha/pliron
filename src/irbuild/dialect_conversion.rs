@@ -22,7 +22,7 @@ use crate::{
     printable::{ListSeparator, Printable},
     result::Result,
     r#type::{Type, TypeObj, Typed},
-    value::Value,
+    value::{DefEntity, Value},
 };
 
 /// A rewriter that uses the [Recorder] listener.
@@ -276,19 +276,6 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
             }
         }
 
-        fn record_operation_replacement(
-            &mut self,
-            old_values: Vec<Value>,
-            old_types: Vec<Ptr<TypeObj>>,
-            new_values: Vec<Value>,
-        ) {
-            for ((old_value, old_type), new_value) in
-                old_values.into_iter().zip(old_types).zip(new_values)
-            {
-                self.record_value_replacement(old_value, old_type, new_value);
-            }
-        }
-
         fn record_value_replacement(
             &mut self,
             old_value: Value,
@@ -307,7 +294,7 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
         }
 
         fn convert_block_argument_type(&mut self, ctx: &mut Context, value: Value) -> Result<()> {
-            assert!(matches!(value, Value::BlockArgument { .. }));
+            assert!(matches!(value.def_entity(), DefEntity::BlockArgument(_)));
 
             loop {
                 let current_type = value.get_type(ctx);
@@ -344,10 +331,7 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
 
         fn process_recorder_events(&mut self, ctx: &mut Context) -> Result<()> {
             let events = {
-                let listener = self
-                    .rewriter
-                    .get_listener_mut()
-                    .expect("Rewriter must have a listener attached");
+                let listener = self.rewriter.get_listener_mut();
                 std::mem::take(&mut listener.events)
             };
 
@@ -359,17 +343,6 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
 
             for event in &events {
                 match event {
-                    RecorderEvent::ReplacedOperation {
-                        old_values,
-                        old_types,
-                        new_values,
-                    } => {
-                        self.record_operation_replacement(
-                            old_values.clone(),
-                            old_types.clone(),
-                            new_values.clone(),
-                        );
-                    }
                     RecorderEvent::ReplacedValueUses {
                         old_value,
                         old_type,
@@ -427,14 +400,14 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
             let operands: Vec<_> = op.deref(ctx).operands().collect();
             let mut pending_defs = Vec::new();
             for operand in &operands {
-                match operand {
-                    Value::OpResult { op: def_op, .. } => {
-                        assert_ne!(*def_op, op, "Operation cannot depend on its own result");
-                        if self.op_eligible_for_processing(ctx, *def_op) {
-                            pending_defs.push(*def_op);
+                match operand.def_entity() {
+                    DefEntity::OpResult(def_op) => {
+                        assert_ne!(def_op, op, "Operation cannot depend on its own result");
+                        if self.op_eligible_for_processing(ctx, def_op) {
+                            pending_defs.push(def_op);
                         }
                     }
-                    Value::BlockArgument { .. } => {
+                    DefEntity::BlockArgument(_) => {
                         self.convert_block_argument_type(ctx, *operand)?
                     }
                 }

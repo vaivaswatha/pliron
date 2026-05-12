@@ -21,6 +21,7 @@ pub(crate) fn interface_define(
     supertrait: Path,
     verifier_type: Path,
     append_dyn_clone_trait: bool,
+    target_marker_trait: Path,
 ) -> Result<proc_macro2::TokenStream> {
     let mut r#trait = syn::parse2::<ItemTrait>(input.into())?;
     let intr_name = r#trait.ident.clone();
@@ -81,6 +82,10 @@ pub(crate) fn interface_define(
             ::pliron::dyn_clone::clone_trait_object!(#impl_generics #intr_name #ty_generics #where_clause);
         });
     }
+
+    output.extend(quote! {
+        impl #impl_generics #target_marker_trait for dyn #intr_name #ty_generics #where_clause {}
+    });
 
     Ok(output)
 }

@@ -2,6 +2,7 @@
 
 use std::ops::{BitOr, BitOrAssign};
 
+pub mod dce;
 pub mod mem2reg;
 
 /// Indicates whether an optimization pass changed the IR or not.

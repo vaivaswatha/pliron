@@ -6,7 +6,7 @@ use pliron::{
     context::{Context, Ptr},
     op::{Op, verify_op},
     operation::Operation,
-    opts::mem2reg,
+    opts::{dce, mem2reg},
     printable::Printable,
     result::Result,
     verify_error_noloc,
@@ -42,6 +42,7 @@ struct Cli {
 #[derive(Clone, Copy, Debug)]
 enum OptPass {
     Mem2Reg,
+    Dce,
 }
 
 impl FromStr for OptPass {
@@ -50,8 +51,9 @@ impl FromStr for OptPass {
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s.trim().to_ascii_lowercase().as_str() {
             "mem2reg" => Ok(OptPass::Mem2Reg),
+            "dce" => Ok(OptPass::Dce),
             other => Err(format!(
-                "unknown optimization pass '{other}'. Available passes: mem2reg"
+                "unknown optimization pass '{other}'. Available passes: mem2reg, dce"
             )),
         }
     }
@@ -62,6 +64,9 @@ fn run_opt_passes(module: Ptr<Operation>, opts: &[OptPass], ctx: &mut Context) -
         match opt {
             OptPass::Mem2Reg => {
                 let _status = mem2reg::mem2reg(module, ctx)?;
+            }
+            OptPass::Dce => {
+                let _status = dce::dce(module, ctx)?;
             }
         }
     }

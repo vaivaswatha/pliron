@@ -82,14 +82,14 @@ impl Printable for BlockInsertionPoint {
                 write!(
                     f,
                     "At start of Region {}",
-                    region.deref(ctx).get_index_in_parent(ctx)
+                    region.deref(ctx).find_index_in_parent(ctx)
                 )
             }
             BlockInsertionPoint::AtRegionEnd(region) => {
                 write!(
                     f,
                     "At end of Region {}",
-                    region.deref(ctx).get_index_in_parent(ctx)
+                    region.deref(ctx).find_index_in_parent(ctx)
                 )
             }
             BlockInsertionPoint::AfterBlock(block) => {
@@ -108,16 +108,8 @@ impl OpInsertionPoint {
         match self {
             OpInsertionPoint::AtBlockStart(block) => Some(*block),
             OpInsertionPoint::AtBlockEnd(block) => Some(*block),
-            OpInsertionPoint::AfterOperation(op) => Some(
-                op.deref(ctx)
-                    .get_parent_block()
-                    .expect("Insertion point Operation must have parent block"),
-            ),
-            OpInsertionPoint::BeforeOperation(op) => Some(
-                op.deref(ctx)
-                    .get_parent_block()
-                    .expect("Insertion point Operation must have parent block"),
-            ),
+            OpInsertionPoint::AfterOperation(op) => op.deref(ctx).get_parent_block(),
+            OpInsertionPoint::BeforeOperation(op) => op.deref(ctx).get_parent_block(),
             OpInsertionPoint::Unset => None,
         }
     }
@@ -134,18 +126,8 @@ impl BlockInsertionPoint {
         match self {
             BlockInsertionPoint::AtRegionStart(region) => Some(*region),
             BlockInsertionPoint::AtRegionEnd(region) => Some(*region),
-            BlockInsertionPoint::AfterBlock(block) => Some(
-                block
-                    .deref(ctx)
-                    .get_parent_region()
-                    .expect("Insertion point BasicBlock must have parent region"),
-            ),
-            BlockInsertionPoint::BeforeBlock(block) => Some(
-                block
-                    .deref(ctx)
-                    .get_parent_region()
-                    .expect("Insertion point BasicBlock must have parent region"),
-            ),
+            BlockInsertionPoint::AfterBlock(block) => block.deref(ctx).get_parent_region(),
+            BlockInsertionPoint::BeforeBlock(block) => block.deref(ctx).get_parent_region(),
             BlockInsertionPoint::Unset => None,
         }
     }
@@ -233,24 +215,24 @@ pub trait Inserter<L: InsertionListener> {
     fn set_listener(&mut self, listener: L);
 
     /// Gets a reference to the listener for insertion events.
-    fn get_listener(&self) -> Option<&L>;
+    fn get_listener(&self) -> &L;
 
     /// Gets a mutable reference to the listener for insertion events.
-    fn get_listener_mut(&mut self) -> Option<&mut L>;
+    fn get_listener_mut(&mut self) -> &mut L;
 }
 
 /// A utility for inserting [Operation]s from a specified insertion point.
 /// Use [DummyListener](super::listener::DummyListener) if no listener is needed.
 pub struct IRInserter<L: InsertionListener> {
     op_insertion_point: OpInsertionPoint,
-    listener: Option<L>,
+    listener: L,
 }
 
 impl<L: InsertionListener> Default for IRInserter<L> {
     fn default() -> Self {
         Self {
             op_insertion_point: OpInsertionPoint::default(),
-            listener: None,
+            listener: L::default(),
         }
     }
 }
@@ -260,7 +242,7 @@ impl<L: InsertionListener> IRInserter<L> {
     pub fn new(insertion_point: OpInsertionPoint) -> Self {
         Self {
             op_insertion_point: insertion_point,
-            listener: None,
+            listener: L::default(),
         }
     }
 
@@ -269,7 +251,7 @@ impl<L: InsertionListener> IRInserter<L> {
     pub fn new_at_block_start(block: Ptr<BasicBlock>) -> Self {
         Self {
             op_insertion_point: OpInsertionPoint::AtBlockStart(block),
-            listener: None,
+            listener: L::default(),
         }
     }
 
@@ -278,7 +260,7 @@ impl<L: InsertionListener> IRInserter<L> {
     pub fn new_at_block_end(block: Ptr<BasicBlock>) -> Self {
         Self {
             op_insertion_point: OpInsertionPoint::AtBlockEnd(block),
-            listener: None,
+            listener: L::default(),
         }
     }
 
@@ -287,7 +269,7 @@ impl<L: InsertionListener> IRInserter<L> {
     pub fn new_after_operation(op: Ptr<Operation>) -> Self {
         Self {
             op_insertion_point: OpInsertionPoint::AfterOperation(op),
-            listener: None,
+            listener: L::default(),
         }
     }
 
@@ -296,7 +278,7 @@ impl<L: InsertionListener> IRInserter<L> {
     pub fn new_before_operation(op: Ptr<Operation>) -> Self {
         Self {
             op_insertion_point: OpInsertionPoint::BeforeOperation(op),
-            listener: None,
+            listener: L::default(),
         }
     }
 
@@ -351,9 +333,7 @@ impl<L: InsertionListener> Inserter<L> for IRInserter<L> {
             }
         }
         // Notify the listener if present
-        if let Some(listener) = &mut self.listener {
-            listener.notify_operation_inserted(ctx, operation);
-        }
+        self.listener.notify_operation_inserted(ctx, operation);
     }
 
     fn insert_op(&mut self, ctx: &Context, op: impl Op) {
@@ -385,9 +365,7 @@ impl<L: InsertionListener> Inserter<L> for IRInserter<L> {
             }
         }
         // Notify the listener if present
-        if let Some(listener) = &mut self.listener {
-            listener.notify_block_inserted(ctx, block);
-        }
+        self.listener.notify_block_inserted(ctx, block);
     }
 
     fn create_block(
@@ -413,17 +391,17 @@ impl<L: InsertionListener> Inserter<L> for IRInserter<L> {
 
     /// Sets the listener for insertion events.
     fn set_listener(&mut self, listener: L) {
-        self.listener = Some(listener);
+        self.listener = listener;
     }
 
     /// Gets a reference to the listener for insertion events.
-    fn get_listener(&self) -> Option<&L> {
-        self.listener.as_ref()
+    fn get_listener(&self) -> &L {
+        &self.listener
     }
 
     /// Gets a mutable reference to the listener for insertion events.
-    fn get_listener_mut(&mut self) -> Option<&mut L> {
-        self.listener.as_mut()
+    fn get_listener_mut(&mut self) -> &mut L {
+        &mut self.listener
     }
 }
 
@@ -520,11 +498,11 @@ impl<'a, L: InsertionListener, I: Inserter<L>> Inserter<L> for ScopedInserter<'a
         self.inserter.set_listener(listener);
     }
 
-    fn get_listener(&self) -> Option<&L> {
+    fn get_listener(&self) -> &L {
         self.inserter.get_listener()
     }
 
-    fn get_listener_mut(&mut self) -> Option<&mut L> {
+    fn get_listener_mut(&mut self) -> &mut L {
         self.inserter.get_listener_mut()
     }
 }

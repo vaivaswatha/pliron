@@ -1,0 +1,79 @@
+name: Deploy Rust Docs to GitHub Pages
+
+on:
+  push:
+    branches: ["master"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-docs:
+    name: Build Workspace Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setup LLVM
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 22 all
+
+      - name: Build documentation
+        run: |
+          RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+
+      - name: Create docs landing page
+        run: |
+          cat > target/doc/index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <title>pliron docs</title>
+              <meta http-equiv="refresh" content="0; url=pliron/">
+            </head>
+            <body>
+              <p>Redirecting to <a href="pliron/">pliron docs</a>...</p>
+              <ul>
+                <li><a href="pliron/">pliron</a></li>
+                <li><a href="pliron_llvm/">pliron-llvm</a></li>
+                <li><a href="pliron_derive/">pliron-derive</a></li>
+              </ul>
+            </body>
+          </html>
+          EOF
+          touch target/doc/.nojekyll
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: target/doc
+
+  deploy-docs:
+    name: Deploy to GitHub Pages
+    needs: build-docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

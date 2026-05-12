@@ -25,7 +25,7 @@ use pliron::{
     indented_block, input_err,
     irbuild::{
         inserter::{IRInserter, Inserter},
-        listener::DummyListener,
+        listener::Recorder,
         rewriter::{IRRewriter, Rewriter},
     },
     irfmt::{
@@ -484,7 +484,7 @@ impl PromotableAllocationInterface for AllocaOp {
     fn default_value(
         &self,
         ctx: &mut Context,
-        inserter: &mut IRInserter<DummyListener>,
+        inserter: &mut IRInserter<Recorder>,
         alloc_info: &AllocInfo,
     ) -> Result<Value> {
         if alloc_info.ptr != self.get_result(ctx) {
@@ -499,7 +499,7 @@ impl PromotableAllocationInterface for AllocaOp {
     fn promote(
         &self,
         ctx: &mut Context,
-        rewriter: &mut IRRewriter<DummyListener>,
+        rewriter: &mut IRRewriter<Recorder>,
         alloc_infos: &[AllocInfo],
     ) -> Result<()> {
         if alloc_infos.len() != 1 || alloc_infos[0].ptr != self.get_result(ctx) {
@@ -1409,7 +1409,7 @@ impl PromotableOpInterface for LoadOp {
         &self,
         ctx: &mut Context,
         alloc_info_reaching_defs: &[(AllocInfo, Value)],
-        rewriter: &mut IRRewriter<DummyListener>,
+        rewriter: &mut IRRewriter<Recorder>,
     ) -> Result<()> {
         if alloc_info_reaching_defs.len() != 1 {
             return arg_err!(self.loc(ctx), UnrelatedAllocInfo);
@@ -1489,7 +1489,7 @@ impl PromotableOpInterface for StoreOp {
         &self,
         ctx: &mut Context,
         alloc_info_reaching_defs: &[(AllocInfo, Value)],
-        rewriter: &mut IRRewriter<DummyListener>,
+        rewriter: &mut IRRewriter<Recorder>,
     ) -> Result<()> {
         if alloc_info_reaching_defs.len() != 1 {
             return arg_err!(self.loc(ctx), UnrelatedAllocInfo);

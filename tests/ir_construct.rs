@@ -7,7 +7,7 @@ use pliron::derive::pliron_op;
 use pliron::dict_key;
 use pliron::op::verify_op;
 use pliron::operation::{DefUseVerifyErr, verify_operation};
-use pliron::value::Use;
+use pliron::r#type::TypeObj;
 use pliron::{
     basic_block::BasicBlock,
     builtin::{
@@ -18,7 +18,10 @@ use pliron::{
         types::{IntegerType, Signedness},
     },
     context::Context,
-    debug_info::set_operation_result_name,
+    debug_info::{
+        get_block_arg_name, get_operation_result_name, set_block_arg_name,
+        set_operation_result_name,
+    },
     graph::walkers::{
         self, IRNode, WALKCONFIG_POSTORDER_FORWARD, WALKCONFIG_POSTORDER_REVERSE,
         WALKCONFIG_PREORDER_FORWARD,
@@ -79,7 +82,12 @@ fn replace_c0_with_c1() -> Result<()> {
     const1_op
         .get_operation()
         .insert_after(ctx, const_op.get_operation());
-    set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".try_into().unwrap());
+    set_operation_result_name(
+        ctx,
+        const1_op.get_operation(),
+        0,
+        Some("c1".try_into().unwrap()),
+    );
     let const0_val = const_op.get_result(ctx);
     const0_val.replace_some_uses_with(ctx, |_, _| true, &const1_op.get_result(ctx));
 
@@ -104,7 +112,12 @@ fn replace_c0_with_c1_operand() -> Result<()> {
     const1_op
         .get_operation()
         .insert_after(ctx, const_op.get_operation());
-    set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".try_into().unwrap());
+    set_operation_result_name(
+        ctx,
+        const1_op.get_operation(),
+        0,
+        Some("c1".try_into().unwrap()),
+    );
 
     let printed = format!("{}", module_op.get_operation().disp(ctx));
     expect![[r#"
@@ -114,9 +127,9 @@ fn replace_c0_with_c1_operand() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
-                c1_op5v1_res0 = test.constant builtin.integer <1: si64> !1;
-                test.return c0_op3v1_res0
+                c0_v0 = test.constant builtin.integer <0: si64> !0;
+                c1_v1 = test.constant builtin.integer <1: si64> !1;
+                test.return c0_v0
             }
         }
 
@@ -137,8 +150,8 @@ fn replace_c0_with_c1_operand() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c1_op5v1_res0 = test.constant builtin.integer <1: si64> !0;
-                test.return c1_op5v1_res0
+                c1_v1 = test.constant builtin.integer <1: si64> !0;
+                test.return c1_v1
             }
         }
 
@@ -192,9 +205,9 @@ fn test_replace_within_same_def_site() {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op4v1_res0 = test.constant builtin.integer <0: si64> !0;
-                op1v1_res0, op1v1_res1 = test.dual_def () [] []: <() -> (builtin.integer si64, builtin.integer si64)>;
-                test.return op1v1_res1
+                c0_v2 = test.constant builtin.integer <0: si64> !0;
+                v0, v1 = test.dual_def () [] []: <() -> (builtin.integer si64, builtin.integer si64)>;
+                test.return v1
             }
         }
 
@@ -221,12 +234,12 @@ fn test_replace_within_same_def_site() {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op4v1_res0 = test.constant builtin.integer <0: si64> !0;
-                op1v1_res0, op1v1_res1 = test.dual_def () [] []: <() -> (builtin.integer si64, builtin.integer si64)>;
-                test.return op1v1_res1
+                c0_v2 = test.constant builtin.integer <0: si64> !0;
+                v0, v1 = test.dual_def () [] []: <() -> (builtin.integer si64, builtin.integer si64)>;
+                test.return v1
 
-              ^block3v1(block3v1_arg0: builtin.integer si64, block3v1_arg1: builtin.integer si64):
-                test.return block3v1_arg1
+              ^block3v1(v3: builtin.integer si64, v4: builtin.integer si64):
+                test.return v4
             }
         }
 
@@ -265,11 +278,13 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 2);
     assert_eq!(ret_ptr.deref(ctx).get_operand(0), c0);
     assert_eq!(ret_ptr.deref(ctx).get_operand(1), c1);
-    for Use { op, opd_idx, .. } in c1.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 1);
+    for r#use in c1.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c1);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 1);
     }
-    for Use { op, opd_idx, .. } in c0.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 0);
+    for r#use in c0.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c0);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 0);
     }
     verify_op(&module_op, ctx)?;
 
@@ -278,8 +293,9 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 1);
     assert_eq!(ret_ptr.deref(ctx).get_operand(0), c0);
     assert!(c1.uses(ctx).is_empty()); // c1 should have no uses now.
-    for Use { op, opd_idx, .. } in c0.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 0);
+    for r#use in c0.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c0);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 0);
     }
     verify_op(&module_op, ctx)?;
 
@@ -287,11 +303,13 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 2);
     assert_eq!(ret_ptr.deref(ctx).get_operand(0), c1);
     assert_eq!(ret_ptr.deref(ctx).get_operand(1), c0);
-    for Use { op, opd_idx, .. } in c1.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 0);
+    for r#use in c1.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c1);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 0);
     }
-    for Use { op, opd_idx, .. } in c0.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 1);
+    for r#use in c0.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c0);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 1);
     }
     verify_op(&module_op, ctx)?;
 
@@ -300,14 +318,17 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_operand(0), c1);
     assert_eq!(ret_ptr.deref(ctx).get_operand(1), c0);
     assert_eq!(ret_ptr.deref(ctx).get_operand(2), c2);
-    for Use { op, opd_idx, .. } in c1.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 0);
+    for r#use in c1.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c1);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 0);
     }
-    for Use { op, opd_idx, .. } in c0.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 1);
+    for r#use in c0.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c0);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 1);
     }
-    for Use { op, opd_idx, .. } in c2.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 2);
+    for r#use in c2.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c2);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 2);
     }
 
     verify_op(&module_op, ctx)?;
@@ -317,11 +338,13 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 2);
     assert_eq!(ret_ptr.deref(ctx).get_operand(0), c1);
     assert_eq!(ret_ptr.deref(ctx).get_operand(1), c2);
-    for Use { op, opd_idx, .. } in c1.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 0);
+    for r#use in c1.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c1);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 0);
     }
-    for Use { op, opd_idx, .. } in c2.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 1);
+    for r#use in c2.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c2);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 1);
     }
     verify_op(&module_op, ctx)?;
 
@@ -329,31 +352,437 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(removed_front, c1);
     assert_eq!(ret_ptr.deref(ctx).get_num_operands(), 1);
     assert_eq!(ret_ptr.deref(ctx).get_operand(0), c2);
-    for Use { op, opd_idx, .. } in c2.uses(ctx) {
-        assert!(op == ret_ptr && opd_idx == 0);
+    for r#use in c2.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c2);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 0);
     }
     verify_op(&module_op, ctx)?;
 
     // Add c2 as an operand again,
     Operation::insert_operand(ret_ptr, ctx, 0, c2);
     assert!(c2.uses(ctx).len() == 2); // c2 should now have two uses.
-    for Use { op, opd_idx, .. } in c2.uses(ctx) {
+    for r#use in c2.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c2);
         // c2 should now have two uses.
-        assert!(op == ret_ptr && (opd_idx == 0 || opd_idx == 1));
+        assert!(
+            r#use.user_op() == ret_ptr
+                && (r#use.find_index(ctx) == 0 || r#use.find_index(ctx) == 1)
+        );
     }
 
     // Add c0 now
     Operation::insert_operand(ret_ptr, ctx, 1, c0);
-    assert!(c0.uses(ctx).len() == 1); // c0 should now have 1
+    assert!(c0.uses(ctx).len() == 1); // c0 should now have 1 use.
     assert!(c2.uses(ctx).len() == 2); // c2 should still have two uses.
-    for Use { op, opd_idx, .. } in c0.uses(ctx) {
-        // c0 should now  one use.
-        assert!(op == ret_ptr && opd_idx == 1);
+    for r#use in c0.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c0);
+        // c0 should now have one use.
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 1);
     }
-    for Use { op, opd_idx, .. } in c2.uses(ctx) {
+    for r#use in c2.uses(ctx) {
+        assert!(r#use.get_def(ctx) == c2);
         // c2 should still have two uses.
-        assert!(op == ret_ptr && (opd_idx == 0 || opd_idx == 2));
+        assert!(
+            r#use.user_op() == ret_ptr
+                && (r#use.find_index(ctx) == 0 || r#use.find_index(ctx) == 2)
+        );
     }
+
+    Ok(())
+}
+
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_result_push_pop_insert_remove() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let i64_ty: Ptr<TypeObj> = IntegerType::get(ctx, 64, Signedness::Signed).into();
+    let i32_ty: Ptr<TypeObj> = IntegerType::get(ctx, 32, Signedness::Signed).into();
+
+    // Create a DualDefOp with two i64 results.
+    let op = Operation::new(
+        ctx,
+        DualDefOp::get_concrete_op_info(),
+        vec![i64_ty, i64_ty],
+        vec![],
+        vec![],
+        0,
+    );
+
+    let r0 = op.deref(ctx).get_result(0);
+    let r1 = op.deref(ctx).get_result(1);
+
+    set_operation_result_name(ctx, op, 0, Some("r0".try_into().unwrap()));
+    set_operation_result_name(ctx, op, 1, Some("r1".try_into().unwrap()));
+
+    assert_eq!(op.deref(ctx).get_num_results(), 2);
+    assert_eq!(r0.find_index(ctx), 0);
+    assert_eq!(r1.find_index(ctx), 1);
+    assert_eq!(op.deref(ctx).get_type(0), i64_ty);
+    assert_eq!(op.deref(ctx).get_type(1), i64_ty);
+    assert_eq!(
+        get_operation_result_name(ctx, op, 0),
+        Some("r0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_operation_result_name(ctx, op, 1),
+        Some("r1".try_into().unwrap())
+    );
+
+    // Push a new i32 result at the end.
+    let pushed_idx = Operation::push_result(op, ctx, i32_ty);
+    assert_eq!(pushed_idx, 2);
+    assert_eq!(op.deref(ctx).get_num_results(), 3);
+    // r0 and r1 still have the same indices.
+    assert_eq!(r0.find_index(ctx), 0);
+    assert_eq!(r1.find_index(ctx), 1);
+    let r2 = op.deref(ctx).get_result(2);
+    assert_eq!(r2.find_index(ctx), 2);
+    assert_eq!(op.deref(ctx).get_type(2), i32_ty);
+    assert_eq!(get_operation_result_name(ctx, op, 2), None);
+
+    // Pop the last result (r2 has no uses).
+    Operation::pop_result(op, ctx);
+    assert_eq!(op.deref(ctx).get_num_results(), 2);
+    assert_eq!(r0.find_index(ctx), 0);
+    assert_eq!(r1.find_index(ctx), 1);
+    assert_eq!(
+        get_operation_result_name(ctx, op, 0),
+        Some("r0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_operation_result_name(ctx, op, 1),
+        Some("r1".try_into().unwrap())
+    );
+
+    // Insert an i32 result at index 0, shifting r0 -> 1 and r1 -> 2.
+    Operation::insert_result(op, ctx, 0, i32_ty);
+    assert_eq!(op.deref(ctx).get_num_results(), 3);
+    assert_eq!(op.deref(ctx).get_type(0), i32_ty);
+    assert_eq!(r0.find_index(ctx), 1);
+    assert_eq!(r1.find_index(ctx), 2);
+    assert_eq!(get_operation_result_name(ctx, op, 0), None);
+    assert_eq!(
+        get_operation_result_name(ctx, op, 1),
+        Some("r0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_operation_result_name(ctx, op, 2),
+        Some("r1".try_into().unwrap())
+    );
+
+    // Remove index 0 (the freshly inserted i32, which has no uses).
+    Operation::remove_result(op, ctx, 0);
+    assert_eq!(op.deref(ctx).get_num_results(), 2);
+    assert_eq!(r0.find_index(ctx), 0);
+    assert_eq!(r1.find_index(ctx), 1);
+    assert_eq!(
+        get_operation_result_name(ctx, op, 0),
+        Some("r0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_operation_result_name(ctx, op, 1),
+        Some("r1".try_into().unwrap())
+    );
+
+    // Insert an i32 result at index 1 (between r0 and r1), shifting r1 -> 2.
+    Operation::insert_result(op, ctx, 1, i32_ty);
+    assert_eq!(op.deref(ctx).get_num_results(), 3);
+    assert_eq!(r0.find_index(ctx), 0);
+    assert_eq!(op.deref(ctx).get_type(1), i32_ty);
+    assert_eq!(r1.find_index(ctx), 2);
+
+    // Remove index 1 (no uses), shifting r1 back to 1.
+    Operation::remove_result(op, ctx, 1);
+    assert_eq!(op.deref(ctx).get_num_results(), 2);
+    assert_eq!(r0.find_index(ctx), 0);
+    assert_eq!(r1.find_index(ctx), 1);
+
+    // Insert at the end (index 2).
+    Operation::insert_result(op, ctx, 2, i32_ty);
+    assert_eq!(op.deref(ctx).get_num_results(), 3);
+    assert_eq!(r0.find_index(ctx), 0);
+    assert_eq!(r1.find_index(ctx), 1);
+    assert_eq!(op.deref(ctx).get_type(2), i32_ty);
+    assert_eq!(
+        get_operation_result_name(ctx, op, 0),
+        Some("r0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_operation_result_name(ctx, op, 1),
+        Some("r1".try_into().unwrap())
+    );
+    assert_eq!(get_operation_result_name(ctx, op, 2), None);
+
+    // Remove from the end.
+    Operation::remove_result(op, ctx, 2);
+    assert_eq!(op.deref(ctx).get_num_results(), 2);
+    assert_eq!(r0.find_index(ctx), 0);
+    assert_eq!(r1.find_index(ctx), 1);
+    assert_eq!(
+        get_operation_result_name(ctx, op, 0),
+        Some("r0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_operation_result_name(ctx, op, 1),
+        Some("r1".try_into().unwrap())
+    );
+
+    Ok(())
+}
+
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_block_arg_push_pop_insert_remove() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let i64_ty: Ptr<TypeObj> = IntegerType::get(ctx, 64, Signedness::Signed).into();
+    let i32_ty: Ptr<TypeObj> = IntegerType::get(ctx, 32, Signedness::Signed).into();
+
+    // Create a block with two i64 arguments.
+    let block = BasicBlock::new(ctx, None, vec![i64_ty, i64_ty]);
+
+    let a0 = block.deref(ctx).get_argument(0);
+    let a1 = block.deref(ctx).get_argument(1);
+
+    set_block_arg_name(ctx, block, 0, Some("a0".try_into().unwrap()));
+    set_block_arg_name(ctx, block, 1, Some("a1".try_into().unwrap()));
+
+    assert_eq!(block.deref(ctx).get_num_arguments(), 2);
+    assert_eq!(a0.find_index(ctx), 0);
+    assert_eq!(a1.find_index(ctx), 1);
+    assert_eq!(
+        get_block_arg_name(ctx, block, 0),
+        Some("a0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_block_arg_name(ctx, block, 1),
+        Some("a1".try_into().unwrap())
+    );
+
+    // Push a new i32 argument at the end.
+    let pushed_idx = BasicBlock::push_argument(block, ctx, i32_ty);
+    assert_eq!(pushed_idx, 2);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 3);
+    // a0 and a1 retain their indices.
+    assert_eq!(a0.find_index(ctx), 0);
+    assert_eq!(a1.find_index(ctx), 1);
+    let a2 = block.deref(ctx).get_argument(2);
+    assert_eq!(a2.find_index(ctx), 2);
+    assert_eq!(get_block_arg_name(ctx, block, 2), None);
+
+    // Pop the last argument (a2 has no uses).
+    BasicBlock::pop_argument(block, ctx);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 2);
+    assert_eq!(a0.find_index(ctx), 0);
+    assert_eq!(a1.find_index(ctx), 1);
+
+    // Insert an i32 argument at index 0, shifting a0 -> 1 and a1 -> 2.
+    BasicBlock::insert_argument(block, ctx, 0, i32_ty);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 3);
+    assert_eq!(a0.find_index(ctx), 1);
+    assert_eq!(a1.find_index(ctx), 2);
+    assert_eq!(get_block_arg_name(ctx, block, 0), None);
+    assert_eq!(
+        get_block_arg_name(ctx, block, 1),
+        Some("a0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_block_arg_name(ctx, block, 2),
+        Some("a1".try_into().unwrap())
+    );
+
+    // Remove index 0 (no uses), restoring a0 -> 0 and a1 -> 1.
+    BasicBlock::remove_argument(block, ctx, 0);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 2);
+    assert_eq!(a0.find_index(ctx), 0);
+    assert_eq!(a1.find_index(ctx), 1);
+    assert_eq!(
+        get_block_arg_name(ctx, block, 0),
+        Some("a0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_block_arg_name(ctx, block, 1),
+        Some("a1".try_into().unwrap())
+    );
+
+    // Insert an i32 argument at index 1 (between a0 and a1), shifting a1 -> 2.
+    BasicBlock::insert_argument(block, ctx, 1, i32_ty);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 3);
+    assert_eq!(a0.find_index(ctx), 0);
+    assert_eq!(a1.find_index(ctx), 2);
+
+    // Remove index 1 (no uses), shifting a1 back to 1.
+    BasicBlock::remove_argument(block, ctx, 1);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 2);
+    assert_eq!(a0.find_index(ctx), 0);
+    assert_eq!(a1.find_index(ctx), 1);
+
+    // Insert at the end (index 2).
+    BasicBlock::insert_argument(block, ctx, 2, i32_ty);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 3);
+    assert_eq!(a0.find_index(ctx), 0);
+    assert_eq!(a1.find_index(ctx), 1);
+    assert_eq!(
+        get_block_arg_name(ctx, block, 0),
+        Some("a0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_block_arg_name(ctx, block, 1),
+        Some("a1".try_into().unwrap())
+    );
+    assert_eq!(get_block_arg_name(ctx, block, 2), None);
+
+    // Remove from the end.
+    BasicBlock::remove_argument(block, ctx, 2);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 2);
+    assert_eq!(a0.find_index(ctx), 0);
+    assert_eq!(a1.find_index(ctx), 1);
+    assert_eq!(
+        get_block_arg_name(ctx, block, 0),
+        Some("a0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_block_arg_name(ctx, block, 1),
+        Some("a1".try_into().unwrap())
+    );
+
+    Ok(())
+}
+
+/// Tests that `Value` objects held as operands correctly track their
+/// index within the defining operation's result list when results are
+/// inserted, removed, pushed, or popped ahead of / behind them.
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_result_index_tracking_with_uses() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let i64_ty: Ptr<TypeObj> = IntegerType::get(ctx, 64, Signedness::Signed).into();
+    let i32_ty: Ptr<TypeObj> = IntegerType::get(ctx, 32, Signedness::Signed).into();
+
+    // Create a DualDefOp with two i64 results: r0 at index 0, r1 at index 1.
+    let dual_op = Operation::new(
+        ctx,
+        DualDefOp::get_concrete_op_info(),
+        vec![i64_ty, i64_ty],
+        vec![],
+        vec![],
+        0,
+    );
+
+    let r0 = dual_op.deref(ctx).get_result(0);
+    let r1 = dual_op.deref(ctx).get_result(1);
+
+    // Build a user op that holds r0 as its first operand, r1 as its second.
+    let user_op = ReturnOp::new(ctx, r0).get_operation();
+    Operation::push_operand(user_op, ctx, r1);
+
+    // Sanity: operands are r0 and r1; their result indices are 0 and 1.
+    assert_eq!(user_op.deref(ctx).get_operand(0), r0);
+    assert_eq!(user_op.deref(ctx).get_operand(1), r1);
+    assert_eq!(user_op.deref(ctx).get_operand(0).find_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).find_index(ctx), 1);
+
+    // Insert a new i32 result at index 0 of dual_op, shifting r0 -> 1 and r1 -> 2.
+    Operation::insert_result(dual_op, ctx, 0, i32_ty);
+    assert_eq!(dual_op.deref(ctx).get_num_results(), 3);
+    assert_eq!(user_op.deref(ctx).get_operand(0), r0);
+    assert_eq!(user_op.deref(ctx).get_operand(1), r1);
+    assert_eq!(user_op.deref(ctx).get_operand(0).find_index(ctx), 1);
+    assert_eq!(user_op.deref(ctx).get_operand(1).find_index(ctx), 2);
+
+    // Remove the new result at index 0, restoring r0 -> 0 and r1 -> 1.
+    Operation::remove_result(dual_op, ctx, 0);
+    assert_eq!(dual_op.deref(ctx).get_num_results(), 2);
+    assert_eq!(user_op.deref(ctx).get_operand(0).find_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).find_index(ctx), 1);
+
+    // Insert a new result between r0 and r1 (at index 1), shifting r1 -> 2.
+    Operation::insert_result(dual_op, ctx, 1, i32_ty);
+    assert_eq!(user_op.deref(ctx).get_operand(0).find_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).find_index(ctx), 2);
+
+    // Remove at index 1, restoring r1 -> 1.
+    Operation::remove_result(dual_op, ctx, 1);
+    assert_eq!(user_op.deref(ctx).get_operand(0).find_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).find_index(ctx), 1);
+
+    // Push a result at the end (after r1); r0 and r1 indices are unchanged.
+    let pushed_idx = Operation::push_result(dual_op, ctx, i32_ty);
+    assert_eq!(pushed_idx, 2);
+    assert_eq!(user_op.deref(ctx).get_operand(0).find_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).find_index(ctx), 1);
+
+    // Pop the trailing result; indices still unchanged.
+    Operation::pop_result(dual_op, ctx);
+    assert_eq!(user_op.deref(ctx).get_operand(0).find_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).find_index(ctx), 1);
+
+    Ok(())
+}
+
+/// Tests that `Value` objects held as operands correctly track their
+/// index within the defining block's argument list when arguments are
+/// inserted, removed, pushed, or popped ahead of / behind them.
+#[test]
+#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
+fn test_block_arg_index_tracking_with_uses() -> Result<()> {
+    let ctx = &mut Context::new();
+
+    let i64_ty: Ptr<TypeObj> = IntegerType::get(ctx, 64, Signedness::Signed).into();
+    let i32_ty: Ptr<TypeObj> = IntegerType::get(ctx, 32, Signedness::Signed).into();
+
+    // Create a block with two i64 arguments: a0 at index 0, a1 at index 1.
+    let block = BasicBlock::new(ctx, None, vec![i64_ty, i64_ty]);
+
+    let a0 = block.deref(ctx).get_argument(0);
+    let a1 = block.deref(ctx).get_argument(1);
+
+    // Build a user op that holds a0 as its first operand, a1 as its second.
+    let user_op = ReturnOp::new(ctx, a0).get_operation();
+    Operation::push_operand(user_op, ctx, a1);
+
+    // Sanity: operands are a0 and a1; their argument indices are 0 and 1.
+    assert_eq!(user_op.deref(ctx).get_operand(0), a0);
+    assert_eq!(user_op.deref(ctx).get_operand(1), a1);
+    assert_eq!(user_op.deref(ctx).get_operand(0).find_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).find_index(ctx), 1);
+
+    // Insert a new i32 argument at index 0, shifting a0 -> 1 and a1 -> 2.
+    BasicBlock::insert_argument(block, ctx, 0, i32_ty);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 3);
+    assert_eq!(user_op.deref(ctx).get_operand(0), a0);
+    assert_eq!(user_op.deref(ctx).get_operand(1), a1);
+    assert_eq!(user_op.deref(ctx).get_operand(0).find_index(ctx), 1);
+    assert_eq!(user_op.deref(ctx).get_operand(1).find_index(ctx), 2);
+
+    // Remove the new argument at index 0, restoring a0 -> 0 and a1 -> 1.
+    BasicBlock::remove_argument(block, ctx, 0);
+    assert_eq!(block.deref(ctx).get_num_arguments(), 2);
+    assert_eq!(user_op.deref(ctx).get_operand(0).find_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).find_index(ctx), 1);
+
+    // Insert a new argument between a0 and a1 (at index 1), shifting a1 -> 2.
+    BasicBlock::insert_argument(block, ctx, 1, i32_ty);
+    assert_eq!(user_op.deref(ctx).get_operand(0).find_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).find_index(ctx), 2);
+
+    // Remove at index 1, restoring a1 -> 1.
+    BasicBlock::remove_argument(block, ctx, 1);
+    assert_eq!(user_op.deref(ctx).get_operand(0).find_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).find_index(ctx), 1);
+
+    // Push an argument at the end (after a1); a0 and a1 indices are unchanged.
+    let pushed_idx = BasicBlock::push_argument(block, ctx, i32_ty);
+    assert_eq!(pushed_idx, 2);
+    assert_eq!(user_op.deref(ctx).get_operand(0).find_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).find_index(ctx), 1);
+
+    // Pop the trailing argument; indices still unchanged.
+    BasicBlock::pop_argument(block, ctx);
+    assert_eq!(user_op.deref(ctx).get_operand(0).find_index(ctx), 0);
+    assert_eq!(user_op.deref(ctx).get_operand(1).find_index(ctx), 1);
 
     Ok(())
 }
@@ -403,12 +832,18 @@ fn test_successor_push_pop_insert_remove() -> Result<()> {
     );
     branch_like.insert_at_back(common_pred, ctx);
 
+    fn assert_block_pred_uses(ctx: &Context, block: Ptr<BasicBlock>) {
+        for block_use in block.uses(ctx) {
+            assert!(block_use.get_def(ctx) == block);
+        }
+    }
     // We now have where entry_block branches to common_pred, succ0, succ1, and succ2.
     // So all blocks are reachable, and hence pass the verifier dominance checks.
     verify_op(&module_op, ctx)?;
 
     assert_eq!(branch_like.deref(ctx).get_num_successors(), 1);
     assert_eq!(branch_like.deref(ctx).get_successor(0), succ0);
+    assert_block_pred_uses(ctx, succ0);
     assert_eq!(succ0.num_preds(ctx), 2);
     assert_eq!(succ1.num_preds(ctx), 1);
     assert_eq!(succ2.num_preds(ctx), 1);
@@ -417,7 +852,9 @@ fn test_successor_push_pop_insert_remove() -> Result<()> {
     assert_eq!(pushed_idx, 1);
     assert_eq!(branch_like.deref(ctx).get_num_successors(), 2);
     assert_eq!(branch_like.deref(ctx).get_successor(0), succ0);
+    assert_block_pred_uses(ctx, succ0);
     assert_eq!(branch_like.deref(ctx).get_successor(1), succ1);
+    assert_block_pred_uses(ctx, succ1);
     assert_eq!(succ0.num_preds(ctx), 2);
     assert_eq!(succ1.num_preds(ctx), 2);
     let succ0_preds = succ0.preds(ctx);
@@ -430,6 +867,7 @@ fn test_successor_push_pop_insert_remove() -> Result<()> {
     assert_eq!(popped, succ1);
     assert_eq!(branch_like.deref(ctx).get_num_successors(), 1);
     assert_eq!(branch_like.deref(ctx).get_successor(0), succ0);
+    assert_block_pred_uses(ctx, succ0);
     assert_eq!(succ0.num_preds(ctx), 2);
     assert_eq!(succ1.num_preds(ctx), 1);
     let succ0_preds = succ0.preds(ctx);
@@ -441,7 +879,9 @@ fn test_successor_push_pop_insert_remove() -> Result<()> {
     Operation::insert_successor(branch_like, ctx, 0, succ1);
     assert_eq!(branch_like.deref(ctx).get_num_successors(), 2);
     assert_eq!(branch_like.deref(ctx).get_successor(0), succ1);
+    assert_block_pred_uses(ctx, succ1);
     assert_eq!(branch_like.deref(ctx).get_successor(1), succ0);
+    assert_block_pred_uses(ctx, succ0);
     assert_eq!(succ0.num_preds(ctx), 2);
     assert_eq!(succ1.num_preds(ctx), 2);
     let succ0_preds = succ0.preds(ctx);
@@ -453,8 +893,11 @@ fn test_successor_push_pop_insert_remove() -> Result<()> {
     Operation::insert_successor(branch_like, ctx, 2, succ2);
     assert_eq!(branch_like.deref(ctx).get_num_successors(), 3);
     assert_eq!(branch_like.deref(ctx).get_successor(0), succ1);
+    assert_block_pred_uses(ctx, succ1);
     assert_eq!(branch_like.deref(ctx).get_successor(1), succ0);
+    assert_block_pred_uses(ctx, succ0);
     assert_eq!(branch_like.deref(ctx).get_successor(2), succ2);
+    assert_block_pred_uses(ctx, succ2);
     assert_eq!(succ0.num_preds(ctx), 2);
     assert_eq!(succ1.num_preds(ctx), 2);
     assert_eq!(succ2.num_preds(ctx), 2);
@@ -470,7 +913,9 @@ fn test_successor_push_pop_insert_remove() -> Result<()> {
     assert_eq!(removed_mid, succ0);
     assert_eq!(branch_like.deref(ctx).get_num_successors(), 2);
     assert_eq!(branch_like.deref(ctx).get_successor(0), succ1);
+    assert_block_pred_uses(ctx, succ1);
     assert_eq!(branch_like.deref(ctx).get_successor(1), succ2);
+    assert_block_pred_uses(ctx, succ2);
     assert_eq!(succ0.num_preds(ctx), 1);
     assert_eq!(succ1.num_preds(ctx), 2);
     assert_eq!(succ2.num_preds(ctx), 2);
@@ -486,6 +931,7 @@ fn test_successor_push_pop_insert_remove() -> Result<()> {
     assert_eq!(removed_front, succ1);
     assert_eq!(branch_like.deref(ctx).get_num_successors(), 1);
     assert_eq!(branch_like.deref(ctx).get_successor(0), succ2);
+    assert_block_pred_uses(ctx, succ2);
     assert_eq!(succ0.num_preds(ctx), 1);
     assert_eq!(succ1.num_preds(ctx), 1);
     assert_eq!(succ2.num_preds(ctx), 2);
@@ -522,8 +968,8 @@ fn print_simple() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
-                test.return c0_op3v1_res0
+                c0_v0 = test.constant builtin.integer <0: si64> !0;
+                test.return c0_v0
             }
         }
 
@@ -592,8 +1038,8 @@ fn parse_function_with_attrs() -> Result<()> {
               [test_on_func_value: builtin.string "func_attr_value"]
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
-                test.return c0_op3v1_res0
+                c0_v0 = test.constant builtin.integer <0: si64> !0;
+                test.return c0_v0
             }
         }
 
@@ -620,8 +1066,8 @@ fn parse_function_with_attrs() -> Result<()> {
               [test_on_func_value: builtin.string "func_attr_value"]
             {
               ^entry_block2v1_block3v1() !1:
-                c0_op7v1_res0 = test.constant builtin.integer <0: si64> !2;
-                test.return c0_op7v1_res0 !3
+                c0_v1 = test.constant builtin.integer <0: si64> !2;
+                test.return c0_v1 !3
             } !4
         } !5
 
@@ -780,8 +1226,8 @@ fn test_preorder_forward_walk() {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
-                test.return c0_op3v1_res0
+                c0_v0 = test.constant builtin.integer <0: si64> !0;
+                test.return c0_v0
             }
         }
 
@@ -791,11 +1237,11 @@ fn test_preorder_forward_walk() {
         builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
         {
           ^entry_block2v1():
-            c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
-            test.return c0_op3v1_res0
+            c0_v0 = test.constant builtin.integer <0: si64> !0;
+            test.return c0_v0
         }
-        c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0
-        test.return c0_op3v1_res0
+        c0_v0 = test.constant builtin.integer <0: si64> !0
+        test.return c0_v0
     "#]]
     .assert_eq(&ops);
 
@@ -860,8 +1306,8 @@ fn walker_print() {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
-                test.return c0_op3v1_res0
+                c0_v0 = test.constant builtin.integer <0: si64> !0;
+                test.return c0_v0
             }
         }
 
@@ -871,11 +1317,11 @@ fn walker_print() {
         builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
         {
           ^entry_block2v1():
-            c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
-            test.return c0_op3v1_res0
+            c0_v0 = test.constant builtin.integer <0: si64> !0;
+            test.return c0_v0
         }
-        c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0
-        test.return c0_op3v1_res0
+        c0_v0 = test.constant builtin.integer <0: si64> !0
+        test.return c0_v0
     "#]]
     .assert_eq(&printed);
 }
@@ -904,13 +1350,13 @@ fn test_postorder_forward_walk() {
         accum + &op.disp(ctx).to_string() + "\n"
     });
     expect![[r#"
-        c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0
-        test.return c0_op3v1_res0
+        c0_v0 = test.constant builtin.integer <0: si64> !0
+        test.return c0_v0
         builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
         {
           ^entry_block2v1():
-            c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
-            test.return c0_op3v1_res0
+            c0_v0 = test.constant builtin.integer <0: si64> !0;
+            test.return c0_v0
         }
         builtin.module @bar 
         {
@@ -918,8 +1364,8 @@ fn test_postorder_forward_walk() {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1():
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
-                test.return c0_op3v1_res0
+                c0_v0 = test.constant builtin.integer <0: si64> !0;
+                test.return c0_v0
             }
         }
 
@@ -940,7 +1386,12 @@ fn test_walker_find_op() {
     const1_op
         .get_operation()
         .insert_after(ctx, const_op.get_operation());
-    set_operation_result_name(ctx, const1_op.get_operation(), 0, "c1".try_into().unwrap());
+    set_operation_result_name(
+        ctx,
+        const1_op.get_operation(),
+        0,
+        Some("c1".try_into().unwrap()),
+    );
 
     // A function to breaks the walk when a [ConstantOp] is found.
     fn finder(ctx: &Context, _: &mut (), node: IRNode) -> interruptible::WalkResult<ConstantOp> {
@@ -1122,8 +1573,8 @@ fn block_inline_attrs_print() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1() [block_test_attr: builtin.string "test_value"]:
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
-                test.return c0_op3v1_res0
+                c0_v0 = test.constant builtin.integer <0: si64> !0;
+                test.return c0_v0
             }
         }"#]]
     .assert_eq(&printed);
@@ -1201,8 +1652,8 @@ fn block_multiple_inline_attrs() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block2v1() [attr1: builtin.string "value1", attr2: builtin.string "value2"]:
-                c0_op3v1_res0 = test.constant builtin.integer <0: si64> !0;
-                test.return c0_op3v1_res0
+                c0_v0 = test.constant builtin.integer <0: si64> !0;
+                test.return c0_v0
             }
         }"#]]
     .assert_eq(&printed);
@@ -1248,8 +1699,8 @@ fn block_attrs_parse_roundtrip() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block_1_0_block1v1() [block_attr: builtin.string "hello"] !1:
-                c0_op_2_0_res0_op3v1_res0 = test.constant builtin.integer <0: si64> !2;
-                test.return c0_op_2_0_res0_op3v1_res0 !3
+                c0_op_2_0_res0_v0 = test.constant builtin.integer <0: si64> !2;
+                test.return c0_op_2_0_res0_v0 !3
             } !4
         } !5
 
@@ -1285,8 +1736,8 @@ fn block_attrs_parse_roundtrip() -> Result<()> {
             builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
             {
               ^entry_block_1_0_block1v1_block1v1() [block_attr: builtin.string "hello"] !1:
-                c0_op_2_0_res0_op3v1_res0 = test.constant builtin.integer <0: si64> !2;
-                test.return c0_op_2_0_res0_op3v1_res0 !3
+                c0_op_2_0_res0_v0 = test.constant builtin.integer <0: si64> !2;
+                test.return c0_op_2_0_res0_v0 !3
             } !4
         } !5
 

@@ -893,6 +893,7 @@ pub enum OperandNOfTypeError {
     AllOperandsOfTypeVerifyErr(String, String),
 }
 
+/// An [Op] whose N-th operand (0-indexed) has the specified type.
 #[op_interface]
 pub trait OperandNOfType<const N: usize, T: Type> {
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
@@ -987,6 +988,7 @@ pub enum ResultNOfTypeError {
     AllResultsOfTypeVerifyErr(String, String),
 }
 
+/// An [Op] whose N-th result (0-indexed) has the specified type.
 #[op_interface]
 pub trait ResultNOfType<const N: usize, T: Type> {
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
