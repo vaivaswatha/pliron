@@ -280,11 +280,11 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_operand(1), c1);
     for r#use in c1.uses(ctx) {
         assert!(r#use.get_def(ctx) == c1);
-        assert!(r#use.user_op == ret_ptr && r#use.find_index(ctx) == 1);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 1);
     }
     for r#use in c0.uses(ctx) {
         assert!(r#use.get_def(ctx) == c0);
-        assert!(r#use.user_op == ret_ptr && r#use.find_index(ctx) == 0);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 0);
     }
     verify_op(&module_op, ctx)?;
 
@@ -295,7 +295,7 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert!(c1.uses(ctx).is_empty()); // c1 should have no uses now.
     for r#use in c0.uses(ctx) {
         assert!(r#use.get_def(ctx) == c0);
-        assert!(r#use.user_op == ret_ptr && r#use.find_index(ctx) == 0);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 0);
     }
     verify_op(&module_op, ctx)?;
 
@@ -305,11 +305,11 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_operand(1), c0);
     for r#use in c1.uses(ctx) {
         assert!(r#use.get_def(ctx) == c1);
-        assert!(r#use.user_op == ret_ptr && r#use.find_index(ctx) == 0);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 0);
     }
     for r#use in c0.uses(ctx) {
         assert!(r#use.get_def(ctx) == c0);
-        assert!(r#use.user_op == ret_ptr && r#use.find_index(ctx) == 1);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 1);
     }
     verify_op(&module_op, ctx)?;
 
@@ -320,15 +320,15 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_operand(2), c2);
     for r#use in c1.uses(ctx) {
         assert!(r#use.get_def(ctx) == c1);
-        assert!(r#use.user_op == ret_ptr && r#use.find_index(ctx) == 0);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 0);
     }
     for r#use in c0.uses(ctx) {
         assert!(r#use.get_def(ctx) == c0);
-        assert!(r#use.user_op == ret_ptr && r#use.find_index(ctx) == 1);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 1);
     }
     for r#use in c2.uses(ctx) {
         assert!(r#use.get_def(ctx) == c2);
-        assert!(r#use.user_op == ret_ptr && r#use.find_index(ctx) == 2);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 2);
     }
 
     verify_op(&module_op, ctx)?;
@@ -340,11 +340,11 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_operand(1), c2);
     for r#use in c1.uses(ctx) {
         assert!(r#use.get_def(ctx) == c1);
-        assert!(r#use.user_op == ret_ptr && r#use.find_index(ctx) == 0);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 0);
     }
     for r#use in c2.uses(ctx) {
         assert!(r#use.get_def(ctx) == c2);
-        assert!(r#use.user_op == ret_ptr && r#use.find_index(ctx) == 1);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 1);
     }
     verify_op(&module_op, ctx)?;
 
@@ -354,7 +354,7 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     assert_eq!(ret_ptr.deref(ctx).get_operand(0), c2);
     for r#use in c2.uses(ctx) {
         assert!(r#use.get_def(ctx) == c2);
-        assert!(r#use.user_op == ret_ptr && r#use.find_index(ctx) == 0);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 0);
     }
     verify_op(&module_op, ctx)?;
 
@@ -365,7 +365,8 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
         assert!(r#use.get_def(ctx) == c2);
         // c2 should now have two uses.
         assert!(
-            r#use.user_op == ret_ptr && (r#use.find_index(ctx) == 0 || r#use.find_index(ctx) == 1)
+            r#use.user_op() == ret_ptr
+                && (r#use.find_index(ctx) == 0 || r#use.find_index(ctx) == 1)
         );
     }
 
@@ -376,13 +377,14 @@ fn test_operand_push_pop_insert_remove() -> Result<()> {
     for r#use in c0.uses(ctx) {
         assert!(r#use.get_def(ctx) == c0);
         // c0 should now have one use.
-        assert!(r#use.user_op == ret_ptr && r#use.find_index(ctx) == 1);
+        assert!(r#use.user_op() == ret_ptr && r#use.find_index(ctx) == 1);
     }
     for r#use in c2.uses(ctx) {
         assert!(r#use.get_def(ctx) == c2);
         // c2 should still have two uses.
         assert!(
-            r#use.user_op == ret_ptr && (r#use.find_index(ctx) == 0 || r#use.find_index(ctx) == 2)
+            r#use.user_op() == ret_ptr
+                && (r#use.find_index(ctx) == 0 || r#use.find_index(ctx) == 2)
         );
     }
 

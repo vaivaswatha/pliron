@@ -20,7 +20,7 @@ use crate::{
     irbuild::inserter::OpInsertionPoint,
     linked_list::{ContainsLinkedList, LinkedList},
     region::Region,
-    value::Value,
+    value::{DefEntity, Value},
 };
 
 type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
@@ -287,7 +287,7 @@ impl LivenessTq {
     fn use_blocks_in_region(&self, ctx: &Context, value: Value) -> Option<BitSet> {
         let mut use_blocks = BitSet::default();
         for r#use in value.uses(ctx) {
-            let Some(user_block) = r#use.user_op.deref(ctx).get_parent_block() else {
+            let Some(user_block) = r#use.user_op().deref(ctx).get_parent_block() else {
                 // We don't know where the user op is, hence unanalysable
                 return None;
             };
@@ -493,7 +493,7 @@ impl<T: RegionLiveness> Liveness<T> {
         value
             .uses(ctx)
             .iter()
-            .any(|r#use| find_ancestor_op_of_op_in_region(ctx, r#use.user_op, region).is_some())
+            .any(|r#use| find_ancestor_op_of_op_in_region(ctx, r#use.user_op(), region).is_some())
     }
 
     /// Are there any uses of `value` in the same block after `point`?
@@ -506,7 +506,7 @@ impl<T: RegionLiveness> Liveness<T> {
         let user_ops_in_point_block: FxHashSet<_> = value
             .uses(ctx)
             .iter()
-            .filter_map(|r#use| find_ancestor_op_of_op_in_block(ctx, r#use.user_op, point_block))
+            .filter_map(|r#use| find_ancestor_op_of_op_in_block(ctx, r#use.user_op(), point_block))
             .collect();
 
         let op_iter = match point {
@@ -628,9 +628,7 @@ impl<T: RegionLiveness> Liveness<T> {
                 // dominates the next operation (i.e., OpInsertionPoint::AfterOperation(op)).
                 // Without this extra check, `value_strictly_dominates_op` would return false
                 // and we would end up incorrectly reporting that the value is not live after.
-                if let Value::OpResult {
-                    op: value_def_op, ..
-                } = value
+                if let DefEntity::OpResult(value_def_op) = value.def_entity()
                     && value_def_op != op
                     && !self.dom_info.value_strictly_dominates_op(ctx, value, op)
                 {

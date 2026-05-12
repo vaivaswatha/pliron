@@ -38,7 +38,7 @@ use crate::{
     result::Result,
     r#type::{TypeObj, Typed},
     utils::vec_exns::VecExtns,
-    value::{DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
+    value::{DefEntity, DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
     verify_err, verify_error,
 };
 
@@ -74,8 +74,8 @@ impl OpResult {
 
     /// Build a [Value] corresponding to this operation result.
     pub(crate) fn as_value(&self, op: Ptr<Operation>) -> Value {
-        Value::OpResult {
-            op,
+        Value {
+            def_entity: DefEntity::OpResult(op),
             val_uid: self.val_uid,
         }
     }
@@ -456,8 +456,12 @@ impl Operation {
 
     /// Creates the concrete [Op] corresponding to self.
     pub fn get_op<T: Op>(ptr: Ptr<Self>, ctx: &Context) -> Option<T> {
-        (ptr.deref(ctx).concrete_op.1 == T::get_concrete_op_info().1)
-            .then_some(T::from_operation(ptr))
+        Self::is_op::<T>(ptr, ctx).then_some(T::from_operation(ptr))
+    }
+
+    /// Is this operation an instance of the concrete [Op] `T`?
+    pub fn is_op<T: Op>(ptr: Ptr<Self>, ctx: &Context) -> bool {
+        ptr.deref(ctx).concrete_op.1 == T::get_concrete_op_info().1
     }
 
     /// Get the [OpId] this Operation. Builds an intermediate [OpObj].
@@ -669,7 +673,7 @@ pub fn verify_value_dominance(ir: Ptr<Operation>, ctx: &Context) -> Result<()> {
         value: Value,
     ) -> WalkResult<pliron::result::Error> {
         for r#use in value.uses(ctx) {
-            let user_op = r#use.user_op;
+            let user_op = r#use.user_op();
             if !dom_info.value_strictly_dominates_op(ctx, value, user_op) {
                 let loc = user_op.deref(ctx).loc();
                 return walk_break(verify_error!(

@@ -30,7 +30,7 @@ use crate::{
     result::Result,
     r#type::{TypeObj, Typed},
     utils::vec_exns::VecExtns,
-    value::{DefNode, Value},
+    value::{DefEntity, DefNode, Value},
     verify_err, verify_error,
 };
 
@@ -66,8 +66,8 @@ impl BlockArgument {
 
     /// Build a [Value] corresponding to this argument.
     pub(crate) fn as_value(&self, block: Ptr<BasicBlock>) -> Value {
-        Value::BlockArgument {
-            block,
+        Value {
+            def_entity: DefEntity::BlockArgument(block),
             val_uid: self.val_uid,
         }
     }
@@ -97,7 +97,7 @@ struct RegionLinks {
     prev_block: Option<Ptr<BasicBlock>>,
 }
 
-/// A basic block contains a list of [Operation]s. It may have [arguments](Value::BlockArgument).
+/// A basic block contains a list of [Operation]s. It may have arguments.
 pub struct BasicBlock {
     pub(crate) self_ptr: Ptr<BasicBlock>,
     pub(crate) label: Option<Identifier>,

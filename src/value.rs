@@ -137,21 +137,19 @@ pub(crate) trait DefTrait: DefUseParticipant {
     fn get_defnode_mut<'a>(&self, ctx: &'a Context) -> RefMut<'a, DefNode<Self>>;
 }
 
+/// The defining entity of a [Value]:
+/// Either an [Operation] result or a [BasicBlock] argument.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DefEntity {
+    OpResult(Ptr<Operation>),
+    BlockArgument(Ptr<BasicBlock>),
+}
+
 /// Describes a value definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Value {
-    OpResult {
-        /// The defining operation of this value.
-        op: Ptr<Operation>,
-        /// The global (in the context) unique id of the value we're describing.
-        val_uid: u64,
-    },
-    BlockArgument {
-        /// The defining block of this value.
-        block: Ptr<BasicBlock>,
-        /// The global (in the context) unique id of the value we're describing.
-        val_uid: u64,
-    },
+pub struct Value {
+    pub(crate) val_uid: u64,
+    pub(crate) def_entity: DefEntity,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -163,33 +161,38 @@ pub enum ValueError {
 }
 
 impl Value {
-    /// Find the index of this value in its defining operation's results or block's arguments.
-    /// Returns [Err] if this value is not in its defining operation's results or block's arguments.
+    /// Get the definition entity
+    pub fn def_entity(&self) -> DefEntity {
+        self.def_entity
+    }
+
+    /// Find the (result / argument) index of this value in its defining entity.
+    /// Returns [Err] if this value is not currently defined by its defining entity.
     pub fn try_find_index(&self, ctx: &Context) -> Result<usize> {
-        match self {
-            Value::OpResult { op, val_uid } => {
+        match self.def_entity {
+            DefEntity::OpResult(op) => {
                 let op = op.deref(ctx);
                 op.results
                     .iter()
-                    .position(|res| res.val_uid == *val_uid)
+                    .position(|res| res.val_uid == self.val_uid)
                     .ok_or(arg_error!(op.loc(), ValueError::NotInOpResult))
             }
-            Value::BlockArgument { block, val_uid } => {
+            DefEntity::BlockArgument(block) => {
                 let block = block.deref(ctx);
                 block
                     .args
                     .iter()
-                    .position(|arg| arg.val_uid == *val_uid)
+                    .position(|arg| arg.val_uid == self.val_uid)
                     .ok_or(arg_error!(block.loc(), ValueError::NotInBlockArgument))
             }
         }
     }
 
-    /// Find the index of this value in its defining operation's results or block's arguments.
-    /// Panics if this value is not in its defining operation's results or block's arguments.
+    /// Find the (result / argument) index of this value in its defining entity.
+    /// Panics if this value is not currently defined by its defining entity.
     pub fn find_index(&self, ctx: &Context) -> usize {
         self.try_find_index(ctx)
-            .expect("Value is not in its defining operation's results or block's arguments")
+            .expect("Value is not currently defined by its defining entity")
     }
 
     /// How many uses does this definition have?
@@ -239,28 +242,26 @@ impl Value {
 
     /// Get this value's location
     pub fn loc(&self, ctx: &Context) -> Location {
-        match self {
-            Value::OpResult { op, val_uid: _ } => op.deref(ctx).loc(),
-            Value::BlockArgument { block, val_uid: _ } => block.deref(ctx).loc(),
+        match self.def_entity {
+            DefEntity::OpResult(op) => op.deref(ctx).loc(),
+            DefEntity::BlockArgument(block) => block.deref(ctx).loc(),
         }
     }
 
     /// Set this value's type.
     pub fn set_type(&self, ctx: &Context, ty: Ptr<TypeObj>) {
         let index = self.find_index(ctx);
-        match self {
-            Value::OpResult { op, val_uid: _ } => op.deref_mut(ctx).results[index].set_type(ty),
-            Value::BlockArgument { block, val_uid: _ } => {
-                block.deref_mut(ctx).args[index].set_type(ctx, ty)
-            }
+        match self.def_entity {
+            DefEntity::OpResult(op) => op.deref_mut(ctx).results[index].set_type(ty),
+            DefEntity::BlockArgument(block) => block.deref_mut(ctx).args[index].set_type(ctx, ty),
         }
     }
 
     /// Get the defining block of this value.
     pub fn get_defining_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
-        match self {
-            Value::OpResult { op, val_uid: _ } => op.deref(ctx).get_parent_block(),
-            Value::BlockArgument { block, val_uid: _ } => Some(*block),
+        match self.def_entity {
+            DefEntity::OpResult(op) => op.deref(ctx).get_parent_block(),
+            DefEntity::BlockArgument(block) => Some(block),
         }
     }
 }
@@ -283,11 +284,9 @@ impl Verify for Value {
 impl Typed for Value {
     fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         let index = self.find_index(ctx);
-        match self {
-            Value::OpResult { op, val_uid: _ } => op.deref(ctx).results[index].get_type(),
-            Value::BlockArgument { block, val_uid: _ } => {
-                block.deref(ctx).args[index].get_type(ctx)
-            }
+        match self.def_entity {
+            DefEntity::OpResult(op) => op.deref(ctx).results[index].get_type(),
+            DefEntity::BlockArgument(block) => block.deref(ctx).args[index].get_type(ctx),
         }
     }
 }
@@ -295,22 +294,14 @@ impl Typed for Value {
 impl Named for Value {
     fn given_name(&self, ctx: &Context) -> Option<Identifier> {
         let index = self.find_index(ctx);
-        match self {
-            Value::OpResult { op, val_uid: _ } => {
-                debug_info::get_operation_result_name(ctx, *op, index)
-            }
-            Value::BlockArgument { block, val_uid: _ } => {
-                debug_info::get_block_arg_name(ctx, *block, index)
-            }
+        match self.def_entity {
+            DefEntity::OpResult(op) => debug_info::get_operation_result_name(ctx, op, index),
+            DefEntity::BlockArgument(block) => debug_info::get_block_arg_name(ctx, block, index),
         }
     }
 
     fn id(&self, _ctx: &Context) -> Identifier {
-        let val_uid = match self {
-            Value::OpResult { op: _, val_uid } => *val_uid,
-            Value::BlockArgument { block: _, val_uid } => *val_uid,
-        };
-        Identifier::try_from(format!("v{}", val_uid)).unwrap()
+        Identifier::try_from(format!("v{}", self.val_uid)).unwrap()
     }
 }
 
@@ -328,12 +319,12 @@ impl Printable for Value {
 impl DefTrait for Value {
     fn get_defnode_ref<'a>(&self, ctx: &'a Context) -> Ref<'a, DefNode<Self>> {
         let index = self.find_index(ctx);
-        match self {
-            Self::OpResult { op, val_uid: _ } => {
+        match self.def_entity {
+            DefEntity::OpResult(op) => {
                 let op = op.deref(ctx);
                 Ref::map(op, |opref| &opref.results[index].def)
             }
-            Self::BlockArgument { block, val_uid: _ } => {
+            DefEntity::BlockArgument(block) => {
                 let block = block.deref(ctx);
                 Ref::map(block, |blockref| &blockref.args[index].def)
             }
@@ -342,12 +333,12 @@ impl DefTrait for Value {
 
     fn get_defnode_mut<'a>(&self, ctx: &'a Context) -> RefMut<'a, DefNode<Self>> {
         let index = self.find_index(ctx);
-        match self {
-            Self::OpResult { op, val_uid: _ } => {
+        match self.def_entity {
+            DefEntity::OpResult(op) => {
                 let op = op.deref_mut(ctx);
                 RefMut::map(op, |opref| &mut opref.results[index].def)
             }
-            Self::BlockArgument { block, val_uid: _ } => {
+            DefEntity::BlockArgument(block) => {
                 let block = block.deref_mut(ctx);
                 RefMut::map(block, |blockref| &mut blockref.args[index].def)
             }
@@ -524,9 +515,9 @@ impl<T: DefUseParticipant> UseNode<T> {
 #[allow(private_bounds)]
 pub struct Use<T: DefUseParticipant> {
     /// Uses of a def can only be in an operation.
-    pub user_op: Ptr<Operation>,
+    pub(crate) user_op: Ptr<Operation>,
     /// The global (in the context) unique id of the use we're describing.
-    pub use_uid: u64,
+    pub(crate) use_uid: u64,
     /// Phantom data to keep track of whether this is a Value use or a BasicBlock use.
     pub(crate) _dummy: PhantomData<T>,
 }
@@ -548,6 +539,11 @@ impl<T: UseTrait> Use<T> {
     /// Get the definition that this is a use of.
     pub fn get_def(&self, ctx: &Context) -> T {
         UseTrait::get_usenode_ref(self, ctx).get_def()
+    }
+
+    /// Get the operation that is the user of this use.
+    pub fn user_op(&self) -> Ptr<Operation> {
+        self.user_op
     }
 }
 

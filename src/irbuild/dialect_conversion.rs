@@ -22,7 +22,7 @@ use crate::{
     printable::{ListSeparator, Printable},
     result::Result,
     r#type::{Type, TypeObj, Typed},
-    value::Value,
+    value::{DefEntity, Value},
 };
 
 /// A rewriter that uses the [Recorder] listener.
@@ -294,7 +294,7 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
         }
 
         fn convert_block_argument_type(&mut self, ctx: &mut Context, value: Value) -> Result<()> {
-            assert!(matches!(value, Value::BlockArgument { .. }));
+            assert!(matches!(value.def_entity(), DefEntity::BlockArgument(_)));
 
             loop {
                 let current_type = value.get_type(ctx);
@@ -400,14 +400,14 @@ pub fn apply_dialect_conversion<C: DialectConversion>(
             let operands: Vec<_> = op.deref(ctx).operands().collect();
             let mut pending_defs = Vec::new();
             for operand in &operands {
-                match operand {
-                    Value::OpResult { op: def_op, .. } => {
-                        assert_ne!(*def_op, op, "Operation cannot depend on its own result");
-                        if self.op_eligible_for_processing(ctx, *def_op) {
-                            pending_defs.push(*def_op);
+                match operand.def_entity() {
+                    DefEntity::OpResult(def_op) => {
+                        assert_ne!(def_op, op, "Operation cannot depend on its own result");
+                        if self.op_eligible_for_processing(ctx, def_op) {
+                            pending_defs.push(def_op);
                         }
                     }
-                    Value::BlockArgument { .. } => {
+                    DefEntity::BlockArgument(_) => {
                         self.convert_block_argument_type(ctx, *operand)?
                     }
                 }
