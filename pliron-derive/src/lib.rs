@@ -487,12 +487,14 @@ pub(crate) fn to_token_stream(res: syn::Result<proc_macro2::TokenStream>) -> Tok
 pub fn op_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let supertrait = parse_quote! { ::pliron::op::Op };
     let verifier_type = parse_quote! { ::pliron::op::OpInterfaceVerifier };
+    let target_marker_trait = parse_quote! { ::pliron::op::OpInterfaceMarker };
 
     to_token_stream(interfaces::interface_define(
         item,
         supertrait,
         verifier_type,
         true,
+        target_marker_trait,
     ))
 }
 
@@ -786,12 +788,14 @@ pub fn derive_op_interface_impl(attr: TokenStream, item: TokenStream) -> TokenSt
 pub fn attr_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let supertrait = parse_quote! { ::pliron::attribute::Attribute };
     let verifier_type = parse_quote! { ::pliron::attribute::AttrInterfaceVerifier };
+    let target_marker_trait = parse_quote! { ::pliron::attribute::AttrInterfaceMarker };
 
     to_token_stream(interfaces::interface_define(
         item,
         supertrait,
         verifier_type,
         true,
+        target_marker_trait,
     ))
 }
 
@@ -889,12 +893,14 @@ pub fn attr_interface_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
 pub fn type_interface(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let supertrait = parse_quote! { ::pliron::r#type::Type };
     let verifier_type = parse_quote! { ::pliron::r#type::TypeInterfaceVerifier };
+    let target_marker_trait = parse_quote! { ::pliron::r#type::TypeInterfaceMarker };
 
     to_token_stream(interfaces::interface_define(
         item,
         supertrait,
         verifier_type,
         false,
+        target_marker_trait,
     ))
 }
 

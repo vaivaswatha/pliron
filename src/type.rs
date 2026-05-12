@@ -33,7 +33,7 @@
 //! The type's verifier must explicitly invoke verifiers on any sub-objects it contains.
 //!
 //! [TypeObj]s can be downcasted to their concrete types using
-//! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
+//! [downcast_rs](https://docs.rs/downcast-rs/latest/downcast_rs/#example-without-generics).
 
 use crate::common_traits::Verify;
 use crate::context::{Arena, Context, Ptr, collect_deduped_interface_verifiers, private::ArenaObj};
@@ -512,13 +512,66 @@ impl<T: Type> Verify for TypePtr<T> {
     }
 }
 
+/// Marker trait for type interface trait objects.
+///
+/// This is auto-implemented by the `#[type_interface]` macro for `dyn Interface`
+/// objects and is used to restrict [type_cast] and [type_impls] to interface casts.
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` not a type interface.",
+    label = "If `{Self}` is a trait, annotate it with #[type_interface] to be able to cast to it from a `&dyn Type`",
+    note = "If you want to cast to a concrete `Type`, use `Type::downcast_ref` instead."
+)]
+pub trait TypeInterfaceMarker {}
+
 /// Cast reference to a [Type] object to an interface reference.
-pub fn type_cast<T: ?Sized + Type>(ty: &dyn Type) -> Option<&T> {
+///
+/// Right usage: cast to an interface trait object.
+/// ```
+/// use pliron::builtin::type_interfaces::FunctionTypeInterface;
+/// use pliron::r#type::{Type, type_cast};
+///
+/// fn right_cast(ty: &dyn Type) {
+///     let _ = type_cast::<dyn FunctionTypeInterface>(ty);
+/// }
+/// ```
+///
+/// Casting to concrete [Type] types are intentionally rejected.
+/// ```compile_fail
+/// use pliron::builtin::types::IntegerType;
+/// use pliron::r#type::{Type, type_cast};
+///
+/// fn wrong_cast(ty: &dyn Type) {
+///     let _ = type_cast::<IntegerType>(ty);
+/// }
+/// ```
+/// Use [downcast_rs](https://docs.rs/downcast-rs/latest/downcast_rs/#example-without-generics)
+/// to cast to concrete [Type] types.
+pub fn type_cast<T: ?Sized + TypeInterfaceMarker + 'static>(ty: &dyn Type) -> Option<&T> {
     crate::utils::trait_cast::any_to_trait::<T>(ty.as_any())
 }
 
-/// Does this [Type] object implement interface T?
-pub fn type_impls<T: ?Sized + Type>(ty: &dyn Type) -> bool {
+/// Does this [Type] object implement interface `T`?
+///
+/// Right usage: query using an interface trait object.
+/// ```
+/// use pliron::builtin::type_interfaces::FunctionTypeInterface;
+/// use pliron::r#type::{Type, type_impls};
+///
+/// fn right_query(ty: &dyn Type) {
+///     let _ = type_impls::<dyn FunctionTypeInterface>(ty);
+/// }
+/// ```
+///
+/// Querying with a concrete [Type] type is intentionally rejected.
+/// ```compile_fail
+/// use pliron::builtin::types::IntegerType;
+/// use pliron::r#type::{Type, type_impls};
+///
+/// fn wrong_query(ty: &dyn Type) {
+///     let _ = type_impls::<IntegerType>(ty);
+/// }
+/// ```
+pub fn type_impls<T: ?Sized + TypeInterfaceMarker + 'static>(ty: &dyn Type) -> bool {
     type_cast::<T>(ty).is_some()
 }
 

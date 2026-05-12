@@ -34,7 +34,7 @@
 //! The attribute's verifier must explicitly invoke verifiers on any sub-objects it contains.
 //!
 //! [AttrObj]s can be downcasted to their concrete types using
-//! [downcast_rs](https://docs.rs/downcast-rs/1.2.0/downcast_rs/index.html#example-without-generics).
+//! [downcast_rs](https://docs.rs/downcast-rs/latest/downcast_rs/#example-without-generics).
 
 use std::{
     collections::BTreeMap,
@@ -161,7 +161,7 @@ impl AttributeDict {
     }
 
     /// Reference to the attribute value (that is mapped to key `k`) as an interface reference.
-    pub fn get_as<T: ?Sized + Attribute>(&self, k: &Identifier) -> Option<&T> {
+    pub fn get_as<T: ?Sized + AttrInterfaceMarker + 'static>(&self, k: &Identifier) -> Option<&T> {
         self.0.get(k).and_then(|ao| attr_cast::<T>(&**ao))
     }
 
@@ -330,13 +330,66 @@ impl Verify for AttrObj {
     }
 }
 
+/// Marker trait for attribute interface trait objects.
+///
+/// This is auto-implemented by the `#[attr_interface]` macro for `dyn Interface`
+/// objects and is used to restrict [attr_cast] and [attr_impls] to interface casts.
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` not an attribute interface.",
+    label = "If `{Self}` is a trait, annotate it with #[attr_interface] to be able to cast to it from a `&dyn Attribute`",
+    note = "If you want to cast to a concrete `Attribute`, use `Attribute::downcast_ref` instead."
+)]
+pub trait AttrInterfaceMarker {}
+
 /// Cast reference to an [Attribute] object to an interface reference.
-pub fn attr_cast<T: ?Sized + Attribute>(attr: &dyn Attribute) -> Option<&T> {
+///
+/// Right usage: cast to an interface trait object.
+/// ```
+/// use pliron::attribute::{Attribute, attr_cast};
+/// use pliron::builtin::attr_interfaces::TypedAttrInterface;
+///
+/// fn right_cast(attr: &dyn Attribute) {
+///     let _ = attr_cast::<dyn TypedAttrInterface>(attr);
+/// }
+/// ```
+///
+/// Casting to concrete [Attribute] types are intentionally rejected.
+/// ```compile_fail
+/// use pliron::attribute::{Attribute, attr_cast};
+/// use pliron::builtin::attributes::IntegerAttr;
+///
+/// fn wrong_cast(attr: &dyn Attribute) {
+///     let _ = attr_cast::<IntegerAttr>(attr);
+/// }
+/// ```
+/// Use [downcast_rs](https://docs.rs/downcast-rs/latest/downcast_rs/#example-without-generics)
+/// to cast to concrete [Attribute] types.
+pub fn attr_cast<T: ?Sized + AttrInterfaceMarker + 'static>(attr: &dyn Attribute) -> Option<&T> {
     crate::utils::trait_cast::any_to_trait::<T>(attr.as_any())
 }
 
-/// Does this [Attribute] object implement interface T?
-pub fn attr_impls<T: ?Sized + Attribute>(attr: &dyn Attribute) -> bool {
+/// Does this [Attribute] object implement interface `T`?
+///
+/// Right usage: query using an interface trait object.
+/// ```
+/// use pliron::attribute::{Attribute, attr_impls};
+/// use pliron::builtin::attr_interfaces::TypedAttrInterface;
+///
+/// fn right_query(attr: &dyn Attribute) {
+///     let _ = attr_impls::<dyn TypedAttrInterface>(attr);
+/// }
+/// ```
+///
+/// Querying with a concrete [Attribute] type is intentionally rejected.
+/// ```compile_fail
+/// use pliron::attribute::{Attribute, attr_impls};
+/// use pliron::builtin::attributes::IntegerAttr;
+///
+/// fn wrong_query(attr: &dyn Attribute) {
+///     let _ = attr_impls::<IntegerAttr>(attr);
+/// }
+/// ```
+pub fn attr_impls<T: ?Sized + AttrInterfaceMarker + 'static>(attr: &dyn Attribute) -> bool {
     attr_cast::<T>(attr).is_some()
 }
 
