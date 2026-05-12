@@ -18,7 +18,10 @@ use pliron::{
         types::{IntegerType, Signedness},
     },
     context::Context,
-    debug_info::set_operation_result_name,
+    debug_info::{
+        get_block_arg_name, get_operation_result_name, set_block_arg_name,
+        set_operation_result_name,
+    },
     graph::walkers::{
         self, IRNode, WALKCONFIG_POSTORDER_FORWARD, WALKCONFIG_POSTORDER_REVERSE,
         WALKCONFIG_PREORDER_FORWARD,
@@ -407,11 +410,22 @@ fn test_result_push_pop_insert_remove() -> Result<()> {
     let r0 = op.deref(ctx).get_result(0);
     let r1 = op.deref(ctx).get_result(1);
 
+    set_operation_result_name(ctx, op, 0, Some("r0".try_into().unwrap()));
+    set_operation_result_name(ctx, op, 1, Some("r1".try_into().unwrap()));
+
     assert_eq!(op.deref(ctx).get_num_results(), 2);
     assert_eq!(r0.find_index(ctx), 0);
     assert_eq!(r1.find_index(ctx), 1);
     assert_eq!(op.deref(ctx).get_type(0), i64_ty);
     assert_eq!(op.deref(ctx).get_type(1), i64_ty);
+    assert_eq!(
+        get_operation_result_name(ctx, op, 0),
+        Some("r0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_operation_result_name(ctx, op, 1),
+        Some("r1".try_into().unwrap())
+    );
 
     // Push a new i32 result at the end.
     let pushed_idx = Operation::push_result(op, ctx, i32_ty);
@@ -423,12 +437,21 @@ fn test_result_push_pop_insert_remove() -> Result<()> {
     let r2 = op.deref(ctx).get_result(2);
     assert_eq!(r2.find_index(ctx), 2);
     assert_eq!(op.deref(ctx).get_type(2), i32_ty);
+    assert_eq!(get_operation_result_name(ctx, op, 2), None);
 
     // Pop the last result (r2 has no uses).
     Operation::pop_result(op, ctx);
     assert_eq!(op.deref(ctx).get_num_results(), 2);
     assert_eq!(r0.find_index(ctx), 0);
     assert_eq!(r1.find_index(ctx), 1);
+    assert_eq!(
+        get_operation_result_name(ctx, op, 0),
+        Some("r0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_operation_result_name(ctx, op, 1),
+        Some("r1".try_into().unwrap())
+    );
 
     // Insert an i32 result at index 0, shifting r0 -> 1 and r1 -> 2.
     Operation::insert_result(op, ctx, 0, i32_ty);
@@ -436,12 +459,29 @@ fn test_result_push_pop_insert_remove() -> Result<()> {
     assert_eq!(op.deref(ctx).get_type(0), i32_ty);
     assert_eq!(r0.find_index(ctx), 1);
     assert_eq!(r1.find_index(ctx), 2);
+    assert_eq!(get_operation_result_name(ctx, op, 0), None);
+    assert_eq!(
+        get_operation_result_name(ctx, op, 1),
+        Some("r0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_operation_result_name(ctx, op, 2),
+        Some("r1".try_into().unwrap())
+    );
 
     // Remove index 0 (the freshly inserted i32, which has no uses).
     Operation::remove_result(op, ctx, 0);
     assert_eq!(op.deref(ctx).get_num_results(), 2);
     assert_eq!(r0.find_index(ctx), 0);
     assert_eq!(r1.find_index(ctx), 1);
+    assert_eq!(
+        get_operation_result_name(ctx, op, 0),
+        Some("r0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_operation_result_name(ctx, op, 1),
+        Some("r1".try_into().unwrap())
+    );
 
     // Insert an i32 result at index 1 (between r0 and r1), shifting r1 -> 2.
     Operation::insert_result(op, ctx, 1, i32_ty);
@@ -462,12 +502,29 @@ fn test_result_push_pop_insert_remove() -> Result<()> {
     assert_eq!(r0.find_index(ctx), 0);
     assert_eq!(r1.find_index(ctx), 1);
     assert_eq!(op.deref(ctx).get_type(2), i32_ty);
+    assert_eq!(
+        get_operation_result_name(ctx, op, 0),
+        Some("r0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_operation_result_name(ctx, op, 1),
+        Some("r1".try_into().unwrap())
+    );
+    assert_eq!(get_operation_result_name(ctx, op, 2), None);
 
     // Remove from the end.
     Operation::remove_result(op, ctx, 2);
     assert_eq!(op.deref(ctx).get_num_results(), 2);
     assert_eq!(r0.find_index(ctx), 0);
     assert_eq!(r1.find_index(ctx), 1);
+    assert_eq!(
+        get_operation_result_name(ctx, op, 0),
+        Some("r0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_operation_result_name(ctx, op, 1),
+        Some("r1".try_into().unwrap())
+    );
 
     Ok(())
 }
@@ -486,9 +543,20 @@ fn test_block_arg_push_pop_insert_remove() -> Result<()> {
     let a0 = block.deref(ctx).get_argument(0);
     let a1 = block.deref(ctx).get_argument(1);
 
+    set_block_arg_name(ctx, block, 0, Some("a0".try_into().unwrap()));
+    set_block_arg_name(ctx, block, 1, Some("a1".try_into().unwrap()));
+
     assert_eq!(block.deref(ctx).get_num_arguments(), 2);
     assert_eq!(a0.find_index(ctx), 0);
     assert_eq!(a1.find_index(ctx), 1);
+    assert_eq!(
+        get_block_arg_name(ctx, block, 0),
+        Some("a0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_block_arg_name(ctx, block, 1),
+        Some("a1".try_into().unwrap())
+    );
 
     // Push a new i32 argument at the end.
     let pushed_idx = BasicBlock::push_argument(block, ctx, i32_ty);
@@ -499,6 +567,7 @@ fn test_block_arg_push_pop_insert_remove() -> Result<()> {
     assert_eq!(a1.find_index(ctx), 1);
     let a2 = block.deref(ctx).get_argument(2);
     assert_eq!(a2.find_index(ctx), 2);
+    assert_eq!(get_block_arg_name(ctx, block, 2), None);
 
     // Pop the last argument (a2 has no uses).
     BasicBlock::pop_argument(block, ctx);
@@ -511,12 +580,29 @@ fn test_block_arg_push_pop_insert_remove() -> Result<()> {
     assert_eq!(block.deref(ctx).get_num_arguments(), 3);
     assert_eq!(a0.find_index(ctx), 1);
     assert_eq!(a1.find_index(ctx), 2);
+    assert_eq!(get_block_arg_name(ctx, block, 0), None);
+    assert_eq!(
+        get_block_arg_name(ctx, block, 1),
+        Some("a0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_block_arg_name(ctx, block, 2),
+        Some("a1".try_into().unwrap())
+    );
 
     // Remove index 0 (no uses), restoring a0 -> 0 and a1 -> 1.
     BasicBlock::remove_argument(block, ctx, 0);
     assert_eq!(block.deref(ctx).get_num_arguments(), 2);
     assert_eq!(a0.find_index(ctx), 0);
     assert_eq!(a1.find_index(ctx), 1);
+    assert_eq!(
+        get_block_arg_name(ctx, block, 0),
+        Some("a0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_block_arg_name(ctx, block, 1),
+        Some("a1".try_into().unwrap())
+    );
 
     // Insert an i32 argument at index 1 (between a0 and a1), shifting a1 -> 2.
     BasicBlock::insert_argument(block, ctx, 1, i32_ty);
@@ -535,12 +621,29 @@ fn test_block_arg_push_pop_insert_remove() -> Result<()> {
     assert_eq!(block.deref(ctx).get_num_arguments(), 3);
     assert_eq!(a0.find_index(ctx), 0);
     assert_eq!(a1.find_index(ctx), 1);
+    assert_eq!(
+        get_block_arg_name(ctx, block, 0),
+        Some("a0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_block_arg_name(ctx, block, 1),
+        Some("a1".try_into().unwrap())
+    );
+    assert_eq!(get_block_arg_name(ctx, block, 2), None);
 
     // Remove from the end.
     BasicBlock::remove_argument(block, ctx, 2);
     assert_eq!(block.deref(ctx).get_num_arguments(), 2);
     assert_eq!(a0.find_index(ctx), 0);
     assert_eq!(a1.find_index(ctx), 1);
+    assert_eq!(
+        get_block_arg_name(ctx, block, 0),
+        Some("a0".try_into().unwrap())
+    );
+    assert_eq!(
+        get_block_arg_name(ctx, block, 1),
+        Some("a1".try_into().unwrap())
+    );
 
     Ok(())
 }

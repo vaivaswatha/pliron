@@ -12,7 +12,7 @@ use crate::{
     builtin::op_interfaces::{IsTerminatorInterface, NoTerminatorInterface},
     common_traits::{Named, RcShare, Verify},
     context::{Arena, Context, Ptr, private::ArenaObj},
-    debug_info::set_block_arg_name,
+    debug_info::{self, set_block_arg_name},
     identifier::Identifier,
     indented_block,
     irfmt::{
@@ -200,6 +200,7 @@ impl BasicBlock {
     ) {
         let new_block_arg = BlockArgument::new(ctx, ty);
         block.deref_mut(ctx).args.insert(arg_idx, new_block_arg);
+        debug_info::insert_block_arg_name(ctx, block, arg_idx, None);
     }
 
     /// Remove the argument at `arg_idx`, shifting subsequent arguments to the left.
@@ -208,6 +209,7 @@ impl BasicBlock {
     pub fn remove_argument(block: Ptr<BasicBlock>, ctx: &Context, arg_idx: usize) {
         let value = block.deref(ctx).get_argument(arg_idx);
         assert!(!value.is_used(ctx), "Can't remove argument with uses");
+        debug_info::remove_block_arg_name(ctx, block, arg_idx);
         block.deref_mut(ctx).args.remove(arg_idx);
     }
 

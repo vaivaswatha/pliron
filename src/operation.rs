@@ -13,6 +13,7 @@ use crate::{
     builtin::op_interfaces::{IsTerminatorInterface, SymbolOpInterface},
     common_traits::{Named, RcShare, Verify},
     context::{Arena, Context, Ptr, private::ArenaObj},
+    debug_info,
     graph::{
         self,
         dominance::DomInfo,
@@ -254,6 +255,7 @@ impl Operation {
     pub fn insert_result(this: Ptr<Self>, ctx: &mut Context, res_idx: usize, ty: Ptr<TypeObj>) {
         let new_res = OpResult::new(ctx, ty);
         this.deref_mut(ctx).results.insert(res_idx, new_res);
+        debug_info::insert_operation_result_name(ctx, this, res_idx, None);
     }
 
     /// Remove the result at `res_idx`, shifting existing results, from `res_idx + 1`, to the left.
@@ -262,6 +264,7 @@ impl Operation {
     pub fn remove_result(this: Ptr<Self>, ctx: &mut Context, res_idx: usize) {
         let value = this.deref(ctx).get_result(res_idx);
         assert!(!value.is_used(ctx), "Can't remove result with uses");
+        debug_info::remove_operation_result_name(ctx, this, res_idx);
         this.deref_mut(ctx).results.remove(res_idx);
     }
 
