@@ -337,7 +337,7 @@ impl Verify for AttrObj {
 #[diagnostic::on_unimplemented(
     message = "`{Self}` not an attribute interface.",
     label = "If `{Self}` is a trait, annotate it with #[attr_interface] to be able to cast to it from a `&dyn Attribute`",
-    note = "If you want to cast to a concrete `Attribute`, use `Attribute::downcast_ref` instead."
+    note = "If you want to cast to a concrete `Attribute`, use `downcast_ref` instead."
 )]
 pub trait AttrInterfaceMarker {}
 

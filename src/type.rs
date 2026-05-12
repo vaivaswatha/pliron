@@ -519,7 +519,7 @@ impl<T: Type> Verify for TypePtr<T> {
 #[diagnostic::on_unimplemented(
     message = "`{Self}` not a type interface.",
     label = "If `{Self}` is a trait, annotate it with #[type_interface] to be able to cast to it from a `&dyn Type`",
-    note = "If you want to cast to a concrete `Type`, use `Type::downcast_ref` instead."
+    note = "If you want to cast to a concrete `Type`, use `downcast_ref` instead."
 )]
 pub trait TypeInterfaceMarker {}
 

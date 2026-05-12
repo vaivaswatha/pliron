@@ -256,7 +256,7 @@ impl Hash for OpObj {
 #[diagnostic::on_unimplemented(
     message = "`{Self}` not an op interface.",
     label = "If `{Self}` is a trait, annotate it with #[op_interface] to be able to cast to it from a `&dyn Op`",
-    note = "If you want to cast to a concrete `Op`, use `Op::downcast_ref` instead."
+    note = "If you want to cast to a concrete `Op`, use `downcast_ref` instead."
 )]
 pub trait OpInterfaceMarker {}
 
