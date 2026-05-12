@@ -237,14 +237,14 @@ impl Operation {
     }
 
     /// Add a result to the end of the result list, returning its index.
-    pub fn push_result(this: Ptr<Self>, ctx: &mut Context, ty: Ptr<TypeObj>) -> usize {
+    pub fn push_result(this: Ptr<Self>, ctx: &Context, ty: Ptr<TypeObj>) -> usize {
         let new_result = OpResult::new(ctx, ty);
         this.deref_mut(ctx).results.push_back(new_result)
     }
 
     /// Remove the last result. Panics if there are no results or if the result has uses.
     /// Any [Value] referring to the removed result is invalidated.
-    pub fn pop_result(this: Ptr<Self>, ctx: &mut Context) {
+    pub fn pop_result(this: Ptr<Self>, ctx: &Context) {
         let len = this.deref(ctx).results.len();
         assert!(len > 0, "Can't pop result from operation with no results");
         Self::remove_result(this, ctx, len - 1);
@@ -252,7 +252,7 @@ impl Operation {
 
     /// Insert a new result at `res_idx`, shifting existing results, from `res_idx`, to the right.
     /// Panics on invalid index.
-    pub fn insert_result(this: Ptr<Self>, ctx: &mut Context, res_idx: usize, ty: Ptr<TypeObj>) {
+    pub fn insert_result(this: Ptr<Self>, ctx: &Context, res_idx: usize, ty: Ptr<TypeObj>) {
         let new_res = OpResult::new(ctx, ty);
         this.deref_mut(ctx).results.insert(res_idx, new_res);
         debug_info::insert_operation_result_name(ctx, this, res_idx, None);
@@ -261,7 +261,7 @@ impl Operation {
     /// Remove the result at `res_idx`, shifting existing results, from `res_idx + 1`, to the left.
     /// Panics on invalid index or if the removed result has uses.
     /// Any [Value] referring to the removed result is invalidated.
-    pub fn remove_result(this: Ptr<Self>, ctx: &mut Context, res_idx: usize) {
+    pub fn remove_result(this: Ptr<Self>, ctx: &Context, res_idx: usize) {
         let value = this.deref(ctx).get_result(res_idx);
         assert!(!value.is_used(ctx), "Can't remove result with uses");
         debug_info::remove_operation_result_name(ctx, this, res_idx);
