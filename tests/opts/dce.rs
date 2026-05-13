@@ -16,10 +16,8 @@ use pliron::{
     printable::Printable,
     result::Result,
 };
-use pliron_llvm as _;
 
-#[cfg(target_family = "wasm")]
-use wasm_bindgen_test::*;
+use pliron_llvm as _;
 
 // Define a custom test operation with a single-block region and no side effects
 // This is used to test DCE behavior when eliminating region-containing ops
@@ -112,7 +110,6 @@ fn run_dce_on_text(input: &str) -> Result<(OptStatus, String, String)> {
 }
 
 #[test]
-#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dce_removes_dead_llvm_constant() -> Result<()> {
     let input = r#"
     llvm.func @f: llvm.func <builtin.integer si64 () variadic = false> [] {
@@ -131,7 +128,6 @@ fn dce_removes_dead_llvm_constant() -> Result<()> {
 }
 
 #[test]
-#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dce_keeps_live_llvm_constant() -> Result<()> {
     let input = r#"
     llvm.func @f: llvm.func <builtin.integer si64 () variadic = false> [] {
@@ -148,7 +144,6 @@ fn dce_keeps_live_llvm_constant() -> Result<()> {
 }
 
 #[test]
-#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dce_does_not_remove_unused_entry_block_arg_in_llvm_func() -> Result<()> {
     let input = r#"
     llvm.func @f: llvm.func <builtin.integer si64 (builtin.integer si64) variadic = false> [] {
@@ -165,7 +160,6 @@ fn dce_does_not_remove_unused_entry_block_arg_in_llvm_func() -> Result<()> {
 }
 
 #[test]
-#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dce_removes_dead_non_entry_block_arg_and_br_operand() -> Result<()> {
     let input = r#"
     llvm.func @f: llvm.func <builtin.integer si64 () variadic = false> [] {
@@ -187,7 +181,6 @@ fn dce_removes_dead_non_entry_block_arg_and_br_operand() -> Result<()> {
 }
 
 #[test]
-#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dce_keeps_used_non_entry_block_arg() -> Result<()> {
     let input = r#"
     llvm.func @f: llvm.func <builtin.integer si64 () variadic = false> [] {
@@ -207,7 +200,6 @@ fn dce_keeps_used_non_entry_block_arg() -> Result<()> {
 }
 
 #[test]
-#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dce_dead_arg_cascades_to_successor_operands() -> Result<()> {
     // Test that when a block argument is unused, the corresponding forwarded operand
     // from the predecessor's branch is also marked dead and eliminated.
@@ -235,7 +227,6 @@ fn dce_dead_arg_cascades_to_successor_operands() -> Result<()> {
 }
 
 #[test]
-#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dce_multiple_preds_mixed_dead_live_operands() -> Result<()> {
     // Multiple paths to a block with mixed dead/live operands.
     // Verify DCE removes only the dead forwarded operands per predecessor.
@@ -276,7 +267,6 @@ fn dce_multiple_preds_mixed_dead_live_operands() -> Result<()> {
 }
 
 #[test]
-#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dce_all_successor_operands_dead() -> Result<()> {
     // All forwarded operands to a successor are dead, but successor block still exists.
     // Verify branch operand list becomes empty and block args are removed.
@@ -306,7 +296,6 @@ fn dce_all_successor_operands_dead() -> Result<()> {
 }
 
 #[test]
-#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dce_chain_of_dead_computations() -> Result<()> {
     // A chain of dead constants/branches where each dead result feeds into another dead context.
     // Verify entire chain is eliminated.
@@ -340,7 +329,6 @@ fn dce_chain_of_dead_computations() -> Result<()> {
 }
 
 #[test]
-#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dce_region_containing_dead_op_safely_ignores_inner_dead_code() -> Result<()> {
     init_env_logger_for_tests!();
     // This test verifies that when a region-containing op (with no side effects) is
@@ -420,7 +408,6 @@ fn dce_region_containing_dead_op_safely_ignores_inner_dead_code() -> Result<()> 
 }
 
 #[test]
-#[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
 fn dce_eliminates_multi_result_op_after_same_op_and_successor_uses_die() -> Result<()> {
     let input = r#"
     llvm.func @f: llvm.func <builtin.integer si64 () variadic = false> [] {

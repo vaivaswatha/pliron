@@ -31,7 +31,7 @@ use pliron::{
     result::Result,
     r#type::{Type, TypeObj, Typed, type_cast},
     utils::apint::APInt,
-    value::{DefEntity, Value},
+    value::{DefiningEntity, Value},
 };
 
 use pliron::derive::{op_interface, op_interface_impl, type_interface, type_interface_impl};
@@ -1907,8 +1907,8 @@ fn convert_to_llvm_const(
     llvm_ctx: &LLVMContext,
     value: Value,
 ) -> Result<LLVMValue> {
-    match value.def_entity() {
-        DefEntity::OpResult(op) => {
+    match value.defining_entity() {
+        DefiningEntity::Op(op) => {
             let op = Operation::get_op_dyn(op, ctx);
             if let Some(const_trans) = op_cast::<dyn ToLLVMConstValue>(op.as_ref()) {
                 const_trans.convert(ctx, llvm_ctx, cctx)
@@ -1916,7 +1916,7 @@ fn convert_to_llvm_const(
                 input_err!(value.loc(ctx), ToLLVMErr::CannotEvaluateToConst)
             }
         }
-        DefEntity::BlockArgument(_) => {
+        DefiningEntity::Block(_) => {
             input_err!(value.loc(ctx), ToLLVMErr::CannotEvaluateToConst)
         }
     }

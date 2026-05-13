@@ -33,7 +33,7 @@ use pliron::{
     result::Result,
     r#type::{Type, TypeObj, TypePtr, type_cast},
     utils::apint::APInt,
-    value::{DefEntity, Value},
+    value::{DefiningEntity, Value},
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use thiserror::Error;
@@ -378,7 +378,7 @@ pub enum ConversionErr {
 
 /// If a value is a ConstantOp with integer type, return the value.
 fn get_const_op_as_int(ctx: &Context, val: Value) -> Option<IntegerAttr> {
-    let DefEntity::OpResult(op) = val.def_entity() else {
+    let DefiningEntity::Op(op) = val.defining_entity() else {
         return None;
     };
     Operation::get_op::<ConstantOp>(op, ctx).and_then(|const_op| {

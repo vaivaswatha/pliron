@@ -35,7 +35,7 @@ use crate::{
     opts::OptStatus,
     printable::Printable,
     result::Result,
-    value::{DefEntity, Value},
+    value::{DefiningEntity, Value},
 };
 
 /// Convey the presence of side effects in an operation.
@@ -88,9 +88,7 @@ impl Printable for DCECandidate {
         match self {
             DCECandidate::Op(op) => write!(f, "Operation {}", OpDbg { op: *op, ctx }),
             DCECandidate::BlockArg(arg) => {
-                let DefEntity::BlockArgument(block) = arg.def_entity() else {
-                    panic!("Expected a block argument");
-                };
+                let block = arg.defining_block().expect("Expected a block argument");
                 write!(
                     f,
                     "Block argument {} of block {}",
@@ -121,9 +119,7 @@ fn is_safe_to_erase(cand: DCECandidate, ctx: &Context) -> bool {
             !has_side_effects
         }
         DCECandidate::BlockArg(arg) => {
-            let DefEntity::BlockArgument(block) = arg.def_entity() else {
-                panic!("Expected a block argument");
-            };
+            let block = arg.defining_block().expect("Expected a block argument");
             if arg.is_used(ctx) {
                 // If the block argument has uses, we can't erase it.
                 return false;
@@ -228,9 +224,7 @@ pub fn dce(op: Ptr<Operation>, ctx: &mut Context) -> Result<OptStatus> {
     while let Some(dead) = cemetery.pop() {
         let operands_of_dead = match dead {
             DCECandidate::BlockArg(arg) => {
-                let DefEntity::BlockArgument(block) = arg.def_entity() else {
-                    panic!("Expected a block argument");
-                };
+                let block = arg.defining_block().expect("Expected a block argument");
                 if erased_blocks.contains(&block) {
                     // If the block is already erased, skip processing this block argument
                     continue;
@@ -279,9 +273,9 @@ pub fn dce(op: Ptr<Operation>, ctx: &mut Context) -> Result<OptStatus> {
         // For each operand, check if the defining value is now dead
         for def_val in operands_of_dead {
             // If no side effects, add to cemetery for processing
-            let dce_cand = match def_val.def_entity() {
-                DefEntity::OpResult(def_op) => DCECandidate::Op(def_op),
-                DefEntity::BlockArgument(_) => DCECandidate::BlockArg(def_val),
+            let dce_cand = match def_val.defining_entity() {
+                DefiningEntity::Op(def_op) => DCECandidate::Op(def_op),
+                DefiningEntity::Block(_) => DCECandidate::BlockArg(def_val),
             };
             if is_safe_to_erase(dce_cand, ctx) {
                 log::trace!("Adding to DCE cemetery: {}", dce_cand.disp(ctx));
