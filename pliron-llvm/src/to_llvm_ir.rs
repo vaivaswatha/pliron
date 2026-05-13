@@ -1980,10 +1980,11 @@ pub fn convert_module(
     for op in module.get_body(ctx, 0).deref(ctx).iter(ctx) {
         if let Some(func_op) = Operation::get_op::<FuncOp>(op, ctx) {
             let func_ty = func_op.get_type(ctx).deref(ctx);
-            let func_ty_to_llvm =
-                type_cast::<dyn ToLLVMType>(&*func_ty).ok_or(input_error_noloc!(
-                    ToLLVMErr::MissingTypeConversion(func_ty.disp(ctx).to_string())
-                ))?;
+            let func_ty_to_llvm = type_cast::<dyn ToLLVMType>(&*func_ty).ok_or_else(|| {
+                input_error_noloc!(ToLLVMErr::MissingTypeConversion(
+                    func_ty.disp(ctx).to_string()
+                ))
+            })?;
             let fn_ty_llvm = func_ty_to_llvm.convert(ctx, llvm_ctx, cctx)?;
             let name = func_op.get_symbol_name(ctx);
             let llvm_name = func_op.llvm_symbol_name(ctx).unwrap_or(name.clone().into());
