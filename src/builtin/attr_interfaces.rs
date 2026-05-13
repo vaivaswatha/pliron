@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use crate::attribute::Attribute;
 use crate::context::{Context, Ptr};
 use crate::result::Result;
+use crate::storage_uniquer::TypeValueHash;
 use crate::r#type::TypeObj;
 use crate::utils::apfloat::{Category, DynFloat, ExpInt, Round, Semantics, StatusAnd};
 use pliron::derive::attr_interface;
@@ -40,6 +41,13 @@ pub trait OutlinedAttr {
 /// used for repeated printing. These must be outlined attributes.
 #[attr_interface]
 pub trait PrintOnceAttr: OutlinedAttr {
+    /// Compute and get the hash for this instance of Self.
+    /// Hash collisions can be a possibility.
+    ///
+    /// A typical implementation involves deriving `Hash` for `Self`
+    /// and calling `TypeValueHash::new(self)` inside this method.
+    fn hash_attr(&self) -> TypeValueHash;
+
     fn verify(_attr: &dyn Attribute, _ctx: &Context) -> Result<()>
     where
         Self: Sized,

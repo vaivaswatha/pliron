@@ -18,6 +18,7 @@ use pliron::op::verify_op;
 use pliron::operation::verify_operation;
 use pliron::parsable::{self, state_stream_from_iterator};
 use pliron::result::ExpectOk;
+use pliron::storage_uniquer::TypeValueHash;
 use pliron::r#type::{type_cast, verify_type};
 use pliron::{
     attribute::Attribute,
@@ -942,7 +943,11 @@ pub struct OulinePrintOnceTestAttr {
 #[attr_interface_impl]
 impl OutlinedAttr for OulinePrintOnceTestAttr {}
 #[attr_interface_impl]
-impl PrintOnceAttr for OulinePrintOnceTestAttr {}
+impl PrintOnceAttr for OulinePrintOnceTestAttr {
+    fn hash_attr(&self) -> TypeValueHash {
+        TypeValueHash::new(self)
+    }
+}
 
 #[test]
 #[cfg_attr(target_family = "wasm", wasm_bindgen_test)]
