@@ -38,7 +38,7 @@ use crate::{
     result::Result,
     r#type::{TypeObj, Typed},
     utils::vec_exns::VecExtns,
-    value::{DefEntity, DefNode, DefTrait, DefUseParticipant, Use, UseNode, Value},
+    value::{DefNode, DefTrait, DefUseParticipant, DefiningEntity, Use, UseNode, Value},
     verify_err, verify_error,
 };
 
@@ -75,7 +75,7 @@ impl OpResult {
     /// Build a [Value] corresponding to this operation result.
     pub(crate) fn as_value(&self, op: Ptr<Operation>) -> Value {
         Value {
-            def_entity: DefEntity::OpResult(op),
+            defining_entity: DefiningEntity::Op(op),
             val_uid: self.val_uid,
         }
     }

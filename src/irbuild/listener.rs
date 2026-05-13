@@ -74,6 +74,7 @@ impl RewriteListener for DummyListener {
 }
 
 /// Events recorded by the [Recorder] listener.
+#[derive(Debug)]
 pub enum RecorderEvent {
     InsertedOperation(Ptr<Operation>),
     InsertedBlock(Ptr<BasicBlock>),
@@ -203,5 +204,15 @@ impl Recorder {
     /// Clear all recorded events.
     pub fn clear(&mut self) {
         self.events.clear();
+    }
+
+    /// Get the number of recorded events.
+    pub fn len(&self) -> usize {
+        self.events.len()
+    }
+
+    /// Check if there are no recorded events.
+    pub fn is_empty(&self) -> bool {
+        self.events.is_empty()
     }
 }

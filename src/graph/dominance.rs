@@ -9,7 +9,7 @@ use crate::{
     },
     operation::Operation,
     region::Region,
-    value::{DefEntity, Value},
+    value::{DefiningEntity, Value},
 };
 
 /// A node in the dominator tree.
@@ -429,9 +429,9 @@ impl DomInfo {
         a: Value,
         b: Ptr<Operation>,
     ) -> bool {
-        match a.def_entity() {
-            DefEntity::OpResult(op) => self.op_strictly_dominates_op(ctx, op, b),
-            DefEntity::BlockArgument(a_block) => {
+        match a.defining_entity() {
+            DefiningEntity::Op(op) => self.op_strictly_dominates_op(ctx, op, b),
+            DefiningEntity::Block(a_block) => {
                 if let Some(b_parent_block) = b.deref(ctx).get_parent_block() {
                     let a_block_region = a_block
                         .deref(ctx)

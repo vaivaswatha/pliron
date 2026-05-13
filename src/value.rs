@@ -138,18 +138,19 @@ pub(crate) trait DefTrait: DefUseParticipant {
 }
 
 /// The defining entity of a [Value]:
-/// Either an [Operation] result or a [BasicBlock] argument.
+/// Either an [Operation] (as its result) or a [BasicBlock] (as its argument).
+/// Use [Value::find_index] to find the result / argument index in the defining entity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DefEntity {
-    OpResult(Ptr<Operation>),
-    BlockArgument(Ptr<BasicBlock>),
+pub enum DefiningEntity {
+    Op(Ptr<Operation>),
+    Block(Ptr<BasicBlock>),
 }
 
 /// Describes a value definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Value {
     pub(crate) val_uid: u64,
-    pub(crate) def_entity: DefEntity,
+    pub(crate) defining_entity: DefiningEntity,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -161,23 +162,39 @@ pub enum ValueError {
 }
 
 impl Value {
-    /// Get the definition entity
-    pub fn def_entity(&self) -> DefEntity {
-        self.def_entity
+    /// Get the defining entity
+    pub fn defining_entity(&self) -> DefiningEntity {
+        self.defining_entity
+    }
+
+    /// If the defining entity of this value is [Operation], return it. Otherwise, return [None].
+    pub fn defining_op(&self) -> Option<Ptr<Operation>> {
+        match self.defining_entity {
+            DefiningEntity::Op(op) => Some(op),
+            DefiningEntity::Block(_) => None,
+        }
+    }
+
+    /// If the defining entity of this value is [BasicBlock], return it. Otherwise, return [None].
+    pub fn defining_block(&self) -> Option<Ptr<BasicBlock>> {
+        match self.defining_entity {
+            DefiningEntity::Op(_) => None,
+            DefiningEntity::Block(block) => Some(block),
+        }
     }
 
     /// Find the (result / argument) index of this value in its defining entity.
     /// Returns [Err] if this value is not currently defined by its defining entity.
     pub fn try_find_index(&self, ctx: &Context) -> Result<usize> {
-        match self.def_entity {
-            DefEntity::OpResult(op) => {
+        match self.defining_entity {
+            DefiningEntity::Op(op) => {
                 let op = op.deref(ctx);
                 op.results
                     .iter()
                     .position(|res| res.val_uid == self.val_uid)
                     .ok_or(arg_error!(op.loc(), ValueError::NotInOpResult))
             }
-            DefEntity::BlockArgument(block) => {
+            DefiningEntity::Block(block) => {
                 let block = block.deref(ctx);
                 block
                     .args
@@ -242,26 +259,26 @@ impl Value {
 
     /// Get this value's location
     pub fn loc(&self, ctx: &Context) -> Location {
-        match self.def_entity {
-            DefEntity::OpResult(op) => op.deref(ctx).loc(),
-            DefEntity::BlockArgument(block) => block.deref(ctx).loc(),
+        match self.defining_entity {
+            DefiningEntity::Op(op) => op.deref(ctx).loc(),
+            DefiningEntity::Block(block) => block.deref(ctx).loc(),
         }
     }
 
     /// Set this value's type.
     pub fn set_type(&self, ctx: &Context, ty: Ptr<TypeObj>) {
         let index = self.find_index(ctx);
-        match self.def_entity {
-            DefEntity::OpResult(op) => op.deref_mut(ctx).results[index].set_type(ty),
-            DefEntity::BlockArgument(block) => block.deref_mut(ctx).args[index].set_type(ctx, ty),
+        match self.defining_entity {
+            DefiningEntity::Op(op) => op.deref_mut(ctx).results[index].set_type(ty),
+            DefiningEntity::Block(block) => block.deref_mut(ctx).args[index].set_type(ctx, ty),
         }
     }
 
     /// Get the defining block of this value.
     pub fn get_defining_block(&self, ctx: &Context) -> Option<Ptr<BasicBlock>> {
-        match self.def_entity {
-            DefEntity::OpResult(op) => op.deref(ctx).get_parent_block(),
-            DefEntity::BlockArgument(block) => Some(block),
+        match self.defining_entity {
+            DefiningEntity::Op(op) => op.deref(ctx).get_parent_block(),
+            DefiningEntity::Block(block) => Some(block),
         }
     }
 }
@@ -284,9 +301,9 @@ impl Verify for Value {
 impl Typed for Value {
     fn get_type(&self, ctx: &Context) -> Ptr<TypeObj> {
         let index = self.find_index(ctx);
-        match self.def_entity {
-            DefEntity::OpResult(op) => op.deref(ctx).results[index].get_type(),
-            DefEntity::BlockArgument(block) => block.deref(ctx).args[index].get_type(ctx),
+        match self.defining_entity {
+            DefiningEntity::Op(op) => op.deref(ctx).results[index].get_type(),
+            DefiningEntity::Block(block) => block.deref(ctx).args[index].get_type(ctx),
         }
     }
 }
@@ -294,9 +311,9 @@ impl Typed for Value {
 impl Named for Value {
     fn given_name(&self, ctx: &Context) -> Option<Identifier> {
         let index = self.find_index(ctx);
-        match self.def_entity {
-            DefEntity::OpResult(op) => debug_info::get_operation_result_name(ctx, op, index),
-            DefEntity::BlockArgument(block) => debug_info::get_block_arg_name(ctx, block, index),
+        match self.defining_entity {
+            DefiningEntity::Op(op) => debug_info::get_operation_result_name(ctx, op, index),
+            DefiningEntity::Block(block) => debug_info::get_block_arg_name(ctx, block, index),
         }
     }
 
@@ -319,12 +336,12 @@ impl Printable for Value {
 impl DefTrait for Value {
     fn get_defnode_ref<'a>(&self, ctx: &'a Context) -> Ref<'a, DefNode<Self>> {
         let index = self.find_index(ctx);
-        match self.def_entity {
-            DefEntity::OpResult(op) => {
+        match self.defining_entity {
+            DefiningEntity::Op(op) => {
                 let op = op.deref(ctx);
                 Ref::map(op, |opref| &opref.results[index].def)
             }
-            DefEntity::BlockArgument(block) => {
+            DefiningEntity::Block(block) => {
                 let block = block.deref(ctx);
                 Ref::map(block, |blockref| &blockref.args[index].def)
             }
@@ -333,12 +350,12 @@ impl DefTrait for Value {
 
     fn get_defnode_mut<'a>(&self, ctx: &'a Context) -> RefMut<'a, DefNode<Self>> {
         let index = self.find_index(ctx);
-        match self.def_entity {
-            DefEntity::OpResult(op) => {
+        match self.defining_entity {
+            DefiningEntity::Op(op) => {
                 let op = op.deref_mut(ctx);
                 RefMut::map(op, |opref| &mut opref.results[index].def)
             }
-            DefEntity::BlockArgument(block) => {
+            DefiningEntity::Block(block) => {
                 let block = block.deref_mut(ctx);
                 RefMut::map(block, |blockref| &mut blockref.args[index].def)
             }

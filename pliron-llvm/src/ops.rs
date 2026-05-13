@@ -635,6 +635,16 @@ impl BranchOpInterface for BrOp {
         assert!(succ_idx == 0, "BrOp has exactly one successor");
         Operation::push_operand(self.get_operation(), ctx, operand)
     }
+
+    fn remove_successor_operand(
+        &self,
+        ctx: &mut Context,
+        succ_idx: usize,
+        opd_idx: usize,
+    ) -> Value {
+        assert!(succ_idx == 0, "BrOp has exactly one successor");
+        Operation::remove_operand(self.get_operation(), ctx, opd_idx)
+    }
 }
 
 impl BrOp {
@@ -837,6 +847,16 @@ impl BranchOpInterface for CondBrOp {
     fn add_successor_operand(&self, ctx: &mut Context, succ_idx: usize, operand: Value) -> usize {
         // The successor operands start at segment 1, since segment 0 is the condition operand.
         self.push_to_segment(ctx, succ_idx + 1, operand)
+    }
+
+    fn remove_successor_operand(
+        &self,
+        ctx: &mut Context,
+        succ_idx: usize,
+        opd_idx: usize,
+    ) -> Value {
+        // The successor operands start at segment 1, since segment 0 is the condition operand.
+        self.remove_from_segment(ctx, succ_idx + 1, opd_idx)
     }
 }
 
@@ -1117,6 +1137,16 @@ impl BranchOpInterface for SwitchOp {
     fn add_successor_operand(&self, ctx: &mut Context, succ_idx: usize, operand: Value) -> usize {
         // The successor operands start at segment 1, since segment 0 is the condition operand.
         self.push_to_segment(ctx, succ_idx + 1, operand)
+    }
+
+    fn remove_successor_operand(
+        &self,
+        ctx: &mut Context,
+        succ_idx: usize,
+        opd_idx: usize,
+    ) -> Value {
+        // The successor operands start at segment 1, since segment 0 is the condition operand.
+        self.remove_from_segment(ctx, succ_idx + 1, opd_idx)
     }
 }
 
