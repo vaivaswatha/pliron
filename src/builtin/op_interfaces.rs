@@ -66,7 +66,13 @@ pub trait BranchOpInterface: IsTerminatorInterface {
     /// The operand is appended after existing operands for the specified successor.
     /// Returns the index of the newly added operand among the operands forwarded to the successor.
     /// The returned index can be used to determine the corresponding target block argument index.
+    /// Panics if `succ_idx` is invalid.
     fn add_successor_operand(&self, ctx: &mut Context, succ_idx: usize, operand: Value) -> usize;
+
+    /// Remove and return the operand at `opd_idx` among the operands forwarded to successor `succ_idx`.
+    /// Panics if `succ_idx` or `opd_idx` is invalid.
+    fn remove_successor_operand(&self, ctx: &mut Context, succ_idx: usize, opd_idx: usize)
+    -> Value;
 
     fn verify(op: &dyn Op, ctx: &Context) -> Result<()>
     where

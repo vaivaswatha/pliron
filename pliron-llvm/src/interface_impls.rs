@@ -1,13 +1,19 @@
 //! Implementation of various op interfaces for LLVM IR instructions.
 
-use pliron::{context::Context, derive::op_interface_impl, opts::dce::SideEffects};
+use pliron::{
+    basic_block::BasicBlock,
+    context::{Context, Ptr},
+    derive::op_interface_impl,
+    opts::dce::{BlockArgRemoval, SideEffects},
+};
 
 use crate::ops::{
     AShrOp, AddOp, AddressOfOp, AllocaOp, AndOp, BitcastOp, ConstantOp, ExtractElementOp,
     ExtractValueOp, FAddOp, FCmpOp, FDivOp, FMulOp, FNegOp, FPExtOp, FPToSIOp, FPToUIOp, FPTruncOp,
-    FRemOp, FSubOp, FreezeOp, GetElementPtrOp, ICmpOp, InsertElementOp, InsertValueOp, IntToPtrOp,
-    LShrOp, MulOp, OrOp, PoisonOp, PtrToIntOp, SDivOp, SExtOp, SIToFPOp, SRemOp, SelectOp, ShlOp,
-    ShuffleVectorOp, SubOp, TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp, XorOp, ZExtOp, ZeroOp,
+    FRemOp, FSubOp, FreezeOp, FuncOp, GetElementPtrOp, ICmpOp, InsertElementOp, InsertValueOp,
+    IntToPtrOp, LShrOp, MulOp, OrOp, PoisonOp, PtrToIntOp, SDivOp, SExtOp, SIToFPOp, SRemOp,
+    SelectOp, ShlOp, ShuffleVectorOp, SubOp, TruncOp, UDivOp, UIToFPOp, URemOp, UndefOp, XorOp,
+    ZExtOp, ZeroOp,
 };
 
 // Implement [SideEffects] with `has_side_effects` returning `false`
@@ -77,3 +83,10 @@ impl_side_effects_false!(
     FCmpOp,
     GetElementPtrOp,
 );
+
+#[op_interface_impl]
+impl BlockArgRemoval for FuncOp {
+    fn can_remove_block_args(&self, ctx: &Context, block: Ptr<BasicBlock>) -> bool {
+        !matches!(self.get_entry_block(ctx), Some(entry) if entry == block)
+    }
+}

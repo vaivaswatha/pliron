@@ -1,0 +1,3 @@
+//! Test optimizations
+
+mod dce;
