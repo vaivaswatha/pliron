@@ -246,7 +246,8 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
     }
 
     fn erase_operation(&mut self, ctx: &mut Context, op: Ptr<Operation>) {
-        // We need to intervene and erase sub-entities (so that the listener is notified)
+        // We don't rely on `Operation::erase` below to erase sub-entities
+        // because we want the listener to be notified for each erased sub-entity.
         let regions = op.deref(ctx).regions().collect::<Vec<_>>();
         for region in regions.into_iter().rev() {
             self.erase_region(ctx, region);
@@ -259,7 +260,8 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
     }
 
     fn erase_block(&mut self, ctx: &mut Context, block: Ptr<BasicBlock>) {
-        // We need to intervene and erase sub-entities (so that the listener is notified)
+        // We don't rely on `BasicBlock::erase` below to erase sub-entities
+        // because we want the listener to be notified for each erased sub-entity.
         let operations = block.deref(ctx).iter(ctx).collect::<Vec<_>>();
         // We erase operations in reverse order so that uses are erased before defs.
         for op in operations.into_iter().rev() {
@@ -273,8 +275,8 @@ impl<L: RewriteListener, I: Inserter<L>> Rewriter<L> for IRRewriter<L, I> {
     }
 
     fn erase_region(&mut self, ctx: &mut Context, region: Ptr<Region>) {
-        // We need to intervene and erase sub-entities (so that the listener is notified)
-        // Otherwise `Region::erase` later on will take care of it.
+        // We don't rely on `Operation::erase_region` below to erase sub-entities
+        // because we want the listener to be notified for each erased sub-entity.
 
         // We erase blocks in post-order so that uses are erased before defs.
         let blocks = post_order(ctx, &region);

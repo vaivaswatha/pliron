@@ -20,7 +20,7 @@ use crate::{
     irbuild::inserter::OpInsertionPoint,
     linked_list::{ContainsLinkedList, LinkedList},
     region::Region,
-    value::{DefEntity, Value},
+    value::{DefiningEntity, Value},
 };
 
 type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
@@ -628,7 +628,7 @@ impl<T: RegionLiveness> Liveness<T> {
                 // dominates the next operation (i.e., OpInsertionPoint::AfterOperation(op)).
                 // Without this extra check, `value_strictly_dominates_op` would return false
                 // and we would end up incorrectly reporting that the value is not live after.
-                if let DefEntity::OpResult(value_def_op) = value.def_entity()
+                if let DefiningEntity::Op(value_def_op) = value.defining_entity()
                     && value_def_op != op
                     && !self.dom_info.value_strictly_dominates_op(ctx, value, op)
                 {

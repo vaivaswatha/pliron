@@ -16,7 +16,7 @@ use crate::{
     op::op_impls,
     operation::Operation,
     result::{self, Result},
-    value::{DefEntity, Value},
+    value::{DefiningEntity, Value},
 };
 use combine::{
     Parser, Positioned, StreamOnce, choice,
@@ -296,8 +296,8 @@ impl NameTracker {
             .expect("NameTracker doesn't have an active scope.");
 
         match scope.entry(id.0.clone()) {
-            Entry::Occupied(mut occ) => match occ.get_mut().def_entity() {
-                DefEntity::OpResult(op) => {
+            Entry::Occupied(mut occ) => match occ.get_mut().defining_entity() {
+                DefiningEntity::Op(op) => {
                     let fref_opt =
                         Operation::get_op::<ForwardRefOp>(op, ctx).map(|op| op.get_result(ctx));
                     if let Some(fref) = fref_opt {
@@ -313,7 +313,7 @@ impl NameTracker {
                         )?
                     }
                 }
-                DefEntity::BlockArgument(_) => {
+                DefiningEntity::Block(_) => {
                     // There's another def and it isn't a forward ref.
                     input_err!(
                         id.1.clone(),
@@ -415,7 +415,7 @@ impl NameTracker {
                 .pop()
                 .expect("Exiting an isolated-from-above region which wasn't entered into.");
             for (id, value) in ssa_scope {
-                if let DefEntity::OpResult(op) = value.def_entity()
+                if let DefiningEntity::Op(op) = value.defining_entity()
                     && Operation::is_op::<ForwardRefOp>(op, ctx)
                 {
                     input_err!(loc.clone(), UnresolvedReference(id.clone()))?

@@ -30,7 +30,7 @@ use crate::{
     result::Result,
     r#type::{TypeObj, Typed},
     utils::vec_exns::VecExtns,
-    value::{DefEntity, DefNode, Value},
+    value::{DefNode, DefiningEntity, Value},
     verify_err, verify_error,
 };
 
@@ -67,7 +67,7 @@ impl BlockArgument {
     /// Build a [Value] corresponding to this argument.
     pub(crate) fn as_value(&self, block: Ptr<BasicBlock>) -> Value {
         Value {
-            def_entity: DefEntity::BlockArgument(block),
+            defining_entity: DefiningEntity::Block(block),
             val_uid: self.val_uid,
         }
     }

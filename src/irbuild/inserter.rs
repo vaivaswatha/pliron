@@ -15,7 +15,7 @@ use crate::{
 };
 
 /// Insertion point specification for inserting [Operation]s using [IRInserter].
-#[derive(Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum OpInsertionPoint {
     #[default]
     Unset,
@@ -26,7 +26,7 @@ pub enum OpInsertionPoint {
 }
 
 /// Insertion point specification for insertion [BasicBlock]s using [IRInserter].
-#[derive(Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum BlockInsertionPoint {
     #[default]
     Unset,
