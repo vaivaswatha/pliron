@@ -2,11 +2,13 @@
 //! Outlined attributes are printed in a separate section of the
 //! IR, after the top level operation is printed.
 
+use std::{borrow::Borrow, hash::Hash};
+
 use combine::{Parser, between, optional, parser::char::spaces, token};
 use rustc_hash::FxHashMap;
 
 use crate::{
-    attribute::{AttrObj, AttributeDict, attr_impls},
+    attribute::{AttrObj, Attribute, AttributeDict, attr_cast, attr_impls},
     basic_block::BasicBlock,
     builtin::attr_interfaces::{OutlinedAttr, PrintOnceAttr},
     context::{Context, Ptr},
@@ -29,12 +31,53 @@ enum OutlinedItem {
     Block(Ptr<BasicBlock>),
 }
 
+// Implement `Hash`, `PartialEq`, `Eq` for `Box<dyn PrintOnceAttr>`
+// so that we can use it as a key in `print_once_attrs map`.
+struct PrintOnceAttrWrapper(Box<dyn PrintOnceAttr>);
+
+impl std::hash::Hash for PrintOnceAttrWrapper {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash_attr().hash(state);
+    }
+}
+
+impl PartialEq for PrintOnceAttrWrapper {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq_attr(&*other.0)
+    }
+}
+
+impl Eq for PrintOnceAttrWrapper {}
+
+// To enable looking up `PrintOnceAttrWrapper` in the map using a `&dyn PrintOnceAttr`.
+impl Borrow<dyn PrintOnceAttr> for PrintOnceAttrWrapper {
+    fn borrow(&self) -> &dyn PrintOnceAttr {
+        &*self.0
+    }
+}
+
+// To enable looking up `PrintOnceAttrWrapper` in the map using a `&dyn PrintOnceAttr`.
+impl Hash for dyn PrintOnceAttr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.hash_attr().hash(state);
+    }
+}
+
+// To enable looking up `PrintOnceAttrWrapper` in the map using a `&dyn PrintOnceAttr`.
+impl PartialEq for dyn PrintOnceAttr {
+    fn eq(&self, other: &Self) -> bool {
+        self.eq_attr(other)
+    }
+}
+
+impl Eq for dyn PrintOnceAttr {}
+
 #[derive(Default)]
 struct OutlinePrintState {
     /// Items (operations or blocks) that have some outline item to be printed.
     outlined_items: Vec<OutlinedItem>,
     /// [PrintOnceAttr]s, mapped to their outindex.
-    print_once_attrs: FxHashMap<AttrObj, usize>,
+    print_once_attrs: FxHashMap<PrintOnceAttrWrapper, usize>,
 }
 
 dict_key!(OUTLINED_STATE, "outlined_state");
@@ -143,7 +186,7 @@ pub(crate) fn print_outlines(
     fn print_outlined_attrs_for(
         ctx: &Context,
         f: &mut core::fmt::Formatter<'_>,
-        print_once_attrs: &mut FxHashMap<AttrObj, usize>,
+        print_once_attrs: &mut FxHashMap<PrintOnceAttrWrapper, usize>,
         print_once_attr_indices: &mut usize,
         attributes: &AttributeDict,
         loc: Location,
@@ -159,13 +202,16 @@ pub(crate) fn print_outlines(
                     write!(f, ", ")?;
                 }
                 first = false;
-                if attr_impls::<dyn PrintOnceAttr>(&**attr) {
-                    if let Some(outindex) = print_once_attrs.get(attr) {
+                if let Some(print_once_attr) = attr_cast::<dyn PrintOnceAttr>(&**attr) {
+                    if let Some(outindex) = print_once_attrs.get(print_once_attr) {
                         write!(f, "{attr_name} = !{outindex}")?;
                     } else {
                         // If this is the first time we see this PrintOnceAttr,
                         // we need to store it for later.
-                        print_once_attrs.insert(attr.clone(), *print_once_attr_indices);
+                        print_once_attrs.insert(
+                            PrintOnceAttrWrapper(dyn_clone::clone_box(print_once_attr)),
+                            *print_once_attr_indices,
+                        );
                         write!(f, "{attr_name} = !{print_once_attr_indices}")?;
                         *print_once_attr_indices += 1;
                     }
@@ -209,6 +255,7 @@ pub(crate) fn print_outlines(
     // Now print the PrintOnceAttrs, if any.
     if !print_state.print_once_attrs.is_empty() {
         for (attr, outindex) in print_state.print_once_attrs {
+            let attr = attr.0 as Box<dyn Attribute>;
             writeln!(f, "!{} = {}", outindex, attr.disp(ctx))?;
         }
     }

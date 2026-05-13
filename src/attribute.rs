@@ -37,9 +37,8 @@
 //! [downcast_rs](https://docs.rs/downcast-rs/latest/downcast_rs/#example-without-generics).
 
 use std::{
-    collections::BTreeMap,
     fmt::{Debug, Display},
-    hash::{Hash, Hasher},
+    hash::Hash,
     ops::Deref,
     sync::LazyLock,
 };
@@ -64,7 +63,6 @@ use crate::{
     parsable::{Parsable, ParseResult, StateStream},
     printable::{self, Printable},
     result::Result,
-    storage_uniquer::TypeValueHash,
 };
 
 /// Convenience type to easily print and parse key-value pairs in an [AttributeDict].
@@ -141,14 +139,6 @@ impl Parsable for AttributeDict {
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct AttributeDict(pub FxHashMap<Identifier, AttrObj>);
 
-impl Hash for AttributeDict {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        let self_btree: BTreeMap<_, _> = self.0.iter().collect();
-        // Hash the BTreeMap to ensure that the order of keys does not affect the hash.
-        self_btree.hash(state);
-    }
-}
-
 impl AttributeDict {
     /// Get reference to attribute value that is mapped to key `k`.
     pub fn get<T: Attribute>(&self, k: &Identifier) -> Option<&T> {
@@ -196,10 +186,6 @@ impl From<FxHashMap<Identifier, AttrObj>> for AttributeDict {
 ///
 /// See [module](crate::attribute) documentation for more information.
 pub trait Attribute: Printable + Verify + Downcast + Sync + Send + DynClone + Debug {
-    /// Compute and get the hash for this instance of Self.
-    /// Hash collisions can be a possibility.
-    fn hash_attr(&self) -> TypeValueHash;
-
     /// Is self equal to an other Attribute?
     fn eq_attr(&self, other: &dyn Attribute) -> bool;
 
@@ -259,12 +245,6 @@ impl<T: Attribute> From<T> for AttrObj {
 }
 
 impl Eq for AttrObj {}
-
-impl Hash for AttrObj {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write(&u64::from(self.hash_attr()).to_ne_bytes())
-    }
-}
 
 impl Printable for AttrObj {
     fn fmt(

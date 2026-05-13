@@ -352,7 +352,7 @@ impl FloatAttr for FPDoubleAttr {
 /// An attribute that is a dictionary of other attributes.
 /// Similar to MLIR's [DictionaryAttr](https://mlir.llvm.org/docs/Dialects/Builtin/#dictionaryattr),
 #[pliron_attr(name = "builtin.dict", verifier = "succ")]
-#[derive(PartialEq, Clone, Eq, Debug, Hash)]
+#[derive(PartialEq, Clone, Eq, Debug)]
 pub struct DictAttr(AttributeDict);
 
 impl Printable for DictAttr {
@@ -414,7 +414,7 @@ impl DictAttr {
 
 /// A vector of other attributes.
 #[pliron_attr(name = "builtin.vec", format = "`[` vec($0, CharSpace(`,`)) `]`")]
-#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct VecAttr(pub Vec<AttrObj>);
 
 impl VecAttr {
