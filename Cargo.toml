@@ -49,8 +49,9 @@ linkme = "0"
 [dev-dependencies]
 expect-test.workspace = true
 env_logger.workspace = true
-pliron-llvm = { path = "./pliron-llvm" }
 
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+pliron-llvm = { path = "./pliron-llvm" }
 [target.'cfg(target_family = "wasm")'.dev-dependencies]
 wasm-bindgen-test = "0.3"
 
