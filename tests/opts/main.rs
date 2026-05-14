@@ -4,3 +4,4 @@
 #![cfg(not(target_family = "wasm"))]
 
 mod dce;
+mod mem2reg;
