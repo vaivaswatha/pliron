@@ -192,7 +192,7 @@ impl Value {
                 op.results
                     .iter()
                     .position(|res| res.val_uid == self.val_uid)
-                    .ok_or(arg_error!(op.loc(), ValueError::NotInOpResult))
+                    .ok_or_else(|| arg_error!(op.loc(), ValueError::NotInOpResult))
             }
             DefiningEntity::Block(block) => {
                 let block = block.deref(ctx);
@@ -200,7 +200,7 @@ impl Value {
                     .args
                     .iter()
                     .position(|arg| arg.val_uid == self.val_uid)
-                    .ok_or(arg_error!(block.loc(), ValueError::NotInBlockArgument))
+                    .ok_or_else(|| arg_error!(block.loc(), ValueError::NotInBlockArgument))
             }
         }
     }
@@ -369,7 +369,7 @@ impl UseTrait for Value {
         op.operands
             .iter()
             .position(|operand| operand.use_uid == r#use.use_uid)
-            .ok_or(arg_error!(op.loc(), UseError::OperandNotInUserOp))
+            .ok_or_else(|| arg_error!(op.loc(), UseError::OperandNotInUserOp))
     }
     fn get_usenode_ref<'a>(r#use: &Use<Self>, ctx: &'a Context) -> Ref<'a, UseNode<Self>> {
         let index = <Self as UseTrait>::find(r#use, ctx);
@@ -497,7 +497,7 @@ impl UseTrait for Ptr<BasicBlock> {
         op.successors
             .iter()
             .position(|succ| succ.use_uid == r#use.use_uid)
-            .ok_or(arg_error!(op.loc(), UseError::SuccessorNotInUserOp))
+            .ok_or_else(|| arg_error!(op.loc(), UseError::SuccessorNotInUserOp))
     }
     fn get_usenode_ref<'a>(r#use: &Use<Self>, ctx: &'a Context) -> Ref<'a, UseNode<Self>> {
         let succ_idx = <Self as UseTrait>::find(r#use, ctx);

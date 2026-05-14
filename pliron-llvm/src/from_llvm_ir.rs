@@ -745,7 +745,7 @@ fn convert_operands(
 
 fn get_operand<T: Clone>(opds: &[T], idx: usize) -> Result<T> {
     opds.get(idx)
-        .ok_or(input_error_noloc!(ConversionErr::OpdMissing(idx)))
+        .ok_or_else(|| input_error_noloc!(ConversionErr::OpdMissing(idx)))
         .cloned()
 }
 

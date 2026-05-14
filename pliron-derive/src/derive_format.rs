@@ -839,11 +839,12 @@ trait ParsableBuilder<State: Default> {
             ));
         };
 
-        let crate::irfmt::Field { ty, .. } =
-            r#struct.fields.get(index).ok_or(syn::Error::new_spanned(
+        let crate::irfmt::Field { ty, .. } = r#struct.fields.get(index).ok_or_else(|| {
+            syn::Error::new_spanned(
                 input.ident.clone(),
                 format!("field index \"{index}\" is invalid"),
-            ))?;
+            )
+        })?;
         let name = format_ident!("field_at_{}", index);
         Ok(quote! {
             let #name = <#ty>::parser(()).parse_stream(state_stream).into_result()?.0;
@@ -881,10 +882,12 @@ trait ParsableBuilder<State: Default> {
                 Elem::UnnamedVar(UnnamedVar { pos: _, index }) => {
                     let name = format_ident!("field_at_{}", index);
                     let crate::irfmt::Field { ty, .. } =
-                        r#struct.fields.get(*index).ok_or(syn::Error::new_spanned(
-                            input.ident.clone(),
-                            format!("field index \"{}\" is invalid", *index),
-                        ))?;
+                        r#struct.fields.get(*index).ok_or_else(|| {
+                            syn::Error::new_spanned(
+                                input.ident.clone(),
+                                format!("field index \"{}\" is invalid", *index),
+                            )
+                        })?;
                     (name, ty)
                 }
                 _ => {
@@ -927,10 +930,12 @@ trait ParsableBuilder<State: Default> {
                 Elem::UnnamedVar(UnnamedVar { pos: _, index }) => {
                     let name = format_ident!("field_at_{}", index);
                     let crate::irfmt::Field { ty, .. } =
-                        r#struct.fields.get(*index).ok_or(syn::Error::new_spanned(
-                            input.ident.clone(),
-                            format!("field index \"{}\" is invalid", *index),
-                        ))?;
+                        r#struct.fields.get(*index).ok_or_else(|| {
+                            syn::Error::new_spanned(
+                                input.ident.clone(),
+                                format!("field index \"{}\" is invalid", *index),
+                            )
+                        })?;
                     (name, ty)
                 }
                 _ => {
