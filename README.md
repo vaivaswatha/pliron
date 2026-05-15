@@ -23,10 +23,13 @@
       builtin.func @foo: builtin.function <()->(builtin.integer si64)> 
       {
         ^entry_block2v1():
-          c0_op3v1_res0 = test.constant builtin.integer <0: si64>;
-          test.return c0_op3v1_res0
+          c0_v0 = test.constant builtin.integer <0: si64> !0;
+          test.return c0_v0
       }
   }
+
+  outlined_attributes:
+  !0 = [builtin_debug_info = builtin.debug_info [c0]]
   ```
 * `pliron` provides an [LLVM Dialect](pliron-llvm/README.md) and
 consequently an [`llvm-opt` tool](pliron-llvm/llvm-opt/README.md)
