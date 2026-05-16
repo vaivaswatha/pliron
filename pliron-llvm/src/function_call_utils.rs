@@ -130,7 +130,7 @@ pub fn compute_type_size_in_bytes<L: InsertionListener, I: Inserter<L>>(
     ptr_to_int_op.get_result(ctx)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "llvm-sys"))]
 mod tests {
     use expect_test::expect;
     use pliron::{
